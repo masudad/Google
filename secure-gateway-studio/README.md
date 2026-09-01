@@ -1,16 +1,15 @@
 # Secure Gateway Studio
 
-Secure Gateway Studio contains two local administration runtimes for planning
-and applying Chrome Enterprise Premium Secure Gateway deployments: a loopback
-FastAPI app and a Chrome extension. Both support Nginx HTTPS-to-HTTP offload and
-direct routing to an existing private HTTPS application. The regional internal
-Application Load Balancer path is implemented only by the loopback app in
-version 0.2.1; the extension hides and rejects that choice.
-The current UI is intentionally focused on doing a Secure Gateway proof of
-concept as quickly as possible. It supports English and Japanese, all four
-managed Chrome platforms, and either a dedicated or existing VPC. Production
-remains visible but disabled; the backend implementation is retained for a
-future production-ready release.
+> [!WARNING]
+> **Deprecation Notice (Backend & Frontend)**:
+> The loopback FastAPI backend (`backend/`) and React frontend (`frontend/`) are **DEPRECATED** and no longer actively maintained.
+>
+> **Active development is now focused exclusively on the Chrome Extension runtime ([`extension/`](extension/))**. For all new deployments, features, and fixes, please use the Chrome Extension.
+
+Secure Gateway Studio provides the administration runtime for planning
+and applying Chrome Enterprise Premium Secure Gateway deployments. The primary,
+actively developed runtime is the **Chrome Extension** (`extension/`). The legacy loopback
+FastAPI backend (`backend/`) and frontend (`frontend/`) are retained for historical reference.
 
 ## Not an official Google product
 
