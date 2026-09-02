@@ -599,7 +599,7 @@ export function CepDeployerPage({
           <div className="cep-license-card-info">
             <div className="cep-license-card-title">
               <UsersIcon size={18} className="cep-license-card-icon" />
-              <strong>{m.btnAssignLicensesToOu}</strong>
+              <strong>{m.licenseCardTitle}</strong>
             </div>
             <p>{m.licensePilotLimitNotice}</p>
           </div>
@@ -615,7 +615,7 @@ export function CepDeployerPage({
             type="button"
           >
             <UsersIcon size={16} />
-            <span>{assigningLicenses ? m.btnAssigningLicenses : m.btnAssignLicensesToOu}</span>
+            {assigningLicenses ? m.btnAssigningLicenses : m.btnAssignLicensesToOu}
           </button>
         </div>
 
@@ -709,9 +709,9 @@ export function CepDeployerPage({
         )}
 
         <fieldset className="cep-fieldset">
-          <legend>{m.accessLevelTitle}</legend>
+          <legend className="sr-only">{m.accessLevelTitle}</legend>
           <div className="cep-field">
-            <label htmlFor="cep-access-level">{m.accessLevelSelectPrompt || m.accessLevelTitle}</label>
+            <label htmlFor="cep-access-level">{m.accessLevelTitle}</label>
             <select
               id="cep-access-level"
               onChange={(event) => update("accessLevel", event.target.value)}
