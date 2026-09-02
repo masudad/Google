@@ -2950,7 +2950,7 @@ export class CepProvider {
       const createUrl = `${DIRECTORY}/customer/${encodeURIComponent(customerId)}/roles`;
       try {
         const createResp = await this.transport.requestJson("POST", createUrl, {
-          body: {
+          jsonBody: {
             roleName: def.name,
             roleDescription: def.description,
             rolePrivileges: def.privileges,
@@ -3021,7 +3021,7 @@ export class CepProvider {
 
         try {
           const assignResp = await this.transport.requestJson("POST", assignUrl, {
-            body: assignBody,
+            jsonBody: assignBody,
           });
           const ok = assignResp.status >= 200 && assignResp.status < 300;
           trace.push({
