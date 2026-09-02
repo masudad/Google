@@ -832,4 +832,41 @@ export async function signOutSession(): Promise<void> {
   await postJson<{ success: boolean }>("/api/v1/auth/sign-out", {});
 }
 
+export interface CepGeminiZeroTrustConfig {
+  project_id: string;
+  policy_id?: string;
+  dry_run?: boolean;
+  enforce_access_level?: boolean;
+  enforce_perimeter?: boolean;
+  perimeter_name?: string;
+}
+
+export interface CepGeminiZeroTrustResult {
+  success: boolean;
+  message: string;
+  access_policy_name?: string;
+  access_level_name?: string;
+  service_perimeter_name?: string;
+  project_number?: string;
+  dry_run?: boolean;
+  trace?: Array<{
+    label: string;
+    method: string;
+    url: string;
+    status: number;
+    ok: boolean;
+    error?: string;
+  }>;
+}
+
+export async function provisionGeminiZeroTrust(
+  config: CepGeminiZeroTrustConfig,
+): Promise<CepGeminiZeroTrustResult> {
+  return postJson<CepGeminiZeroTrustResult>(
+    "/api/v1/cep/gemini-zero-trust",
+    config,
+  );
+}
+
+
 

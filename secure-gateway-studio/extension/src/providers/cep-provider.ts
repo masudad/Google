@@ -257,6 +257,26 @@ export interface CepLicenseAssignResult {
   debug_trace: CepTraceItem[];
 }
 
+export interface CepGeminiZeroTrustConfig {
+  project_id: string;
+  policy_id?: string;
+  dry_run?: boolean;
+  enforce_access_level?: boolean;
+  enforce_perimeter?: boolean;
+  perimeter_name?: string;
+}
+
+export interface CepGeminiZeroTrustResult {
+  success: boolean;
+  message: string;
+  access_policy_name?: string;
+  access_level_name?: string;
+  service_perimeter_name?: string;
+  project_number?: string;
+  dry_run?: boolean;
+  trace: CepTraceItem[];
+}
+
 /**
  * License assignment is intentionally a small-OU pilot operation. The bounds
  * below keep one runtime.onMessage event far below Chrome's MV3 event lifetime:
@@ -3527,6 +3547,273 @@ def main() -> None:
 if __name__ == "__main__":
     main()
 `;
+  }
+
+  // -- Gemini Enterprise Zero-Trust Provisioning ----------------------------
+
+  /**
+   * Automatically provision Google Cloud ACM Access Level and VPC-SC Service
+   * Perimeter for Gemini Enterprise (Vertex AI Search / Discovery Engine).
+   */
+  async provisionGeminiZeroTrust(
+    config: CepGeminiZeroTrustConfig,
+  ): Promise<CepGeminiZeroTrustResult> {
+    const trace: CepTraceItem[] = [];
+    const projectId = (config.project_id || "").trim();
+    if (!projectId) {
+      return {
+        success: false,
+        message: "Google Cloud Project ID is required.",
+        trace,
+      };
+    }
+
+    // 1. Resolve Project details (projectNumber & organization parent)
+    let projectNumber: string | undefined;
+    let organizationId: string | undefined;
+    const projectUrl = `${CRM}/projects/${encodeURIComponent(projectId)}`;
+    try {
+      const projResp = await this.cloudTransport.requestJson("GET", projectUrl);
+      trace.push({
+        label: "Get Google Cloud Project",
+        method: "GET",
+        url: projectUrl,
+        status: projResp.status,
+        ok: projResp.status >= 200 && projResp.status < 300,
+      });
+      if (projResp.status >= 200 && projResp.status < 300 && projResp.payload) {
+        const p = projResp.payload as Record<string, unknown>;
+        projectNumber = typeof p.projectNumber === "string" ? p.projectNumber : undefined;
+        if (!projectNumber && typeof p.name === "string" && /^projects\/(\d+)$/.test(p.name)) {
+          projectNumber = /^projects\/(\d+)$/.exec(p.name)?.[1];
+        }
+        const parent = p.parent as Record<string, unknown> | undefined;
+        if (parent && parent.type === "organization" && typeof parent.id === "string") {
+          organizationId = `organizations/${parent.id}`;
+        } else if (typeof p.parent === "string" && p.parent.startsWith("organizations/")) {
+          organizationId = p.parent;
+        }
+      }
+    } catch (err) {
+      trace.push({
+        label: "Get Google Cloud Project",
+        method: "GET",
+        url: projectUrl,
+        status: 500,
+        ok: false,
+        error: errorMessage(err),
+      });
+    }
+
+    if (!projectNumber) {
+      return {
+        success: false,
+        message: `Could not resolve project number for ${projectId}. Ensure Cloud Resource Manager API is enabled.`,
+        trace,
+      };
+    }
+
+    // 2. Resolve Access Policy
+    let policyName: string | undefined;
+    if (config.policy_id?.trim()) {
+      const pid = config.policy_id.trim().replace(/^accessPolicies\//, "");
+      policyName = `accessPolicies/${pid}`;
+    } else if (this.accessPolicyId?.trim()) {
+      policyName = `accessPolicies/${this.accessPolicyId.trim()}`;
+    } else {
+      const parentQuery = organizationId ? `?parent=${encodeURIComponent(organizationId)}` : "";
+      const policiesUrl = `${ACM}/accessPolicies${parentQuery}`;
+      try {
+        const polResp = await this.cloudTransport.requestJson("GET", policiesUrl);
+        trace.push({
+          label: "List Access Context Manager Policies",
+          method: "GET",
+          url: policiesUrl,
+          status: polResp.status,
+          ok: polResp.status >= 200 && polResp.status < 300,
+        });
+        if (polResp.status >= 200 && polResp.status < 300 && polResp.payload) {
+          const list = (polResp.payload as { accessPolicies?: Array<{ name: string }> }).accessPolicies;
+          if (Array.isArray(list) && list.length > 0 && typeof list[0]?.name === "string") {
+            policyName = list[0].name;
+          }
+        }
+      } catch (err) {
+        trace.push({
+          label: "List Access Context Manager Policies",
+          method: "GET",
+          url: policiesUrl,
+          status: 500,
+          ok: false,
+          error: errorMessage(err),
+        });
+      }
+    }
+
+    if (!policyName) {
+      return {
+        success: false,
+        message:
+          "No Access Context Manager policy was found or specified. Please ensure an Access Policy exists in your organization.",
+        project_number: projectNumber,
+        trace,
+      };
+    }
+
+    // 3. Ensure ACM Access Level (secgw_chrome_managed)
+    let accessLevelName: string | undefined;
+    if (config.enforce_access_level !== false) {
+      const targetLevel = `${policyName}/accessLevels/secgw_chrome_managed`;
+      const levelCheckUrl = `${ACM}/${targetLevel}`;
+      let levelExists = false;
+      try {
+        const chk = await this.cloudTransport.requestJson("GET", levelCheckUrl, { acceptedStatuses: [404] });
+        trace.push({
+          label: "Check existing Access Level",
+          method: "GET",
+          url: levelCheckUrl,
+          status: chk.status,
+          ok: chk.status === 200 || chk.status === 404,
+        });
+        if (chk.status === 200) {
+          levelExists = true;
+          accessLevelName = targetLevel;
+        }
+      } catch {
+        // proceed to create
+      }
+
+      if (!levelExists) {
+        const createLevelUrl = `${ACM}/${policyName}/accessLevels`;
+        const levelPayload = {
+          name: targetLevel,
+          title: "Managed Chrome Browser (SGS)",
+          description: "Created automatically by Secure Gateway Studio",
+          custom: {
+            expr: {
+              expression:
+                "device.chrome.management_state == ChromeManagementState.CHROME_MANAGEMENT_STATE_BROWSER_MANAGED",
+            },
+          },
+        };
+        try {
+          const createResp = await this.cloudTransport.requestJson("POST", createLevelUrl, {
+            jsonBody: levelPayload,
+          });
+          trace.push({
+            label: "Create Access Level (Managed Chrome)",
+            method: "POST",
+            url: createLevelUrl,
+            status: createResp.status,
+            ok: createResp.status >= 200 && createResp.status < 300,
+          });
+          accessLevelName = targetLevel;
+        } catch (err) {
+          trace.push({
+            label: "Create Access Level (Managed Chrome)",
+            method: "POST",
+            url: createLevelUrl,
+            status: 500,
+            ok: false,
+            error: errorMessage(err),
+          });
+          return {
+            success: false,
+            message: `Failed to create ACM Access Level: ${errorMessage(err)}`,
+            access_policy_name: policyName,
+            project_number: projectNumber,
+            trace,
+          };
+        }
+      }
+    }
+
+    // 4. Ensure VPC-SC Service Perimeter
+    let servicePerimeterName: string | undefined;
+    if (config.enforce_perimeter !== false) {
+      const perimId = (config.perimeter_name || "gemini_zero_trust_poc").trim().replace(/[^a-zA-Z0-9_]/g, "_");
+      const targetPerimeter = `${policyName}/servicePerimeters/${perimId}`;
+      const perimCheckUrl = `${ACM}/${targetPerimeter}`;
+      let perimeterExists = false;
+      try {
+        const pChk = await this.cloudTransport.requestJson("GET", perimCheckUrl, { acceptedStatuses: [404] });
+        trace.push({
+          label: "Check existing Service Perimeter",
+          method: "GET",
+          url: perimCheckUrl,
+          status: pChk.status,
+          ok: pChk.status === 200 || pChk.status === 404,
+        });
+        if (pChk.status === 200) {
+          perimeterExists = true;
+          servicePerimeterName = targetPerimeter;
+        }
+      } catch {
+        // proceed to create
+      }
+
+      if (!perimeterExists) {
+        const createPerimUrl = `${ACM}/${policyName}/servicePerimeters`;
+        const perimeterSpec = {
+          resources: [`projects/${projectNumber}`],
+          restrictedServices: ["discoveryengine.googleapis.com"],
+          accessLevels: accessLevelName ? [accessLevelName] : [],
+        };
+        const perimeterPayload = {
+          name: targetPerimeter,
+          title: "Gemini Enterprise Zero Trust Perimeter (SGS)",
+          description:
+            "Created automatically by Secure Gateway Studio for Gemini Enterprise / Vertex AI Search",
+          perimeterType: "PERIMETER_TYPE_REGULAR",
+          ...(config.dry_run
+            ? { spec: perimeterSpec, useExplicitDryRunSpec: true }
+            : { status: perimeterSpec }),
+        };
+        try {
+          const pCreateResp = await this.cloudTransport.requestJson("POST", createPerimUrl, {
+            jsonBody: perimeterPayload,
+          });
+          trace.push({
+            label: "Create Service Perimeter (Discovery Engine)",
+            method: "POST",
+            url: createPerimUrl,
+            status: pCreateResp.status,
+            ok: pCreateResp.status >= 200 && pCreateResp.status < 300,
+          });
+          servicePerimeterName = targetPerimeter;
+        } catch (err) {
+          trace.push({
+            label: "Create Service Perimeter (Discovery Engine)",
+            method: "POST",
+            url: createPerimUrl,
+            status: 500,
+            ok: false,
+            error: errorMessage(err),
+          });
+          return {
+            success: false,
+            message: `Failed to create VPC-SC Service Perimeter: ${errorMessage(err)}`,
+            access_policy_name: policyName,
+            access_level_name: accessLevelName,
+            project_number: projectNumber,
+            trace,
+          };
+        }
+      }
+    }
+
+    return {
+      success: true,
+      message: config.dry_run
+        ? "Gemini Enterprise Zero-Trust dry-run security perimeter created and verified successfully."
+        : "Gemini Enterprise Zero-Trust security perimeter and access levels enforced successfully.",
+      access_policy_name: policyName,
+      access_level_name: accessLevelName,
+      service_perimeter_name: servicePerimeterName,
+      project_number: projectNumber,
+      dry_run: !!config.dry_run,
+      trace,
+    };
   }
 }
 

@@ -3,6 +3,8 @@ import type { Messages } from "../../i18n/messages";
 import type {
   CepDataBoundaryMode,
   CepDlpMatrixState,
+  CepGeminiZeroTrustConfig,
+  CepGeminiZeroTrustResult,
   CepLicenseAssignResult,
   CepRoleResult,
   CepProvisionConfig,
@@ -16,6 +18,7 @@ import {
   listAccessLevelOptions,
   listOrganizationalUnitOptions,
   provisionCepPolicies,
+  provisionGeminiZeroTrust,
   signInSession,
   rollbackCepPolicies,
 } from "../../lib/api";
@@ -191,6 +194,63 @@ export function CepDeployerPage({
   const [lastResult, setLastResult] = useState<CepProvisionResult | null>(null);
   const [copiedSnippet, setCopiedSnippet] = useState<string>("");
 
+  // Progress indicators for long-running operations
+  const [deployStep, setDeployStep] = useState<number>(0);
+  const [rollbackStep, setRollbackStep] = useState<number>(0);
+  const [roleStep, setRoleStep] = useState<number>(0);
+  const [licenseStep, setLicenseStep] = useState<number>(0);
+
+  // Gemini Zero Trust Automated Provisioning
+  const [geminiProjectInput, setGeminiProjectInput] = useState<string>(projectId);
+  const [geminiPolicyIdInput, setGeminiPolicyIdInput] = useState<string>("");
+  const [geminiPerimeterName, setGeminiPerimeterName] = useState<string>("gemini_zero_trust_poc");
+  const [geminiEnforceAccessLevel, setGeminiEnforceAccessLevel] = useState<boolean>(true);
+  const [geminiEnforcePerimeter, setGeminiEnforcePerimeter] = useState<boolean>(true);
+  const [geminiDryRun, setGeminiDryRun] = useState<boolean>(false);
+  const [provisioningGemini, setProvisioningGemini] = useState<boolean>(false);
+  const [geminiStep, setGeminiStep] = useState<number>(0);
+  const [geminiResult, setGeminiResult] = useState<CepGeminiZeroTrustResult | null>(null);
+  const [geminiError, setGeminiError] = useState<string>("");
+
+  async function handleProvisionGeminiZeroTrust() {
+    const targetProject = (geminiProjectInput || projectId).trim();
+    if (!targetProject) {
+      setGeminiError("Target Google Cloud Project ID is required.");
+      return;
+    }
+    setProvisioningGemini(true);
+    setGeminiError("");
+    setGeminiResult(null);
+    setGeminiStep(1);
+
+    const t1 = setTimeout(() => setGeminiStep(2), 1100);
+    const t2 = setTimeout(() => setGeminiStep(3), 2600);
+
+    try {
+      const res = await provisionGeminiZeroTrust({
+        project_id: targetProject,
+        policy_id: geminiPolicyIdInput.trim() || undefined,
+        perimeter_name: geminiPerimeterName.trim() || "gemini_zero_trust_poc",
+        enforce_access_level: geminiEnforceAccessLevel,
+        enforce_perimeter: geminiEnforcePerimeter,
+        dry_run: geminiDryRun,
+      });
+      clearTimeout(t1);
+      clearTimeout(t2);
+      setGeminiStep(4);
+      setGeminiResult(res);
+      if (!res.success) {
+        setGeminiError(res.message);
+      }
+    } catch (err) {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      setGeminiError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setProvisioningGemini(false);
+    }
+  }
+
   const geminiVpcScSnippet = `# 1. Google Cloud ACM: Create Access Level requiring Managed Chrome
 gcloud access-context-manager levels create managed_chrome_access \\
   --title="Managed Chrome Endpoints" \\
@@ -221,6 +281,9 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
     setCreatingRoles(true);
     setRoleError("");
     setRoleResult(null);
+    setRoleStep(1);
+    const t1 = setTimeout(() => setRoleStep(2), 700);
+    const t2 = setTimeout(() => setRoleStep(3), 1500);
 
     try {
       const res = await createCepCustomRoles({
@@ -230,11 +293,16 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
         assigned_user_email: assignedUserEmail.trim() || undefined,
         target_ou_id: scopeRoleToOu && selectedOu ? selectedOu : undefined,
       });
+      clearTimeout(t1);
+      clearTimeout(t2);
+      setRoleStep(4);
       setRoleResult(res);
       if (!res.success) {
         setRoleError(res.message);
       }
     } catch (err) {
+      clearTimeout(t1);
+      clearTimeout(t2);
       setRoleError(err instanceof Error ? err.message : String(err));
     } finally {
       setCreatingRoles(false);
@@ -341,6 +409,9 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
     setAssigningLicenses(true);
     setLicenseError("");
     setLicenseResult(null);
+    setLicenseStep(1);
+    const t1 = setTimeout(() => setLicenseStep(2), 800);
+
     try {
       const res = await assignCepLicenses({
         customer_id: canonicalCustomerId,
@@ -349,11 +420,14 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
         target_ou_path: selectedUnit?.label,
         target_ou_confirmation: confirmation,
       });
+      clearTimeout(t1);
+      setLicenseStep(3);
       setLicenseResult(res);
       if (!res.success && res.errors.length > 0) {
         setLicenseError(res.errors.join("; "));
       }
     } catch (err) {
+      clearTimeout(t1);
       setLicenseError(err instanceof Error ? err.message : String(err));
     } finally {
       setAssigningLicenses(false);
@@ -377,11 +451,20 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
     const config = currentConfig(targetOuConfirmation);
     setTargetOuConfirmation("");
     setBusy("deploy");
+    setDeployStep(1);
     setActionError("");
     setActionSuccess("");
+    const t1 = setTimeout(() => setDeployStep(2), 600);
+    const t2 = setTimeout(() => setDeployStep(3), 1600);
     try {
-      applyResult(await provisionCepPolicies(config));
+      const res = await provisionCepPolicies(config);
+      clearTimeout(t1);
+      clearTimeout(t2);
+      setDeployStep(4);
+      applyResult(res);
     } catch (error) {
+      clearTimeout(t1);
+      clearTimeout(t2);
       setActionError(error instanceof Error ? error.message : String(error));
     } finally {
       setBusy(null);
@@ -392,19 +475,26 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
     if (canonicalCustomerId === "") return;
     if (!window.confirm(m.confirmRollback)) return;
     setBusy("rollback");
+    setRollbackStep(1);
     setActionError("");
     setActionSuccess("");
+    const t1 = setTimeout(() => setRollbackStep(2), 600);
+    const t2 = setTimeout(() => setRollbackStep(3), 1600);
     try {
-      applyResult(
-        await rollbackCepPolicies({
-          customer_id: canonicalCustomerId,
-          project_id: projectId,
-          target_ou_id: selectedOu,
-          target_ou_path: selectedUnit?.label,
-          access_level: modules.accessLevel,
-        }),
-      );
+      const res = await rollbackCepPolicies({
+        customer_id: canonicalCustomerId,
+        project_id: projectId,
+        target_ou_id: selectedOu,
+        target_ou_path: selectedUnit?.label,
+        access_level: modules.accessLevel,
+      });
+      clearTimeout(t1);
+      clearTimeout(t2);
+      setRollbackStep(4);
+      applyResult(res);
     } catch (error) {
+      clearTimeout(t1);
+      clearTimeout(t2);
       setActionError(error instanceof Error ? error.message : String(error));
     } finally {
       setBusy(null);
@@ -871,6 +961,27 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
           </button>
         </div>
 
+        {assigningLicenses && (
+          <div className="cep-progress-box" role="status" aria-live="polite">
+            <div className="cep-progress-header">
+              <span>{m.licenseProgressTitle}</span>
+              <span className="cep-progress-percentage">{Math.round((licenseStep / 3) * 100)}%</span>
+            </div>
+            <progress className="cep-progress-bar-el" max={100} value={Math.round((licenseStep / 3) * 100)} />
+            <div className="cep-progress-steps">
+              <span className={`cep-progress-step-item ${licenseStep >= 1 ? (licenseStep > 1 ? "done" : "active") : "pending"}`}>
+                {licenseStep > 1 ? "✓ " : "• "}{m.licenseStep1}
+              </span>
+              <span className={`cep-progress-step-item ${licenseStep >= 2 ? (licenseStep > 2 ? "done" : "active") : "pending"}`}>
+                {licenseStep > 2 ? "✓ " : "• "}{m.licenseStep2}
+              </span>
+              <span className={`cep-progress-step-item ${licenseStep >= 3 ? "done" : "pending"}`}>
+                {licenseStep >= 3 ? "✓ " : "• "}{m.licenseStep3}
+              </span>
+            </div>
+          </div>
+        )}
+
         {licenseResult !== null && (
           <div className={licenseResult.success ? "cep-banner cep-banner-ok" : "cep-banner cep-banner-error"}>
             <CheckCircleIcon size={18} />
@@ -997,6 +1108,30 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
           </a>
         </div>
 
+        {creatingRoles && (
+          <div className="cep-progress-box" role="status" aria-live="polite">
+            <div className="cep-progress-header">
+              <span>{m.roleProgressTitle}</span>
+              <span className="cep-progress-percentage">{roleStep * 25}%</span>
+            </div>
+            <progress className="cep-progress-bar-el" max={100} value={roleStep * 25} />
+            <div className="cep-progress-steps">
+              <span className={`cep-progress-step-item ${roleStep >= 1 ? (roleStep > 1 ? "done" : "active") : "pending"}`}>
+                {roleStep > 1 ? "✓ " : "• "}{m.roleStep1}
+              </span>
+              <span className={`cep-progress-step-item ${roleStep >= 2 ? (roleStep > 2 ? "done" : "active") : "pending"}`}>
+                {roleStep > 2 ? "✓ " : "• "}{m.roleStep2}
+              </span>
+              <span className={`cep-progress-step-item ${roleStep >= 3 ? (roleStep > 3 ? "done" : "active") : "pending"}`}>
+                {roleStep > 3 ? "✓ " : "• "}{m.roleStep3}
+              </span>
+              <span className={`cep-progress-step-item ${roleStep >= 4 ? "done" : "pending"}`}>
+                {roleStep >= 4 ? "✓ " : "• "}{m.roleStep4}
+              </span>
+            </div>
+          </div>
+        )}
+
         {roleResult && roleResult.success && (
           <p className="cep-banner cep-banner-success cep-role-banner" role="status">
             {roleResult.message}
@@ -1052,6 +1187,135 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
               <li>{m.geminiLayer3Bullet2}</li>
             </ul>
           </div>
+        </div>
+
+        <div className="cep-gemini-form">
+          <div className="cep-section-header">
+            <h3>{m.geminiAutoProvisionTitle}</h3>
+            <p>{m.geminiAutoProvisionSubtitle}</p>
+          </div>
+
+          <div className="cep-form-grid">
+            <div className="cep-form-field">
+              <label htmlFor="gemini-project-input">{m.geminiTargetProjectLabel}</label>
+              <input
+                id="gemini-project-input"
+                onChange={(e) => setGeminiProjectInput(e.target.value)}
+                placeholder={projectId || "e.g. my-gemini-project"}
+                type="text"
+                value={geminiProjectInput}
+              />
+            </div>
+            <div className="cep-form-field">
+              <label htmlFor="gemini-policy-input">{m.geminiPolicyIdLabel}</label>
+              <input
+                id="gemini-policy-input"
+                onChange={(e) => setGeminiPolicyIdInput(e.target.value)}
+                placeholder="e.g. 123456789012 (optional)"
+                type="text"
+                value={geminiPolicyIdInput}
+              />
+            </div>
+          </div>
+
+          <div className="cep-form-field">
+            <label htmlFor="gemini-perim-name">{m.geminiPerimeterNameLabel}</label>
+            <input
+              id="gemini-perim-name"
+              onChange={(e) => setGeminiPerimeterName(e.target.value)}
+              placeholder="gemini_zero_trust_poc"
+              type="text"
+              value={geminiPerimeterName}
+            />
+          </div>
+
+          <div className="cep-checkbox-list">
+            <label>
+              <input
+                checked={geminiEnforceAccessLevel}
+                onChange={(e) => setGeminiEnforceAccessLevel(e.target.checked)}
+                type="checkbox"
+              />
+              <span>{m.geminiEnforceAccessLevelLabel}</span>
+            </label>
+            <label>
+              <input
+                checked={geminiEnforcePerimeter}
+                onChange={(e) => setGeminiEnforcePerimeter(e.target.checked)}
+                type="checkbox"
+              />
+              <span>{m.geminiEnforcePerimeterLabel}</span>
+            </label>
+            <label>
+              <input
+                checked={geminiDryRun}
+                onChange={(e) => setGeminiDryRun(e.target.checked)}
+                type="checkbox"
+              />
+              <span>{m.geminiDryRunLabel}</span>
+            </label>
+          </div>
+
+          <button
+            className="btn btn-primary"
+            disabled={provisioningGemini || (!geminiProjectInput.trim() && !projectId)}
+            onClick={handleProvisionGeminiZeroTrust}
+            type="button"
+          >
+            {provisioningGemini ? m.geminiAutoProvisioningBtn : m.geminiAutoProvisionBtn}
+          </button>
+
+          {provisioningGemini && (
+            <div className="cep-progress-box" role="status" aria-live="polite">
+              <div className="cep-progress-header">
+                <span>{m.geminiAutoProvisioningBtn}</span>
+                <span className="cep-progress-percentage">{geminiStep * 25}%</span>
+              </div>
+              <progress className="cep-progress-bar-el" max={100} value={geminiStep * 25} />
+              <div className="cep-progress-steps">
+                <span className={`cep-progress-step-item ${geminiStep >= 1 ? (geminiStep > 1 ? "done" : "active") : "pending"}`}>
+                  {geminiStep > 1 ? "✓ " : "• "}{m.geminiStep1}
+                </span>
+                <span className={`cep-progress-step-item ${geminiStep >= 2 ? (geminiStep > 2 ? "done" : "active") : "pending"}`}>
+                  {geminiStep > 2 ? "✓ " : "• "}{m.geminiStep2}
+                </span>
+                <span className={`cep-progress-step-item ${geminiStep >= 3 ? (geminiStep > 3 ? "done" : "active") : "pending"}`}>
+                  {geminiStep > 3 ? "✓ " : "• "}{m.geminiStep3}
+                </span>
+                <span className={`cep-progress-step-item ${geminiStep >= 4 ? "done" : "pending"}`}>
+                  {geminiStep >= 4 ? "✓ " : "• "}{m.geminiStep4}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {geminiResult && geminiResult.success && (
+            <div className="cep-result-summary" role="status">
+              <h4>✓ {m.geminiSuccessTitle}</h4>
+              <p>{geminiResult.message}</p>
+              <ul>
+                {geminiResult.access_policy_name && (
+                  <li><strong>Access Policy:</strong> <code>{geminiResult.access_policy_name}</code></li>
+                )}
+                {geminiResult.access_level_name && (
+                  <li><strong>Access Level:</strong> <code>{geminiResult.access_level_name}</code></li>
+                )}
+                {geminiResult.service_perimeter_name && (
+                  <li><strong>Service Perimeter:</strong> <code>{geminiResult.service_perimeter_name}</code></li>
+                )}
+                {geminiResult.project_number && (
+                  <li><strong>Project Number:</strong> <code>{geminiResult.project_number}</code></li>
+                )}
+                <li><strong>Mode:</strong> {geminiResult.dry_run ? "Dry-Run / Audit (Logging Only)" : "Enforced (Strict)"}</li>
+              </ul>
+            </div>
+          )}
+
+          {geminiError && (
+            <p className="cep-banner cep-banner-error" role="alert">
+              {geminiError}
+            </p>
+          )}
         </div>
 
         <div className="cep-gemini-cli-box">
@@ -1155,6 +1419,54 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
           {busy === "rollback" ? m.btnRollingBack : m.btnRollback}
         </button>
       </div>
+
+      {busy === "deploy" && (
+        <div className="cep-progress-box" role="status" aria-live="polite">
+          <div className="cep-progress-header">
+            <span>{m.deployProgressTitle}</span>
+            <span className="cep-progress-percentage">{deployStep * 25}%</span>
+          </div>
+          <progress className="cep-progress-bar-el" max={100} value={deployStep * 25} />
+          <div className="cep-progress-steps">
+            <span className={`cep-progress-step-item ${deployStep >= 1 ? (deployStep > 1 ? "done" : "active") : "pending"}`}>
+              {deployStep > 1 ? "✓ " : "• "}{m.deployStep1}
+            </span>
+            <span className={`cep-progress-step-item ${deployStep >= 2 ? (deployStep > 2 ? "done" : "active") : "pending"}`}>
+              {deployStep > 2 ? "✓ " : "• "}{m.deployStep2}
+            </span>
+            <span className={`cep-progress-step-item ${deployStep >= 3 ? (deployStep > 3 ? "done" : "active") : "pending"}`}>
+              {deployStep > 3 ? "✓ " : "• "}{m.deployStep3}
+            </span>
+            <span className={`cep-progress-step-item ${deployStep >= 4 ? "done" : "pending"}`}>
+              {deployStep >= 4 ? "✓ " : "• "}{m.deployStep4}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {busy === "rollback" && (
+        <div className="cep-progress-box" role="status" aria-live="polite">
+          <div className="cep-progress-header">
+            <span>{m.rollbackProgressTitle}</span>
+            <span className="cep-progress-percentage">{rollbackStep * 25}%</span>
+          </div>
+          <progress className="cep-progress-bar-el" max={100} value={rollbackStep * 25} />
+          <div className="cep-progress-steps">
+            <span className={`cep-progress-step-item ${rollbackStep >= 1 ? (rollbackStep > 1 ? "done" : "active") : "pending"}`}>
+              {rollbackStep > 1 ? "✓ " : "• "}{m.rollbackStep1}
+            </span>
+            <span className={`cep-progress-step-item ${rollbackStep >= 2 ? (rollbackStep > 2 ? "done" : "active") : "pending"}`}>
+              {rollbackStep > 2 ? "✓ " : "• "}{m.rollbackStep2}
+            </span>
+            <span className={`cep-progress-step-item ${rollbackStep >= 3 ? (rollbackStep > 3 ? "done" : "active") : "pending"}`}>
+              {rollbackStep > 3 ? "✓ " : "• "}{m.rollbackStep3}
+            </span>
+            <span className={`cep-progress-step-item ${rollbackStep >= 4 ? "done" : "pending"}`}>
+              {rollbackStep >= 4 ? "✓ " : "• "}{m.rollbackStep4}
+            </span>
+          </div>
+        </div>
+      )}
       {!anyModuleSelected && <p className="cep-inline-note">{m.noModulesSelected}</p>}
 
       {actionSuccess !== "" && (

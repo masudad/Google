@@ -299,6 +299,7 @@ function stubTransport(options: StubOptions = {}): {
   }> = [];
   const createdOus: Array<{ path: string; id: string }> = [];
   const createdAccessLevels = new Map<string, Record<string, unknown>>();
+  const createdServicePerimeters = new Map<string, Record<string, unknown>>();
   const assignedLicenses = new Set<string>(
     options.licenseAlreadyAssigned ? ["bob@example.com"] : [],
   );
@@ -410,6 +411,34 @@ function stubTransport(options: StubOptions = {}): {
           status: 200,
           payload: {
             name: `${String(level.name)}/create/operation-${calls.length}`,
+            done: true,
+          },
+        };
+      }
+
+      if (
+        method === "GET" &&
+        url.includes("accesscontextmanager") &&
+        /\/accessPolicies\/[^/]+\/servicePerimeters\/[^/]+$/.test(url)
+      ) {
+        const name = url.replace(/^https:\/\/[^/]+\/v1\//, "");
+        const existing = createdServicePerimeters.get(name);
+        return {
+          status: existing !== undefined ? 200 : 404,
+          payload: existing !== undefined ? existing : { error: { message: "not found" } },
+        };
+      }
+      if (
+        method === "POST" &&
+        url.includes("accesscontextmanager") &&
+        /\/accessPolicies\/[^/]+\/servicePerimeters$/.test(url)
+      ) {
+        const perim = (body ?? {}) as Record<string, unknown>;
+        if (typeof perim.name === "string") createdServicePerimeters.set(perim.name, perim);
+        return {
+          status: 200,
+          payload: {
+            name: `${String(perim.name)}/create/operation-${calls.length}`,
             done: true,
           },
         };
@@ -3615,6 +3644,26 @@ for (const mode of ["412-commit", "503-commit", "response-loss-commit"] as const
     "access_level rule uses contextCondition with access_levels.exists",
     condition.contextCondition === "access_levels.exists(level, level == \x27accessPolicies/12345/accessLevels/corp_managed\x27)",
     JSON.stringify(condition),
+  );
+}
+
+{
+  // Gemini Zero Trust Automated Provisioning
+  const { transport, calls } = stubTransport();
+  const resp = await route(context(transport), "POST", "/api/v1/cep/gemini-zero-trust", {
+    project_id: "test-gemini-project",
+    enforce_access_level: true,
+    enforce_perimeter: true,
+    dry_run: true,
+  });
+  check("Gemini Zero Trust route succeeds", (resp as { success: boolean }).success === true);
+  check(
+    "Gemini Zero Trust creates Access Level",
+    calls.some((c) => c.method === "POST" && c.url.includes("/accessLevels")),
+  );
+  check(
+    "Gemini Zero Trust creates Service Perimeter",
+    calls.some((c) => c.method === "POST" && c.url.includes("/servicePerimeters")),
   );
 }
 

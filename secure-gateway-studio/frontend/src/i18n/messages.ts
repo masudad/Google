@@ -745,6 +745,44 @@ export interface CepDeployerMessages {
   geminiCliTitle: string;
   geminiCliCopyBtn: string;
   dlpPresetGeminiEnterprise: string;
+  geminiAutoProvisionTitle: string;
+  geminiAutoProvisionSubtitle: string;
+  geminiTargetProjectLabel: string;
+  geminiPolicyIdLabel: string;
+  geminiPerimeterNameLabel: string;
+  geminiEnforceAccessLevelLabel: string;
+  geminiEnforcePerimeterLabel: string;
+  geminiDryRunLabel: string;
+  geminiAutoProvisionBtn: string;
+  geminiAutoProvisioningBtn: string;
+  geminiSuccessTitle: string;
+  geminiStep1: string;
+  geminiStep2: string;
+  geminiStep3: string;
+  geminiStep4: string;
+
+  deployProgressTitle: string;
+  deployStep1: string;
+  deployStep2: string;
+  deployStep3: string;
+  deployStep4: string;
+
+  rollbackProgressTitle: string;
+  rollbackStep1: string;
+  rollbackStep2: string;
+  rollbackStep3: string;
+  rollbackStep4: string;
+
+  roleProgressTitle: string;
+  roleStep1: string;
+  roleStep2: string;
+  roleStep3: string;
+  roleStep4: string;
+
+  licenseProgressTitle: string;
+  licenseStep1: string;
+  licenseStep2: string;
+  licenseStep3: string;
 }
 
 const en: Messages = {
@@ -2297,6 +2335,45 @@ const en: Messages = {
     geminiCliTitle: "Google Cloud VPC-SC & Access Level Provisioning Commands",
     geminiCliCopyBtn: "Copy commands",
     dlpPresetGeminiEnterprise: "Gemini Enterprise",
+    geminiAutoProvisionTitle: "🚀 Automated Gemini Enterprise Zero-Trust Provisioning",
+    geminiAutoProvisionSubtitle:
+      "Automatically provision Google Cloud Access Context Manager (ACM) access levels and VPC Service Controls security perimeters in one click.",
+    geminiTargetProjectLabel: "Target Google Cloud Project ID",
+    geminiPolicyIdLabel: "Access Context Manager Policy ID (auto-detected if blank)",
+    geminiPerimeterNameLabel: "VPC-SC Perimeter Identifier",
+    geminiEnforceAccessLevelLabel: "Create & bind ACM Access Level (require Managed Chrome: BROWSER_MANAGED)",
+    geminiEnforcePerimeterLabel: "Create VPC-SC Service Perimeter protecting discoveryengine.googleapis.com",
+    geminiDryRunLabel: "Create in Dry-Run / Audit mode (log violations in Cloud Logging without blocking traffic)",
+    geminiAutoProvisionBtn: "🚀 Auto-provision Zero-Trust Perimeter",
+    geminiAutoProvisioningBtn: "Provisioning Zero-Trust...",
+    geminiSuccessTitle: "Zero-Trust Security Perimeter Provisioned Successfully",
+    geminiStep1: "1. Resolving GCP Project & Access Policy",
+    geminiStep2: "2. Ensuring ACM Access Level (Managed Chrome)",
+    geminiStep3: "3. Ensuring VPC-SC Perimeter (Discovery Engine)",
+    geminiStep4: "4. Verifying & Finalizing Zero-Trust Posture",
+
+    deployProgressTitle: "Deploying Chrome Enterprise Premium...",
+    deployStep1: "1. Target OU Validation",
+    deployStep2: "2. Policy Generation",
+    deployStep3: "3. DLP Rule & Detector Registration",
+    deployStep4: "4. Finalization & Evidence Logging",
+
+    rollbackProgressTitle: "Executing Rollback...",
+    rollbackStep1: "1. Identifying Resources to Revert",
+    rollbackStep2: "2. Resetting Sub-OU Policies",
+    rollbackStep3: "3. Cleaning DLP Rules & Access Levels",
+    rollbackStep4: "4. Rollback Complete",
+
+    roleProgressTitle: "Creating & Assigning Workspace Roles...",
+    roleStep1: "1. Verifying Directory Privileges",
+    roleStep2: "2. Creating CEP Operator & Auditor Roles",
+    roleStep3: "3. Assigning Roles to Target Administrator",
+    roleStep4: "4. Role Assignment Complete",
+
+    licenseProgressTitle: "Assigning Evaluation Licenses...",
+    licenseStep1: "1. Querying Users in Target OU",
+    licenseStep2: "2. Assigning Chrome Enterprise Licenses",
+    licenseStep3: "3. License Assignment Complete",
 
   },
 };
@@ -3845,6 +3922,45 @@ const ja: Messages = {
     geminiCliTitle: "Google Cloud VPC-SC 境界 & ACM アクセスレベル設定コマンド",
     geminiCliCopyBtn: "コマンドをコピー",
     dlpPresetGeminiEnterprise: "Gemini Enterprise 保護",
+    geminiAutoProvisionTitle: "🚀 Gemini Enterprise ゼロトラスト境界の自動プロビジョニング",
+    geminiAutoProvisionSubtitle:
+      "Access Context Manager (ACM) アクセスレベルおよび VPC Service Controls 境界を Google Cloud API 経由でワンクリック自動作成・適用します。",
+    geminiTargetProjectLabel: "対象 Google Cloud プロジェクト ID",
+    geminiPolicyIdLabel: "Access Context Manager ポリシー ID (省略時は自動検出)",
+    geminiPerimeterNameLabel: "VPC-SC 境界識別名",
+    geminiEnforceAccessLevelLabel: "ACM アクセスレベルを作成・バインド (管理対象 Chrome: BROWSER_MANAGED を必須化)",
+    geminiEnforcePerimeterLabel: "VPC-SC サービス境界を作成 (discoveryengine.googleapis.com を境界内で隔離・保護)",
+    geminiDryRunLabel: "ドライラン（試行・監査）モードで作成 (既存の通信を遮断せず Cloud Logging にのみ記録)",
+    geminiAutoProvisionBtn: "🚀 ゼロトラスト環境を一括自動作成・適用",
+    geminiAutoProvisioningBtn: "プロビジョニング中...",
+    geminiSuccessTitle: "ゼロトラスト境界の自動作成が完了しました",
+    geminiStep1: "1. Google Cloud プロジェクト & Access Policy 解決",
+    geminiStep2: "2. ACM アクセスレベル作成 (管理対象 Chrome)",
+    geminiStep3: "3. VPC-SC サービス境界作成 (Discovery Engine)",
+    geminiStep4: "4. ゼロトラスト環境検証 & 完了",
+
+    deployProgressTitle: "Chrome Enterprise Premium デプロイ進行中...",
+    deployStep1: "1. 対象 OU の検証",
+    deployStep2: "2. ポリシー設定の生成",
+    deployStep3: "3. DLP ルール & 検出器の登録",
+    deployStep4: "4. 完了 & 証跡の記録",
+
+    rollbackProgressTitle: "ロールバック実行中...",
+    rollbackStep1: "1. ロールバック対象の特定",
+    rollbackStep2: "2. サブ OU ポリシーの初期化",
+    rollbackStep3: "3. DLP ルール & レベルの解除",
+    rollbackStep4: "4. ロールバック完了",
+
+    roleProgressTitle: "Workspace 管理者ロールの作成・アサイン中...",
+    roleStep1: "1. ディレクトリ権限の確認",
+    roleStep2: "2. CEP PoC 運用・監査ロールの作成",
+    roleStep3: "3. 対象管理者への権限アサイン",
+    roleStep4: "4. 権限設定完了",
+
+    licenseProgressTitle: "試用ライセンスの割り当て中...",
+    licenseStep1: "1. 対象 OU ユーザーの取得",
+    licenseStep2: "2. Chrome Enterprise ライセンスの割り当て",
+    licenseStep3: "3. ライセンス適用完了",
 
   },
 };

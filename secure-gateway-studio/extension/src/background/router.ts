@@ -50,6 +50,7 @@ import {
   CepTargetValidationError,
   resolveConfirmedCepTargetOu,
   type CepCustomRoleConfig,
+  type CepGeminiZeroTrustConfig,
   type CepLicenseAssignConfig,
   type CepProvisionConfig,
   type CepRollbackConfig,
@@ -651,6 +652,7 @@ const PORTED = new Set([
   "POST /api/v1/cep/roles",
   "POST /api/v1/cep/script",
   "POST /api/v1/cep/assign-licenses",
+  "POST /api/v1/cep/gemini-zero-trust",
 ]);
 
 /**
@@ -2178,6 +2180,15 @@ export async function route(
     );
     return withCepMutationLease(context, "assign_licenses", request_, async (administrator, cloud) =>
       await (await cepProvider(context, request_.project_id, administrator, cloud)).assignLicenses(request_));
+  }
+
+  if (key === "POST /api/v1/cep/gemini-zero-trust") {
+    const request_ = body as CepGeminiZeroTrustConfig;
+    if (typeof request_?.project_id !== "string" || !request_.project_id.trim()) {
+      throw new RouteError(400, "project-required", "Gemini Zero Trust requires project_id.");
+    }
+    const provider = await cepProvider(context, request_.project_id);
+    return await provider.provisionGeminiZeroTrust(request_);
   }
 
   throw new RouteError(
