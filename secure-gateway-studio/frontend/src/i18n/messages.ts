@@ -2288,7 +2288,7 @@ const ja: Messages = {
   workflow: {
     identitiesTitle: "管理者IDを接続",
     identitiesIntro:
-      "Google Cloudの変更には、専用サービスアカウントのキーレス権限借用を使用します。拡張機能は管理者OAuth、ローカルアプリはApplication Default Credentialsから開始します。JSONキーファイルは受け付けず、保存もしません。",
+      "Google Cloud のリソース変更には、専用サービス アカウントのキーレス権限借用（Service Account Impersonation）を使用します。拡張機能は管理者 OAuth セッションを使用します。静的な JSON 秘密鍵ファイルは一切使用せず、安全にデプロイを実行します。",
     cloudAccount: "Google Cloud デプロイヤー",
     cloudAccountDescription: "GCP変更の検出、計画、承認後の適用に使用します。",
     workspaceAccount: "Workspace／Chrome管理者",
@@ -2315,7 +2315,7 @@ const ja: Messages = {
       "接続検証は読み取り専用です。適用権限は事前確認で別途検証します。",
     bootstrapDeployer: "SAと製品用途限定ロールを自動作成",
     bootstrapDeployerHint:
-      "必要な最小ロール: サービス アカウント管理者 (roles/iam.serviceAccountAdmin)、ロール管理者 (roles/iam.roleAdmin)、プロジェクト IAM 管理者 (roles/resourcemanager.projectIamAdmin)、および対象Access Context ManagerポリシーでPolicy Editorを付与できる権限。または、セキュリティ管理者 / オーナーとAccess Policy側の付与権限。",
+      "必要な最小ロール: サービス アカウント管理者 (roles/iam.serviceAccountAdmin)、ロール管理者 (roles/iam.roleAdmin)、プロジェクト IAM 管理者 (roles/resourcemanager.projectIamAdmin)、および対象の Access Context Manager ポリシーにおける Policy Editor 付与権限（またはプロジェクトのセキュリティ管理者／オーナー権限）。",
     bootstrapConfirm:
       "デプロイヤーSA、カスタムロール、プロジェクトIAM、Access Policy Editor、あなたのToken Creator権限を作成または更新します。続行しますか？",
     bootstrapLegacyMigrationConfirm:
@@ -2328,7 +2328,7 @@ const ja: Messages = {
     bootstrapValidating: "IAM権限の反映を待機中…",
     bootstrapComplete: "デプロイヤーの自動構成が完了しました",
     bootstrapNext:
-      "デプロイヤー用サービスアカウント、全対応パス用のプロジェクトカスタムロール、Access Policy EditorをGoogle Cloud上に構成しました。以後の呼び出しは現在のキーレス認証経路を使用します。",
+      "デプロイヤー用サービス アカウント、最小権限カスタムロール、および Access Policy 権限の構成が完了しました。以降の API 呼び出しは安全なキーレス認証経路を経由して実行されます。",
     bootstrapFailed: "デプロイヤーの自動準備に失敗しました",
     signInGoogle: "Google でサインイン",
     signingInGoogle: "Google の応答を待っています…",
@@ -2346,7 +2346,7 @@ const ja: Messages = {
     failedOperations: "失敗した操作一覧",
     manualCleanupTitle: "手動削除が必要です",
     manualCleanupDescription:
-      "自動ロールバックは恒久的に利用できません。拡張機能のローカル状態をリセットする前に、以下の残存リソースをGoogle Cloudで確認して削除してください。",
+      "本デプロイの自動ロールバックは利用できません。拡張機能のローカル状態をリセットする前に、以下の残存リソースを Google Cloud コンソールで確認し、手動で削除してください。",
     waitingForOperation: "最初の操作を待っています…",
     environmentTitle: "プライベート環境を設定",
     environmentIntro:
@@ -3467,7 +3467,7 @@ const ja: Messages = {
     title: "Chrome Enterprise Premium 向け Easy PoC",
     subtitle: "CEP の評価用ベースラインを 1 つの組織部門に適用し、評価後の削除候補を確認します。",
     intro:
-      "脅威対策・コンテンツ検査・データ境界の Chrome ポリシーをパイロット OU に書き込みます。CEP は3-wayの変更前・変更後所有台帳をまだ永続化しないため、削除候補の確認は読み取り専用です。Chrome Policy、Access Level、Cloud Identity DLP は手動確認用に保持します。Workspace 管理者権限は管理コンソールで別途割り当て、各ポリシーは実スキーマと照合します。",
+      "脅威対策・コンテンツ検査・データ境界の Chrome ポリシーをパイロット OU に適用します。CEP では適用前の状態との厳密な 3-way 所有台帳（変更前・変更後）を永続化しないため、ロールバック操作は「削除候補の確認（読み取り専用）」として安全に動作します。Chrome Policy、Access Level、Cloud Identity DLP は手動確認用に保持されます。Workspace 管理者権限は管理コンソールで別途割り当て、各ポリシーは live スキーマと照合して安全に適用されます。",
     targetOuCardTitle: "1. 対象の組織部門（OU）",
     targetOuCardSubtitle:
       "隔離された非本番のパイロット OU を選んでください。ルート OU は使用できず、OU 対象ポリシーは選択 OU とその配下へ影響する場合があります。",
@@ -3510,7 +3510,7 @@ const ja: Messages = {
       "モジュールごとに別のバッチで適用するため、非対応のポリシーが 1 つあっても他を巻き込みません。",
     moduleCorePolicies: "Chrome コアセキュリティポリシー",
     moduleCorePoliciesDesc:
-      "強化セーフブラウジング、社用パスワードの使い回し警告、Chrome のクラウドレポートとプロファイルレポート。",
+      "強化セーフブラウジング、社用パスワードの使い回し警告、Chrome のクラウドレポートおよびプロファイルレポートを有効化します。",
     moduleForceExtensions: "Endpoint Verification の強制インストール",
     moduleForceExtensionsDesc:
       "Google 公式の Endpoint Verification 拡張機能を配布し、端末の状態シグナルをコンテキストアウェアアクセスに渡します。",
@@ -3534,7 +3534,7 @@ const ja: Messages = {
       "利用できません。settings/detector.url_list は Policy API の変更操作で未対応です。",
     moduleDlpRules: "DLP ルール（サンプル一式）",
     moduleDlpRulesDesc:
-      "機密操作向けにアラートセンター重大度LOWの対応済み警告／ブロックルールと、警告して閲覧を許可しつつ社内ページに透かしを表示して画面キャプチャを制限するURLルールを作成します。",
+      "機密データの外部送信に対して警告・ブロックを行う DLP ルール（アラートセンター重大度: 低）や、社内サイトへのアクセス時に動的透かしを表示して画面キャプチャや情報持ち出しを抑止する URL ルールを作成します。",
     betaBadge: "ベータ",
     dlpBetaNote:
       "対応済みの settings/rule.dlp 作成にはベータ版の Cloud Identity Policy API を使用します。未対応のURLリスト検出器とアクセスレベル／BYOD条件は送信しません。拒否された呼び出しは理由付きで表示します。",
@@ -3543,7 +3543,7 @@ const ja: Messages = {
       "個人番号ルールが使用する Cloud DLP 検出器を切り替えます。国が合っていない検出器は何も検知しないため、動作しているルールと見分けがつきません。",
     dlpRulesTableTitle: "ルールごとの動作",
     dlpRulesTableHint:
-      "Cloud Identity Policy API が Chrome 向けに提供する操作は警告とブロックです。セルを作成しない場合はオフを選びます。Chrome で未対応の「監査のみ」は表示しません。",
+      "Cloud Identity Policy API が Chrome 向けに提供する動作は「警告」と「ブロック」です。ルールを適用しない項目は「オフ」を選択してください（※Chrome で未対応の「監査のみ」は選択肢から除外しています）。",
     dlpActionOff: "作成しない",
     dlpActionAudit: "Chrome では未対応",
     dlpActionWarn: "警告して許可",
@@ -3553,7 +3553,7 @@ const ja: Messages = {
     dlpRuleAccessLevel: "管理対象外 Chrome からのアップロード",
     dlpRuleWatermark: "社内ページへの電子透かし",
     dlpNoticeByodTitle: "未対応機能（BYOD端末）の設定ガイド",
-    dlpNoticeByodDesc: "未管理端末 (BYOD) 向けのコンテキストアウェアアクセスは、Cloud Identity Policy API では未サポートのため、Google 管理コンソール (セキュリティ > アクセスとデータ管理 > コンテキスト アウェア アクセス) より直接設定してください。",
+    dlpNoticeByodDesc: "未管理端末（BYOD）向けのコンテキスト アウェア アクセス条件は、Cloud Identity Policy API では現在未サポートのため、Google 管理コンソール（[セキュリティ] › [アクセスとデータ管理] › [コンテキスト アウェア アクセス]）より直接設定してください。",
     activePresetBadge: "選択中",
     dataBoundaryModeTitle: "データ境界",
     dataBoundaryModeCopyPaste: "貼り付け内容を検査する",
@@ -3580,7 +3580,7 @@ const ja: Messages = {
       "確認に必要な Chrome と OU の読み取り権限だけを持つ別の管理コンソールロールを作成し、デプロイ用アカウントと共用しません。",
     rolesAdminConsoleLink: "Google 管理コンソールの管理者ロールを開く",
     rolesVerificationNote:
-      "割り当て後に「Googleアカウントを認証してOUを取得」を実行します。デプロイ時は実際の Chrome Policy / Cloud Identity API を呼び、権限エラーを明示して記録します。プロジェクト IAM の割り当てから権限があると推測することはありません。",
+      "ロールの割り当て完了後、「Googleアカウントを認証してOUを取得」をクリックしてください。デプロイ時は実際の Chrome Policy / Cloud Identity API を直接呼び出して検証し、権限不足があればエラーとして明示します（GCP プロジェクト IAM から権限を推測することはありません）。",
     testingScenariosTitle: "5. 結果を確認する",
     testingScenariosSubtitle:
       "検出器に反応するサンプル値です。実データを使わずに検知の様子を実演できます。",
@@ -3607,7 +3607,7 @@ const ja: Messages = {
       "サンプルのカード番号を含むファイルを、社内サイト一覧に無いサイトへアップロードします。検査のため保留され、イベントがセキュリティ調査ツールに届きます。",
     manualChecklistTitle: "このツールでは実施できない設定",
     manualChecklistSubtitle:
-      "Google が API を公開していない項目です。上のテストを実施する前に管理コンソールで設定してください。",
+      "Google が外部設定用 API を提供していない項目です。上記の動作テストを実施する前に Google 管理コンソールで設定を完了してください。",
     manualChecklistItems: [
       {
         title: "機密コンテンツの保存を有効化",
@@ -3677,11 +3677,11 @@ const ja: Messages = {
     dlpRowNationalId: "マイナンバー・個人識別情報",
     dlpRowNationalIdDesc: "各国の個人番号（マイナンバー／SSN等）の外部送信を検知・制御します。",
     dlpRowAccessLevel: "未管理端末・BYODからの操作",
-    dlpRowAccessLevelDesc: "公開 Policy API では未対応です。アクセスレベル条件は管理コンソールで設定してください。",
+    dlpRowAccessLevelDesc: "Google Cloud Identity Policy API では未対応です。未管理端末（BYOD）向けのアクセスレベル条件は Google 管理コンソールで設定してください。",
     dlpRowWatermark: "社内機密サイト保護・透かし",
     dlpRowWatermarkDesc: "警告して閲覧を許可し、登録した社内サイト上で動的透かしを表示して画面キャプチャを制限します。",
     dlpRowGenAiBlock: "未承認の生成AI利用ブロック（Geminiのみ許可）",
-    dlpRowGenAiBlockDesc: "ChatGPT・Claude・DeepSeek 等をブロックし、承認済み Gemini のみ安全に許可します。",
+    dlpRowGenAiBlockDesc: "ChatGPT・Claude・DeepSeek 等のコンシューマー向け AI サービスをブロックし、社内で承認された Gemini のみ安全な利用を許可します。",
 
     dlpScopeAll: "全端末",
     dlpScopeByodOnly: "BYOD未対応",
@@ -3691,11 +3691,11 @@ const ja: Messages = {
     dlpActionBadgeOff: "オフ",
 
     dlpPresetRecommended: "推奨PoC設定",
-    dlpPresetRecommendedDesc: "機密データは警告し、未承認 AI は遮断、社内サイトはBYOD条件なしで透かし保護します。",
+    dlpPresetRecommendedDesc: "機密データの送信時に警告を表示、未承認 AI は遮断し、社内サイトには動的透かしを適用して情報漏洩を防止します。",
     dlpPresetStrictZeroTrust: "厳格なゼロトラスト",
-    dlpPresetStrictZeroTrustDesc: "対応済みの機密データ外部送信をブロックし、未管理端末条件は管理コンソールで設定します。",
+    dlpPresetStrictZeroTrustDesc: "機密データの外部送信を確実にブロックし、最も厳格なゼロトラスト ポリシーを適用します（BYOD 条件は管理コンソールで設定）。",
     dlpPresetGenAiSecure: "生成AIセキュア活用",
-    dlpPresetGenAiSecureDesc: "ChatGPT等の個人向けAIを遮断し、Geminiの業務利用を安全に保護します。",
+    dlpPresetGenAiSecureDesc: "ChatGPT 等のコンシューマー向け AI を遮断し、貼り付け検査を有効にした上で Gemini の安全な業務利用を許可します。",
     dlpPresetAuditOnly: "警告ファースト",
     dlpPresetAuditOnlyDesc: "選択した全操作で、API が Chrome 向けに提供する最も穏やかな DLP 操作を使用します。",
   },
