@@ -283,7 +283,34 @@ function googleErrorDetail(payload: Record<string, unknown>): string | null {
   if (typeof error === "string") return error;
   if (typeof error !== "object" || error === null) return null;
   const message = (error as { message?: unknown }).message;
-  return typeof message === "string" && message !== "" ? message : null;
+  let text = typeof message === "string" && message !== "" ? message : null;
+  const details = (error as { details?: unknown }).details;
+  if (Array.isArray(details) && details.length > 0) {
+    const reasons: string[] = [];
+    for (const item of details) {
+      if (typeof item === "object" && item !== null) {
+        const reason = (item as { reason?: unknown }).reason;
+        if (typeof reason === "string" && reason !== "") reasons.push(reason);
+        const violations = (item as { fieldViolations?: unknown }).fieldViolations;
+        if (Array.isArray(violations)) {
+          for (const v of violations) {
+            if (typeof v === "object" && v !== null) {
+              const field = (v as { field?: unknown }).field;
+              const desc = (v as { description?: unknown }).description;
+              if (typeof field === "string" && typeof desc === "string") {
+                reasons.push(`${field}: ${desc}`);
+              }
+            }
+          }
+        }
+      }
+    }
+    if (reasons.length > 0) {
+      const extra = reasons.join(", ");
+      text = text ? `${text} (${extra})` : extra;
+    }
+  }
+  return text;
 }
 
 function googleStatusCode(payload: Record<string, unknown>): string | null {

@@ -268,6 +268,7 @@ export class DeployerCredentials {
   /** Drop cached tokens. Call after a 401 so the next attempt re-consents. */
   async invalidate(): Promise<void> {
     this.cached = null;
+    this.inFlight = null;
     try {
       const administrator = await this.identity.getAuthToken(false);
       await this.identity.removeCachedAuthToken(administrator);

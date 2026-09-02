@@ -242,4 +242,21 @@ export function SignOutIcon(props: IconProps) {
   );
 }
 
+export function ExternalLinkIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" {...strokeProps} />
+      <polyline points="15 3 21 3 21 9" {...strokeProps} />
+      <line x1="10" y1="14" x2="21" y2="3" {...strokeProps} />
+    </IconBase>
+  );
+}
 
+export function KeyIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="m21 2-2 2m-1.5 1.5L14 9m0 0a5 5 0 1 1-7-7 5 5 0 0 1 7 7Zm-4 4 2 2m-2-2-4 4" {...strokeProps} />
+      <circle cx="7.5" cy="7.5" r="2.5" {...strokeProps} />
+    </IconBase>
+  );
+}

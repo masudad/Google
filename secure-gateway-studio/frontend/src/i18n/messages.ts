@@ -563,7 +563,11 @@ export interface CepDeployerMessages {
   moduleConnectors: string;
   moduleConnectorsDesc: string;
   accessLevelTitle: string;
+  accessLevelSelectPrompt: string;
   accessLevelHint: string;
+  dlpNoticeByodTitle: string;
+  dlpNoticeByodDesc: string;
+  activePresetBadge: string;
   accessLevelNone: string;
   accessLevelNoneDesc: string;
   accessLevelAutoProfile: string;
@@ -1983,7 +1987,7 @@ const en: Messages = {
       "Organizational units could not be loaded. Confirm the Google Workspace connection on the setup screen, then reopen this tab.",
     canonicalCustomerIdRequired:
       "Verify the Workspace connection first. DLP changes require the canonical customer ID returned by Directory (it begins with C); my_customer is never sent to Cloud Identity Policy create.",
-    verifyGoogleAccount: "🔑 Verify Google Account & Load OUs",
+    verifyGoogleAccount: "Verify Google Account & Load OUs",
     verifyingGoogleAccount: "Verifying Google Account & Loading OUs…",
     verifyGoogleAccountHint: "Click above to authenticate with Google OAuth and load your organizational units.",
     retry: "Retry",
@@ -2019,6 +2023,7 @@ const en: Messages = {
     moduleConnectorsDesc:
       "Real-time URL checks plus file upload and download inspection, and security event reporting to Google.",
     accessLevelTitle: "Context-Aware Access level",
+    accessLevelSelectPrompt: "Select an Access Level to apply",
     accessLevelHint:
       "Pick an existing level or create one for later assignment in the Admin console. Automated DLP BYOD scoping is disabled because the public Policy API does not document a supported access-level CEL function.",
     accessLevelNone: "None",
@@ -2052,6 +2057,9 @@ const en: Messages = {
     dlpRulePaymentCard: "Payment card numbers in uploads",
     dlpRuleAccessLevel: "Uploads from unmanaged Chrome",
     dlpRuleWatermark: "Watermark internal pages",
+    dlpNoticeByodTitle: "Unmanaged Devices (BYOD) Configuration Guide",
+    dlpNoticeByodDesc: "Context-Aware Access conditions for unmanaged devices are not exposed via the public Cloud Identity Policy API. Configure these directly in Google Admin Console (Security > Access and data control > Context-Aware Access).",
+    activePresetBadge: "Active",
     dataBoundaryModeTitle: "Data boundary",
     dataBoundaryModeCopyPaste: "Inspect pasted content",
     dataBoundaryModeCopyPasteDesc:
@@ -3475,7 +3483,7 @@ const ja: Messages = {
       "組織部門を取得できませんでした。セットアップ画面で Google Workspace の接続を確認してから、このタブを開き直してください。",
     canonicalCustomerIdRequired:
       "先に Workspace 接続を検証してください。DLP の変更には Directory が返す C で始まる正規顧客 ID が必要で、my_customer を Cloud Identity Policy の作成には送信しません。",
-    verifyGoogleAccount: "🔑 Googleアカウントを認証してOUを取得",
+    verifyGoogleAccount: "Googleアカウントを認証してOUを取得",
     verifyingGoogleAccount: "Googleアカウントを認証してOUを取得中…",
     verifyGoogleAccountHint: "上をクリックしてGoogle OAuth認証を行い、組織部門（OU）を読み込みます。",
     retry: "再試行",
@@ -3510,6 +3518,7 @@ const ja: Messages = {
     moduleConnectorsDesc:
       "リアルタイム URL 検査、ファイルのアップロード／ダウンロード検査、Google へのセキュリティイベント送信。",
     accessLevelTitle: "コンテキストアウェアアクセス レベル",
+    accessLevelSelectPrompt: "適用するアクセスレベルを選択",
     accessLevelHint:
       "既存レベルを選択するか、管理コンソールで後から割り当てるレベルを作成します。公開 Policy API に対応済みのアクセスレベル CEL 関数が明記されていないため、DLP の BYOD 条件は自動設定しません。",
     accessLevelNone: "なし",
@@ -3543,6 +3552,9 @@ const ja: Messages = {
     dlpRulePaymentCard: "アップロードに含まれるカード番号",
     dlpRuleAccessLevel: "管理対象外 Chrome からのアップロード",
     dlpRuleWatermark: "社内ページへの電子透かし",
+    dlpNoticeByodTitle: "未対応機能（BYOD端末）の設定ガイド",
+    dlpNoticeByodDesc: "未管理端末 (BYOD) 向けのコンテキストアウェアアクセスは、Cloud Identity Policy API では未サポートのため、Google 管理コンソール (セキュリティ > アクセスとデータ管理 > コンテキスト アウェア アクセス) より直接設定してください。",
+    activePresetBadge: "選択中",
     dataBoundaryModeTitle: "データ境界",
     dataBoundaryModeCopyPaste: "貼り付け内容を検査する",
     dataBoundaryModeCopyPasteDesc:

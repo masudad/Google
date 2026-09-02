@@ -328,7 +328,7 @@ export function DlpMatrixTable({
             </tr>
 
             {/* 5. Unmanaged / BYOD Devices */}
-            <tr>
+            <tr className="dlp-row-admin-only">
               <th scope="row">
                 <strong>💻 {m.dlpRowAccessLevel}</strong>
                 <small>{m.dlpRowAccessLevelDesc}</small>
@@ -406,6 +406,13 @@ export function DlpMatrixTable({
             </tr>
           </tbody>
         </table>
+      </div>
+      <div className="dlp-matrix-notice" role="note">
+        <span className="dlp-notice-icon">💡</span>
+        <div className="dlp-notice-content">
+          <strong>{m.dlpNoticeByodTitle}</strong>
+          <p>{m.dlpNoticeByodDesc}</p>
+        </div>
       </div>
     </div>
   );

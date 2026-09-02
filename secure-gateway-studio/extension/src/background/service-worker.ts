@@ -385,6 +385,16 @@ function makeTransport(token: () => Promise<string>, invalidate: () => Promise<v
       if (response.status === 401) {
         await invalidate();
         response = await send(await token());
+      } else if (
+        (response.status === 429 || response.status === 503) &&
+        !options.acceptedStatuses?.includes(response.status)
+      ) {
+        for (let retry = 0; retry < 2; retry += 1) {
+          const delay = (retry + 1) * 1000 + Math.floor(Math.random() * 500);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          response = await send(await token());
+          if (response.status !== 429 && response.status !== 503) break;
+        }
       }
 
       const payload = parseGoogleJsonResponse(await response.text(), response.status);

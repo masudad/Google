@@ -4235,17 +4235,46 @@ h1 {
   padding: 13px 14px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  border: 1px solid var(--border-strong);
+  gap: 6px;
+  border: 1.5px solid var(--border-strong);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.76);
   text-align: left;
   cursor: pointer;
+  transition: all 0.18s ease-in-out;
+  position: relative;
 }
 
 .cep-preset:hover {
-  border-color: #82aaa9;
+  border-color: var(--teal-600);
   background: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(11, 143, 138, 0.12);
+}
+
+.cep-preset.active {
+  border-color: var(--teal-600);
+  background: #f0fdf4;
+  box-shadow: 0 0 0 1px var(--teal-600), 0 3px 10px rgba(11, 143, 138, 0.16);
+}
+
+.cep-preset-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cep-preset-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--teal-700);
+  background: #dcfce7;
+  padding: 2px 7px;
+  border-radius: 12px;
 }
 
 .cep-preset strong {
@@ -4827,13 +4856,137 @@ h1 {
   color: #78350f;
 }
 
-.cep-license-action-row {
-  margin: 12px 0 6px;
+.cep-license-card {
+  margin: 16px 0 10px;
+  padding: 14px 18px;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 10px;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+.cep-license-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cep-license-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--teal-800);
+}
+
+.cep-license-card-icon {
+  color: var(--teal-600);
+}
+
+.cep-license-card-info p {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-600);
 }
 
 .cep-license-btn {
+  font-weight: 700;
+  padding: 10px 20px;
+  min-width: 180px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--teal-600);
+  color: #ffffff;
+  border: 1px solid #05736f;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(11, 143, 138, 0.2);
+  transition: all 0.15s ease-in-out;
+}
+
+.cep-license-btn:hover:not(:disabled) {
+  background: var(--teal-700);
+  box-shadow: 0 4px 12px rgba(11, 143, 138, 0.3);
+}
+
+.cep-license-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.cep-auth-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 700;
+  padding: 10px 20px;
+  border-radius: 8px;
+}
+
+.cep-role-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-weight: 600;
+  font-size: 13.5px;
   padding: 8px 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--ink-800);
+  text-decoration: none;
+  transition: all 0.15s ease-in-out;
+}
+
+.cep-role-action-btn:hover {
+  border-color: var(--teal-600);
+  color: var(--teal-700);
+  background: #f7faf9;
+}
+
+.dlp-row-admin-only {
+  background: #fcfdfe;
+}
+
+.dlp-row-admin-only th strong {
+  color: var(--ink-700);
+}
+
+.dlp-matrix-notice {
+  margin-top: 14px;
+  padding: 12px 16px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.dlp-notice-icon {
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.dlp-notice-content strong {
+  display: block;
+  color: #1e40af;
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+
+.dlp-notice-content p {
+  margin: 0;
+  font-size: 12.5px;
+  color: #1e3a8a;
+  line-height: 1.5;
 }
 
 .cep-license-err-list {

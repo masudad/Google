@@ -19,8 +19,12 @@ import {
 } from "../../lib/api";
 import {
   CheckCircleIcon,
+  CheckIcon,
   ExclamationCircleIcon,
+  ExternalLinkIcon,
+  KeyIcon,
   ShieldNetworkIcon,
+  UsersIcon,
 } from "../../components/Icons";
 import { DEFAULT_DLP_MATRIX, DlpMatrixTable } from "./DlpMatrixTable";
 
@@ -158,6 +162,7 @@ export function CepDeployerPage({
   const [autoSubOus, setAutoSubOus] = useState<boolean>(false);
 
   const [modules, setModules] = useState<ModuleState>(PRESETS.full);
+  const [activePreset, setActivePreset] = useState<string | null>("full");
   const [dlpMatrix, setDlpMatrix] = useState<CepDlpMatrixState>(DEFAULT_DLP_MATRIX);
   const [internalUrls, setInternalUrls] = useState<string>("");
 
@@ -240,6 +245,7 @@ export function CepDeployerPage({
     busy === null;
 
   function update<K extends keyof ModuleState>(key: K, value: ModuleState[K]) {
+    setActivePreset(null);
     setModules((current) => ({ ...current, [key]: value }));
   }
 
@@ -469,12 +475,13 @@ export function CepDeployerPage({
         {!ouLoaded ? (
           <div className="cep-verify-box">
             <button
-              className="cep-btn cep-btn-primary"
+              className="btn btn-primary cep-auth-btn"
               disabled={canonicalCustomerId === "" || loadingOus}
               onClick={() => void handleLoadOus()}
               type="button"
             >
-              {loadingOus ? m.verifyingGoogleAccount : m.verifyGoogleAccount}
+              <KeyIcon size={16} />
+              <span>{loadingOus ? m.verifyingGoogleAccount : m.verifyGoogleAccount}</span>
             </button>
             <p className="cep-verify-hint">
               {m.verifyGoogleAccountHint}
@@ -588,9 +595,16 @@ export function CepDeployerPage({
           </a>
         </div>
 
-        <div className="cep-license-action-row">
+        <div className="cep-license-card">
+          <div className="cep-license-card-info">
+            <div className="cep-license-card-title">
+              <UsersIcon size={18} className="cep-license-card-icon" />
+              <strong>{m.btnAssignLicensesToOu}</strong>
+            </div>
+            <p>{m.licensePilotLimitNotice}</p>
+          </div>
           <button
-            className="secondary-action cep-license-btn"
+            className="btn btn-primary cep-license-btn"
             disabled={
               canonicalCustomerId === "" ||
               selectedOu === "" ||
@@ -600,7 +614,8 @@ export function CepDeployerPage({
             onClick={handleAssignLicenses}
             type="button"
           >
-            {assigningLicenses ? m.btnAssigningLicenses : m.btnAssignLicensesToOu}
+            <UsersIcon size={16} />
+            <span>{assigningLicenses ? m.btnAssigningLicenses : m.btnAssignLicensesToOu}</span>
           </button>
         </div>
 
@@ -630,20 +645,32 @@ export function CepDeployerPage({
         <h2 id="cep-presets-title">{m.presetsTitle}</h2>
         <p>{m.presetsSubtitle}</p>
         <div className="cep-preset-grid">
-          {presets.map((preset) => (
-            <button
-              className="cep-preset"
-              key={preset.name}
-              onClick={() => {
-                setModules(PRESETS[preset.name]);
-                setDlpMatrix(PRESET_MATRICES[preset.name]);
-              }}
-              type="button"
-            >
-              <strong>{preset.label}</strong>
-              <span>{preset.description}</span>
-            </button>
-          ))}
+          {presets.map((preset) => {
+            const isActive = activePreset === preset.name;
+            return (
+              <button
+                className={`cep-preset ${isActive ? "active" : ""}`}
+                key={preset.name}
+                onClick={() => {
+                  setActivePreset(preset.name);
+                  setModules(PRESETS[preset.name]);
+                  setDlpMatrix(PRESET_MATRICES[preset.name]);
+                }}
+                type="button"
+                aria-pressed={isActive}
+              >
+                <div className="cep-preset-header">
+                  <strong>{preset.label}</strong>
+                  {isActive && (
+                    <span className="cep-preset-badge">
+                      <CheckIcon size={12} /> {m.activePresetBadge || "Active"}
+                    </span>
+                  )}
+                </div>
+                <span>{preset.description}</span>
+              </button>
+            );
+          })}
         </div>
       </section>
 
@@ -684,7 +711,7 @@ export function CepDeployerPage({
         <fieldset className="cep-fieldset">
           <legend>{m.accessLevelTitle}</legend>
           <div className="cep-field">
-            <label htmlFor="cep-access-level">{m.accessLevelTitle}</label>
+            <label htmlFor="cep-access-level">{m.accessLevelSelectPrompt || m.accessLevelTitle}</label>
             <select
               id="cep-access-level"
               onChange={(event) => update("accessLevel", event.target.value)}
@@ -760,12 +787,13 @@ export function CepDeployerPage({
         </div>
 
         <a
-          className="secondary-action cep-role-action"
+          className="btn btn-secondary cep-role-action-btn"
           href="https://admin.google.com/ac/roles"
           rel="noreferrer"
           target="_blank"
         >
-          {m.rolesAdminConsoleLink}
+          <span>{m.rolesAdminConsoleLink}</span>
+          <ExternalLinkIcon size={14} />
         </a>
         <p className="cep-inline-note">{m.rolesVerificationNote}</p>
       </section>
