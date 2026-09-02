@@ -5418,3 +5418,112 @@ h1 {
   }
 }
 
+
+/* Sticky headers and columns for DLP matrix table */
+.dlp-matrix-table th.col-threat,
+.dlp-matrix-table tbody th {
+  position: sticky;
+  left: 0;
+  background: #ffffff;
+  z-index: 2;
+  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.05);
+}
+
+.dlp-matrix-table thead th.col-threat {
+  position: sticky;
+  left: 0;
+  background: #f1f5f9;
+  z-index: 3;
+  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.05);
+}
+
+/* 4-Tab Navigation for CEP PoC Deployer */
+.cep-nav-tabs {
+  display: flex;
+  gap: 6px;
+  margin: 18px 0 24px;
+  border-bottom: 2px solid var(--border);
+  padding-bottom: 0;
+  overflow-x: auto;
+}
+
+.cep-nav-tab {
+  padding: 10px 16px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-600);
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  cursor: pointer;
+  border-radius: 6px 6px 0 0;
+  transition: all 0.15s ease-in-out;
+  white-space: nowrap;
+}
+
+.cep-nav-tab:hover {
+  color: var(--teal-700);
+  background: rgba(14, 116, 144, 0.04);
+}
+
+.cep-nav-tab.active {
+  color: var(--teal-700);
+  border-bottom-color: var(--teal-600);
+  background: rgba(14, 116, 144, 0.06);
+  font-weight: 700;
+}
+
+.cep-nav-tab-all {
+  margin-left: auto;
+}
+
+.cep-tab-panel.hidden {
+  display: none;
+}
+
+/* OU Autofill row */
+.cep-ou-confirmation-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.cep-autofill-btn {
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+/* Trace Details Accordion */
+.cep-trace-details {
+  margin-top: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 10px 14px;
+}
+
+.cep-trace-summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--ink-800);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  user-select: none;
+  padding: 4px 0;
+}
+
+.cep-trace-summary:hover {
+  color: var(--teal-700);
+}
+
+.cep-trace-count {
+  font-size: 12px;
+  color: var(--ink-600);
+  font-weight: normal;
+}

@@ -163,6 +163,7 @@ export function CepDeployerPage({
 
   const [modules, setModules] = useState<ModuleState>(PRESETS.full);
   const [activePreset, setActivePreset] = useState<string | null>("full");
+  const [activeTab, setActiveTab] = useState<"setup" | "licensing" | "dlp" | "operations" | "all">("setup");
   const [dlpMatrix, setDlpMatrix] = useState<CepDlpMatrixState>(DEFAULT_DLP_MATRIX);
   const [internalUrls, setInternalUrls] = useState<string>("");
 
@@ -463,7 +464,54 @@ export function CepDeployerPage({
       </header>
       <p className="cep-intro">{m.intro}</p>
 
-      <section className="cep-section" aria-labelledby="cep-ou-title">
+            <nav className="cep-nav-tabs" aria-label="CEP PoC Sections">
+        <button
+          type="button"
+          className={`cep-nav-tab ${activeTab === "setup" ? "active" : ""}`}
+          onClick={() => setActiveTab("setup")}
+          aria-pressed={activeTab === "setup"}
+        >
+          🚀 {m.tabSetup}
+        </button>
+        <button
+          type="button"
+          className={`cep-nav-tab ${activeTab === "licensing" ? "active" : ""}`}
+          onClick={() => setActiveTab("licensing")}
+          aria-pressed={activeTab === "licensing"}
+        >
+          👥 {m.tabLicensing}
+        </button>
+        <button
+          type="button"
+          className={`cep-nav-tab ${activeTab === "dlp" ? "active" : ""}`}
+          onClick={() => setActiveTab("dlp")}
+          aria-pressed={activeTab === "dlp"}
+        >
+          🛡️ {m.tabDlp}
+        </button>
+        <button
+          type="button"
+          className={`cep-nav-tab ${activeTab === "operations" ? "active" : ""}`}
+          onClick={() => setActiveTab("operations")}
+          aria-pressed={activeTab === "operations"}
+        >
+          📊 {m.tabOperations}
+        </button>
+        <button
+          type="button"
+          className={`cep-nav-tab cep-nav-tab-all ${activeTab === "all" ? "active" : ""}`}
+          onClick={() => setActiveTab("all")}
+          aria-pressed={activeTab === "all"}
+        >
+          📋 {m.tabAll}
+        </button>
+      </nav>
+
+      {/* TAB 1: SETUP WIZARD */}
+      <div
+        className={`cep-tab-panel ${activeTab === "setup" || activeTab === "all" ? "active" : "hidden"}`}
+      >
+<section className="cep-section" aria-labelledby="cep-ou-title">
         <h2 id="cep-ou-title">{m.targetOuCardTitle}</h2>
         <p>{m.targetOuCardSubtitle}</p>
         {canonicalCustomerId === "" && (
@@ -542,7 +590,16 @@ export function CepDeployerPage({
               <label htmlFor="cep-target-ou-confirmation">
                 {m.targetOuConfirmationLabel}
               </label>
-              <code>{selectedUnit.label}</code>
+              <div className="cep-ou-confirmation-row">
+                <code>{selectedUnit.label}</code>
+                <button
+                  type="button"
+                  className="btn btn-secondary cep-autofill-btn"
+                  onClick={() => setTargetOuConfirmation(selectedUnit.label)}
+                >
+                  {m.copyTargetOuPath}
+                </button>
+              </div>
               <input
                 autoComplete="off"
                 id="cep-target-ou-confirmation"
@@ -570,7 +627,143 @@ export function CepDeployerPage({
         </label>
       </section>
 
-      <section className="cep-section cep-license-section" aria-labelledby="cep-license-title">
+      
+<section className="cep-section" aria-labelledby="cep-presets-title">
+        <h2 id="cep-presets-title">{m.presetsTitle}</h2>
+        <p>{m.presetsSubtitle}</p>
+        <div className="cep-preset-grid">
+          {presets.map((preset) => {
+            const isActive = activePreset === preset.name;
+            return (
+              <button
+                className={`cep-preset ${isActive ? "active" : ""}`}
+                key={preset.name}
+                onClick={() => {
+                  setActivePreset(preset.name);
+                  setModules(PRESETS[preset.name]);
+                  setDlpMatrix(PRESET_MATRICES[preset.name]);
+                }}
+                type="button"
+                aria-pressed={isActive}
+              >
+                <div className="cep-preset-header">
+                  <strong>{preset.label}</strong>
+                  {isActive && (
+                    <span className="cep-preset-badge">
+                      <CheckIcon size={12} /> {m.activePresetBadge || "Active"}
+                    </span>
+                  )}
+                </div>
+                <span>{preset.description}</span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      
+<section className="cep-section" aria-labelledby="cep-modules-title">
+        <h2 id="cep-modules-title">{m.modulesTitle}</h2>
+        <p>{m.modulesSubtitle}</p>
+
+        <div className="cep-module-list">
+          {moduleToggles.map((module) => (
+            <label className="cep-check cep-module" key={module.key}>
+              <input
+                checked={modules[module.key]}
+                onChange={(event) => update(module.key, event.target.checked)}
+                type="checkbox"
+              />
+              <span>
+                <strong>
+                  {module.label}
+                  {module.beta === true && <em className="cep-badge">{m.betaBadge}</em>}
+                </strong>
+                <small>{module.description}</small>
+              </span>
+            </label>
+          ))}
+        </div>
+        {anyDlpSelected && <p className="cep-inline-note">{m.dlpBetaNote}</p>}
+
+        {modules.dlpRules && (
+          <div className="cep-dlp-hint-row">
+            <p className="cep-inline-note">
+              🛡️ {m.dlpMatrixTitle} の設定は「<button type="button" className="text-action" onClick={() => setActiveTab("dlp")}>{m.tabDlp}</button>」タブでカスタマイズできます。
+            </p>
+          </div>
+        )}
+        <fieldset className="cep-fieldset">
+          <legend className="sr-only">{m.accessLevelTitle}</legend>
+          <div className="cep-field">
+            <label htmlFor="cep-access-level">{m.accessLevelTitle}</label>
+            <select
+              id="cep-access-level"
+              onChange={(event) => update("accessLevel", event.target.value)}
+              value={modules.accessLevel}
+            >
+              <option value={ACCESS_LEVEL_NONE}>{m.accessLevelNone}</option>
+              <option value="AUTO_CREATE_CHROME_ANY">{m.accessLevelAutoAny}</option>
+              <option value="AUTO_CREATE_PROFILE_MANAGED">{m.accessLevelAutoProfile}</option>
+              <option value="AUTO_CREATE_BROWSER_MANAGED">{m.accessLevelAutoBrowser}</option>
+              {accessLevels.length > 0 && (
+                <optgroup label={m.accessLevelExistingGroup}>
+                  {accessLevels.map((level) => (
+                    <option key={level.value} value={level.value}>
+                      {level.label}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+            <small>{m.accessLevelHint}</small>
+          </div>
+          {accessLevelError && accessLevels.length === 0 && (
+            <p className="cep-inline-note">{m.accessLevelLoadFailed}</p>
+          )}
+        </fieldset>
+
+        <fieldset className="cep-fieldset">
+          <legend>{m.dataBoundaryModeTitle}</legend>
+          <div className="cep-module-list">
+            {boundaryModes.map((mode) => (
+              <label className="cep-check cep-module" key={mode.value}>
+                <input
+                  checked={modules.dataBoundaryMode === mode.value}
+                  name="cep-data-boundary"
+                  onChange={() => update("dataBoundaryMode", mode.value)}
+                  type="radio"
+                />
+                <span>
+                  <strong>{mode.label}</strong>
+                  <small>{mode.description}</small>
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
+        <div className="cep-field">
+          <label htmlFor="cep-internal-urls">{m.internalUrlsTitle}</label>
+          <textarea
+            id="cep-internal-urls"
+            onChange={(event) => setInternalUrls(event.target.value)}
+            placeholder={m.internalUrlsPlaceholder}
+            rows={3}
+            value={internalUrls}
+          />
+          <small>{m.internalUrlsHint}</small>
+        </div>
+      </section>
+
+      
+      </div>
+
+      {/* TAB 2: USERS & LICENSING */}
+      <div
+        className={`cep-tab-panel ${activeTab === "licensing" || activeTab === "all" ? "active" : "hidden"}`}
+      >
+<section className="cep-section cep-license-section" aria-labelledby="cep-license-title">
         <h2 id="cep-license-title">{m.licenseCardTitle}</h2>
         <p>{m.licenseCardSubtitle}</p>
         <p className="cep-inline-note">{m.licensePilotLimitNotice}</p>
@@ -640,64 +833,15 @@ export function CepDeployerPage({
         )}
       </section>
 
-      <section className="cep-section" aria-labelledby="cep-presets-title">
-        <h2 id="cep-presets-title">{m.presetsTitle}</h2>
-        <p>{m.presetsSubtitle}</p>
-        <div className="cep-preset-grid">
-          {presets.map((preset) => {
-            const isActive = activePreset === preset.name;
-            return (
-              <button
-                className={`cep-preset ${isActive ? "active" : ""}`}
-                key={preset.name}
-                onClick={() => {
-                  setActivePreset(preset.name);
-                  setModules(PRESETS[preset.name]);
-                  setDlpMatrix(PRESET_MATRICES[preset.name]);
-                }}
-                type="button"
-                aria-pressed={isActive}
-              >
-                <div className="cep-preset-header">
-                  <strong>{preset.label}</strong>
-                  {isActive && (
-                    <span className="cep-preset-badge">
-                      <CheckIcon size={12} /> {m.activePresetBadge || "Active"}
-                    </span>
-                  )}
-                </div>
-                <span>{preset.description}</span>
-              </button>
-            );
-          })}
-        </div>
-      </section>
+      
+      </div>
 
-      <section className="cep-section" aria-labelledby="cep-modules-title">
-        <h2 id="cep-modules-title">{m.modulesTitle}</h2>
-        <p>{m.modulesSubtitle}</p>
-
-        <div className="cep-module-list">
-          {moduleToggles.map((module) => (
-            <label className="cep-check cep-module" key={module.key}>
-              <input
-                checked={modules[module.key]}
-                onChange={(event) => update(module.key, event.target.checked)}
-                type="checkbox"
-              />
-              <span>
-                <strong>
-                  {module.label}
-                  {module.beta === true && <em className="cep-badge">{m.betaBadge}</em>}
-                </strong>
-                <small>{module.description}</small>
-              </span>
-            </label>
-          ))}
-        </div>
-        {anyDlpSelected && <p className="cep-inline-note">{m.dlpBetaNote}</p>}
-
-        {modules.dlpRules && (
+      {/* TAB 3: DLP & THREAT MATRIX */}
+      <div
+        className={`cep-tab-panel ${activeTab === "dlp" || activeTab === "all" ? "active" : "hidden"}`}
+      >
+        <section className="cep-section" aria-labelledby="cep-dlp-matrix-heading">
+{modules.dlpRules && (
           <DlpMatrixTable
             matrix={dlpMatrix}
             messages={messages}
@@ -707,70 +851,15 @@ export function CepDeployerPage({
           />
         )}
 
-        <fieldset className="cep-fieldset">
-          <legend className="sr-only">{m.accessLevelTitle}</legend>
-          <div className="cep-field">
-            <label htmlFor="cep-access-level">{m.accessLevelTitle}</label>
-            <select
-              id="cep-access-level"
-              onChange={(event) => update("accessLevel", event.target.value)}
-              value={modules.accessLevel}
-            >
-              <option value={ACCESS_LEVEL_NONE}>{m.accessLevelNone}</option>
-              <option value="AUTO_CREATE_CHROME_ANY">{m.accessLevelAutoAny}</option>
-              <option value="AUTO_CREATE_PROFILE_MANAGED">{m.accessLevelAutoProfile}</option>
-              <option value="AUTO_CREATE_BROWSER_MANAGED">{m.accessLevelAutoBrowser}</option>
-              {accessLevels.length > 0 && (
-                <optgroup label={m.accessLevelExistingGroup}>
-                  {accessLevels.map((level) => (
-                    <option key={level.value} value={level.value}>
-                      {level.label}
-                    </option>
-                  ))}
-                </optgroup>
-              )}
-            </select>
-            <small>{m.accessLevelHint}</small>
-          </div>
-          {accessLevelError && accessLevels.length === 0 && (
-            <p className="cep-inline-note">{m.accessLevelLoadFailed}</p>
-          )}
-        </fieldset>
+        
+        </section>
+      </div>
 
-        <fieldset className="cep-fieldset">
-          <legend>{m.dataBoundaryModeTitle}</legend>
-          <div className="cep-module-list">
-            {boundaryModes.map((mode) => (
-              <label className="cep-check cep-module" key={mode.value}>
-                <input
-                  checked={modules.dataBoundaryMode === mode.value}
-                  name="cep-data-boundary"
-                  onChange={() => update("dataBoundaryMode", mode.value)}
-                  type="radio"
-                />
-                <span>
-                  <strong>{mode.label}</strong>
-                  <small>{mode.description}</small>
-                </span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
-
-        <div className="cep-field">
-          <label htmlFor="cep-internal-urls">{m.internalUrlsTitle}</label>
-          <textarea
-            id="cep-internal-urls"
-            onChange={(event) => setInternalUrls(event.target.value)}
-            placeholder={m.internalUrlsPlaceholder}
-            rows={3}
-            value={internalUrls}
-          />
-          <small>{m.internalUrlsHint}</small>
-        </div>
-      </section>
-
-      <section className="cep-section" aria-labelledby="cep-roles-title">
+      {/* TAB 4: OPERATIONS & TESTING */}
+      <div
+        className={`cep-tab-panel ${activeTab === "operations" || activeTab === "all" ? "active" : "hidden"}`}
+      >
+<section className="cep-section" aria-labelledby="cep-roles-title">
         <h2 id="cep-roles-title">{m.rolesCardTitle}</h2>
         <p>{m.rolesCardSubtitle}</p>
 
@@ -797,7 +886,8 @@ export function CepDeployerPage({
         <p className="cep-inline-note">{m.rolesVerificationNote}</p>
       </section>
 
-      <section className="cep-section" aria-labelledby="cep-testing-title">
+      
+<section className="cep-section" aria-labelledby="cep-testing-title">
         <h2 id="cep-testing-title">{m.testingScenariosTitle}</h2>
         <p>{m.testingScenariosSubtitle}</p>
 
@@ -835,7 +925,8 @@ export function CepDeployerPage({
         </ol>
       </section>
 
-      <section className="cep-section cep-manual" aria-labelledby="cep-manual-title">
+      
+<section className="cep-section cep-manual" aria-labelledby="cep-manual-title">
         <h2 id="cep-manual-title">{m.manualChecklistTitle}</h2>
         <p>{m.manualChecklistSubtitle}</p>
         <ul className="cep-manual-list">
@@ -850,7 +941,11 @@ export function CepDeployerPage({
         </ul>
       </section>
 
-      <div className="cep-actions">
+      
+      </div>
+
+      {/* PERSISTENT ACTIONS & RESULTS ACROSS ALL TABS */}
+<div className="cep-actions">
         <button
           className="primary-action"
           disabled={!canDeploy}
@@ -916,20 +1011,27 @@ export function CepDeployerPage({
       <section className="cep-outcome" aria-labelledby="cep-trace-title">
         <h3 id="cep-trace-title">{m.statusLogTitle}</h3>
         {lastResult !== null && lastResult.debug_trace.length > 0 ? (
-          <ul className="cep-trace">
-            {lastResult.debug_trace.map((entry, index) => (
-              <li className={entry.ok ? "ok" : "failed"} key={`${entry.label}-${index}`}>
-                <span>
-                  {entry.method} {entry.label}
-                </span>
-                <small>{entry.error ?? `HTTP ${entry.status}`}</small>
-              </li>
-            ))}
-          </ul>
+          <details className="cep-trace-details" open={false}>
+            <summary className="cep-trace-summary">
+              <span>{m.statusLogTitle}</span>
+              <span className="cep-trace-count">（{lastResult.debug_trace.length} 件の API 呼び出し）</span>
+            </summary>
+            <ul className="cep-trace">
+              {lastResult.debug_trace.map((entry, index) => (
+                <li className={entry.ok ? "ok" : "failed"} key={`${entry.label}-${index}`}>
+                  <span>
+                    {entry.method} {entry.label}
+                  </span>
+                  <small>{entry.error ?? `HTTP ${entry.status}`}</small>
+                </li>
+              ))}
+            </ul>
+          </details>
         ) : (
           <p>{m.noActionYet}</p>
         )}
       </section>
-    </main>
+    
+</main>
   );
 }

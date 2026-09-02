@@ -658,6 +658,12 @@ export interface CepDeployerMessages {
   licenseAutoAssignWarningLink: string;
   licenseAutoAssignSteps: ReadonlyArray<string>;
   btnAssignLicensesToOu: string;
+  copyTargetOuPath: string;
+  tabSetup: string;
+  tabLicensing: string;
+  tabDlp: string;
+  tabOperations: string;
+  tabAll: string;
   btnAssigningLicenses: string;
   licenseAssignUsersFound: string;
   noUsersFoundInOu: string;
@@ -2158,6 +2164,12 @@ const en: Messages = {
       "3. Either turn Auto-assign ON only for this pilot OU, or use the button below to assign licenses directly.",
     ],
     btnAssignLicensesToOu: "Assign CEP licenses (maximum 10 exact-OU users)",
+    copyTargetOuPath: "Auto-fill path",
+    tabSetup: "1. Setup Wizard",
+    tabLicensing: "2. Users & Licensing",
+    tabDlp: "3. DLP & Threat Matrix",
+    tabOperations: "4. Operations & Testing",
+    tabAll: "View All Sections",
     btnAssigningLicenses: "Assigning licenses to OU users...",
     licenseAssignUsersFound: "Processed users in OU",
     noUsersFoundInOu: "No users found in this organizational unit.",
@@ -2563,12 +2575,12 @@ const ja: Messages = {
         : `${name}のインストール済み・有効報告はまだありません。`,
     missingPermissions: (count: number) =>
       `デプロイヤーに必要な権限が${count}件不足しています。`,
-    approvePlan: "この正確なプランを承認",
+    approvePlan: "デプロイ実行計画（プラン）を承認",
     approvePlanDescription:
       "承認は構成ハッシュに紐付き、設定を変更すると無効になります。",
     generatePlan: "事前確認を実行してプランを生成",
     runPreflight: "信頼済み事前確認を実行",
-    preparingPlan: "リソースを検出し、正確なプランを生成しています…",
+    preparingPlan: "リソースの現状を検出し、実行計画を生成しています…",
     planReady: "サーバー検証済みプランを生成しました",
     planBlocked: "プランにブロッキングゲートがあります",
     changesCount: (count: number) => `承認が必要な実変更 ${count} 件`,
@@ -2579,7 +2591,7 @@ const ja: Messages = {
     preflightStage4: "4/5: Chrome Management & テスト OU ポリシーの照合中...",
     preflightStage5: "5/5: 差分計画の構築 & セーフティゲートの判定中...",
     preflightComplete: "すべての事前確認とセーフティゲートの検証が完了しました",
-    plannedChangesTitle: "承認対象の正確な変更",
+    plannedChangesTitle: "承認対象の変更内容（実行計画）",
     plannedChangesIntro:
       "作成・更新する項目だけを表示します。再利用または変更なしのリソースは更新しません。",
     changeAction: (action) =>
@@ -2607,7 +2619,7 @@ const ja: Messages = {
           ? "表示されたグループの［アプリと拡張機能］を確認し、空または不整合な管理対象設定を削除するか、テストOUと同じSecure Gateway設定にします。グループ変更は全メンバーへ影響するため、自動適用せずブロックします。"
         : fallback ?? "",
     approveWorking: "承認を紐付けています…",
-    approvalReady: "正確なプランを承認済み",
+    approvalReady: "実行計画を承認済み",
     continueToApply: "適用へ進む",
     applyTitle: "チェックポイントとエビデンス付きで適用",
     applyIntro:
@@ -2750,8 +2762,8 @@ const ja: Messages = {
     teardownSharedNotice:
       "共有 IAM／Chrome Policy は、正確な変更前状態を記録し、現在値がこのrunの記録済みmanaged-after状態と一致する場合だけ復元します。送信結果が不明な変更や後発ドリフトは保持し、手動で照合します。既存 VPC、Access Level、Project API、その他の共有・再利用リソースは保持します。この実行が作成した Gateway も、Application が残っていない場合だけ削除します。",
     teardownUnavailable: "安全に削除できる所有リソースがこの実行にはありません。",
-    teardownConfirmation: "正確な確認文",
-    teardownConfirmationHint: "上に表示された確認文をそのまま入力",
+    teardownConfirmation: "確認フレーズの入力",
+    teardownConfirmationHint: "上記の確認フレーズをそのまま入力",
     startTeardown: "実行の変更を復元・削除",
     teardownRunning: "実行の変更を復元・削除中…",
     teardownSucceeded: "削除完了",
@@ -3476,9 +3488,9 @@ const ja: Messages = {
     rootOuUnavailable: "ルート — 使用不可",
     targetOuImpact:
       "Chrome ポリシーと OU 対象の DLP ルールは、継承により選択 OU と配下の OU に影響する場合があります。アクセスレベルを作成すると組織スコープのリソースが追加されますが、この画面ではアプリへ割り当てません。ライセンス割り当ては Directory 上の現在のパスが選択 OU と完全一致するユーザーだけが対象で、配下 OU のユーザーは除外します。",
-    targetOuConfirmationLabel: "正確な OU パスを入力して対象を確認",
+    targetOuConfirmationLabel: "確認のため、対象の OU パスを入力",
     targetOuConfirmationHint:
-      "適用またはライセンス割り当てのたびに入力内容を消去します。上の影響範囲を確認し、各変更操作の直前に表示されたパスをもう一度入力してください。",
+      "誤適用を防ぐため、変更操作の直前に表示された対象 OU パスを入力してください（横のボタンで自動入力できます）。",
     ouLoadFailed:
       "組織部門を取得できませんでした。セットアップ画面で Google Workspace の接続を確認してから、このタブを開き直してください。",
     canonicalCustomerIdRequired:
@@ -3543,9 +3555,9 @@ const ja: Messages = {
       "個人番号ルールが使用する Cloud DLP 検出器を切り替えます。国が合っていない検出器は何も検知しないため、動作しているルールと見分けがつきません。",
     dlpRulesTableTitle: "ルールごとの動作",
     dlpRulesTableHint:
-      "Cloud Identity Policy API が Chrome 向けに提供する動作は「警告」と「ブロック」です。ルールを適用しない項目は「オフ」を選択してください（※Chrome で未対応の「監査のみ」は選択肢から除外しています）。",
+      "本ツール（Cloud Identity Policy API 経由）での作成は「警告」と「ブロック」に対応しています。適用しない項目は「オフ」を選択してください（※Chrome DLP 自体は監査のみ（ログ記録）に対応していますが、API 自動プロビジョニングでは本バージョン未対応のため除外しています。監査のみの設定は Google 管理コンソールをご利用ください）。",
     dlpActionOff: "作成しない",
-    dlpActionAudit: "Chrome では未対応",
+    dlpActionAudit: "管理コンソール側で設定（本ツール未対応）",
     dlpActionWarn: "警告して許可",
     dlpActionBlock: "ブロック",
     dlpRuleNationalId: "ページへの個人番号の貼り付け",
@@ -3653,6 +3665,12 @@ const ja: Messages = {
       "3. このパイロット OU のみ自動割り当てを「オン」にするか、または下のボタンから対象ユーザーへ直接一括割り当てを行います。",
     ],
     btnAssignLicensesToOu: "CEPライセンスを割り当て（OU直下・最大10名）",
+    copyTargetOuPath: "このパスを自動入力",
+    tabSetup: "1. セットアップ",
+    tabLicensing: "2. ユーザー & ライセンス",
+    tabDlp: "3. DLP & 脅威対策",
+    tabOperations: "4. 運用 & 検証",
+    tabAll: "すべて表示",
     btnAssigningLicenses: "OU 内のユーザーへライセンスを割り当て中...",
     licenseAssignUsersFound: "OU 内のユーザーを処理しました",
     noUsersFoundInOu: "選択された組織部門内にユーザーは見つかりませんでした。",
