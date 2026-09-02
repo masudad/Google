@@ -2082,6 +2082,18 @@ export class CepProvider {
         condition: { contentCondition: nationalIdCondition },
       },
       {
+        id: "access_level",
+        displayName: `${DLP_PREFIX}Unmanaged Chrome access control`,
+        description: `Enforces Chrome DLP controls on devices matching Access Level: ${context.accessLevelName ?? ""}.`,
+        operations: DLP_OPERATIONS_BY_RULE.access_level,
+        condition:
+          context.accessLevelName && context.accessLevelName !== "NONE"
+            ? {
+                contextCondition: `access_levels.exists(level, level == \x27${context.accessLevelName}\x27)`,
+              }
+            : undefined,
+      },
+      {
         id: "watermark",
         displayName: `${DLP_PREFIX}Watermark internal pages`,
         description:
@@ -2127,6 +2139,9 @@ export class CepProvider {
       // broaden it silently into an all-device rule.
       if (matrixRule.byodOnly === true) continue;
       for (const operation of base.operations) {
+        if (base.id === "access_level" && (!context.accessLevelName || context.accessLevelName === "NONE")) {
+          continue;
+        }
         const selectedAction =
           operation === "watermark"
             ? matrixRule.watermark === true
@@ -2200,15 +2215,19 @@ export class CepProvider {
         });
       if (!selected) continue;
       if (id === "access_level") {
-        failed = true;
-        skipped.push(
-          "DLP unmanaged/BYOD rule: not created because the public Policy API documentation does not define a supported access-level CEL function",
-        );
+        if (!context.accessLevelName || context.accessLevelName === "NONE") {
+          failed = true;
+          skipped.push(
+            "DLP unmanaged/BYOD rule: not created because no Access Level is selected in Setup wizard (access-level CEL)",
+          );
+        }
       } else if (rule.byodOnly === true) {
-        failed = true;
-        skipped.push(
-          `DLP ${id} BYOD scope: not created because the public Policy API documentation does not define a supported access-level CEL function`,
-        );
+        if (!context.accessLevelName || context.accessLevelName === "NONE") {
+          failed = true;
+          skipped.push(
+            `DLP ${id} BYOD scope: not created because no Access Level is selected in Setup wizard (access-level CEL)`,
+          );
+        }
       }
     }
 

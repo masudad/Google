@@ -3598,6 +3598,28 @@ for (const mode of ["412-commit", "503-commit", "response-loss-commit"] as const
   check("a generic licensing 400 counts every failed user", result.failed_count === 2);
 }
 
+{
+  // Access Level CEL condition rule creation
+  const { transport, calls } = stubTransport();
+  await route(context(transport), "POST", "/api/v1/cep/provision", {
+    ...DLP_CONFIG,
+    access_level: "accessPolicies/12345/accessLevels/corp_managed",
+    dlp_matrix: {
+      access_level: { download: "blockContent", upload: "warnUser" },
+    },
+  });
+  const rules = ruleBodies(calls);
+  const accessRules = rules.filter((r) => String(r.displayName ?? "").includes("Unmanaged Chrome"));
+  check("access_level rules are created when access_level is provided", accessRules.length === 2, String(accessRules.length));
+  const downloadRule = accessRules.find((r) => String(r.displayName ?? "").includes("download"));
+  const condition = (downloadRule?.condition ?? {}) as { contextCondition?: string };
+  check(
+    "access_level rule uses contextCondition with access_levels.exists",
+    condition.contextCondition === "access_levels.exists(level, level == \x27accessPolicies/12345/accessLevels/corp_managed\x27)",
+    JSON.stringify(condition),
+  );
+}
+
 // -- Report -------------------------------------------------------------------
 
 if (failures.length > 0) {

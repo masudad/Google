@@ -340,26 +340,42 @@ export function DlpMatrixTable({
             </tr>
 
             {/* 5. Unmanaged / BYOD Devices */}
-            <tr className="dlp-row-admin-only">
+            <tr>
               <th scope="row">
                 <strong>💻 {m.dlpRowAccessLevel}</strong>
                 <small>{m.dlpRowAccessLevelDesc}</small>
               </th>
               <td>
-                <span className="dlp-badge dlp-badge-off">{m.dlpActionBadgeAudit}</span>
+                {renderActionBadge(
+                  currentMatrix.access_level?.upload,
+                  () => cycleAction("access_level", "upload"),
+                  `${m.dlpRowAccessLevel} ${m.dlpColUpload}`,
+                )}
               </td>
               <td>
-                <span className="dlp-badge dlp-badge-off">{m.dlpActionBadgeAudit}</span>
+                {renderActionBadge(
+                  currentMatrix.access_level?.download,
+                  () => cycleAction("access_level", "download"),
+                  `${m.dlpRowAccessLevel} ${m.dlpColDownload}`,
+                )}
               </td>
               <td>
-                <span className="dlp-badge dlp-badge-off">{m.dlpActionBadgeAudit}</span>
+                {renderActionBadge(
+                  currentMatrix.access_level?.paste,
+                  () => cycleAction("access_level", "paste"),
+                  `${m.dlpRowAccessLevel} ${m.dlpColPaste}`,
+                )}
               </td>
               <td>
-                <span className="dlp-badge dlp-badge-off">{m.dlpActionBadgeAudit}</span>
+                {renderActionBadge(
+                  currentMatrix.access_level?.print,
+                  () => cycleAction("access_level", "print"),
+                  `${m.dlpRowAccessLevel} ${m.dlpColPrint}`,
+                )}
               </td>
               <td className="cell-na">—</td>
               <td>
-                <span className="dlp-scope-pill byod fixed">{m.dlpActionBadgeAudit}</span>
+                <span className="dlp-scope-pill byod fixed">{m.dlpScopeByodOnly}</span>
               </td>
             </tr>
 

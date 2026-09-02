@@ -341,8 +341,7 @@ describe("CepDeployerPage", () => {
     const accessLevelRow = screen.getByRole("row", {
       name: new RegExp(m.dlpRowAccessLevel),
     });
-    expect(within(accessLevelRow).queryAllByRole("button")).toHaveLength(0);
-    expect(within(accessLevelRow).getAllByText(m.dlpActionBadgeAudit)).toHaveLength(5);
+    expect(within(accessLevelRow).getAllByRole("button")).toHaveLength(4);
 
     // Presets
     expect(screen.getByText(m.dlpPresetRecommended)).toBeInTheDocument();
