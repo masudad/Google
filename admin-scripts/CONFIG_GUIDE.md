@@ -1,6 +1,11 @@
 # Configuration Guide
 
-This guide provides instructions on how to find the necessary configuration details for using the scripts. 
+This guide provides instructions on how to find the necessary configuration details for using the admin automation scripts.
+
+> [!TIP]
+> **Native Admin Console Features**:
+> - **Extension Risk Assessment**: Built into Google Admin Console (**Devices > Chrome > Apps & extensions**). The `BlockExtensionBasedOnRiskScore.py` script is deprecated.
+> - **Move Managed Browsers**: Browsers can be selected and moved in bulk directly under **Devices > Chrome > Managed browsers > Move**.
 
 ## Configuration Details
 

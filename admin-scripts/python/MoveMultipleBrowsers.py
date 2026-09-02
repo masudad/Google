@@ -1,8 +1,18 @@
+"""Move Multiple Chrome Browsers between Organizational Units.
+
+NOTE:
+Google Admin Console natively supports selecting multiple managed browsers and
+moving them between OUs directly in the web UI:
+  Devices > Chrome > Managed browsers > Select browsers > Move
+
+This script is useful as an automated CLI alternative for large CSV-based migrations.
+"""
+
+import csv
 import json
 import sys
 from typing import List, Optional
 
-import pandas as pd
 from google.auth.transport.requests import AuthorizedSession
 from google.oauth2.service_account import Credentials
 
@@ -107,23 +117,36 @@ def main() -> None:
         sys.exit(1)
 
     print(f"Reading device list from {DEVICE_CSV_PATH}...")
-    df = pd.read_csv(DEVICE_CSV_PATH)
+    device_ids: List[str] = []
+    try:
+        with open(DEVICE_CSV_PATH, mode="r", encoding="utf-8-sig") as f:
+            reader = csv.reader(f)
+            header = next(reader, None)
+            if not header:
+                print("Error: Device CSV file is empty.", file=sys.stderr)
+                sys.exit(1)
 
-    # Detect device ID column regardless of casing
-    device_id_col = None
-    for candidate in ['deviceId', 'Device ID', 'Device Id', 'device_id', 'DeviceId', 'ID', 'Id']:
-        if candidate in df.columns:
-            device_id_col = candidate
-            break
+            # Detect device ID column regardless of casing
+            device_id_idx = None
+            candidates = {'deviceid', 'device id', 'device_id', 'id'}
+            for idx, col_name in enumerate(header):
+                cleaned = col_name.strip().lower()
+                if cleaned in candidates:
+                    device_id_idx = idx
+                    break
 
-    if not device_id_col:
-        # Fall back to first column
-        device_id_col = df.columns[0]
-        print(f"Notice: Device ID column not explicitly found by name. Using first column '{device_id_col}'.")
+            if device_id_idx is None:
+                device_id_idx = 0
+                print(f"Notice: Device ID column not explicitly found by name. Using first column '{header[0]}'.")
 
-    device_ids = df[device_id_col].dropna().astype(str).str.strip().tolist()
-    # Filter out empty strings
-    device_ids = [d for d in device_ids if d]
+            for row in reader:
+                if len(row) > device_id_idx:
+                    dev_id = row[device_id_idx].strip()
+                    if dev_id:
+                        device_ids.append(dev_id)
+    except Exception as e:
+        print(f"Error reading CSV file {DEVICE_CSV_PATH}: {e}", file=sys.stderr)
+        sys.exit(1)
 
     print(f"Found {len(device_ids)} devices to move to '{DESTINATION_ORG_UNIT_PATH}'.")
     session = create_authorized_session(SERVICE_ACCOUNT_KEY_PATH, ADMIN_USER_EMAIL)

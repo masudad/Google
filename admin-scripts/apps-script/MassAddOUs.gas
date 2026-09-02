@@ -35,9 +35,9 @@ function addOUs() {
   // Fetch values starting from row 2 (headers on row 1)
   const numRows = lastRow - 1;
   const values = sheet.getSheetValues(2, 1, numRows, 2);
-  const failedOUs = [];
-  let successCount = 0;
 
+  // Parse and normalize rows
+  const parsedOUs = [];
   values.forEach((row, index) => {
     const ouName = String(row[OU_COLUMN_INDEX] || '').trim();
     let parentPath = String(row[PARENT_OU_COLUMN_INDEX] || '').trim();
@@ -52,23 +52,51 @@ function addOUs() {
       parentPath = '/' + parentPath;
     }
 
-    const resource = {
+    // Depth is based on the number of slashes in the parent path
+    const depth = (parentPath.match(/\//g) || []).length;
+
+    parsedOUs.push({
       name: ouName,
       parentOrgUnitPath: parentPath,
+      depth: depth,
+      rowNumber: index + 2
+    });
+  });
+
+  // Sort by depth ascending so parents are always created before their children
+  parsedOUs.sort((a, b) => a.depth - b.depth);
+
+  const failedOUs = [];
+  let successCount = 0;
+  let alreadyExistsCount = 0;
+
+  parsedOUs.forEach((ou) => {
+    const resource = {
+      name: ou.name,
+      parentOrgUnitPath: ou.parentOrgUnitPath,
     };
 
     try {
       AdminDirectory.Orgunits.insert(resource, 'my_customer');
       successCount++;
     } catch (e) {
-      Logger.log(`Failed to create OU '${ouName}' under '${parentPath}': ${e.message}`);
-      failedOUs.push(`${ouName} (${parentPath})`);
+      const errorMsg = String(e.message || '');
+      if (errorMsg.includes('already exists') || errorMsg.includes('409') || errorMsg.includes('duplicate')) {
+        alreadyExistsCount++;
+        Logger.log(`OU '${ou.name}' under '${ou.parentOrgUnitPath}' already exists. Skipping.`);
+      } else {
+        Logger.log(`Failed to create OU '${ou.name}' under '${ou.parentOrgUnitPath}': ${errorMsg}`);
+        failedOUs.push(`Row ${ou.rowNumber}: ${ou.name} (${ou.parentOrgUnitPath}) - ${errorMsg}`);
+      }
     }
   });
 
-  let message = `Process completed. Successfully created: ${successCount} OU(s).`;
+  let message = `Process completed.\n` +
+    `• Successfully created: ${successCount} OU(s)\n` +
+    `• Already existed: ${alreadyExistsCount} OU(s)`;
+
   if (failedOUs.length > 0) {
-    message += `\n\nFailed to create ${failedOUs.length} OU(s) (they may already exist or parent path is invalid):\n` + failedOUs.join('\n');
+    message += `\n\nFailed to create ${failedOUs.length} OU(s):\n` + failedOUs.join('\n');
   }
   ui.alert(message);
 }

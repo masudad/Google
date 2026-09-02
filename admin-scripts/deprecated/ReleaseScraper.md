@@ -1,6 +1,12 @@
 # Chrome Enterprise Release Scraper
 
-`ReleaseScraper.py` is a Python utility that monitors official Google Chrome Enterprise release notes and automatically sends structured notifications to a Slack channel via incoming webhooks when new features or version updates are published.
+> [!WARNING]
+> **DEPRECATED**: This script is deprecated and retained for historical reference only.
+> Official Chrome Enterprise release updates can be tracked natively through:
+> - [Google Workspace Updates Blog](https://workspaceupdates.googleblog.com/) (RSS feed available)
+> - Official Chrome Enterprise release email announcements configured in the Google Admin Console.
+
+`ReleaseScraper.py` was a Python utility that monitors official Google Chrome Enterprise release notes and automatically sends structured notifications to a Slack channel via incoming webhooks when new features or version updates are published.
 
 ---
 
@@ -42,8 +48,23 @@ STORAGE_FILE = "page_content.db"
 
 ## Usage
 
-Run the script directly:
+### Run Continuously (Daemon Mode)
+Runs an infinite monitoring loop checking every 24 hours:
 
 ```bash
 python ReleaseScraper.py
 ```
+
+### Run Once (Cron / CI / Scheduled Tasks)
+Runs a single update check and exits immediately (exit code 0):
+
+```bash
+python ReleaseScraper.py --once
+```
+
+---
+
+## Alternatives
+Administrators can also follow Chrome Enterprise updates natively via:
+- Google Workspace Updates Blog (RSS feed available)
+- Chrome Enterprise Release Notes email announcements in Google Cloud / Admin Console settings.

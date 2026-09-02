@@ -15,8 +15,9 @@ This repository brings together two main components:
 ├── admin-scripts/                # Google Workspace & Chrome administrative tools
 │   ├── README.md                 # Tools overview and quickstart guide
 │   ├── CONFIG_GUIDE.md           # Service Account and Workspace authentication guide
-│   ├── python/                   # Python management scripts & documentation
-│   └── apps-script/              # Google Apps Script (.gas) spreadsheet utilities
+│   ├── python/                   # Active Python management scripts & documentation
+│   ├── apps-script/              # Google Apps Script (.gas) spreadsheet utilities
+│   └── deprecated/               # Archived / deprecated utilities (superseded by native features)
 │
 ├── secure-gateway-studio/        # Secure Gateway Studio suite
 │   ├── README.md                 # Architecture, prerequisites, and runtime documentation
@@ -46,14 +47,14 @@ Simplifies the planning, approval, and execution of zero-trust private access fo
 
 ### 2. Workspace & Chrome Admin Scripts (`admin-scripts/`)
 
-| Category | Script | Description |
-| :--- | :--- | :--- |
-| **Python** | [`BlockExtensionBasedOnRiskScore.py`](admin-scripts/python/BlockExtensionBasedOnRiskScore.py) | Assesses & blocks high-risk Chrome extensions (Crxcavator & Spin.ai). |
-| **Python** | [`ManagedBookmarks.py`](admin-scripts/python/ManagedBookmarks.py) | Centralizes Chrome bookmark deployment via Chrome Policy API. |
-| **Python** | [`MoveMultipleBrowsers.py`](admin-scripts/python/MoveMultipleBrowsers.py) | Bulk moves enrolled Chrome browsers across Organizational Units (OUs). |
-| **Python** | [`ReleaseScraper.py`](admin-scripts/python/ReleaseScraper.py) | Scrapes Chrome Enterprise release notes and sends diffs to Slack. |
-| **Apps Script** | [`MassAddOUs.gas`](admin-scripts/apps-script/MassAddOUs.gas) | Bulk creates Google Workspace Organizational Units via Google Sheets. |
-| **Apps Script** | [`MassAddWifiSettings.gas`](admin-scripts/apps-script/MassAddWifiSettings.gas) | Bulk provisions enterprise Wi-Fi configurations to OUs via Google Sheets. |
+| Category | Script | Status | Description |
+| :--- | :--- | :--- | :--- |
+| **Python** | [`MoveMultipleBrowsers.py`](admin-scripts/python/MoveMultipleBrowsers.py) | ✅ Active | Bulk moves enrolled Chrome browsers across OUs via CSV. |
+| **Python** | [`ManagedBookmarks.py`](admin-scripts/python/ManagedBookmarks.py) | ✅ Active | Centralizes Chrome bookmark deployment via Chrome Policy API. |
+| **Apps Script** | [`MassAddOUs.gas`](admin-scripts/apps-script/MassAddOUs.gas) | ✅ Active | Bulk creates Google Workspace Organizational Units via Google Sheets. |
+| **Apps Script** | [`MassAddWifiSettings.gas`](admin-scripts/apps-script/MassAddWifiSettings.gas) | ✅ Active | Bulk provisions enterprise Wi-Fi configurations to OUs via Google Sheets. |
+| **Deprecated** | [`BlockExtensionBasedOnRiskScore.py`](admin-scripts/deprecated/BlockExtensionBasedOnRiskScore.py) | ⚠️ Deprecated | Assesses & blocks extensions by risk score; superseded by native Admin Console. |
+| **Deprecated** | [`ReleaseScraper.py`](admin-scripts/deprecated/ReleaseScraper.py) | ⚠️ Deprecated | Scrapes Chrome release notes; superseded by official feeds and notifications. |
 
 👉 **Get Started:** [**Admin Scripts Catalog**](admin-scripts/README.md) \| [**Configuration Guide**](admin-scripts/CONFIG_GUIDE.md)
 

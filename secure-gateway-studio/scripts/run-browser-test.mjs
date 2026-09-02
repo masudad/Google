@@ -5,12 +5,26 @@ import { tmpdir } from "node:os";
 
 const port = 9555;
 const extensionDist = resolve("extension/dist");
-const tempProfile = "C:\\Users\\daiya\\AppData\\Local\\Temp\\sgs-profile-win";
+const tempProfile =
+  process.env.CHROME_PROFILE_DIR ||
+  (process.platform === "win32"
+    ? resolve(tmpdir(), "sgs-profile-win")
+    : resolve(tmpdir(), "sgs-profile"));
 
-console.log("Launching fresh Chrome on port", port);
+const defaultChromePath =
+  process.platform === "win32"
+    ? "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+    : process.platform === "darwin"
+    ? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+    : "google-chrome";
+
+const chromePath = process.env.CHROME_BIN || defaultChromePath;
+
+console.log("Launching Chrome on port", port);
+console.log("Chrome binary:", chromePath);
 console.log("Extension path:", extensionDist);
 
-const chrome = spawn("C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe", [
+const chrome = spawn(chromePath, [
   `--remote-debugging-port=${port}`,
   `--user-data-dir=${tempProfile}`,
   `--load-extension=${extensionDist}`,

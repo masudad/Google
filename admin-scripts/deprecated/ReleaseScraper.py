@@ -1,4 +1,15 @@
+"""DEPRECATION NOTICE:
+===================
+This script is DEPRECATED and retained for historical reference only.
+
+Chrome Enterprise release updates can be followed natively through:
+- Google Workspace Updates Blog (RSS feed): https://workspaceupdates.googleblog.com/
+- Official Chrome Enterprise release email notifications in Google Admin Console
+"""
+
+import argparse
 import json
+import re
 import shelve
 import sys
 import time
@@ -35,29 +46,36 @@ def fetch_page_content() -> Dict[str, Any]:
     main_content_nodes = tree.xpath(MAIN_CONTENT_XPATH)
     main_content = [str(m).strip() for m in main_content_nodes if str(m).strip()]
 
-    release_number_nodes = tree.xpath(RELEASE_NUMBER_XPATH)
-    release_number = (
-        str(release_number_nodes[0]).replace('の概要', '').strip()
-        if release_number_nodes
-        else "Unknown"
-    )
+    # Reliably find the Chrome release version (e.g. "Chrome 147")
+    release_number = "Unknown"
+    for h2 in tree.xpath('//div[@class="cc"]//h2'):
+        h2_text = ''.join(h2.xpath('.//text()')).strip()
+        match = re.search(r'Chrome\s+(\d+)', h2_text)
+        if match:
+            release_number = f"Chrome {match.group(1)}"
+            break
 
-    feature_elements = tree.xpath('//div[@class="cc"]/div/ul/li')
-    link_to_content = tree.xpath('//tbody/tr/td/a/@href')
+    # Extract top-level feature items (excluding sub-bullets inside other lists)
+    feature_elements = tree.xpath('//div[@class="cc"]//ul[not(ancestor::li)]/li')
 
     features: List[Dict[str, Any]] = []
-    for count, feature in enumerate(feature_elements):
-        title_nodes = feature.xpath('.//strong/text()')
-        title = str(title_nodes[0]).strip() if title_nodes else "No title"
+    for feature in feature_elements:
+        # Features have their main title in a direct <strong> element
+        title_nodes = feature.xpath('./strong//text()')
+        if not title_nodes:
+            continue
+        title = ''.join(title_nodes).strip()
 
-        details: List[str] = []
-        detail_elements = feature.xpath('.//p')
-        browser_os_console_nodes = feature.xpath('preceding::h2[1]/text()')
+        # Find the enclosing or immediately preceding section header
+        browser_os_console_nodes = feature.xpath('preceding::h2[1]//text()')
         browser_os_console = (
-            str(browser_os_console_nodes[0]).strip()
+            ''.join(browser_os_console_nodes).strip()
             if browser_os_console_nodes
             else "Unknown Section"
         )
+
+        details: List[str] = []
+        detail_elements = feature.xpath('.//p')
 
         for detail in detail_elements:
             text_parts: List[str] = []
@@ -101,7 +119,13 @@ def fetch_page_content() -> Dict[str, Any]:
             if full_detail:
                 details.append(full_detail)
 
-        feature_url = link_to_content[count] if count < len(link_to_content) else ""
+        # Extract direct link from the feature item itself (or fall back to the release page URL)
+        feature_links = [
+            link for link in feature.xpath('.//a/@href')
+            if link and not link.startswith('#')
+        ]
+        feature_url = feature_links[0] if feature_links else URL
+
         features.append({
             'title': title,
             'details': details,
@@ -210,7 +234,27 @@ def check_for_updates() -> None:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Monitor Chrome Enterprise release notes and post updates to Slack."
+    )
+    parser.add_argument(
+        "--once",
+        action="store_true",
+        help="Run a single check and exit immediately (ideal for cron or scheduled tasks)",
+    )
+    args = parser.parse_args()
+
+    print("=" * 80, file=sys.stderr)
+    print("DEPRECATION NOTICE: ReleaseScraper.py is deprecated.", file=sys.stderr)
+    print("Chrome Enterprise release updates can be followed natively via RSS:", file=sys.stderr)
+    print("  https://workspaceupdates.googleblog.com/", file=sys.stderr)
+    print("=" * 80, file=sys.stderr)
+
     print("Starting Chrome Enterprise release note monitor...")
+    if args.once:
+        check_for_updates()
+        return
+
     while True:
         try:
             check_for_updates()

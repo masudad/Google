@@ -1,3 +1,18 @@
+"""DEPRECATION NOTICE:
+===================
+This script is DEPRECATED and retained for historical reference only.
+
+Google Admin Console (Chrome Enterprise Core) now natively includes Extension Risk
+Assessment and Policy Management:
+- Navigate to: Google Admin Console > Devices > Chrome > Apps & extensions
+- View extension risk scores powered by Spin.ai, Crxcavator, and Google threat intelligence.
+- Set installation policies (Block, Allow, Force Install) and review extension permissions
+  directly in the Admin Console without needing service account JSON keys or domain-wide delegation.
+
+Official documentation:
+https://support.google.com/chrome/a/answer/9296680
+"""
+
 import json
 import sys
 from typing import Any, Dict, List, Optional, Tuple
@@ -13,8 +28,8 @@ SERVICE_ACCOUNT_FILE = '.json'  # Path to the service account JSON file
 CUSTOMER_ID = ''  # Your Google Workspace customer ID (e.g., 'C01234567')
 ADMIN_USER_EMAIL = ''  # Admin email for domain-wide delegation (leave empty if not using delegation)
 TARGET_OU_ID = ''  # The unique ID for the target Organizational Unit (OU)
-CRX_RISK_THRESHOLD = 550  # Threshold for Crxcavator risk score (higher = riskier)
-SPIN_RISK_THRESHOLD = 70  # Threshold for Spin.ai risk score
+CRX_RISK_THRESHOLD = 550  # Threshold for Crxcavator risk score (higher = riskier, range 0-1000)
+SPIN_RISK_THRESHOLD = 70  # Threshold for Spin.ai risk score (calculated as 100 - trustRate, higher = riskier)
 REQUEST_TIMEOUT = 30  # Timeout for API requests in seconds
 # /******* END: Customer to modify this section *******/
 
@@ -170,7 +185,11 @@ def get_risk_score(extension_id: str, version: Optional[str]) -> Tuple[Optional[
         if resp.status_code == 200:
             spin_data = resp.json()
             if isinstance(spin_data, dict):
-                spin_score = spin_data.get('trustRate')
+                trust_rate = spin_data.get('trustRate')
+                # In Spin.ai, 'trustRate' is 0-100 where higher is MORE trustworthy.
+                # Convert to risk score (higher = riskier) for consistent comparison:
+                if isinstance(trust_rate, (int, float)):
+                    spin_score = 100.0 - float(trust_rate)
     except Exception as e:
         print(f"Notice: Spin.ai score lookup for {extension_id} returned: {e}", file=sys.stderr)
 
@@ -178,6 +197,13 @@ def get_risk_score(extension_id: str, version: Optional[str]) -> Tuple[Optional[
 
 
 def main() -> None:
+    print("=" * 80, file=sys.stderr)
+    print("DEPRECATION NOTICE: BlockExtensionBasedOnRiskScore.py is deprecated.", file=sys.stderr)
+    print("Google Admin Console now natively provides Extension Risk Assessment under:", file=sys.stderr)
+    print("  Devices > Chrome > Apps & extensions", file=sys.stderr)
+    print("Consider using native Admin Console policies instead of this script.", file=sys.stderr)
+    print("=" * 80, file=sys.stderr)
+
     if not CUSTOMER_ID:
         print("Error: CUSTOMER_ID is not configured. Please set CUSTOMER_ID in the script.", file=sys.stderr)
         sys.exit(1)
@@ -208,16 +234,16 @@ def main() -> None:
 
         if crxcavator_score is not None and spin_score is not None:
             if crxcavator_score > CRX_RISK_THRESHOLD and spin_score > SPIN_RISK_THRESHOLD:
-                print(f"[BLOCK] Extension {ext_id} (Crx: {crxcavator_score}, Spin: {spin_score}) -> Blocking in OU {TARGET_OU_ID}")
+                print(f"[BLOCK] Extension {ext_id} (Crx Risk: {crxcavator_score}, Spin Risk: {spin_score}) -> Blocking in OU {TARGET_OU_ID}")
                 try:
                     block_extension(session, CUSTOMER_ID, TARGET_OU_ID, ext_id)
                     print(f"        Successfully applied block policy.")
                 except Exception as e:
                     print(f"        Failed to block: {e}", file=sys.stderr)
             else:
-                print(f"[SAFE]  Extension {ext_id} (Crx: {crxcavator_score}, Spin: {spin_score}) is within allowed thresholds.")
+                print(f"[SAFE]  Extension {ext_id} (Crx Risk: {crxcavator_score}, Spin Risk: {spin_score}) is within allowed thresholds.")
         else:
-            print(f"[WARN]  Extension {ext_id} (Crx: {crxcavator_score}, Spin: {spin_score}) requires manual review.")
+            print(f"[WARN]  Extension {ext_id} (Crx Risk: {crxcavator_score}, Spin Risk: {spin_score}) requires manual review.")
 
 
 if __name__ == '__main__':

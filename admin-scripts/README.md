@@ -6,14 +6,12 @@ A collection of production-ready automation scripts and utilities for Google Wor
 
 ## Catalog of Tools
 
-### 🐍 Python Scripts (`python/`)
+### 🐍 Active Python Scripts (`python/`)
 
 | Tool | Description | Documentation |
 | :--- | :--- | :--- |
-| [`BlockExtensionBasedOnRiskScore.py`](python/BlockExtensionBasedOnRiskScore.py) | Automatically assesses and blocks Chrome extensions exceeding risk score thresholds (Crxcavator & Spin.ai). | [Guide](python/BlockExtensionBasedOnRiskScore.md) |
-| [`ManagedBookmarks.py`](python/ManagedBookmarks.py) | Deploys managed Chrome bookmarks across specified Organizational Units (OUs) using Chrome Management Policy API. | [Guide](python/ManagedBookmarks.md) |
-| [`MoveMultipleBrowsers.py`](python/MoveMultipleBrowsers.py) | Batch moves enrolled Chrome browsers between Organizational Units in Chrome Browser Cloud Management (CBCM). | [Guide](python/MoveMultipleBrowsers.md) |
-| [`ReleaseScraper.py`](python/ReleaseScraper.py) | Monitors official Chrome Enterprise release notes and publishes new feature summaries to Slack. | [Guide](python/ReleaseScraper.md) |
+| [`MoveMultipleBrowsers.py`](python/MoveMultipleBrowsers.py) | Batch moves enrolled Chrome browsers between OUs via CSV. *(Also available in Admin Console GUI).* | [Guide](python/MoveMultipleBrowsers.md) |
+| [`ManagedBookmarks.py`](python/ManagedBookmarks.py) | Deploys managed Chrome bookmarks across specified OUs using Chrome Management Policy API. | [Guide](python/ManagedBookmarks.md) |
 
 ### 📜 Google Apps Scripts (`apps-script/`)
 
@@ -21,6 +19,13 @@ A collection of production-ready automation scripts and utilities for Google Wor
 | :--- | :--- | :--- |
 | [`MassAddOUs.gas`](apps-script/MassAddOUs.gas) | Bulk creates and configures Organizational Units (OUs) in Google Workspace directly from a Google Sheet. | [Guide](apps-script/MassAddOUs.md) |
 | [`MassAddWifiSettings.gas`](apps-script/MassAddWifiSettings.gas) | Bulk configures enterprise Wi-Fi network profiles for OUs from a Google Sheet template. | [Guide](apps-script/MassAddWifiSettings.md) |
+
+### 🗄️ Deprecated Scripts (`deprecated/`)
+
+| Tool | Status | Reason | Native Alternative |
+| :--- | :--- | :--- | :--- |
+| [`BlockExtensionBasedOnRiskScore.py`](deprecated/BlockExtensionBasedOnRiskScore.py) | **Deprecated** | Extension risk scores now built into Admin Console. | [Google Admin Console](https://admin.google.com/) > **Devices** > **Chrome** > **Apps & extensions** |
+| [`ReleaseScraper.py`](deprecated/ReleaseScraper.py) | **Deprecated** | Web scraper superseded by official feeds and notifications. | [Google Workspace Updates Blog](https://workspaceupdates.googleblog.com/) (RSS) |
 
 ---
 

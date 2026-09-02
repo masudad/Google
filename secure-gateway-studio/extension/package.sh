@@ -3,4 +3,4 @@
 # secure-gateway-studio-<manifest-version>.zip (Chrome Web Store).
 set -e
 node build.mjs
-python package.py
+python3 package.py

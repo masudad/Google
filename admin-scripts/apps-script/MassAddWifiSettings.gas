@@ -62,6 +62,9 @@ function addWifi() {
     if (!ouName) continue; // Skip blank lines
 
     var ouID = orgUnitMap[ouName];
+    if (!ouID && !ouName.startsWith('/')) {
+      ouID = orgUnitMap['/' + ouName];
+    }
     if (!ouID) {
       errors.push(`Row ${i + 1} (${ouName}): Organizational Unit not found.`);
       continue;
@@ -152,22 +155,40 @@ function addWifi() {
 }
 
 /**
- * Pre-fetches all OUs and maps OU name to clean Org Unit ID.
+ * Pre-fetches all OUs with pagination and maps OU path/name to clean Org Unit ID.
  */
 function buildOrgUnitMap() {
   var map = {};
   var customerId = 'my_customer';
   try {
-    var response = AdminDirectory.Orgunits.list(customerId, { type: 'all' });
-    var orgUnits = response.organizationUnits || [];
-    for (var i = 0; i < orgUnits.length; i++) {
-      var ou = orgUnits[i];
-      var cleanId = ou.orgUnitId;
-      if (cleanId && cleanId.startsWith("id:")) {
-        cleanId = cleanId.substring(3);
+    var pageToken = null;
+    do {
+      var params = { type: 'all' };
+      if (pageToken) {
+        params.pageToken = pageToken;
       }
-      map[ou.name] = cleanId;
-    }
+      var response = AdminDirectory.Orgunits.list(customerId, params);
+      var orgUnits = response.organizationUnits || [];
+      for (var i = 0; i < orgUnits.length; i++) {
+        var ou = orgUnits[i];
+        var cleanId = ou.orgUnitId;
+        if (cleanId && cleanId.startsWith("id:")) {
+          cleanId = cleanId.substring(3);
+        }
+        // Map full path (e.g. '/Sales/West' and 'Sales/West')
+        if (ou.orgUnitPath) {
+          map[ou.orgUnitPath] = cleanId;
+          if (ou.orgUnitPath.startsWith('/')) {
+            map[ou.orgUnitPath.substring(1)] = cleanId;
+          }
+        }
+        // Map leaf name (e.g. 'West') if not already mapped
+        if (ou.name && !map[ou.name]) {
+          map[ou.name] = cleanId;
+        }
+      }
+      pageToken = response.nextPageToken;
+    } while (pageToken);
   } catch (e) {
     Logger.log('Error fetching Org Units: ' + e.message);
   }

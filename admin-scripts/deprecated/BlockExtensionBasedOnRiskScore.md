@@ -1,7 +1,16 @@
 # BlockExtensionBasedOnRiskScore Script
 
+> [!WARNING]
+> **DEPRECATED**: This script is deprecated and retained for historical reference only.
+> 
+> Google Admin Console (Chrome Enterprise Core) now natively includes **Extension Risk Assessment** and policy workflows directly in the web interface:
+> - Navigate to: [**Google Admin Console**](https://admin.google.com/) > **Devices** > **Chrome** > **Apps & extensions**
+> - View built-in risk scores powered by Spin.ai, Crxcavator, and Google threat intelligence.
+> - Configure installation policies (Block, Allow, Force install) and review requested permissions without managing custom service accounts, OAuth credentials, or external API endpoints.
+> - See official documentation: [Manage extensions in the Admin console](https://support.google.com/chrome/a/answer/9296680).
+
 ## Overview
-This Python script, `BlockExtensionBasedOnRiskScore.py`, is designed to automate the process of identifying and blocking potentially risky Chrome extensions in a Chrome Browser Cloud Management environment. It evaluates extensions based on risk scores obtained from Crxcavator and Spin.ai.
+This Python script, `BlockExtensionBasedOnRiskScore.py`, was designed to automate the process of identifying and blocking potentially risky Chrome extensions in a Chrome Browser Cloud Management environment. It evaluates extensions based on risk scores obtained from Crxcavator and Spin.ai.
 
 ## Requirements
 - Python 3.x
