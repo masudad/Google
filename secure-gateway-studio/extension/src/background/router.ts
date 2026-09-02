@@ -2151,7 +2151,9 @@ export async function route(
 
   if (key === "POST /api/v1/cep/roles") {
     const request_ = body as CepCustomRoleConfig;
-    await context.requireDeployer(request_.project_id);
+    if (typeof request_.project_id === "string" && request_.project_id !== "") {
+      await context.requireDeployer(request_.project_id);
+    }
     return (await cepProvider(context, request_.project_id)).createCustomRoles(request_);
   }
 

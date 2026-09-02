@@ -779,6 +779,28 @@ export function assignCepLicenses(
   return postJson<CepLicenseAssignResult>("/api/v1/cep/assign-licenses", config);
 }
 
+
+export interface CepCustomRoleConfig {
+  project_id?: string;
+  customer_id: string;
+  role_type: "administrator" | "auditor" | "both";
+  assigned_user_email?: string;
+  target_ou_id?: string;
+}
+
+export interface CepRoleResult {
+  success: boolean;
+  message: string;
+  roles: string[];
+  debug_trace: CepTraceItem[];
+}
+
+export function createCepCustomRoles(
+  config: CepCustomRoleConfig,
+): Promise<CepRoleResult> {
+  return postJson<CepRoleResult>("/api/v1/cep/roles", config);
+}
+
 export function generateCepScript(
   config: CepProvisionConfig,
 ): Promise<{ script: string; filename: string }> {

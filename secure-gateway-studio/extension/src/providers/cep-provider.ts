@@ -227,10 +227,11 @@ export interface CepProvisionConfig {
 }
 
 export interface CepCustomRoleConfig {
-  project_id: string;
+  project_id?: string;
   customer_id: string;
   role_type: "administrator" | "auditor" | "both";
   assigned_user_email?: string;
+  target_ou_id?: string;
 }
 
 export interface CepLicenseAssignConfig {
@@ -2867,18 +2868,199 @@ export class CepProvider {
   // -- Workspace administrator roles -----------------------------------------
 
   /**
-   * Kept only as a fail-closed response for older clients while the legacy
-   * route is retired. Google Cloud custom IAM roles cannot grant Google
-   * Workspace Chrome administrator privileges or OAuth scopes, so pretending
-   * to provision those roles would report security access that does not exist.
+   * Provisions custom Google Workspace administrator roles and assigns them
+   * to a designated user using the Google Workspace Admin SDK Directory API.
    */
-  async createCustomRoles(_config: CepCustomRoleConfig): Promise<CepRoleResult> {
+  async createCustomRoles(config: CepCustomRoleConfig): Promise<CepRoleResult> {
+    const trace: CepTraceItem[] = [];
+    const customerId = config.customer_id || "my_customer";
+    const roles: string[] = [];
+    const errors: string[] = [];
+
+    const roleDefinitions: Array<{
+      id: string;
+      name: string;
+      description: string;
+      privileges: Array<{ privilegeName: string; serviceId: string }>;
+    }> = [];
+
+    if (config.role_type === "administrator" || config.role_type === "both") {
+      roleDefinitions.push({
+        id: "cep-policy-operator",
+        name: "Chrome Enterprise PoC Operator",
+        description:
+          "Administers Chrome policies and organizational units for Chrome Enterprise Premium evaluation",
+        privileges: [
+          { privilegeName: "CHROME_MANAGEMENT", serviceId: "CHROME_MANAGEMENT" },
+          { privilegeName: "ORGANIZATION_UNITS", serviceId: "CUSTOMER_SETTINGS" },
+        ],
+      });
+    }
+
+    if (config.role_type === "auditor" || config.role_type === "both") {
+      roleDefinitions.push({
+        id: "cep-audit-investigator",
+        name: "Chrome Enterprise PoC Auditor",
+        description:
+          "Audits Chrome browser logs, events, and reports for Chrome Enterprise Premium evaluation",
+        privileges: [
+          { privilegeName: "SECURITY_REPORTS", serviceId: "REPORTS" },
+          { privilegeName: "AUDIT_LOGS", serviceId: "REPORTS" },
+        ],
+      });
+    }
+
+    // 1. List existing roles in Google Workspace
+    const existingRolesUrl = `${DIRECTORY}/customer/${encodeURIComponent(customerId)}/roles`;
+    let existingRoles: Array<{ roleId: string; roleName: string }> = [];
+    try {
+      const resp = await this.transport.requestJson("GET", existingRolesUrl);
+      trace.push({
+        label: "List Workspace custom roles",
+        method: "GET",
+        url: existingRolesUrl,
+        status: resp.status,
+        ok: resp.status >= 200 && resp.status < 300,
+      });
+      if (resp.status >= 200 && resp.status < 300 && resp.payload && typeof resp.payload === "object") {
+        existingRoles =
+          ((resp.payload as { items?: Array<{ roleId: string; roleName: string }> }).items ?? []);
+      }
+    } catch (err) {
+      trace.push({
+        label: "List Workspace custom roles",
+        method: "GET",
+        url: existingRolesUrl,
+        status: 500,
+        ok: false,
+        error: errorMessage(err),
+      });
+    }
+
+    const createdRoleIds: Array<{ roleName: string; roleId: string }> = [];
+
+    for (const def of roleDefinitions) {
+      const found = existingRoles.find((r) => r.roleName === def.name);
+      if (found) {
+        roles.push(`${def.name} (既存: ${found.roleId})`);
+        createdRoleIds.push({ roleName: def.name, roleId: found.roleId });
+        continue;
+      }
+
+      const createUrl = `${DIRECTORY}/customer/${encodeURIComponent(customerId)}/roles`;
+      try {
+        const createResp = await this.transport.requestJson("POST", createUrl, {
+          body: {
+            roleName: def.name,
+            roleDescription: def.description,
+            rolePrivileges: def.privileges,
+          },
+        });
+        const ok = createResp.status >= 200 && createResp.status < 300;
+        trace.push({
+          label: `Create Workspace role ${def.name}`,
+          method: "POST",
+          url: createUrl,
+          status: createResp.status,
+          ok,
+        });
+
+        if (ok && createResp.payload && typeof createResp.payload === "object") {
+          const created = createResp.payload as { roleId?: string; roleName?: string };
+          const id = created.roleId ?? "created";
+          roles.push(`${def.name} (ID: ${id})`);
+          if (created.roleId) {
+            createdRoleIds.push({ roleName: def.name, roleId: created.roleId });
+          }
+        } else {
+          const errMsg =
+            typeof createResp.payload === "object" && createResp.payload !== null
+              ? JSON.stringify(createResp.payload)
+              : `HTTP ${createResp.status}`;
+          errors.push(`ロール ${def.name} の作成に失敗しました: ${errMsg}`);
+        }
+      } catch (err) {
+        errors.push(`ロール ${def.name} の作成エラー: ${errorMessage(err)}`);
+        trace.push({
+          label: `Create Workspace role ${def.name}`,
+          method: "POST",
+          url: createUrl,
+          status: 500,
+          ok: false,
+          error: errorMessage(err),
+        });
+      }
+    }
+
+    // 2. Assign to assigned_user_email if provided
+    const email = config.assigned_user_email?.trim();
+    const assignedUsers: string[] = [];
+    if (email && createdRoleIds.length > 0) {
+      let userDirectoryId = "";
+      try {
+        const userUrl = `${DIRECTORY}/users/${encodeURIComponent(email)}`;
+        const userResp = await this.transport.requestJson("GET", userUrl);
+        if (userResp.status >= 200 && userResp.status < 300 && userResp.payload) {
+          userDirectoryId = (userResp.payload as { id?: string }).id ?? "";
+        }
+      } catch {
+        // Fall back to email
+      }
+      const assignedTarget = userDirectoryId || email;
+
+      for (const role of createdRoleIds) {
+        const assignUrl = `${DIRECTORY}/customer/${encodeURIComponent(customerId)}/roleAssignments`;
+        const assignBody: Record<string, unknown> = {
+          roleId: role.roleId,
+          assignedTo: assignedTarget,
+          scopeType: config.target_ou_id ? "ORG_UNIT" : "CUSTOMER",
+        };
+        if (config.target_ou_id) {
+          assignBody.orgUnitId = config.target_ou_id;
+        }
+
+        try {
+          const assignResp = await this.transport.requestJson("POST", assignUrl, {
+            body: assignBody,
+          });
+          const ok = assignResp.status >= 200 && assignResp.status < 300;
+          trace.push({
+            label: `Assign role ${role.roleName} to ${email}`,
+            method: "POST",
+            url: assignUrl,
+            status: assignResp.status,
+            ok: ok || assignResp.status === 409,
+          });
+
+          if (ok) {
+            assignedUsers.push(`${role.roleName} -> ${email}`);
+          } else if (assignResp.status === 409) {
+            assignedUsers.push(`${role.roleName} -> ${email} (既に割当済)`);
+          } else {
+            const errDetail =
+              typeof assignResp.payload === "object" && assignResp.payload !== null
+                ? JSON.stringify(assignResp.payload)
+                : `HTTP ${assignResp.status}`;
+            errors.push(`ロール ${role.roleName} の ${email} への割り当て失敗: ${errDetail}`);
+          }
+        } catch (err) {
+          errors.push(`ロール ${role.roleName} の割り当てエラー: ${errorMessage(err)}`);
+        }
+      }
+    }
+
+    const success = errors.length === 0;
+    const msg = success
+      ? `Workspace 管理者ロールの作成・処理が完了しました: ${roles.join(", ")}。${
+          assignedUsers.length > 0 ? ` 割当状況: ${assignedUsers.join(", ")}` : ""
+        }`
+      : `一部の処理でエラーが発生しました: ${errors.join(" / ")}`;
+
     return {
-      success: false,
-      message:
-        "Unsupported: Google Cloud custom IAM roles cannot grant Chrome Policy administrator access. Assign a scoped administrator role in the Google Admin console (Super Admin is required for Cloud Identity DLP mutations), then verify the real APIs from the CEP deployer.",
-      roles: [],
-      debug_trace: [],
+      success,
+      message: msg,
+      roles,
+      debug_trace: trace,
     };
   }
 

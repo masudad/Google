@@ -4,12 +4,14 @@ import type {
   CepDataBoundaryMode,
   CepDlpMatrixState,
   CepLicenseAssignResult,
+  CepRoleResult,
   CepProvisionConfig,
   CepProvisionResult,
   SetupOption,
 } from "../../lib/api";
 import {
   assignCepLicenses,
+  createCepCustomRoles,
   generateCepScript,
   listAccessLevelOptions,
   listOrganizationalUnitOptions,
@@ -176,6 +178,13 @@ export function CepDeployerPage({
   const [licenseResult, setLicenseResult] = useState<CepLicenseAssignResult | null>(null);
   const [licenseError, setLicenseError] = useState<string>("");
 
+  const [roleType, setRoleType] = useState<"both" | "administrator" | "auditor">("both");
+  const [assignedUserEmail, setAssignedUserEmail] = useState<string>("");
+  const [scopeRoleToOu, setScopeRoleToOu] = useState<boolean>(true);
+  const [creatingRoles, setCreatingRoles] = useState<boolean>(false);
+  const [roleResult, setRoleResult] = useState<CepRoleResult | null>(null);
+  const [roleError, setRoleError] = useState<string>("");
+
   const [busy, setBusy] = useState<"deploy" | "rollback" | null>(null);
   const [actionError, setActionError] = useState<string>("");
   const [actionSuccess, setActionSuccess] = useState<string>("");
@@ -184,6 +193,31 @@ export function CepDeployerPage({
 
   const [ouLoaded, setOuLoaded] = useState<boolean>(false);
   const [loadingOus, setLoadingOus] = useState<boolean>(false);
+
+  async function handleCreateRoles() {
+    if (!canonicalCustomerId) return;
+    setCreatingRoles(true);
+    setRoleError("");
+    setRoleResult(null);
+
+    try {
+      const res = await createCepCustomRoles({
+        customer_id: canonicalCustomerId,
+        project_id: projectId,
+        role_type: roleType,
+        assigned_user_email: assignedUserEmail.trim() || undefined,
+        target_ou_id: scopeRoleToOu && selectedOu ? selectedOu : undefined,
+      });
+      setRoleResult(res);
+      if (!res.success) {
+        setRoleError(res.message);
+      }
+    } catch (err) {
+      setRoleError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setCreatingRoles(false);
+    }
+  }
 
   const handleLoadOus = async () => {
     // A refresh is a new authorization decision. Never retain or infer a
@@ -882,15 +916,76 @@ export function CepDeployerPage({
           </article>
         </div>
 
-        <a
-          className="btn btn-secondary cep-role-action-btn"
-          href="https://admin.google.com/ac/roles"
-          rel="noreferrer"
-          target="_blank"
-        >
-          <span>{m.rolesAdminConsoleLink}</span>
-          <ExternalLinkIcon size={14} />
-        </a>
+        <div className="cep-role-form cep-role-form-panel">
+          <div className="cep-field">
+            <label htmlFor="role-type-select">{m.roleTypeSelectLabel}</label>
+            <select
+              id="role-type-select"
+              onChange={(e) => setRoleType(e.target.value as "both" | "administrator" | "auditor")}
+              value={roleType}
+            >
+              <option value="both">{m.roleTypeBoth}</option>
+              <option value="administrator">{m.roleTypeAdminOnly}</option>
+              <option value="auditor">{m.roleTypeAuditorOnly}</option>
+            </select>
+          </div>
+
+          <div className="cep-field">
+            <label htmlFor="role-assignee-email">{m.roleAssigneeEmailLabel}</label>
+            <input
+              id="role-assignee-email"
+              onChange={(e) => setAssignedUserEmail(e.target.value)}
+              placeholder={m.roleAssigneeEmailPlaceholder}
+              type="email"
+              value={assignedUserEmail}
+            />
+            <small>{m.roleAssigneeEmailHint}</small>
+          </div>
+        </div>
+
+        {selectedOu && (
+          <label className="cep-check cep-role-ou-check">
+            <input
+              checked={scopeRoleToOu}
+              onChange={(e) => setScopeRoleToOu(e.target.checked)}
+              type="checkbox"
+            />
+            <span>{m.roleScopeOuCheckbox} ({selectedUnit?.label || selectedOu})</span>
+          </label>
+        )}
+
+        <div className="cep-role-actions">
+          <button
+            className="btn btn-primary"
+            disabled={creatingRoles || !canonicalCustomerId}
+            onClick={handleCreateRoles}
+            type="button"
+          >
+            {creatingRoles ? m.roleCreatingBtn : m.roleCreateAssignBtn}
+          </button>
+
+          <a
+            className="btn btn-secondary cep-role-action-btn"
+            href="https://admin.google.com/ac/roles"
+            rel="noreferrer"
+            target="_blank"
+          >
+            <span>{m.rolesAdminConsoleLink}</span>
+            <ExternalLinkIcon size={14} />
+          </a>
+        </div>
+
+        {roleResult && roleResult.success && (
+          <p className="cep-banner cep-banner-success cep-role-banner" role="status">
+            {roleResult.message}
+          </p>
+        )}
+        {roleError && (
+          <p className="cep-banner cep-banner-error cep-role-banner" role="alert">
+            {roleError}
+          </p>
+        )}
+
         <p className="cep-inline-note">{m.rolesVerificationNote}</p>
       </section>
 

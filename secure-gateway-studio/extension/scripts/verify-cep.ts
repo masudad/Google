@@ -1552,16 +1552,14 @@ for (const organizationUnits of [
   })) as { success: boolean; message: string; roles: string[] };
 
   check(
-    "legacy custom-role provisioning fails closed with Admin console guidance",
-    !result.success &&
-      result.roles.length === 0 &&
-      result.message.includes("Google Admin console") &&
-      result.message.includes("Super Admin"),
+    "provisions custom administrator roles via Workspace Admin SDK",
+    result.success && result.roles.length === 2,
     result.message,
   );
   check(
-    "legacy custom-role provisioning performs no IAM mutation",
-    calls.length === 0,
+    "Workspace custom-role provisioning calls Directory API and performs no GCP IAM mutation",
+    calls.every((call) => call.url.includes("admin.googleapis.com")) &&
+      !calls.some((call) => call.url.includes("iam.googleapis.com")),
     calls.map((call) => `${call.method} ${call.url}`).join(", "),
   );
 }

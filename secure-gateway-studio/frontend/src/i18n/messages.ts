@@ -609,6 +609,16 @@ export interface CepDeployerMessages {
   roleAdminDesc: string;
   roleAuditorLabel: string;
   roleAuditorDesc: string;
+  roleAssigneeEmailLabel: string;
+  roleAssigneeEmailPlaceholder: string;
+  roleAssigneeEmailHint: string;
+  roleTypeSelectLabel: string;
+  roleTypeBoth: string;
+  roleTypeAdminOnly: string;
+  roleTypeAuditorOnly: string;
+  roleScopeOuCheckbox: string;
+  roleCreateAssignBtn: string;
+  roleCreatingBtn: string;
   rolesAdminConsoleLink: string;
   rolesVerificationNote: string;
   testingScenariosTitle: string;
@@ -2098,6 +2108,16 @@ const en: Messages = {
     roleAuditorLabel: "Read-only reviewer",
     roleAuditorDesc:
       "Create a separate Admin console role limited to the Chrome and OU read privileges needed for review; do not reuse the deployment account.",
+    roleAssigneeEmailLabel: "Assignee Administrator Email (Optional)",
+    roleAssigneeEmailPlaceholder: "admin@example.com",
+    roleAssigneeEmailHint: "Leave blank to create roles without assigning to a user.",
+    roleTypeSelectLabel: "Target Roles",
+    roleTypeBoth: "Both (Policy Operator & Auditor)",
+    roleTypeAdminOnly: "Policy Operator Only",
+    roleTypeAuditorOnly: "Auditor Only",
+    roleScopeOuCheckbox: "Limit role scope to selected Organizational Unit (OU)",
+    roleCreateAssignBtn: "Create & Assign Workspace Roles",
+    roleCreatingBtn: "Creating & Assigning Roles...",
     rolesAdminConsoleLink: "Open Admin roles in Google Admin console",
     rolesVerificationNote:
       "Use “Verify Google Account & Load OUs” after assignment. Deployment then calls the real Chrome Policy and Cloud Identity APIs and reports any authorization failure explicitly; no role is inferred from a project IAM binding.",
@@ -3608,6 +3628,16 @@ const ja: Messages = {
     roleAuditorLabel: "読み取り専用の確認者",
     roleAuditorDesc:
       "確認に必要な Chrome と OU の読み取り権限だけを持つ別の管理コンソールロールを作成し、デプロイ用アカウントと共用しません。",
+    roleAssigneeEmailLabel: "割り当て先管理者メールアドレス（任意）",
+    roleAssigneeEmailPlaceholder: "admin@example.com",
+    roleAssigneeEmailHint: "空欄にした場合、ロールの作成のみを行い、ユーザーへの割り当てはスキップします。",
+    roleTypeSelectLabel: "対象ロール",
+    roleTypeBoth: "両方（ポリシー実施者 ＋ 監査担当者）",
+    roleTypeAdminOnly: "ポリシー実施者のみ",
+    roleTypeAuditorOnly: "監査担当者のみ",
+    roleScopeOuCheckbox: "選択中の組織部門（OU）にスコープを限定する",
+    roleCreateAssignBtn: "Workspace 管理者ロールを作成・アサイン",
+    roleCreatingBtn: "ロール作成・アサイン中...",
     rolesAdminConsoleLink: "Google 管理コンソールの管理者ロールを開く",
     rolesVerificationNote:
       "ロールの割り当て完了後、「Googleアカウントを認証してOUを取得」をクリックしてください。デプロイ時は実際の Chrome Policy / Cloud Identity API を直接呼び出して検証し、権限不足があればエラーとして明示します（GCP プロジェクト IAM から権限を推測することはありません）。",
