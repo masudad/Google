@@ -660,7 +660,7 @@ export type CepDlpRuleId =
   | "genai_block";
 
 /** What a rule does when it matches. `off` means do not create it. */
-export type CepDlpAction = "off" | "warnUser" | "blockContent";
+export type CepDlpAction = "off" | "auditOnly" | "warnUser" | "blockContent";
 
 export type CepDlpOperation = "upload" | "download" | "paste" | "print" | "watermark";
 
@@ -671,6 +671,8 @@ export interface CepDlpMatrixRuleConfig {
   print?: CepDlpAction;
   watermark?: boolean;
   byodOnly?: boolean;
+  customEndUserMessage?: string;
+  saveContent?: boolean;
 }
 
 export type CepDlpMatrixState = Partial<Record<CepDlpRuleId, CepDlpMatrixRuleConfig>>;
@@ -704,6 +706,8 @@ export interface CepProvisionConfig {
   dlp_matrix?: CepDlpMatrixState;
   data_boundary_mode?: CepDataBoundaryMode;
   internal_urls?: string[];
+  dlp_custom_message?: string;
+  dlp_save_content?: boolean;
 }
 
 export interface CepRollbackConfig {

@@ -12,6 +12,10 @@ interface DlpMatrixTableProps {
   onChange: (matrix: CepDlpMatrixState) => void;
   region: string;
   onRegionChange: (region: string) => void;
+  customMessage?: string;
+  onCustomMessageChange?: (message: string) => void;
+  saveContent?: boolean;
+  onSaveContentChange?: (save: boolean) => void;
 }
 
 const DLP_REGIONS: Array<{ value: string; label: string }> = [
@@ -27,7 +31,7 @@ const DLP_REGIONS: Array<{ value: string; label: string }> = [
   { value: "IN", label: "India (Aadhaar)" },
 ];
 
-const ACTION_CYCLE: CepDlpAction[] = ["warnUser", "blockContent", "off"];
+const ACTION_CYCLE: CepDlpAction[] = ["auditOnly", "warnUser", "blockContent", "off"];
 
 export const DEFAULT_DLP_MATRIX: CepDlpMatrixState = {
   universal_upload: { upload: "warnUser", byodOnly: false },
@@ -45,6 +49,10 @@ export function DlpMatrixTable({
   onChange,
   region,
   onRegionChange,
+  customMessage,
+  onCustomMessageChange,
+  saveContent,
+  onSaveContentChange,
 }: DlpMatrixTableProps) {
   const m = messages.cepDeployer;
 
@@ -105,13 +113,13 @@ export function DlpMatrixTable({
         break;
       case "audit":
         onChange({
-          universal_upload: { upload: "warnUser", byodOnly: false },
-          universal_download: { download: "warnUser", byodOnly: false },
-          payment_card: { upload: "warnUser", paste: "warnUser", print: "warnUser", byodOnly: false },
-          national_id: { upload: "warnUser", paste: "warnUser", print: "warnUser", byodOnly: false },
+          universal_upload: { upload: "auditOnly", byodOnly: false },
+          universal_download: { download: "auditOnly", byodOnly: false },
+          payment_card: { upload: "auditOnly", paste: "auditOnly", print: "auditOnly", byodOnly: false },
+          national_id: { upload: "auditOnly", paste: "auditOnly", print: "auditOnly", byodOnly: false },
           access_level: { upload: "off", download: "off", paste: "off", print: "off", byodOnly: false },
           watermark: { watermark: false, byodOnly: false },
-          genai_block: { paste: "warnUser", upload: "warnUser", byodOnly: false },
+          genai_block: { paste: "auditOnly", upload: "auditOnly", byodOnly: false },
         });
         break;
     }
@@ -124,6 +132,8 @@ export function DlpMatrixTable({
         ? "dlp-badge dlp-badge-block"
         : act === "warnUser"
         ? "dlp-badge dlp-badge-warn"
+        : act === "auditOnly"
+        ? "dlp-badge dlp-badge-audit"
         : "dlp-badge dlp-badge-off";
 
     const text =
@@ -131,6 +141,8 @@ export function DlpMatrixTable({
         ? m.dlpActionBadgeBlock
         : act === "warnUser"
         ? m.dlpActionBadgeWarn
+        : act === "auditOnly"
+        ? m.dlpActionBadgeAuditOnly || "監査のみ"
         : m.dlpActionBadgeOff;
 
     return (
@@ -407,6 +419,37 @@ export function DlpMatrixTable({
           </tbody>
         </table>
       </div>
+      <div className="dlp-action-params-card">
+        <h4>⚙️ {m.dlpActionParamsTitle}</h4>
+        <p className="dlp-action-params-subtitle">{m.dlpActionParamsSubtitle}</p>
+        <div className="dlp-action-params-grid">
+          <label className="cep-check">
+            <input
+              checked={saveContent ?? false}
+              onChange={(e) => onSaveContentChange?.(e.target.checked)}
+              type="checkbox"
+            />
+            <span>
+              <strong>{m.dlpSaveContentLabel}</strong>
+              <small>{m.dlpSaveContentHint}</small>
+            </span>
+          </label>
+          <div className="cep-field">
+            <label htmlFor="dlp-custom-message">
+              {m.dlpCustomMessageLabel}
+            </label>
+            <input
+              id="dlp-custom-message"
+              onChange={(e) => onCustomMessageChange?.(e.target.value)}
+              placeholder={m.dlpCustomMessagePlaceholder}
+              type="text"
+              value={customMessage ?? ""}
+            />
+            <small>{m.dlpCustomMessageHint}</small>
+          </div>
+        </div>
+      </div>
+
       <div className="dlp-matrix-notice" role="note">
         <span className="dlp-notice-icon">💡</span>
         <div className="dlp-notice-content">

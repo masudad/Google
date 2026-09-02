@@ -56,7 +56,7 @@ export type CepDlpRuleId =
   | "genai_block";
 
 /** Chrome actions supported by the Cloud Identity Policy API. `off` omits the rule. */
-export type CepDlpAction = "off" | "warnUser" | "blockContent";
+export type CepDlpAction = "off" | "auditOnly" | "warnUser" | "blockContent";
 
 export type CepDlpOperation = "upload" | "download" | "paste" | "print" | "watermark";
 
@@ -76,6 +76,8 @@ export interface CepDlpMatrixRuleConfig {
   print?: CepDlpAction;
   watermark?: boolean;
   byodOnly?: boolean;
+  customEndUserMessage?: string;
+  saveContent?: boolean;
 }
 
 export type CepDlpMatrixState = Partial<Record<CepDlpRuleId, CepDlpMatrixRuleConfig>>;
@@ -220,6 +222,8 @@ export interface CepProvisionConfig {
   dlp_matrix?: CepDlpMatrixState;
   data_boundary_mode?: CepDataBoundaryMode;
   internal_urls?: string[];
+  dlp_custom_message?: string;
+  dlp_save_content?: boolean;
 }
 
 export interface CepCustomRoleConfig {
@@ -489,6 +493,8 @@ interface CepContext {
   internalUrls: string[];
   region: string;
   dlpMatrix: CepDlpMatrixState;
+  dlpCustomMessage?: string;
+  dlpSaveContent?: boolean;
   accessLevelName?: string;
   /** True only when this run created it, which is what rollback may delete. */
   accessLevelIsOurs?: boolean;
@@ -2130,6 +2136,18 @@ export class CepProvider {
         if (selectedAction === undefined || selectedAction === "off") continue;
 
         const operationLabel = operation === "watermark" ? "navigation" : operation;
+        const actionParams: Record<string, unknown> = {
+          ...(base.actionParams ?? {}),
+        };
+        const customMessage = matrixRule.customEndUserMessage ?? context.dlpCustomMessage;
+        if (customMessage && customMessage.trim() !== "") {
+          actionParams.customEndUserMessage = customMessage.trim();
+        }
+        const saveContent = matrixRule.saveContent ?? context.dlpSaveContent;
+        if (saveContent === true) {
+          actionParams.saveContent = true;
+        }
+
         resolved.push({
           id: base.id,
           operation,
@@ -2142,7 +2160,7 @@ export class CepProvider {
           ],
           action: selectedAction,
           condition: base.condition,
-          actionParams: base.actionParams,
+          actionParams: Object.keys(actionParams).length > 0 ? actionParams : undefined,
           requires: base.requires,
           byodOnly: false,
         });
@@ -2437,6 +2455,8 @@ export class CepProvider {
       internalUrls,
       region: NATIONAL_ID_INFOTYPES[region] === undefined ? "US" : region,
       dlpMatrix: resolveDlpMatrix(provision),
+      dlpCustomMessage: provision.dlp_custom_message,
+      dlpSaveContent: provision.dlp_save_content,
     };
   }
 

@@ -3028,7 +3028,7 @@ function ruleBodies(calls: Recorded[]): Array<Record<string, unknown>> {
 }
 
 {
-  // Warning is the least disruptive action the Cloud Identity API supports for Chrome.
+  // Warning is the default fallback action for rules when unspecified.
   const { transport, calls } = stubTransport();
   await route(context(transport), "POST", "/api/v1/cep/provision", DLP_CONFIG);
   const actions = ruleBodies(calls).map(
@@ -3042,6 +3042,53 @@ function ruleBodies(calls: Recorded[]): Array<Record<string, unknown>> {
     actions.length > 0 &&
       actions.every((action) => action === "warnUser"),
     actions.join(", "),
+  );
+}
+
+{
+  // auditOnly action is formally supported by the Chrome DLP Policy API
+  const { transport, calls } = stubTransport();
+  await route(context(transport), "POST", "/api/v1/cep/provision", {
+    ...DLP_CONFIG,
+    dlp_matrix: {
+      universal_upload: { upload: "auditOnly", byodOnly: false },
+      payment_card: { upload: "auditOnly", paste: "warnUser", print: "blockContent", byodOnly: false },
+    },
+  });
+  const rules = ruleBodies(calls);
+  const uploadRule = rules.find((r) => String(r.displayName ?? "").includes("Universal file upload"));
+  const chromeAction = ((uploadRule?.action ?? {}) as { chromeAction?: Record<string, unknown> }).chromeAction ?? {};
+  check(
+    "auditOnly action produces chromeAction: { auditOnly: {} }",
+    Object.keys(chromeAction)[0] === "auditOnly",
+    JSON.stringify(chromeAction),
+  );
+}
+
+{
+  // actionParams (customEndUserMessage and saveContent)
+  const { transport, calls } = stubTransport();
+  await route(context(transport), "POST", "/api/v1/cep/provision", {
+    ...DLP_CONFIG,
+    dlp_custom_message: "Company security policy: please refrain from uploading sensitive data.",
+    dlp_save_content: true,
+    dlp_matrix: {
+      universal_upload: { upload: "blockContent", byodOnly: false },
+    },
+  });
+  const rules = ruleBodies(calls);
+  const uploadRule = rules.find((r) => String(r.displayName ?? "").includes("Universal file upload"));
+  const chromeAction = ((uploadRule?.action ?? {}) as { chromeAction?: Record<string, { actionParams?: Record<string, unknown> }> }).chromeAction ?? {};
+  const params = chromeAction.blockContent?.actionParams ?? {};
+  check(
+    "actionParams includes customEndUserMessage",
+    params.customEndUserMessage === "Company security policy: please refrain from uploading sensitive data.",
+    JSON.stringify(params),
+  );
+  check(
+    "actionParams includes saveContent",
+    params.saveContent === true,
+    JSON.stringify(params),
   );
 }
 

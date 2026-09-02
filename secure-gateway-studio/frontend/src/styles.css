@@ -5527,3 +5527,31 @@ h1 {
   color: var(--ink-600);
   font-weight: normal;
 }
+
+/* DLP Action Parameters card */
+.dlp-action-params-card {
+  margin: 18px 0 16px;
+  padding: 16px 18px;
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.dlp-action-params-card h4 {
+  margin: 0 0 4px 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-900);
+}
+
+.dlp-action-params-subtitle {
+  margin: 0 0 14px 0;
+  font-size: 12px;
+  color: var(--ink-600);
+}
+
+.dlp-action-params-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}

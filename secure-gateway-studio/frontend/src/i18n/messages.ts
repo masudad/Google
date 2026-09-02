@@ -699,7 +699,16 @@ export interface CepDeployerMessages {
   dlpActionBadgeBlock: string;
   dlpActionBadgeWarn: string;
   dlpActionBadgeAudit: string;
+  dlpActionBadgeAuditOnly: string;
   dlpActionBadgeOff: string;
+
+  dlpActionParamsTitle: string;
+  dlpActionParamsSubtitle: string;
+  dlpCustomMessageLabel: string;
+  dlpCustomMessagePlaceholder: string;
+  dlpCustomMessageHint: string;
+  dlpSaveContentLabel: string;
+  dlpSaveContentHint: string;
 
   dlpPresetRecommended: string;
   dlpPresetRecommendedDesc: string;
@@ -2054,9 +2063,9 @@ const en: Messages = {
       "Sets which Cloud DLP detector the national ID rule uses. A detector for the wrong country matches nothing, and a rule that never fires looks the same as one that works.",
     dlpRulesTableTitle: "Rules and what each one does",
     dlpRulesTableHint:
-      "The Cloud Identity Policy API supports Warn and Block for Chrome. Choose Off to omit a cell; audit-only is not exposed because it is not a supported Chrome action.",
+      "Chrome DLP Policy API supports three actions: Audit only (log event), Allow with warning, and Block. Choose Off if you do not want a rule created.",
     dlpActionOff: "Do not create",
-    dlpActionAudit: "Not available for Chrome",
+    dlpActionAudit: "Audit only (log event)",
     dlpActionWarn: "Allow with warning",
     dlpActionBlock: "Block",
     dlpRuleNationalId: "National ID numbers pasted into pages",
@@ -2205,7 +2214,16 @@ const en: Messages = {
     dlpActionBadgeBlock: "Block",
     dlpActionBadgeWarn: "Warn",
     dlpActionBadgeAudit: "Unsupported",
+    dlpActionBadgeAuditOnly: "Audit",
     dlpActionBadgeOff: "Off",
+
+    dlpActionParamsTitle: "Action Parameters (actionParams)",
+    dlpActionParamsSubtitle: "Attach additional controls to triggered DLP rules",
+    dlpCustomMessageLabel: "Custom End-User Message (customEndUserMessage)",
+    dlpCustomMessagePlaceholder: "e.g. This action violates corporate data protection policy. Contact Security.",
+    dlpCustomMessageHint: "Custom message displayed to the end user in Chrome when warning or blocking.",
+    dlpSaveContentLabel: "Save Matched Content Evidence (saveContent)",
+    dlpSaveContentHint: "Preserve a copy of the matched sensitive content for incident investigation and audit.",
 
     dlpPresetRecommended: "Recommended PoC",
     dlpPresetRecommendedDesc: "Warn on sensitive data, block unapproved GenAI, and watermark internal sites without BYOD scoping.",
@@ -3555,9 +3573,9 @@ const ja: Messages = {
       "個人番号ルールが使用する Cloud DLP 検出器を切り替えます。国が合っていない検出器は何も検知しないため、動作しているルールと見分けがつきません。",
     dlpRulesTableTitle: "ルールごとの動作",
     dlpRulesTableHint:
-      "本ツール（Cloud Identity Policy API 経由）での作成は「警告」と「ブロック」に対応しています。適用しない項目は「オフ」を選択してください（※Chrome DLP 自体は監査のみ（ログ記録）に対応していますが、API 自動プロビジョニングでは本バージョン未対応のため除外しています。監査のみの設定は Google 管理コンソールをご利用ください）。",
+      "Chrome DLP Policy API が提供する動作は「監査のみ（イベント記録）」「警告」「ブロック」の3種類です。ルールを作成しない操作は「オフ」を選択してください。",
     dlpActionOff: "作成しない",
-    dlpActionAudit: "管理コンソール側で設定（本ツール未対応）",
+    dlpActionAudit: "監査のみ（イベント記録）",
     dlpActionWarn: "警告して許可",
     dlpActionBlock: "ブロック",
     dlpRuleNationalId: "ページへの個人番号の貼り付け",
@@ -3706,7 +3724,16 @@ const ja: Messages = {
     dlpActionBadgeBlock: "ブロック",
     dlpActionBadgeWarn: "警告",
     dlpActionBadgeAudit: "未対応",
+    dlpActionBadgeAuditOnly: "監査のみ",
     dlpActionBadgeOff: "オフ",
+
+    dlpActionParamsTitle: "追加アクション パラメータ（actionParams）",
+    dlpActionParamsSubtitle: "DLP ルール発動時の挙動を拡張するオプション設定",
+    dlpCustomMessageLabel: "エンドユーザー向けカスタム メッセージ（customEndUserMessage）",
+    dlpCustomMessagePlaceholder: "例: 社内規定によりこの操作は制限されています。詳細はセキュリティチームにお問い合わせください。",
+    dlpCustomMessageHint: "Chrome で警告またはブロックダイアログが表示された際、エンドユーザーに表示するメッセージです。",
+    dlpSaveContentLabel: "検出されたコンテンツの証拠保存（saveContent）",
+    dlpSaveContentHint: "インシデント調査や監査のため、検知対象となった機密コンテンツのコピーを保存します。",
 
     dlpPresetRecommended: "推奨PoC設定",
     dlpPresetRecommendedDesc: "機密データの送信時に警告を表示、未承認 AI は遮断し、社内サイトには動的透かしを適用して情報漏洩を防止します。",

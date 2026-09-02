@@ -166,6 +166,8 @@ export function CepDeployerPage({
   const [activeTab, setActiveTab] = useState<"setup" | "licensing" | "dlp" | "operations" | "all">("setup");
   const [dlpMatrix, setDlpMatrix] = useState<CepDlpMatrixState>(DEFAULT_DLP_MATRIX);
   const [internalUrls, setInternalUrls] = useState<string>("");
+  const [dlpCustomMessage, setDlpCustomMessage] = useState<string>("");
+  const [dlpSaveContent, setDlpSaveContent] = useState<boolean>(false);
 
   const [accessLevels, setAccessLevels] = useState<SetupOption[]>([]);
   const [accessLevelError, setAccessLevelError] = useState<boolean>(false);
@@ -266,6 +268,8 @@ export function CepDeployerPage({
       dlp_rules: modules.dlpRules,
       dlp_region: modules.dlpRegion,
       dlp_matrix: dlpMatrix,
+      dlp_custom_message: dlpCustomMessage,
+      dlp_save_content: dlpSaveContent,
       data_boundary_mode: modules.dataBoundaryMode,
       internal_urls: internalUrls
         .split("\n")
@@ -843,11 +847,15 @@ export function CepDeployerPage({
         <section className="cep-section" aria-labelledby="cep-dlp-matrix-heading">
 {modules.dlpRules && (
           <DlpMatrixTable
+            customMessage={dlpCustomMessage}
             matrix={dlpMatrix}
             messages={messages}
             onChange={setDlpMatrix}
+            onCustomMessageChange={setDlpCustomMessage}
             onRegionChange={(reg) => update("dlpRegion", reg)}
+            onSaveContentChange={setDlpSaveContent}
             region={modules.dlpRegion}
+            saveContent={dlpSaveContent}
           />
         )}
 
