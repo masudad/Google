@@ -143,7 +143,7 @@ export interface RouteContext {
   /** Durable cross-worker CEP mutation lease; production must never omit it. */
   acquireCepMutationLease?: (options: {
     scopeKeys: readonly string[];
-    operationKind: "provision" | "rollback" | "assign_licenses";
+    operationKind: "provision" | "rollback" | "assign_licenses" | "gemini_zero_trust";
     requestDigest: string;
   }) => Promise<CepMutationLeaseHandle>;
   renewCepMutationLease?: (handle: CepMutationLeaseHandle) => Promise<CepMutationLeaseHandle>;
@@ -173,11 +173,18 @@ export class RouteError extends Error {
 const CEP_LEASE_HEARTBEAT_MS = 30_000;
 
 function cepMutationScopeKeys(
-  operationKind: "provision" | "rollback" | "assign_licenses",
-  request: CepProvisionConfig | CepRollbackConfig | CepLicenseAssignConfig,
+  operationKind: "provision" | "rollback" | "assign_licenses" | "gemini_zero_trust",
+  request: CepProvisionConfig | CepRollbackConfig | CepLicenseAssignConfig | CepGeminiZeroTrustConfig,
 ): string[] {
-  const customerId = request.customer_id.trim();
-  const targetOuId = request.target_ou_id.trim();
+  if (operationKind === "gemini_zero_trust") {
+    const projectId = (request as CepGeminiZeroTrustConfig).project_id?.trim() ?? "";
+    if (projectId === "") {
+      throw new RouteError(400, "project-required", "Gemini Zero Trust requires project_id.");
+    }
+    return [`cep:project:${canonicalDigestSync({ project_id: projectId })}`];
+  }
+  const customerId = (request as CepProvisionConfig | CepRollbackConfig | CepLicenseAssignConfig).customer_id.trim();
+  const targetOuId = (request as CepProvisionConfig | CepRollbackConfig | CepLicenseAssignConfig).target_ou_id.trim();
   if (customerId === "" || targetOuId === "") {
     throw new RouteError(400, "cep-scope-invalid", "CEP customer_id and target_ou_id are required.");
   }
@@ -285,8 +292,8 @@ function boundedCepLicenseReadTransport(
 
 async function withCepMutationLease<T>(
   context: RouteContext,
-  operationKind: "provision" | "rollback" | "assign_licenses",
-  request: CepProvisionConfig | CepRollbackConfig | CepLicenseAssignConfig,
+  operationKind: "provision" | "rollback" | "assign_licenses" | "gemini_zero_trust",
+  request: CepProvisionConfig | CepRollbackConfig | CepLicenseAssignConfig | CepGeminiZeroTrustConfig,
   mutate: (administrator: Transport, cloud: Transport) => Promise<T>,
 ): Promise<T> {
   if (
@@ -300,37 +307,40 @@ async function withCepMutationLease<T>(
       "Durable CEP mutation coordination is unavailable.",
     );
   }
-  // `my_customer` and its canonical C... id identify the same tenant. Resolve
-  // before deriving the durable lease key so aliases cannot split the mutex
-  // and race two list-before-create flows.
-  const requestedLicenseTimeout = context.cepLicenseRequestTimeoutMs;
-  const licenseRequestTimeout =
-    typeof requestedLicenseTimeout === "number" &&
-      Number.isFinite(requestedLicenseTimeout) && requestedLicenseTimeout > 0
-      ? Math.min(requestedLicenseTimeout, CEP_LICENSE_REQUEST_TIMEOUT_MS)
-      : CEP_LICENSE_REQUEST_TIMEOUT_MS;
-  const coordinationTransport = operationKind === "assign_licenses"
-    ? boundedCepLicenseReadTransport(context.administratorTransport, licenseRequestTimeout)
-    : context.administratorTransport;
-  const canonicalCustomer = await canonicalCepCustomerId(
-    coordinationTransport,
-    request.customer_id,
-  );
-  request.customer_id = canonicalCustomer;
-  if (operationKind !== "rollback") {
-    try {
-      const target = await resolveConfirmedCepTargetOu(
-        coordinationTransport,
-        request as CepProvisionConfig | CepLicenseAssignConfig,
-      );
-      // From this point on, downstream code receives only the fresh
-      // Directory value, never a caller-supplied display path.
-      request.target_ou_path = target.path;
-    } catch (error) {
-      if (error instanceof CepTargetValidationError) {
-        throw new RouteError(error.status, error.code, error.message);
+  if (operationKind !== "gemini_zero_trust") {
+    // `my_customer` and its canonical C... id identify the same tenant. Resolve
+    // before deriving the durable lease key so aliases cannot split the mutex
+    // and race two list-before-create flows.
+    const requestedLicenseTimeout = context.cepLicenseRequestTimeoutMs;
+    const licenseRequestTimeout =
+      typeof requestedLicenseTimeout === "number" &&
+        Number.isFinite(requestedLicenseTimeout) && requestedLicenseTimeout > 0
+        ? Math.min(requestedLicenseTimeout, CEP_LICENSE_REQUEST_TIMEOUT_MS)
+        : CEP_LICENSE_REQUEST_TIMEOUT_MS;
+    const coordinationTransport = operationKind === "assign_licenses"
+      ? boundedCepLicenseReadTransport(context.administratorTransport, licenseRequestTimeout)
+      : context.administratorTransport;
+    const scopedReq = request as CepProvisionConfig | CepRollbackConfig | CepLicenseAssignConfig;
+    const canonicalCustomer = await canonicalCepCustomerId(
+      coordinationTransport,
+      scopedReq.customer_id,
+    );
+    scopedReq.customer_id = canonicalCustomer;
+    if (operationKind !== "rollback") {
+      try {
+        const target = await resolveConfirmedCepTargetOu(
+          coordinationTransport,
+          scopedReq as CepProvisionConfig | CepLicenseAssignConfig,
+        );
+        // From this point on, downstream code receives only the fresh
+        // Directory value, never a caller-supplied display path.
+        scopedReq.target_ou_path = target.path;
+      } catch (error) {
+        if (error instanceof CepTargetValidationError) {
+          throw new RouteError(error.status, error.code, error.message);
+        }
+        throw error;
       }
-      throw error;
     }
   }
   const requestDigest = canonicalDigestSync({ operation_kind: operationKind, request });
@@ -2205,8 +2215,9 @@ export async function route(
     if (typeof request_?.project_id !== "string" || !request_.project_id.trim()) {
       throw new RouteError(400, "project-required", "Gemini Zero Trust requires project_id.");
     }
-    const provider = await cepProvider(context, request_.project_id);
-    return await provider.provisionGeminiZeroTrust(request_);
+    await context.requireDeployer(request_.project_id);
+    return withCepMutationLease(context, "gemini_zero_trust", request_, async (administrator, cloud) =>
+      await (await cepProvider(context, request_.project_id, administrator, cloud)).provisionGeminiZeroTrust(request_));
   }
 
   throw new RouteError(

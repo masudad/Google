@@ -407,4 +407,72 @@ describe("CepDeployerPage", () => {
     const payload = provision.mock.calls[0]?.[0];
     expect(payload?.dlp_rule_actions).toBeUndefined();
   });
+
+  it("defaults Gemini Zero Trust to Audit / dry-run mode and requires project confirmation when disabled", async () => {
+    renderPage();
+    await selectPilotOu();
+
+    const dryRunCheckbox = screen.getByLabelText(m.geminiDryRunLabel);
+    expect(dryRunCheckbox).toBeChecked();
+
+    const provisionBtn = screen.getByRole("button", { name: m.geminiAutoProvisionBtn });
+    expect(provisionBtn).not.toBeDisabled();
+
+    // Turn off dry run (strict mode)
+    fireEvent.click(dryRunCheckbox);
+    expect(dryRunCheckbox).not.toBeChecked();
+
+    // The confirmation box should appear and provision button should be disabled
+    const confirmInput = screen.getByLabelText(m.geminiConfirmProjectLabel);
+    expect(confirmInput).toHaveValue("");
+    expect(provisionBtn).toBeDisabled();
+
+    // Type mismatch
+    fireEvent.change(confirmInput, { target: { value: "wrong-project" } });
+    expect(provisionBtn).toBeDisabled();
+
+    // Type correct project
+    fireEvent.change(confirmInput, { target: { value: "my-test-proj" } });
+    expect(provisionBtn).not.toBeDisabled();
+  });
+
+  it("renders ErrorDiagnosticCard when license assignment fails", async () => {
+    vi.spyOn(api, "assignCepLicenses").mockResolvedValue({
+      success: false,
+      message: "License assignment failed",
+      total_users: 1,
+      assigned_count: 0,
+      already_assigned_count: 0,
+      failed_count: 1,
+      assigned_users: [],
+      errors: ["cep-target-ou-not-found: OU 03pilot does not exist"],
+      debug_trace: [],
+    });
+
+    renderPage();
+    await selectPilotOu();
+
+    fireEvent.click(screen.getByText(m.btnAssignLicensesToOu));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+      expect(screen.getByText(m.errDiagOuStaleTitle)).toBeInTheDocument();
+    });
+  });
+
+  it("renders ErrorDiagnosticCard when deployment encounters an error", async () => {
+    vi.spyOn(api, "provisionCepPolicies").mockRejectedValue(
+      new api.ApiError(403, "WORKSPACE_FORBIDDEN", "Not authorized to access Directory API"),
+    );
+
+    renderPage();
+    await selectPilotOu();
+
+    fireEvent.click(screen.getByText(m.btnDeploy));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+      expect(screen.getByText(m.errDiagWorkspaceTitle)).toBeInTheDocument();
+    });
+  });
 });

@@ -812,6 +812,21 @@ export interface CepDeployerMessages {
   errDiagPolicyNotFoundCause: string;
   errDiagPolicyNotFoundRemediation: string;
   errDiagPolicyConsoleLink: string;
+  errDiagOuStaleTitle: string;
+  errDiagOuStaleCause: string;
+  errDiagOuStaleRemediation: string;
+  errDiagRootOuForbiddenTitle: string;
+  errDiagRootOuForbiddenCause: string;
+  errDiagRootOuForbiddenRemediation: string;
+  errDiagScopeInvalidTitle: string;
+  errDiagScopeInvalidCause: string;
+  errDiagScopeInvalidRemediation: string;
+  errDiagProjectRequiredTitle: string;
+  errDiagProjectRequiredCause: string;
+  errDiagProjectRequiredRemediation: string;
+  geminiConfirmProjectLabel: string;
+  geminiConfirmProjectHint: string;
+  geminiConfirmProjectMismatch: string;
   errDiagGenericTitle: string;
   errDiagGenericCause: string;
   errDiagGenericRemediation: string;
@@ -2480,6 +2495,21 @@ const en: Messages = {
     errDiagPolicyNotFoundCause: "No Access Policy exists in your organization, or the default policy ID could not be resolved.",
     errDiagPolicyNotFoundRemediation: "Create an Access Policy in Access Context Manager console or specify your policy ID manually.",
     errDiagPolicyConsoleLink: "Open Access Context Manager Console",
+    errDiagOuStaleTitle: "Target Organizational Unit Not Found or Stale",
+    errDiagOuStaleCause: "The selected organizational unit ID is no longer present or its path changed in Google Workspace Directory.",
+    errDiagOuStaleRemediation: "Click 'Reload OU List' to refresh the organization structure and reselect the target organizational unit.",
+    errDiagRootOuForbiddenTitle: "Root Organizational Unit Not Permitted",
+    errDiagRootOuForbiddenCause: "Deploying CEP policies or assigning licenses directly to the root organizational unit (/) can impact all users across the domain.",
+    errDiagRootOuForbiddenRemediation: "Select a child organizational unit dedicated to your evaluation group or test users.",
+    errDiagScopeInvalidTitle: "Invalid Workspace Customer Scope or Identity",
+    errDiagScopeInvalidCause: "A valid Workspace Customer ID and target organizational unit ID are required for this operation.",
+    errDiagScopeInvalidRemediation: "Verify the Workspace customer ID in deployment settings and ensure an organizational unit is selected.",
+    errDiagProjectRequiredTitle: "Google Cloud Project ID Required",
+    errDiagProjectRequiredCause: "Cloud Access Context Manager, VPC Service Controls, or IAM mutations require a valid Google Cloud Project ID.",
+    errDiagProjectRequiredRemediation: "Enter or select a valid Google Cloud Project ID in the configuration field.",
+    geminiConfirmProjectLabel: "Confirm Project ID (Strict Enforcement Safeguard)",
+    geminiConfirmProjectHint: "To run Gemini Zero Trust provisioning with strict perimeter enforcement, re-type the exact target Project ID.",
+    geminiConfirmProjectMismatch: "Type the exact target Project ID before provisioning in strict mode.",
     errDiagGenericTitle: "Operation Failed with Error",
     errDiagGenericCause: "An unexpected error occurred during execution.",
     errDiagGenericRemediation: "Check the technical details below and verify API enablement and network connectivity.",
@@ -4177,6 +4207,21 @@ const ja: Messages = {
     errDiagPolicyNotFoundCause: "組織内に Access Policy が作成されていないか、デフォルトのポリシー ID を自動取得できませんでした。",
     errDiagPolicyNotFoundRemediation: "Access Context Manager コンソールでポリシーを新規作成するか、ポリシー ID を手動入力してください。",
     errDiagPolicyConsoleLink: "Access Context Manager コンソールを開く",
+    errDiagOuStaleTitle: "対象組織部門 (OU) が見つからないか変更されています",
+    errDiagOuStaleCause: "選択された組織部門 (OU) の ID が存在しないか、Google Workspace のディレクトリ構成が更新されました。",
+    errDiagOuStaleRemediation: "「OU リストを再読込」をクリックして組織ツリーを更新し、対象の組織部門を再選択してください。",
+    errDiagRootOuForbiddenTitle: "ルート組織部門 (Root OU) への適用は禁止されています",
+    errDiagRootOuForbiddenCause: "Google Workspace の最上位ルート組織部門 (/) への直接適用は、ドメイン全体の全ユーザーに影響を与えるため安全上ブロックされています。",
+    errDiagRootOuForbiddenRemediation: "検証用またはパイロット対象の配下組織部門 (子 OU) を選択してください。",
+    errDiagScopeInvalidTitle: "無効な Workspace 顧客識別子または組織スコープ",
+    errDiagScopeInvalidCause: "有効な Workspace Customer ID および対象の組織部門 ID が指定されていないか、形式が不正です。",
+    errDiagScopeInvalidRemediation: "デプロイ設定の Workspace Customer ID を確認し、対象の組織部門が正しく選択されていることを確認してください。",
+    errDiagProjectRequiredTitle: "Google Cloud プロジェクト ID が未指定です",
+    errDiagProjectRequiredCause: "Access Context Manager、VPC Service Controls、または IAM 設定には Google Cloud プロジェクト ID が必須です。",
+    errDiagProjectRequiredRemediation: "設定入力欄に有効な Google Cloud プロジェクト ID を入力または選択してください。",
+    geminiConfirmProjectLabel: "プロジェクト ID の確認入力（厳格適用セーフガード）",
+    geminiConfirmProjectHint: "厳格モードで Gemini Enterprise のサービス境界とアクセスレベルを強制適用するには、対象プロジェクト ID を再入力してください。",
+    geminiConfirmProjectMismatch: "厳格適用を行うには、対象プロジェクト ID を正確に入力してください。",
     errDiagGenericTitle: "処理中にエラーが発生しました",
     errDiagGenericCause: "処理の実行中に予期しないエラーが返されました。",
     errDiagGenericRemediation: "以下の技術詳細を確認し、API の有効化状況およびネットワーク接続を確認してください。",

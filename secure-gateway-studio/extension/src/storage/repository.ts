@@ -257,7 +257,7 @@ export const CEP_MUTATION_LEASE_MS = 5 * 60_000;
 export interface CepMutationLeaseRecord {
   leaseKey: string;
   operationId: string;
-  operationKind: "provision" | "rollback" | "assign_licenses";
+  operationKind: "provision" | "rollback" | "assign_licenses" | "gemini_zero_trust";
   requestDigest: string;
   ownerToken: string;
   acquiredAt: string;
@@ -1022,7 +1022,7 @@ export class StateRepository {
     const scopeKeys = [...new Set(options.scopeKeys)].sort();
     if (
       scopeKeys.length === 0 || scopeKeys.length > 2 ||
-      scopeKeys.some((key) => !/^cep:(?:customer|ou):[0-9a-f]{64}$/.test(key)) ||
+      scopeKeys.some((key) => !/^cep:(?:customer|ou|project):[0-9a-f]{64}$/.test(key)) ||
       !/^[0-9a-f]{64}$/.test(options.requestDigest)
     ) throw new Error("cep-mutation-lease-input-invalid");
 

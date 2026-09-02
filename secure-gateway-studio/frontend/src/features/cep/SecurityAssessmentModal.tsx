@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Messages } from "../../i18n/messages";
 import type { CepDlpMatrixState } from "../../lib/api";
 import {
@@ -35,6 +35,54 @@ export function SecurityAssessmentModal({
   messages,
 }: SecurityAssessmentModalProps) {
   const m = messages.cepDeployer;
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // Focus first focusable element inside modal
+    const modalEl = modalRef.current;
+    if (modalEl) {
+      const focusables = modalEl.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusables.length > 0) {
+        focusables[0].focus();
+      }
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.stopPropagation();
+        onClose();
+        return;
+      }
+      if (event.key === "Tab" && modalEl) {
+        const focusables = Array.from(
+          modalEl.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+          ),
+        );
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (event.shiftKey) {
+          if (document.activeElement === first || !modalEl.contains(document.activeElement)) {
+            event.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (document.activeElement === last || !modalEl.contains(document.activeElement)) {
+            event.preventDefault();
+            first.focus();
+          }
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
 
   // 15 security question IDs
   const [selectedQuestions, setSelectedQuestions] = useState<Set<string>>(
@@ -188,6 +236,7 @@ export function SecurityAssessmentModal({
   // Calculate recommendation based on selections
   const computeRecommendation = (): RecommendedPolicyConfig => {
     const has = (id: string) => selectedQuestions.has(id);
+    const hasAny = selectedQuestions.size > 0;
 
     // DLP Matrix calculation
     const blockUpload = has("pii_dlp") || has("casb_cost");
@@ -198,22 +247,22 @@ export function SecurityAssessmentModal({
 
     const matrix: CepDlpMatrixState = {
       universal_upload: {
-        upload: blockUpload ? "blockContent" : "warnUser",
+        upload: blockUpload ? "blockContent" : has("genai_paste") ? "warnUser" : "off",
         byodOnly: false,
       },
       universal_download: {
-        download: blockDownload ? "blockContent" : "warnUser",
+        download: blockDownload ? "blockContent" : has("genai_paste") ? "warnUser" : "off",
         byodOnly: false,
       },
       payment_card: {
-        upload: blockUpload ? "blockContent" : "warnUser",
-        paste: blockPaste ? "blockContent" : "warnUser",
+        upload: blockUpload ? "blockContent" : has("pii_dlp") ? "warnUser" : "off",
+        paste: blockPaste ? "blockContent" : has("pii_dlp") ? "warnUser" : "off",
         print: blockPrint ? "blockContent" : "off",
         byodOnly: false,
       },
       national_id: {
-        upload: blockUpload ? "blockContent" : "warnUser",
-        paste: blockPaste ? "blockContent" : "warnUser",
+        upload: blockUpload ? "blockContent" : has("pii_dlp") ? "warnUser" : "off",
+        paste: blockPaste ? "blockContent" : has("pii_dlp") ? "warnUser" : "off",
         print: blockPrint ? "blockContent" : "off",
         byodOnly: false,
       },
@@ -229,14 +278,14 @@ export function SecurityAssessmentModal({
         byodOnly: false,
       },
       genai_block: {
-        paste: blockPaste ? "blockContent" : "warnUser",
-        upload: blockUpload ? "blockContent" : "warnUser",
+        paste: blockPaste ? "blockContent" : has("pii_dlp") ? "warnUser" : "off",
+        upload: blockUpload ? "blockContent" : has("genai_paste") ? "warnUser" : "off",
         byodOnly: false,
       },
     };
 
     return {
-      corePolicies: true,
+      corePolicies: hasAny,
       forceExtensions: has("malicious_ext") || has("device_posture"),
       connectors: has("audit_logs") || has("casb_cost") || has("vdi_cost"),
       accessLevel:
@@ -245,7 +294,7 @@ export function SecurityAssessmentModal({
           : "NONE",
       dlpRules:
         has("genai_paste") || has("pii_dlp") || has("print_watermark") || has("casb_cost"),
-      autoSubOus: true,
+      autoSubOus: hasAny,
       dlpMatrix: matrix,
       geminiEnforceAccessLevel: has("genai_paste") || has("saas_auth"),
       geminiEnforcePerimeter: has("genai_paste"),
@@ -267,12 +316,20 @@ export function SecurityAssessmentModal({
   const currentConfig = computeRecommendation();
 
   return (
-    <div className="cep-assessment-modal-backdrop" role="dialog" aria-modal="true">
-      <div className="cep-assessment-modal">
+    <div
+      className="cep-assessment-modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="cep-assessment-modal-title"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="cep-assessment-modal" ref={modalRef}>
         <div className="cep-assessment-header">
           <div className="cep-title-with-badge">
             <SparklesIcon size={22} />
-            <h2>{m.assessModalTitle}</h2>
+            <h2 id="cep-assessment-modal-title">{m.assessModalTitle}</h2>
           </div>
           <button
             className="cep-modal-close-btn"
@@ -435,15 +492,15 @@ export function SecurityAssessmentModal({
                 <ul>
                   <li>
                     {m.dlpColUpload}:{" "}
-                    <code>{currentConfig.dlpMatrix.universal_upload?.upload || "warnUser"}</code>
+                    <code>{currentConfig.dlpMatrix.universal_upload?.upload || "off"}</code>
                   </li>
                   <li>
                     {m.dlpColDownload}:{" "}
-                    <code>{currentConfig.dlpMatrix.universal_download?.download || "warnUser"}</code>
+                    <code>{currentConfig.dlpMatrix.universal_download?.download || "off"}</code>
                   </li>
                   <li>
                     {m.dlpColPaste} (GenAI):{" "}
-                    <code>{currentConfig.dlpMatrix.genai_block?.paste || "blockContent"}</code>
+                    <code>{currentConfig.dlpMatrix.genai_block?.paste || "off"}</code>
                   </li>
                   <li>
                     {m.dlpColPrint}:{" "}

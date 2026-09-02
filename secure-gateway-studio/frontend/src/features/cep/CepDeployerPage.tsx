@@ -185,17 +185,17 @@ export function CepDeployerPage({
 
   const [assigningLicenses, setAssigningLicenses] = useState<boolean>(false);
   const [licenseResult, setLicenseResult] = useState<CepLicenseAssignResult | null>(null);
-  const [licenseError, setLicenseError] = useState<string>("");
+  const [licenseError, setLicenseError] = useState<unknown>(null);
 
   const [roleType, setRoleType] = useState<"both" | "administrator" | "auditor">("both");
   const [assignedUserEmail, setAssignedUserEmail] = useState<string>("");
   const [scopeRoleToOu, setScopeRoleToOu] = useState<boolean>(true);
   const [creatingRoles, setCreatingRoles] = useState<boolean>(false);
   const [roleResult, setRoleResult] = useState<CepRoleResult | null>(null);
-  const [roleError, setRoleError] = useState<string>("");
+  const [roleError, setRoleError] = useState<unknown>(null);
 
   const [busy, setBusy] = useState<"deploy" | "rollback" | null>(null);
-  const [actionError, setActionError] = useState<string>("");
+  const [actionError, setActionError] = useState<unknown>(null);
   const [actionSuccess, setActionSuccess] = useState<string>("");
   const [lastResult, setLastResult] = useState<CepProvisionResult | null>(null);
   const [copiedSnippet, setCopiedSnippet] = useState<string>("");
@@ -208,24 +208,34 @@ export function CepDeployerPage({
 
   // Gemini Zero Trust Automated Provisioning
   const [geminiProjectInput, setGeminiProjectInput] = useState<string>(projectId);
+  const [geminiProjectConfirmation, setGeminiProjectConfirmation] = useState<string>("");
   const [geminiPolicyIdInput, setGeminiPolicyIdInput] = useState<string>("");
   const [geminiPerimeterName, setGeminiPerimeterName] = useState<string>("gemini_zero_trust_poc");
   const [geminiEnforceAccessLevel, setGeminiEnforceAccessLevel] = useState<boolean>(true);
   const [geminiEnforcePerimeter, setGeminiEnforcePerimeter] = useState<boolean>(true);
-  const [geminiDryRun, setGeminiDryRun] = useState<boolean>(false);
+  const [geminiDryRun, setGeminiDryRun] = useState<boolean>(true);
   const [provisioningGemini, setProvisioningGemini] = useState<boolean>(false);
   const [geminiStep, setGeminiStep] = useState<number>(0);
   const [geminiResult, setGeminiResult] = useState<CepGeminiZeroTrustResult | null>(null);
-  const [geminiError, setGeminiError] = useState<string>("");
+  const [geminiError, setGeminiError] = useState<unknown>(null);
 
   async function handleProvisionGeminiZeroTrust() {
     const targetProject = (geminiProjectInput || projectId).trim();
     if (!targetProject) {
-      setGeminiError("Target Google Cloud Project ID is required.");
+      setGeminiError(new Error("Target Google Cloud Project ID is required."));
+      return;
+    }
+    if (!geminiDryRun && geminiProjectConfirmation.trim() !== targetProject) {
+      setGeminiError(
+        new Error(
+          m.geminiConfirmProjectMismatch ||
+            "Type the exact target Project ID before provisioning in strict mode.",
+        ),
+      );
       return;
     }
     setProvisioningGemini(true);
-    setGeminiError("");
+    setGeminiError(null);
     setGeminiResult(null);
     setGeminiStep(1);
 
@@ -246,12 +256,12 @@ export function CepDeployerPage({
       setGeminiStep(4);
       setGeminiResult(res);
       if (!res.success) {
-        setGeminiError(res.message);
+        setGeminiError(res);
       }
     } catch (err) {
       clearTimeout(t1);
       clearTimeout(t2);
-      setGeminiError(err instanceof Error ? err.message : String(err));
+      setGeminiError(err);
     } finally {
       setProvisioningGemini(false);
     }
@@ -308,7 +318,7 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
   async function handleCreateRoles() {
     if (!canonicalCustomerId) return;
     setCreatingRoles(true);
-    setRoleError("");
+    setRoleError(null);
     setRoleResult(null);
     setRoleStep(1);
     const t1 = setTimeout(() => setRoleStep(2), 700);
@@ -327,12 +337,12 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
       setRoleStep(4);
       setRoleResult(res);
       if (!res.success) {
-        setRoleError(res.message);
+        setRoleError(res);
       }
     } catch (err) {
       clearTimeout(t1);
       clearTimeout(t2);
-      setRoleError(err instanceof Error ? err.message : String(err));
+      setRoleError(err);
     } finally {
       setCreatingRoles(false);
     }
@@ -436,7 +446,7 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
     const confirmation = targetOuConfirmation;
     setTargetOuConfirmation("");
     setAssigningLicenses(true);
-    setLicenseError("");
+    setLicenseError(null);
     setLicenseResult(null);
     setLicenseStep(1);
     const t1 = setTimeout(() => setLicenseStep(2), 800);
@@ -452,12 +462,12 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
       clearTimeout(t1);
       setLicenseStep(3);
       setLicenseResult(res);
-      if (!res.success && res.errors.length > 0) {
-        setLicenseError(res.errors.join("; "));
+      if (!res.success) {
+        setLicenseError(res);
       }
     } catch (err) {
       clearTimeout(t1);
-      setLicenseError(err instanceof Error ? err.message : String(err));
+      setLicenseError(err);
     } finally {
       setAssigningLicenses(false);
     }
@@ -472,7 +482,7 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
   const applyResult = (result: CepProvisionResult) => {
     setLastResult(result);
     setActionSuccess(result.success ? result.message : "");
-    setActionError(result.success ? "" : result.message);
+    setActionError(result.success ? null : result);
   };
 
   const handleDeploy = async () => {
@@ -481,7 +491,7 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
     setTargetOuConfirmation("");
     setBusy("deploy");
     setDeployStep(1);
-    setActionError("");
+    setActionError(null);
     setActionSuccess("");
     const t1 = setTimeout(() => setDeployStep(2), 600);
     const t2 = setTimeout(() => setDeployStep(3), 1600);
@@ -494,7 +504,7 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
     } catch (error) {
       clearTimeout(t1);
       clearTimeout(t2);
-      setActionError(error instanceof Error ? error.message : String(error));
+      setActionError(error);
     } finally {
       setBusy(null);
     }
@@ -505,7 +515,7 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
     if (!window.confirm(m.confirmRollback)) return;
     setBusy("rollback");
     setRollbackStep(1);
-    setActionError("");
+    setActionError(null);
     setActionSuccess("");
     const t1 = setTimeout(() => setRollbackStep(2), 600);
     const t2 = setTimeout(() => setRollbackStep(3), 1600);
@@ -524,7 +534,7 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
     } catch (error) {
       clearTimeout(t1);
       clearTimeout(t2);
-      setActionError(error instanceof Error ? error.message : String(error));
+      setActionError(error);
     } finally {
       setBusy(null);
     }
@@ -532,7 +542,7 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
 
   const handleDownloadScript = async () => {
     if (canonicalCustomerId === "") return;
-    setActionError("");
+    setActionError(null);
     try {
       const result = await generateCepScript(currentConfig());
       const url = URL.createObjectURL(new Blob([result.script], { type: "text/x-python" }));
@@ -544,9 +554,7 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
       document.body.removeChild(anchor);
       URL.revokeObjectURL(url);
     } catch (error) {
-      setActionError(
-        `${m.downloadFailed}: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      setActionError(error);
     }
   };
 
@@ -1036,22 +1044,15 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
           </div>
         )}
 
-        {licenseResult !== null && (
-          <div className={licenseResult.success ? "cep-banner cep-banner-ok" : "cep-banner cep-banner-error"}>
+        {licenseResult !== null && licenseResult.success && (
+          <div className="cep-banner cep-banner-ok">
             <CheckCircleIcon size={18} />
             <div>
               <strong>{licenseResult.message}</strong>
-              {licenseResult.errors.length > 0 && (
-                <ul className="cep-license-err-list">
-                  {licenseResult.errors.map((e) => (
-                    <li key={e}>{e}</li>
-                  ))}
-                </ul>
-              )}
             </div>
           </div>
         )}
-        {licenseError !== "" && licenseResult === null && (
+        {licenseError != null && (
           <ErrorDiagnosticCard
             error={licenseError}
             messages={messages}
@@ -1193,7 +1194,7 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
             {roleResult.message}
           </p>
         )}
-        {roleError !== "" && (
+        {roleError != null && (
           <ErrorDiagnosticCard
             error={roleError}
             messages={messages}
@@ -1314,9 +1315,33 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
             </label>
           </div>
 
+          {!geminiDryRun && (
+            <div className="cep-form-field cep-gemini-confirm-box">
+              <label htmlFor="gemini-project-confirm">
+                {m.geminiConfirmProjectLabel}
+              </label>
+              <input
+                autoComplete="off"
+                id="gemini-project-confirm"
+                onChange={(e) => setGeminiProjectConfirmation(e.target.value)}
+                placeholder={(geminiProjectInput || projectId).trim()}
+                spellCheck={false}
+                type="text"
+                value={geminiProjectConfirmation}
+              />
+              <small>{m.geminiConfirmProjectHint}</small>
+            </div>
+          )}
+
           <button
             className="btn btn-primary"
-            disabled={provisioningGemini || (!geminiProjectInput.trim() && !projectId)}
+            disabled={
+              provisioningGemini ||
+              (!geminiProjectInput.trim() && !projectId) ||
+              (!geminiDryRun &&
+                geminiProjectConfirmation.trim() !==
+                  (geminiProjectInput || projectId).trim())
+            }
             onClick={handleProvisionGeminiZeroTrust}
             type="button"
           >
@@ -1369,7 +1394,7 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
             </div>
           )}
 
-          {geminiError !== "" && (
+          {geminiError != null && (
             <ErrorDiagnosticCard
               error={geminiError}
               messages={messages}
@@ -1535,7 +1560,7 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
           <span>{actionSuccess}</span>
         </p>
       )}
-      {actionError !== "" && (
+      {actionError != null && (
         <ErrorDiagnosticCard
           error={actionError}
           messages={messages}

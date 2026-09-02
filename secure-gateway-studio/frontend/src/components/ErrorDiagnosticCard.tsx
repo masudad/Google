@@ -14,6 +14,10 @@ export interface ErrorDiagnosticInfo {
     | "workspace_superadmin_required"
     | "vpc_sc_conflict"
     | "ou_path_unconfirmed"
+    | "ou_not_found_or_stale"
+    | "root_ou_forbidden"
+    | "scope_invalid"
+    | "project_required"
     | "rate_limit_exceeded"
     | "worker_unavailable"
     | "project_not_in_org"
@@ -38,22 +42,172 @@ export function parseErrorDiagnostic(
       ? rawError.message
       : typeof rawError === "string"
       ? rawError
+      : typeof (rawError as { message?: unknown })?.message === "string"
+      ? (rawError as { message: string }).message
+      : typeof (rawError as { detail?: unknown })?.detail === "string"
+      ? (rawError as { detail: string }).detail
       : JSON.stringify(rawError ?? "");
   const status = (rawError as { status?: number })?.status;
-  const code = (rawError as { code?: string })?.code;
+  const code =
+    (rawError as { code?: string })?.code ??
+    (typeof (rawError as { detail?: { code?: string } })?.detail === "object"
+      ? (rawError as { detail: { code?: string } }).detail?.code
+      : undefined);
 
-  const text = `${rawMsg} ${code || ""}`.toLowerCase();
+  const errorsStr = Array.isArray((rawError as { errors?: unknown[] })?.errors)
+    ? (rawError as { errors: unknown[] }).errors.map((e) => String(e)).join(" ")
+    : "";
 
-  // 2. Google Workspace Super Admin Required
+  const text = `${rawMsg} ${code || ""} ${errorsStr}`.toLowerCase();
+
+  // 1. OU Path Unconfirmed / Confirmation Mismatch
   if (
+    code === "cep-target-ou-confirmation-mismatch" ||
+    code === "OU_PATH_MISMATCH" ||
+    text.includes("cep-target-ou-confirmation-mismatch") ||
+    text.includes("target-ou-unconfirmed") ||
+    text.includes("target_ou_confirmation") ||
+    text.includes("target ou confirmation")
+  ) {
+    return {
+      category: "ou_path_unconfirmed",
+      status: status ?? 400,
+      code: code || "OU_PATH_MISMATCH",
+      title: m.errDiagOuConfirmTitle,
+      cause: m.errDiagOuConfirmCause,
+      remediation: m.errDiagOuConfirmRemediation,
+    };
+  }
+
+  // 2. Target OU Not Found or Stale Path
+  if (
+    code === "cep-target-ou-not-found" ||
+    code === "cep-target-ou-path-stale" ||
+    text.includes("cep-target-ou-not-found") ||
+    text.includes("cep-target-ou-path-stale")
+  ) {
+    return {
+      category: "ou_not_found_or_stale",
+      status: status ?? 409,
+      code: code || "OU_NOT_FOUND_OR_STALE",
+      title: m.errDiagOuStaleTitle,
+      cause: m.errDiagOuStaleCause,
+      remediation: m.errDiagOuStaleRemediation,
+    };
+  }
+
+  // 3. Root OU Forbidden
+  if (
+    code === "cep-root-ou-forbidden" ||
+    text.includes("cep-root-ou-forbidden") ||
+    text.includes("root organizational unit cannot be used")
+  ) {
+    return {
+      category: "root_ou_forbidden",
+      status: status ?? 400,
+      code: code || "ROOT_OU_FORBIDDEN",
+      title: m.errDiagRootOuForbiddenTitle,
+      cause: m.errDiagRootOuForbiddenCause,
+      remediation: m.errDiagRootOuForbiddenRemediation,
+    };
+  }
+
+  // 4. CEP Scope or Customer Invalid
+  if (
+    code === "cep-scope-invalid" ||
+    code === "cep-customer-invalid" ||
+    text.includes("cep-scope-invalid") ||
+    text.includes("cep-customer-invalid")
+  ) {
+    return {
+      category: "scope_invalid",
+      status: status ?? 400,
+      code: code || "SCOPE_INVALID",
+      title: m.errDiagScopeInvalidTitle,
+      cause: m.errDiagScopeInvalidCause,
+      remediation: m.errDiagScopeInvalidRemediation,
+    };
+  }
+
+  // 5. Cloud Project Required
+  if (
+    code === "project-required" ||
+    text.includes("project-required") ||
+    text.includes("project_id is required") ||
+    text.includes("project id is required")
+  ) {
+    return {
+      category: "project_required",
+      status: status ?? 400,
+      code: code || "PROJECT_REQUIRED",
+      title: m.errDiagProjectRequiredTitle,
+      cause: m.errDiagProjectRequiredCause,
+      remediation: m.errDiagProjectRequiredRemediation,
+    };
+  }
+
+  // 6. Service Worker Sleep / Unavailable / Silent
+  if (
+    code === "worker-unavailable" ||
+    code === "worker-silent" ||
+    code === "WORKER_DISCONNECTED" ||
+    text.includes("worker-unavailable") ||
+    text.includes("worker-silent") ||
+    text.includes("could not establish connection") ||
+    status === 0
+  ) {
+    return {
+      category: "worker_unavailable",
+      status: 0,
+      code: code || "WORKER_DISCONNECTED",
+      title: m.errDiagWorkerTitle,
+      cause: m.errDiagWorkerCause,
+      remediation: m.errDiagWorkerRemediation,
+    };
+  }
+
+  // 7. Rate Limit Exceeded
+  if (
+    status === 429 ||
+    code === "RESOURCE_EXHAUSTED" ||
+    text.includes("quota exceeded") ||
+    text.includes("resource_exhausted")
+  ) {
+    return {
+      category: "rate_limit_exceeded",
+      status: 429,
+      code: code || "RESOURCE_EXHAUSTED",
+      title: m.errDiagRateLimitTitle,
+      cause: m.errDiagRateLimitCause,
+      remediation: m.errDiagRateLimitRemediation,
+    };
+  }
+
+  // 8. Google Workspace Directory / Chrome Policy Permission Required (403 / Forbidden)
+  if (
+    code === "WORKSPACE_FORBIDDEN" ||
+    code === "DIRECTORY_FORBIDDEN" ||
+    code === "CHROME_POLICY_FORBIDDEN" ||
+    text.includes("workspace_forbidden") ||
     text.includes("not authorized to use directory api") ||
     text.includes("not authorized to access this resource/api") ||
     text.includes("customer not found") ||
-    text.includes("admin.directory")
+    text.includes("admin.directory") ||
+    text.includes("chromepolicy") ||
+    text.includes("chrome policy") ||
+    text.includes("directory api") ||
+    text.includes("super admin") ||
+    text.includes("google workspace") ||
+    text.includes("workspace admin") ||
+    text.includes("workspace super") ||
+    text.includes("workspace directory") ||
+    text.includes("workspace customer") ||
+    text.includes("admin sdk") ||
+    text.includes("orgunit")
   ) {
     return {
       category: "workspace_superadmin_required",
-      status: 403,
+      status: status ?? 403,
       code: code || "WORKSPACE_FORBIDDEN",
       title: m.errDiagWorkspaceTitle,
       cause: m.errDiagWorkspaceCause,
@@ -65,8 +219,9 @@ export function parseErrorDiagnostic(
     };
   }
 
-  // 1. Google Cloud IAM Permission Denied
+  // 9. Google Cloud IAM Permission Denied (403)
   if (
+    code === "PERMISSION_DENIED" ||
     status === 403 ||
     text.includes("permission_denied") ||
     text.includes("the caller does not have permission") ||
@@ -76,7 +231,7 @@ export function parseErrorDiagnostic(
   ) {
     return {
       category: "iam_permission_denied",
-      status: 403,
+      status: status ?? 403,
       code: code || "PERMISSION_DENIED",
       title: m.errDiagIamTitle,
       cause: m.errDiagIamCause,
@@ -91,15 +246,16 @@ export function parseErrorDiagnostic(
     };
   }
 
-  // 3. VPC Service Controls Conflict / Already Exists
+  // 10. VPC Service Controls Conflict / Already Exists
   if (
+    code === "PERIMETER_CONFLICT" ||
     text.includes("already exists") ||
     text.includes("service perimeter already exists") ||
     text.includes("belongs to perimeter")
   ) {
     return {
       category: "vpc_sc_conflict",
-      status: 409,
+      status: status ?? 409,
       code: code || "PERIMETER_CONFLICT",
       title: m.errDiagVpcScConflictTitle,
       cause: m.errDiagVpcScConflictCause,
@@ -111,78 +267,32 @@ export function parseErrorDiagnostic(
     };
   }
 
-  // 4. OU Path Unconfirmed
+  // 11. Project not in organization
   if (
-    text.includes("target-ou-unconfirmed") ||
-    text.includes("target_ou_confirmation") ||
-    text.includes("target ou confirmation")
-  ) {
-    return {
-      category: "ou_path_unconfirmed",
-      status: 400,
-      code: "OU_PATH_MISMATCH",
-      title: m.errDiagOuConfirmTitle,
-      cause: m.errDiagOuConfirmCause,
-      remediation: m.errDiagOuConfirmRemediation,
-    };
-  }
-
-  // 5. Rate Limit Exceeded
-  if (
-    status === 429 ||
-    text.includes("quota exceeded") ||
-    text.includes("resource_exhausted")
-  ) {
-    return {
-      category: "rate_limit_exceeded",
-      status: 429,
-      code: "RESOURCE_EXHAUSTED",
-      title: m.errDiagRateLimitTitle,
-      cause: m.errDiagRateLimitCause,
-      remediation: m.errDiagRateLimitRemediation,
-    };
-  }
-
-  // 6. Service Worker Sleep / Unavailable
-  if (
-    text.includes("worker-unavailable") ||
-    text.includes("worker-silent") ||
-    text.includes("could not establish connection")
-  ) {
-    return {
-      category: "worker_unavailable",
-      status: 0,
-      code: "WORKER_DISCONNECTED",
-      title: m.errDiagWorkerTitle,
-      cause: m.errDiagWorkerCause,
-      remediation: m.errDiagWorkerRemediation,
-    };
-  }
-
-  // 7. Project not in organization
-  if (
+    code === "PROJECT_NO_ORG" ||
     text.includes("project-not-in-organization") ||
     text.includes("not in an organization")
   ) {
     return {
       category: "project_not_in_org",
-      status: 400,
-      code: "PROJECT_NO_ORG",
+      status: status ?? 400,
+      code: code || "PROJECT_NO_ORG",
       title: m.errDiagProjectNoOrgTitle,
       cause: m.errDiagProjectNoOrgCause,
       remediation: m.errDiagProjectNoOrgRemediation,
     };
   }
 
-  // 8. Access Policy Not Found
+  // 12. Access Policy Not Found
   if (
+    code === "ACCESS_POLICY_NOT_FOUND" ||
     text.includes("access-policy-not-found") ||
     text.includes("no access context manager policy")
   ) {
     return {
       category: "access_policy_not_found",
-      status: 404,
-      code: "ACCESS_POLICY_NOT_FOUND",
+      status: status ?? 404,
+      code: code || "ACCESS_POLICY_NOT_FOUND",
       title: m.errDiagPolicyNotFoundTitle,
       cause: m.errDiagPolicyNotFoundCause,
       remediation: m.errDiagPolicyNotFoundRemediation,
@@ -193,7 +303,7 @@ export function parseErrorDiagnostic(
     };
   }
 
-  // Default Generic
+  // Default Generic Fallback
   return {
     category: "generic_error",
     status,

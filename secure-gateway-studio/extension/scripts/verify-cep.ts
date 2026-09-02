@@ -35,7 +35,7 @@ function check(name: string, condition: boolean, detail = ""): void {
 
 const { route, CEP_LICENSE_ROUTE_MAX_NETWORK_WAIT_MS } =
   await import("../src/background/router.ts");
-import type { RouteContext } from "../src/background/router.ts";
+import type { RouteContext, RouteError } from "../src/background/router.ts";
 import type { Transport, TransportResponse } from "../src/providers/executor.ts";
 import {
   CEP_LICENSE_DIRECTORY_PAGE_LIMIT,
@@ -45,6 +45,7 @@ import {
   CepMutationLeaseBusy,
   type CepMutationLeaseHandle,
 } from "../src/storage/repository.ts";
+import { canonicalDigestSync } from "../src/domain/canonical.ts";
 
 interface Recorded {
   method: string;
@@ -3665,6 +3666,37 @@ for (const mode of ["412-commit", "503-commit", "response-loss-commit"] as const
     "Gemini Zero Trust creates Service Perimeter",
     calls.some((c) => c.method === "POST" && c.url.includes("/servicePerimeters")),
   );
+
+  // Missing project_id rejected
+  let threwMissingProject = false;
+  try {
+    await route(context(transport), "POST", "/api/v1/cep/gemini-zero-trust", {
+      project_id: "",
+    });
+  } catch (error) {
+    threwMissingProject = (error as RouteError).code === "project-required";
+  }
+  check("Gemini Zero Trust rejects missing project_id with project-required", threwMissingProject);
+
+  // Concurrent lease conflict rejected with 409 cep-mutation-active
+  const ctx = context(transport);
+  const lease = await ctx.acquireCepMutationLease!({
+    scopeKeys: [`cep:project:${canonicalDigestSync({ project_id: "locked-gemini-project" })}`],
+    operationKind: "gemini_zero_trust",
+    requestDigest: "a".repeat(64),
+  });
+  let threwLeaseBusy = false;
+  try {
+    await route(ctx, "POST", "/api/v1/cep/gemini-zero-trust", {
+      project_id: "locked-gemini-project",
+      dry_run: true,
+    });
+  } catch (error) {
+    threwLeaseBusy = (error as RouteError).status === 409 && (error as RouteError).code === "cep-mutation-active";
+  } finally {
+    await ctx.releaseCepMutationLease!(lease);
+  }
+  check("Gemini Zero Trust acquires project mutation lease and rejects concurrent runs", threwLeaseBusy);
 }
 
 // -- Report -------------------------------------------------------------------
