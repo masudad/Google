@@ -70,4 +70,4 @@ This repository is an **independent open-source project**. It is **not built, en
 
 ## 📄 License
 
-Licensed under the [Apache License 2.0](LICENSE).
+This repository is licensed under the Apache License 2.0. See [LICENSE](LICENSE) for the complete terms. Distributed artefacts also include the notices required for bundled third-party software.
