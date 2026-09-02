@@ -29,8 +29,14 @@ import {
   ExternalLinkIcon,
   KeyIcon,
   ShieldNetworkIcon,
+  SparklesIcon,
   UsersIcon,
 } from "../../components/Icons";
+import { ErrorDiagnosticCard } from "../../components/ErrorDiagnosticCard";
+import {
+  SecurityAssessmentModal,
+  type RecommendedPolicyConfig,
+} from "./SecurityAssessmentModal";
 import { DEFAULT_DLP_MATRIX, DlpMatrixTable } from "./DlpMatrixTable";
 
 interface CepDeployerPageProps {
@@ -272,6 +278,29 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
   --restricted-services="discoveryengine.googleapis.com" \\
   --access-levels="accessPolicies/\${POLICY_ID}/accessLevels/managed_chrome_access" \\
   --policy=\${POLICY_ID}`;
+
+  const [assessmentModalOpen, setAssessmentModalOpen] = useState<boolean>(false);
+  const [assessmentAppliedNotice, setAssessmentAppliedNotice] = useState<string>("");
+
+  const handleApplyRecommendation = (config: RecommendedPolicyConfig) => {
+    setModules((prev) => ({
+      ...prev,
+      corePolicies: config.corePolicies,
+      forceExtensions: config.forceExtensions,
+      connectors: config.connectors,
+      accessLevel: config.accessLevel,
+      dlpRules: config.dlpRules,
+    }));
+    setDlpMatrix(config.dlpMatrix);
+    setAutoSubOus(config.autoSubOus);
+    setGeminiEnforceAccessLevel(config.geminiEnforceAccessLevel);
+    setGeminiEnforcePerimeter(config.geminiEnforcePerimeter);
+    if (config.internalUrls) setInternalUrls(config.internalUrls);
+    if (config.dlpCustomMessage) setDlpCustomMessage(config.dlpCustomMessage);
+    setAssessmentAppliedNotice(m.assessAppliedBanner);
+    setTimeout(() => setAssessmentAppliedNotice(""), 6000);
+    setActiveTab("dlp");
+  };
 
   const [ouLoaded, setOuLoaded] = useState<boolean>(false);
   const [loadingOus, setLoadingOus] = useState<boolean>(false);
@@ -614,7 +643,32 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
       </header>
       <p className="cep-intro">{m.intro}</p>
 
-            <nav className="cep-nav-tabs" aria-label="CEP PoC Sections">
+            <div className="cep-assessment-banner">
+        <div className="cep-assessment-banner-text">
+          <h3>
+            <SparklesIcon size={20} />
+            <span>{m.assessModalTitle}</span>
+          </h3>
+          <p>{m.assessModalSubtitle}</p>
+        </div>
+        <button
+          className="btn btn-primary"
+          onClick={() => setAssessmentModalOpen(true)}
+          type="button"
+        >
+          <SparklesIcon size={16} />
+          <span>{m.assessOpenBtn}</span>
+        </button>
+      </div>
+
+      {assessmentAppliedNotice !== "" && (
+        <p className="cep-banner cep-banner-ok" role="status">
+          <CheckCircleIcon size={18} />
+          <span>{assessmentAppliedNotice}</span>
+        </p>
+      )}
+
+      <nav className="cep-nav-tabs" aria-label="CEP PoC Sections">
         <button
           type="button"
           className={`cep-nav-tab ${activeTab === "setup" ? "active" : ""}`}
@@ -998,9 +1052,11 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
           </div>
         )}
         {licenseError !== "" && licenseResult === null && (
-          <p className="cep-inline-error" role="alert">
-            {licenseError}
-          </p>
+          <ErrorDiagnosticCard
+            error={licenseError}
+            messages={messages}
+            onRetry={handleAssignLicenses}
+          />
         )}
       </section>
 
@@ -1137,10 +1193,12 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
             {roleResult.message}
           </p>
         )}
-        {roleError && (
-          <p className="cep-banner cep-banner-error cep-role-banner" role="alert">
-            {roleError}
-          </p>
+        {roleError !== "" && (
+          <ErrorDiagnosticCard
+            error={roleError}
+            messages={messages}
+            onRetry={handleCreateRoles}
+          />
         )}
 
         <p className="cep-inline-note">{m.rolesVerificationNote}</p>
@@ -1311,10 +1369,12 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
             </div>
           )}
 
-          {geminiError && (
-            <p className="cep-banner cep-banner-error" role="alert">
-              {geminiError}
-            </p>
+          {geminiError !== "" && (
+            <ErrorDiagnosticCard
+              error={geminiError}
+              messages={messages}
+              onRetry={handleProvisionGeminiZeroTrust}
+            />
           )}
         </div>
 
@@ -1476,10 +1536,11 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
         </p>
       )}
       {actionError !== "" && (
-        <p className="cep-banner cep-banner-error" role="alert">
-          <ExclamationCircleIcon size={18} />
-          <span>{actionError}</span>
-        </p>
+        <ErrorDiagnosticCard
+          error={actionError}
+          messages={messages}
+          onRetry={busy === "deploy" ? handleDeploy : handleRollback}
+        />
       )}
 
       {lastResult !== null && lastResult.created_items.length > 0 && (
@@ -1528,6 +1589,12 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
         )}
       </section>
     
-</main>
+      <SecurityAssessmentModal
+        isOpen={assessmentModalOpen}
+        onClose={() => setAssessmentModalOpen(false)}
+        onApplyRecommendation={handleApplyRecommendation}
+        messages={messages}
+      />
+    </main>
   );
 }

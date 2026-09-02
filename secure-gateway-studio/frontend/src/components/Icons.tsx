@@ -260,3 +260,22 @@ export function KeyIcon(props: IconProps) {
     </IconBase>
   );
 }
+
+export function RefreshIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M21 12a9 9 0 1 1-9-9c2.5 0 4.8 1 6.5 2.6L21 8" {...strokeProps} />
+      <path d="M21 3v5h-5" {...strokeProps} />
+    </IconBase>
+  );
+}
+
+export function SparklesIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="m12 3 1.9 4.7L18.6 9.6l-4.7 1.9L12 16.2l-1.9-4.7L5.4 9.6l4.7-1.9L12 3Z" {...strokeProps} />
+      <path d="m19 15 .9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9.9-2.1ZM5 16l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6.6-1.4Z" {...strokeProps} />
+    </IconBase>
+  );
+}
+

@@ -783,6 +783,83 @@ export interface CepDeployerMessages {
   licenseStep1: string;
   licenseStep2: string;
   licenseStep3: string;
+  // Error Diagnostic Resolver
+  errDiagIamTitle: string;
+  errDiagIamCause: string;
+  errDiagIamRemediation: string;
+  errDiagIamConsoleLink: string;
+  errDiagWorkspaceTitle: string;
+  errDiagWorkspaceCause: string;
+  errDiagWorkspaceRemediation: string;
+  errDiagWorkspaceConsoleLink: string;
+  errDiagVpcScConflictTitle: string;
+  errDiagVpcScConflictCause: string;
+  errDiagVpcScConflictRemediation: string;
+  errDiagVpcScConsoleLink: string;
+  errDiagOuConfirmTitle: string;
+  errDiagOuConfirmCause: string;
+  errDiagOuConfirmRemediation: string;
+  errDiagRateLimitTitle: string;
+  errDiagRateLimitCause: string;
+  errDiagRateLimitRemediation: string;
+  errDiagWorkerTitle: string;
+  errDiagWorkerCause: string;
+  errDiagWorkerRemediation: string;
+  errDiagProjectNoOrgTitle: string;
+  errDiagProjectNoOrgCause: string;
+  errDiagProjectNoOrgRemediation: string;
+  errDiagPolicyNotFoundTitle: string;
+  errDiagPolicyNotFoundCause: string;
+  errDiagPolicyNotFoundRemediation: string;
+  errDiagPolicyConsoleLink: string;
+  errDiagGenericTitle: string;
+  errDiagGenericCause: string;
+  errDiagGenericRemediation: string;
+  errDiagCauseLabel: string;
+  errDiagRemediationLabel: string;
+  errDiagCommandHeader: string;
+  errDiagRetryBtn: string;
+  errDiagRawDetails: string;
+
+  // Security Assessment & Policy Recommender
+  assessOpenBtn: string;
+  assessModalTitle: string;
+  assessModalSubtitle: string;
+  assessPresetLabel: string;
+  assessPresetGenAi: string;
+  assessPresetCost: string;
+  assessPresetRemote: string;
+  assessPresetAll: string;
+  assessPresetClear: string;
+  assessGroupGenAi: string;
+  assessGroupPosture: string;
+  assessGroupSaas: string;
+  assessGroupCost: string;
+  assessQ1Title: string; assessQ1Risk: string; assessQ1Solution: string;
+  assessQ2Title: string; assessQ2Risk: string; assessQ2Solution: string;
+  assessQ3Title: string; assessQ3Risk: string; assessQ3Solution: string;
+  assessQ4Title: string; assessQ4Risk: string; assessQ4Solution: string;
+  assessQ5Title: string; assessQ5Risk: string; assessQ5Solution: string;
+  assessQ6Title: string; assessQ6Risk: string; assessQ6Solution: string;
+  assessQ7Title: string; assessQ7Risk: string; assessQ7Solution: string;
+  assessQ8Title: string; assessQ8Risk: string; assessQ8Solution: string;
+  assessQ9Title: string; assessQ9Risk: string; assessQ9Solution: string;
+  assessQ10Title: string; assessQ10Risk: string; assessQ10Solution: string;
+  assessQ11Title: string; assessQ11Risk: string; assessQ11Solution: string;
+  assessQ12Title: string; assessQ12Risk: string; assessQ12Solution: string;
+  assessQ13Title: string; assessQ13Risk: string; assessQ13Solution: string;
+  assessQ14Title: string; assessQ14Risk: string; assessQ14Solution: string;
+  assessQ15Title: string; assessQ15Risk: string; assessQ15Solution: string;
+  assessDefaultDlpCustomMessage: string;
+  assessRecHeader: string;
+  assessRecDlpHeader: string;
+  assessRecModulesHeader: string;
+  assessRoiHeader: string;
+  assessRoiCostTitle: string; assessRoiCostDesc: string;
+  assessRoiPerfTitle: string; assessRoiPerfDesc: string;
+  assessRoiSecurityTitle: string; assessRoiSecurityDesc: string;
+  assessApplyRecBtn: string;
+  assessAppliedBanner: string;
 }
 
 const en: Messages = {
@@ -2374,6 +2451,116 @@ const en: Messages = {
     licenseStep1: "1. Querying Users in Target OU",
     licenseStep2: "2. Assigning Chrome Enterprise Licenses",
     licenseStep3: "3. License Assignment Complete",
+    // Error Diagnostic Resolver
+    errDiagIamTitle: "Google Cloud IAM Permission Insufficient",
+    errDiagIamCause: "The current Google account lacks organizational or project-level Access Context Manager permissions (e.g. roles/accesscontextmanager.policyAdmin).",
+    errDiagIamRemediation: "Request your Organization Administrator to grant roles/accesscontextmanager.policyAdmin, or run the command below with an admin account.",
+    errDiagIamConsoleLink: "Open Google Cloud IAM Console",
+    errDiagWorkspaceTitle: "Google Workspace Super Admin Required",
+    errDiagWorkspaceCause: "The Directory API or Chrome Policy API rejected the request because the signed-in account lacks Workspace Super Administrator privileges, or Third-Party API Client access is restricted.",
+    errDiagWorkspaceRemediation: "Sign in with a Google Workspace Super Administrator account or grant Admin SDK privileges in the Google Admin Console.",
+    errDiagWorkspaceConsoleLink: "Open Admin Console Roles",
+    errDiagVpcScConflictTitle: "VPC Service Controls Perimeter Conflict",
+    errDiagVpcScConflictCause: "This Google Cloud project is already assigned to another VPC Service Controls perimeter or the perimeter identifier already exists.",
+    errDiagVpcScConflictRemediation: "Specify an isolated evaluation project, or modify the existing perimeter in Google Cloud Console to add Discovery Engine.",
+    errDiagVpcScConsoleLink: "Open VPC Service Controls Console",
+    errDiagOuConfirmTitle: "Target OU Path Confirmation Mismatch",
+    errDiagOuConfirmCause: "To prevent accidental deployment to parent or root organizational units, you must type the exact path of the target OU.",
+    errDiagOuConfirmRemediation: "Copy the exact path shown in the prompt and paste it into the confirmation field.",
+    errDiagRateLimitTitle: "Google Cloud API Rate Limit Exceeded (429)",
+    errDiagRateLimitCause: "Cloud Identity or Resource Manager API requests exceeded the standard quota (1 QPS).",
+    errDiagRateLimitRemediation: "Wait 10-30 seconds. Secure Gateway Studio uses automatic backoff, so retrying now should succeed.",
+    errDiagWorkerTitle: "Chrome Extension Background Worker Suspended",
+    errDiagWorkerCause: "Chrome put the Manifest V3 service worker to sleep, or the extension was reloaded mid-request.",
+    errDiagWorkerRemediation: "Click the Retry button below or reload the extension page to re-establish the connection.",
+    errDiagProjectNoOrgTitle: "Google Cloud Project Not in Organization",
+    errDiagProjectNoOrgCause: "Access Context Manager and VPC Service Controls require projects to belong to a Google Cloud Organization.",
+    errDiagProjectNoOrgRemediation: "Select a project under your company organization rather than an unassociated standalone project.",
+    errDiagPolicyNotFoundTitle: "Access Context Manager Policy Not Found",
+    errDiagPolicyNotFoundCause: "No Access Policy exists in your organization, or the default policy ID could not be resolved.",
+    errDiagPolicyNotFoundRemediation: "Create an Access Policy in Access Context Manager console or specify your policy ID manually.",
+    errDiagPolicyConsoleLink: "Open Access Context Manager Console",
+    errDiagGenericTitle: "Operation Failed with Error",
+    errDiagGenericCause: "An unexpected error occurred during execution.",
+    errDiagGenericRemediation: "Check the technical details below and verify API enablement and network connectivity.",
+    errDiagCauseLabel: "Cause:",
+    errDiagRemediationLabel: "Remediation Steps:",
+    errDiagCommandHeader: "Fix Command / Admin Request Template:",
+    errDiagRetryBtn: "Retry Operation",
+    errDiagRawDetails: "Technical Error Details (for debugging)",
+
+    // Security Assessment & Policy Recommender
+    assessOpenBtn: "🎯 Security Assessment & Recommended Policies",
+    assessModalTitle: "🎯 Enterprise Security Assessment & Policy Recommender",
+    assessModalSubtitle: "Select your company's top security risks and operational challenges. Chrome Enterprise Premium will automatically calculate the optimal recommended policy baseline, DLP matrix, and projected ROI.",
+    assessPresetLabel: "Quick Presets",
+    assessPresetGenAi: "GenAI Safe Adoption",
+    assessPresetCost: "Exit VDI / Replace CASB (Cost Cut)",
+    assessPresetRemote: "Remote Work & BYOD Posture",
+    assessPresetAll: "Enterprise Max Security (Select All)",
+    assessPresetClear: "Clear All",
+    assessGroupGenAi: "GenAI & Cloud Data Protection",
+    assessGroupPosture: "Device Posture & Remote Access",
+    assessGroupSaas: "SaaS Protection & Zero Trust Modernization",
+    assessGroupCost: "Cost Optimization & Zero-Agent Endpoint",
+    assessQ1Title: "Prevent confidential copy/pasting into GenAI (ChatGPT, Gemini, etc.) and Web",
+    assessQ1Risk: "Employees pasting confidential source code or customer data into external GenAI causing data leakage",
+    assessQ1Solution: "Chrome Enterprise DLP enforces real-time clipboard paste inspection and blocking/warning on web AI apps",
+    assessQ2Title: "Restrict Web upload/download of Personal Data (PII, Customer lists, Financials)",
+    assessQ2Risk: "Downloading PII/customer CSVs from SaaS or Web apps to unapproved personal PCs or clouds",
+    assessQ2Solution: "Real-time DLP file inspection blocking sensitive national IDs, credit cards, and customer data",
+    assessQ3Title: "Confidential screen printing restriction & screen capture watermark overlay",
+    assessQ3Risk: "Printing confidential designs/customer lists or taking phone camera screen photos to take off-site",
+    assessQ3Solution: "Browser print blocking + dynamic electronic watermark (user email, timestamp) over sensitive pages",
+    assessQ4Title: "SaaS access control from unmanaged BYOD / untrusted networks",
+    assessQ4Risk: "Accessing corporate SaaS from personal unapproved PCs leading to malware infection or credential theft",
+    assessQ4Solution: "Context-Aware Access (CAA) strictly restricting access to Managed Chrome browsers (BROWSER_MANAGED)",
+    assessQ5Title: "Block access from devices with outdated OS or unencrypted disks",
+    assessQ5Risk: "Vulnerable unpatched PCs connecting to internal systems becoming ransomware entry points",
+    assessQ5Solution: "Endpoint Verification posture checking enforcing minimum OS version, screen lock, and disk encryption",
+    assessQ6Title: "Strict corporate device identification using client certificates (mTLS)",
+    assessQ6Risk: "Credential leak allows unauthorized third-party devices to log in to corporate services",
+    assessQ6Solution: "Chrome Certificate Store binding corporate client certificates for strict mTLS device identification",
+    assessQ7Title: "Strict zero-trust authorization for Google Workspace, M365, Salesforce",
+    assessQ7Risk: "Critical SaaS relying solely on passwords/basic MFA remains vulnerable to cookie hijacking",
+    assessQ7Solution: "Chrome Enterprise + Google Cloud Access Context Manager multi-layered zero-trust authorization",
+    assessQ8Title: "Geographic access control (blocking untrusted/foreign IP ranges)",
+    assessQ8Risk: "Detecting and blocking unauthorized brute force or access attempts from foreign/suspicious IP ranges",
+    assessQ8Solution: "Granular IP-based and geographic CAA policies with automatic security alerts",
+    assessQ9Title: "Need to transition to VPN-less direct secure access (SWG breakout)",
+    assessQ9Risk: "VPN bandwidth saturation, frequent gateway crashes, and soaring hardware appliance maintenance costs",
+    assessQ9Solution: "Chrome + Cloud Secure Web Gateway (SWG) enabling secure direct internet breakout (Exit VPN)",
+    assessQ10Title: "Malicious Extension detection & force-uninstall",
+    assessQ10Risk: "Employees installing unauthorized rogue browser extensions that steal session cookies and screen data",
+    assessQ10Solution: "Extension whitelist enforcement (ExtensionInstallBlocklist: *, only corporate vetted extensions allowed)",
+    assessQ11Title: "Long-term security audit logging & SIEM/BigQuery instant synchronization",
+    assessQ11Risk: "Lack of forensic browser activity logs to investigate security incidents and regulatory compliance",
+    assessQ11Solution: "Direct telemetry export of Chrome URL visits, DLP events, file transfers to Cloud Logging and BigQuery",
+    assessQ12Title: "Immediate zero-day vulnerability patching & browser version governance",
+    assessQ12Risk: "Lag in manual OS/browser patching leaves multi-week blank vulnerability window when zero-days emerge",
+    assessQ12Solution: "Silent background auto-updates ensuring zero-day vulnerabilities are patched within hours org-wide",
+    assessQ13Title: "Review and replace expensive CASB/SWG licenses (Netskope, Zscaler, etc.)",
+    assessQ13Risk: "Paying tens to hundreds of millions of yen annually for third-party CASB/proxy subscription licenses",
+    assessQ13Solution: "Browser-native CEP DLP and Cloud SWG integration directly replacing costly third-party CASB/proxies",
+    assessQ14Title: "VDI (Citrix, VMware Horizon) server hardware refresh & maintenance cost reduction",
+    assessQ14Risk: "Exorbitant multi-million dollar quotes for upcoming VDI server refreshes prompts need to exit VDI",
+    assessQ14Solution: "Secure Enterprise Browser transforms local PCs into secure workspaces, slashing 80%+ of VDI/DaaS costs",
+    assessQ15Title: "Eliminate PC slowness caused by multiple heavy endpoint agents",
+    assessQ15Risk: "Stacking heavy agents (EDR, DLP, asset mgmt, encryption) causes slow PCs and endless user complaints",
+    assessQ15Solution: "Zero additional agents required; DLP, access control, and auditing run natively inside Chrome",
+    assessDefaultDlpCustomMessage: "Confidential data transfer is blocked by corporate security policy. Contact your security administrator if you require an exemption.",
+    assessRecHeader: "Recommended Policy Baseline",
+    assessRecDlpHeader: "🛡️ Data Loss Prevention (DLP) Matrix:",
+    assessRecModulesHeader: "📦 Recommended Module Configuration:",
+    assessRoiHeader: "Expected Business ROI & Impact:",
+    assessRoiCostTitle: "Direct Cost Reduction",
+    assessRoiCostDesc: "Replace expensive CASB licenses (Netskope/Zscaler) and eliminate VDI hardware refresh costs.",
+    assessRoiPerfTitle: "Zero-Agent PC Lightening",
+    assessRoiPerfDesc: "No heavy third-party endpoint agents required; eliminate PC lag and employee complaints.",
+    assessRoiSecurityTitle: "Absolute Data Leakage Defense",
+    assessRoiSecurityDesc: "Block GenAI prompt leaks, stop unapproved downloads, and prevent screen photography with dynamic watermarks.",
+    assessApplyRecBtn: "🚀 Apply Recommended Policy to PoC",
+    assessAppliedBanner: "✓ Recommended policy configuration applied successfully from security assessment.",
 
   },
 };
@@ -3961,6 +4148,116 @@ const ja: Messages = {
     licenseStep1: "1. 対象 OU ユーザーの取得",
     licenseStep2: "2. Chrome Enterprise ライセンスの割り当て",
     licenseStep3: "3. ライセンス適用完了",
+    // Error Diagnostic Resolver
+    errDiagIamTitle: "Google Cloud IAM 権限不足",
+    errDiagIamCause: "現在の Google アカウントに Access Context Manager または Google Cloud 組織レベルの権限（例: roles/accesscontextmanager.policyAdmin）が付与されていません。",
+    errDiagIamRemediation: "組織の特権管理者に roles/accesscontextmanager.policyAdmin ロールの付与を依頼するか、以下のコマンドを管理者アカウントで実行してください。",
+    errDiagIamConsoleLink: "Google Cloud IAM コンソールを開く",
+    errDiagWorkspaceTitle: "Google Workspace 特権管理者権限が必要",
+    errDiagWorkspaceCause: "サインイン中のアカウントに Workspace 特権管理者（Super Admin）権限がないか、サードパーティ API クライアント アクセスが管理コンソールで制限されています。",
+    errDiagWorkspaceRemediation: "Google Workspace の特権管理者アカウントでサインインし直すか、管理コンソール（admin.google.com）で Admin SDK へのアクセスを承認してください。",
+    errDiagWorkspaceConsoleLink: "Workspace 管理ロール画面を開く",
+    errDiagVpcScConflictTitle: "VPC Service Controls 境界の競合・重複所属",
+    errDiagVpcScConflictCause: "対象の Google Cloud プロジェクトはすでに別の VPC サービス境界に所属しているか、同名の境界が既に存在します。",
+    errDiagVpcScConflictRemediation: "検証専用の独立した別プロジェクトを指定するか、Google Cloud コンソールから既存の境界に Discovery Engine API を追加してください。",
+    errDiagVpcScConsoleLink: "VPC Service Controls コンソールを開く",
+    errDiagOuConfirmTitle: "対象 OU パスの一致確認エラー",
+    errDiagOuConfirmCause: "上位組織やルート OU への誤適用事故を防止するため、対象 OU のフルパスを手動入力して完全一致させる必要があります。",
+    errDiagOuConfirmRemediation: "画面に表示されている対象 OU のパスを正確にコピーし、確認入力欄に貼り付けてください。",
+    errDiagRateLimitTitle: "Google Cloud API レートリミット制限 (429)",
+    errDiagRateLimitCause: "Cloud Identity または Resource Manager API のリクエスト頻度が上限（1 QPS）を超過しました。",
+    errDiagRateLimitRemediation: "SGS は自動バックオフ機能を備過しています。10〜30 秒待機してから [再試行] ボタンを押すと成功します。",
+    errDiagWorkerTitle: "Chrome 拡張機能バックグラウンドワーカーの一時休止",
+    errDiagWorkerCause: "Chrome ブラウザの省電力機能により Service Worker が休止状態になったか、拡張機能がリロードされました。",
+    errDiagWorkerRemediation: "下の [再試行] ボタンを押すか、拡張機能の管理画面からページを再読み込みしてください。",
+    errDiagProjectNoOrgTitle: "Google Cloud プロジェクトが組織に未所属",
+    errDiagProjectNoOrgCause: "Access Context Manager および VPC Service Controls は、Google Cloud 組織（Organization）に属するプロジェクトでのみ動作します。",
+    errDiagProjectNoOrgRemediation: "スタンドアロンの個人プロジェクトではなく、企業組織配下の GCP プロジェクトを選択してください。",
+    errDiagPolicyNotFoundTitle: "Access Context Manager ポリシー未検出",
+    errDiagPolicyNotFoundCause: "組織内に Access Policy が作成されていないか、デフォルトのポリシー ID を自動取得できませんでした。",
+    errDiagPolicyNotFoundRemediation: "Access Context Manager コンソールでポリシーを新規作成するか、ポリシー ID を手動入力してください。",
+    errDiagPolicyConsoleLink: "Access Context Manager コンソールを開く",
+    errDiagGenericTitle: "処理中にエラーが発生しました",
+    errDiagGenericCause: "処理の実行中に予期しないエラーが返されました。",
+    errDiagGenericRemediation: "以下の技術詳細を確認し、API の有効化状況およびネットワーク接続を確認してください。",
+    errDiagCauseLabel: "発生原因:",
+    errDiagRemediationLabel: "推奨される修復手順:",
+    errDiagCommandHeader: "修復用コマンド / 権限付与依頼テンプレート:",
+    errDiagRetryBtn: "操作を再試行",
+    errDiagRawDetails: "技術詳細ログ（デバッグ用）",
+
+    // Security Assessment & Policy Recommender
+    assessOpenBtn: "🎯 おすすめ PoC 診断ウィザード",
+    assessModalTitle: "🎯 企業課題解決型・おすすめ PoC 診断ウィザード",
+    assessModalSubtitle: "貴社が抱えるセキュリティ課題やコスト削減ニーズをチェックしてください。Chrome Enterprise Premium の最適な推奨ポリシー・DLP マトリクス構成および期待される効果（ROI）を即座に自動選定します。",
+    assessPresetLabel: "クイック一括選択",
+    assessPresetGenAi: "生成AI安全活用 & 漏洩防止",
+    assessPresetCost: "脱VDI・脱CASB コスト最適化",
+    assessPresetRemote: "リモートワーク・BYOD対策",
+    assessPresetAll: "エンタープライズ最高水準 (全選択)",
+    assessPresetClear: "クリア",
+    assessGroupGenAi: "生成AI & クラウドデータ保護",
+    assessGroupPosture: "端末ポスチャ & リモートアクセス",
+    assessGroupSaas: "SaaS保護 & ゼロトラスト移行",
+    assessGroupCost: "コスト削減 & エージェント軽量化",
+    assessQ1Title: "生成AI（ChatGPT, Gemini等）や外部Webへの機密コピペ・プロンプト漏洩防止",
+    assessQ1Risk: "従業員が生成AIにソースコードや顧客情報をペーストして情報流出する懸念がある",
+    assessQ1Solution: "Chrome Enterprise DLP によるクリップボード貼り付け (Paste) リアルタイム検査・ブロック & 警告",
+    assessQ2Title: "個人情報（マイナンバー・顧客名簿）のWebダウンロード・アップロード制限",
+    assessQ2Risk: "SaaSやWebアプリから個人情報CSVを私用PCやクラウドにダウンロードされるリスク",
+    assessQ2Solution: "マイナンバー、クレジットカード番号、個人情報ファイルのWebアップロード・ダウンロード即時遮断",
+    assessQ3Title: "機密画面の印刷制限 ＆ 画面キャプチャ抑止（動的電子透かし表示）",
+    assessQ3Risk: "重要顧客情報や設計図面を印刷・画面撮影して社外へ持ち出されるリスク",
+    assessQ3Solution: "Web画面印刷のブロック、およびブラウザ表示面へのユーザー名・日時・会社名の動的電子透かし強制表示",
+    assessQ4Title: "社外ネットワーク・私用端末(BYOD)からのSaaSアクセス制御",
+    assessQ4Risk: "在宅勤務や出張先から未承認PCでSaaSにアクセスされ、マルウェア感染やデータ漏洩の恐れ",
+    assessQ4Solution: "Context-Aware Access (CAA) により、組織管理対象ブラウザ（BROWSER_MANAGED）のみアクセス認可",
+    assessQ5Title: "OSバージョン未更新・ディスク未暗号化端末のアクセス遮断",
+    assessQ5Risk: "パッチ未適用の脆弱な端末が社内システムに接続しランサムウェアの侵入口になる",
+    assessQ5Solution: "Endpoint Verification デバイスポスチャ連携による OS バージョン、ディスク暗号化、画面ロック必須化",
+    assessQ6Title: "端末電子証明書による正規会社支給PCの厳格な特定",
+    assessQ6Risk: "ID/パスワードの漏洩により、第三者が不正な端末からログインするリスク",
+    assessQ6Solution: "Chrome 証明書ストアと連携したクライアント電子証明書（mTLS）検証による会社支給端末の厳格特定",
+    assessQ7Title: "Google Workspace / M365 / Salesforceへのアクセス認可厳格化",
+    assessQ7Risk: "重要SaaSへのログインがID/PWや通常MFAのみで、セッションハイジャックに脆弱",
+    assessQ7Solution: "Chrome Enterprise と Google Cloud Access Context Manager (ACM) の連動による多層ゼロトラスト認可",
+    assessQ8Title: "地理的アクセス制御（海外・不審IPからの不正アクセス遮断）",
+    assessQ8Risk: "海外拠点や不審なIP範囲からの不正アクセス試行をリアルタイムに検知・防御したい",
+    assessQ8Solution: "IP 範囲・国・地域ポリシーに基づくアクセス拒否とセキュリティアラート自動発行",
+    assessQ9Title: "VPNレス直接セキュア接続（ゼロトラストアクセス）への移行ニーズ",
+    assessQ9Risk: "全社員のVPN集中による通信帯域逼迫、障害多発、GW保守費用の高騰に悩んでいる",
+    assessQ9Solution: "Chrome + Cloud Secure Web Gateway (SWG) による安全な直接インターネットブレイクアウト (脱VPN)",
+    assessQ10Title: "悪意ある拡張機能（Extension）の検知・強制アンインストール",
+    assessQ10Risk: "従業員が非公認の危険なブラウザ拡張機能を導入し情報が詐取されるリスク",
+    assessQ10Solution: "拡張機能の完全ホワイトリスト管理（未承認拡張の即時ブロック & 会社承認拡張の自動配信）",
+    assessQ11Title: "セキュリティ監査ログの長期保管 ＆ SIEM/BigQuery即時連携",
+    assessQ11Risk: "セキュリティ事故発生時にインシデント調査を行うためのブラウザ操作ログが不足",
+    assessQ11Solution: "Chrome 監査ログ（ファイル操作・URL訪問・DLP違反・拡張機能イベント）の Google Cloud Logging & BigQuery 即時連携",
+    assessQ12Title: "ゼロデイ脆弱性パッチの即時配信 ＆ バージョン固定管理",
+    assessQ12Risk: "Chromiumゼロデイ発覚時に手動パッチ当てが追いつかず、脆弱性放置の空白期間が発生",
+    assessQ12Solution: "Chrome 自動サイレントアップデート機能による数日以内のゼロデイパッチ自動適用",
+    assessQ13Title: "高額なCASB/SWG（Netskope/Zscaler等）のライセンス見直し",
+    assessQ13Risk: "CASBやプロキシ製品に年間数千万円〜数億円規模のライセンス料を支払っている",
+    assessQ13Solution: "Chrome Enterprise Premium のブラウザネイティブ DLP ＆ Google Cloud SWG 統合による CASB 置換（コスト削減）",
+    assessQ14Title: "画面転送VDI（Citrix/VMware）のサーバー更新・維持費削減",
+    assessQ14Risk: "次回のVDIハードウェア更新で億単位の費用が見積もられており、脱VDIを模索中",
+    assessQ14Solution: "セキュアエンタープライズブラウザによるローカルセキュアワークスペース化（脱VDI・DaaS費用の 80% 以上削減）",
+    assessQ15Title: "多層エンドポイントエージェント乱立による端末負荷の解消",
+    assessQ15Risk: "EDR、資産管理、暗号化ソフトの多重常駐でPCが重く、職員からの苦情が絶えない",
+    assessQ15Solution: "エージェント追加不要（Chrome ブラウザ単体）で DLP、SWG、認証、監査ログが完結するゼロエージェント運用",
+    assessDefaultDlpCustomMessage: "社内セキュリティポリシーにより、機密データの外部送信・コピペは制限されています。業務上の例外申請が必要な場合はセキュリティ管理者へお問い合わせください。",
+    assessRecHeader: "選定された推奨 PoC 構成",
+    assessRecDlpHeader: "🛡️ DLP (情報漏洩防止) マトリクス設定:",
+    assessRecModulesHeader: "📦 推奨モジュール設定:",
+    assessRoiHeader: "期待されるビジネス効果 (ROI):",
+    assessRoiCostTitle: "莫大なライセンス・設備コストの削減",
+    assessRoiCostDesc: "高額な CASB (Netskope/Zscaler) をブラウザ標準機能で代替し、億単位の VDI サーバー更新費を削減。",
+    assessRoiPerfTitle: "エージェントレスによる端末動作の超高速化",
+    assessRoiPerfDesc: "重いサードパーティ常駐エージェントを削減し、端末の起動速度とバッテリー持ちを劇的に改善。",
+    assessRoiSecurityTitle: "生成 AI・Web からの漏洩を根本防止",
+    assessRoiSecurityDesc: "ChatGPT 等へのプロンプト漏洩、顧客名簿のダウンロード、画面スマホ撮影を動的透かしで完全抑止。",
+    assessApplyRecBtn: "🚀 この推奨構成を PoC 設定に一括反映する",
+    assessAppliedBanner: "✓ 診断結果に基づき、最適なポリシー構成・DLP マトリクスを一括反映しました。",
 
   },
 };
