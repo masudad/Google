@@ -88,6 +88,7 @@ export function SecurityAssessmentModal({
   const [selectedQuestions, setSelectedQuestions] = useState<Set<string>>(
     new Set(["genai_paste", "pii_dlp", "print_watermark", "byod_access"]),
   );
+  const [showDetails, setShowDetails] = useState<boolean>(false);
 
   if (!isOpen) return null;
 
@@ -386,6 +387,19 @@ export function SecurityAssessmentModal({
         <div className="cep-assessment-content-layout">
           {/* Left: 15 Questions */}
           <div className="cep-assessment-questions-panel">
+            <div className="cep-assessment-toolbar">
+              <span className="cep-assessment-counter">
+                {selectedQuestions.size} / {questions.length}
+              </span>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => setShowDetails((v) => !v)}
+                type="button"
+              >
+                {showDetails ? m.assessHideDetails : m.assessShowDetails}
+              </button>
+            </div>
+
             <div className="cep-question-group">
               <h4>🤖 {m.assessGroupGenAi}</h4>
               {questions
@@ -393,7 +407,7 @@ export function SecurityAssessmentModal({
                 .map((q) => (
                   <label
                     key={q.id}
-                    className={`cep-assessment-item ${selectedQuestions.has(q.id) ? "selected" : ""}`}
+                    className={`cep-assessment-item ${selectedQuestions.has(q.id) ? "selected" : ""} ${showDetails ? "detailed" : "compact"}`}
                   >
                     <input
                       type="checkbox"
@@ -402,8 +416,12 @@ export function SecurityAssessmentModal({
                     />
                     <div className="cep-assessment-item-body">
                       <strong>{q.title}</strong>
-                      <span className="risk-text">⚠️ {q.risk}</span>
-                      <span className="solution-text">🛡️ {q.solution}</span>
+                      {showDetails && (
+                        <div className="cep-assessment-item-details">
+                          <span className="risk-text">⚠️ {q.risk}</span>
+                          <span className="solution-text">🛡️ {q.solution}</span>
+                        </div>
+                      )}
                     </div>
                   </label>
                 ))}
@@ -416,7 +434,7 @@ export function SecurityAssessmentModal({
                 .map((q) => (
                   <label
                     key={q.id}
-                    className={`cep-assessment-item ${selectedQuestions.has(q.id) ? "selected" : ""}`}
+                    className={`cep-assessment-item ${selectedQuestions.has(q.id) ? "selected" : ""} ${showDetails ? "detailed" : "compact"}`}
                   >
                     <input
                       type="checkbox"
@@ -425,8 +443,12 @@ export function SecurityAssessmentModal({
                     />
                     <div className="cep-assessment-item-body">
                       <strong>{q.title}</strong>
-                      <span className="risk-text">⚠️ {q.risk}</span>
-                      <span className="solution-text">🛡️ {q.solution}</span>
+                      {showDetails && (
+                        <div className="cep-assessment-item-details">
+                          <span className="risk-text">⚠️ {q.risk}</span>
+                          <span className="solution-text">🛡️ {q.solution}</span>
+                        </div>
+                      )}
                     </div>
                   </label>
                 ))}
@@ -439,7 +461,7 @@ export function SecurityAssessmentModal({
                 .map((q) => (
                   <label
                     key={q.id}
-                    className={`cep-assessment-item ${selectedQuestions.has(q.id) ? "selected" : ""}`}
+                    className={`cep-assessment-item ${selectedQuestions.has(q.id) ? "selected" : ""} ${showDetails ? "detailed" : "compact"}`}
                   >
                     <input
                       type="checkbox"
@@ -448,8 +470,12 @@ export function SecurityAssessmentModal({
                     />
                     <div className="cep-assessment-item-body">
                       <strong>{q.title}</strong>
-                      <span className="risk-text">⚠️ {q.risk}</span>
-                      <span className="solution-text">🛡️ {q.solution}</span>
+                      {showDetails && (
+                        <div className="cep-assessment-item-details">
+                          <span className="risk-text">⚠️ {q.risk}</span>
+                          <span className="solution-text">🛡️ {q.solution}</span>
+                        </div>
+                      )}
                     </div>
                   </label>
                 ))}
@@ -462,7 +488,7 @@ export function SecurityAssessmentModal({
                 .map((q) => (
                   <label
                     key={q.id}
-                    className={`cep-assessment-item ${selectedQuestions.has(q.id) ? "selected" : ""}`}
+                    className={`cep-assessment-item ${selectedQuestions.has(q.id) ? "selected" : ""} ${showDetails ? "detailed" : "compact"}`}
                   >
                     <input
                       type="checkbox"
@@ -471,8 +497,12 @@ export function SecurityAssessmentModal({
                     />
                     <div className="cep-assessment-item-body">
                       <strong>{q.title}</strong>
-                      <span className="risk-text">⚠️ {q.risk}</span>
-                      <span className="solution-text">🛡️ {q.solution}</span>
+                      {showDetails && (
+                        <div className="cep-assessment-item-details">
+                          <span className="risk-text">⚠️ {q.risk}</span>
+                          <span className="solution-text">🛡️ {q.solution}</span>
+                        </div>
+                      )}
                     </div>
                   </label>
                 ))}

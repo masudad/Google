@@ -363,11 +363,6 @@ export function ErrorDiagnosticCard({
 
       <div className="cep-error-body">
         <div className="cep-error-field">
-          <strong>{m.errDiagCauseLabel}</strong>
-          <p>{diag.cause}</p>
-        </div>
-
-        <div className="cep-error-field">
           <strong>{m.errDiagRemediationLabel}</strong>
           <p>{diag.remediation}</p>
         </div>
@@ -409,6 +404,12 @@ export function ErrorDiagnosticCard({
               <ExternalLinkIcon size={14} />
             </a>
           )}
+        </div>
+
+        <div className="cep-error-field cep-error-cause-compact">
+          <small>
+            <strong>{m.errDiagCauseLabel}</strong> {diag.cause}
+          </small>
         </div>
 
         <details className="step-collapsible cep-raw-error-toggle">

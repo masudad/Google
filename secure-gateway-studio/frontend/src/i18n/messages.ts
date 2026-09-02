@@ -875,6 +875,9 @@ export interface CepDeployerMessages {
   assessRoiSecurityTitle: string; assessRoiSecurityDesc: string;
   assessApplyRecBtn: string;
   assessAppliedBanner: string;
+  geminiArchDetailsToggle: string;
+  assessShowDetails: string;
+  assessHideDetails: string;
 }
 
 const en: Messages = {
@@ -2591,7 +2594,9 @@ const en: Messages = {
     assessRoiSecurityDesc: "Block GenAI prompt leaks, stop unapproved downloads, and prevent screen photography with dynamic watermarks.",
     assessApplyRecBtn: "🚀 Apply Recommended Policy to PoC",
     assessAppliedBanner: "✓ Recommended policy configuration applied successfully from security assessment.",
-
+    geminiArchDetailsToggle: "View 3-Tier Security Architecture & CLI Commands",
+    assessShowDetails: "Show Risk & Solution Details",
+    assessHideDetails: "Hide Details",
   },
 };
 
@@ -4303,7 +4308,9 @@ const ja: Messages = {
     assessRoiSecurityDesc: "ChatGPT 等へのプロンプト漏洩、顧客名簿のダウンロード、画面スマホ撮影を動的透かしで完全抑止。",
     assessApplyRecBtn: "🚀 この推奨構成を PoC 設定に一括反映する",
     assessAppliedBanner: "✓ 診断結果に基づき、最適なポリシー構成・DLP マトリクスを一括反映しました。",
-
+    geminiArchDetailsToggle: "🛡️ 3層セキュリティ境界アーキテクチャ・CLI コマンドの解説を見る",
+    assessShowDetails: "📄 現場リスク・解決策の詳細を表示",
+    assessHideDetails: "詳細を折りたたむ",
   },
 };
 

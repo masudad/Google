@@ -649,7 +649,6 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
           <p className="cep-subtitle">{m.subtitle}</p>
         </div>
       </header>
-      <p className="cep-intro">{m.intro}</p>
 
             <div className="cep-assessment-banner">
         <div className="cep-assessment-banner-text">
@@ -1214,40 +1213,6 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
           <p>{m.geminiEnterpriseSubtitle}</p>
         </div>
 
-        <div className="cep-gemini-layers-grid">
-          <div className="cep-gemini-layer-card">
-            <span className="layer-badge">Layer 1: Web UI &amp; Data Protection</span>
-            <h3>{m.geminiLayer1Title}</h3>
-            <p>{m.geminiLayer1Desc}</p>
-            <ul>
-              <li><code>vertexaisearch.cloud.google.com</code> &amp; <code>gemini.google.com</code></li>
-              <li>{m.geminiLayer1Bullet1}</li>
-              <li>{m.geminiLayer1Bullet2}</li>
-            </ul>
-          </div>
-
-          <div className="cep-gemini-layer-card">
-            <span className="layer-badge">Layer 2: Context-Aware Access (CAA)</span>
-            <h3>{m.geminiLayer2Title}</h3>
-            <p>{m.geminiLayer2Desc}</p>
-            <ul>
-              <li>{m.geminiLayer2Bullet1}</li>
-              <li>{m.geminiLayer2Bullet2}</li>
-            </ul>
-          </div>
-
-          <div className="cep-gemini-layer-card">
-            <span className="layer-badge">Layer 3: Google Cloud VPC-SC &amp; Agent Gateway</span>
-            <h3>{m.geminiLayer3Title}</h3>
-            <p>{m.geminiLayer3Desc}</p>
-            <ul>
-              <li><code>discoveryengine.googleapis.com</code></li>
-              <li>{m.geminiLayer3Bullet1}</li>
-              <li>{m.geminiLayer3Bullet2}</li>
-            </ul>
-          </div>
-        </div>
-
         <div className="cep-gemini-form">
           <div className="cep-section-header">
             <h3>{m.geminiAutoProvisionTitle}</h3>
@@ -1403,21 +1368,60 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
           )}
         </div>
 
-        <div className="cep-gemini-cli-box">
-          <div className="cli-header">
-            <strong>{m.geminiCliTitle}</strong>
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={() => handleCopy(geminiVpcScSnippet, "gemini-vpc-sc")}
-              type="button"
-            >
-              {copiedSnippet === "gemini-vpc-sc" ? m.copiedToClipboard : m.geminiCliCopyBtn}
-            </button>
+        <details className="step-collapsible cep-gemini-arch-details">
+          <summary className="step-collapsible-summary">
+            {m.geminiArchDetailsToggle}
+          </summary>
+          <div className="cep-gemini-layers-grid">
+            <div className="cep-gemini-layer-card">
+              <span className="layer-badge">Layer 1: Web UI &amp; Data Protection</span>
+              <h3>{m.geminiLayer1Title}</h3>
+              <p>{m.geminiLayer1Desc}</p>
+              <ul>
+                <li><code>vertexaisearch.cloud.google.com</code> &amp; <code>gemini.google.com</code></li>
+                <li>{m.geminiLayer1Bullet1}</li>
+                <li>{m.geminiLayer1Bullet2}</li>
+              </ul>
+            </div>
+
+            <div className="cep-gemini-layer-card">
+              <span className="layer-badge">Layer 2: Context-Aware Access (CAA)</span>
+              <h3>{m.geminiLayer2Title}</h3>
+              <p>{m.geminiLayer2Desc}</p>
+              <ul>
+                <li>{m.geminiLayer2Bullet1}</li>
+                <li>{m.geminiLayer2Bullet2}</li>
+              </ul>
+            </div>
+
+            <div className="cep-gemini-layer-card">
+              <span className="layer-badge">Layer 3: Google Cloud VPC-SC &amp; Agent Gateway</span>
+              <h3>{m.geminiLayer3Title}</h3>
+              <p>{m.geminiLayer3Desc}</p>
+              <ul>
+                <li><code>discoveryengine.googleapis.com</code></li>
+                <li>{m.geminiLayer3Bullet1}</li>
+                <li>{m.geminiLayer3Bullet2}</li>
+              </ul>
+            </div>
           </div>
-          <pre className="cli-code">
-            <code>{geminiVpcScSnippet}</code>
-          </pre>
-        </div>
+
+          <div className="cep-gemini-cli-box">
+            <div className="cli-header">
+              <strong>{m.geminiCliTitle}</strong>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => handleCopy(geminiVpcScSnippet, "gemini-vpc-sc")}
+                type="button"
+              >
+                {copiedSnippet === "gemini-vpc-sc" ? m.copiedToClipboard : m.geminiCliCopyBtn}
+              </button>
+            </div>
+            <pre className="cli-code">
+              <code>{geminiVpcScSnippet}</code>
+            </pre>
+          </div>
+        </details>
       </section>
 
       <section className="cep-section" aria-labelledby="cep-testing-title">

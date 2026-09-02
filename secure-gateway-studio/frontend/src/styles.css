@@ -6209,9 +6209,52 @@ h1 {
   color: #c5221f;
 }
 
-.cep-assessment-item-body .solution-text {
-  font-size: 11.5px;
-  color: #137333;
+.cep-assessment-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cep-assessment-counter {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary);
+  background: var(--bg-alt);
+  padding: 3px 8px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+.cep-assessment-item.compact {
+  padding: 6px 10px;
+  margin-bottom: 4px;
+}
+
+.cep-assessment-item-details {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border);
+}
+
+.cep-error-cause-compact {
+  margin-top: 10px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+.cep-gemini-arch-details {
+  margin-top: 24px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  background: var(--surface);
 }
 
 .cep-assessment-result-panel {
