@@ -599,9 +599,8 @@ export function CepDeployerPage({
           <div className="cep-license-card-info">
             <div className="cep-license-card-title">
               <UsersIcon size={18} className="cep-license-card-icon" />
-              <strong>{m.licenseCardTitle}</strong>
+              <span>{selectedUnit?.label ? selectedUnit.label : m.selectTargetOu}</span>
             </div>
-            <p>{m.licensePilotLimitNotice}</p>
           </div>
           <button
             className="btn btn-primary cep-license-btn"
