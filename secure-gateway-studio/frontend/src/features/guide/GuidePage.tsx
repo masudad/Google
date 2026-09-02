@@ -20,6 +20,23 @@ export function GuidePage({ messages }: GuidePageProps) {
         <p>{guide.intro}</p>
       </header>
 
+      <nav className="guide-sticky-nav" aria-label="Guide navigation">
+        <a className="guide-nav-pill" href="#architecture-section">
+          🏛️ {guide.quickOverviewTitle}
+        </a>
+        <a className="guide-nav-pill" href="#implementation-section">
+          📦 {guide.implementationTitle}
+        </a>
+        <a className="guide-nav-pill" href="#technical-deep-dive-section">
+          🛠️ {guide.technicalDeepDiveTitle}
+        </a>
+        {guide.faqs && guide.faqs.length > 0 && (
+          <a className="guide-nav-pill" href="#faq-section">
+            ❓ {guide.faqTitle}
+          </a>
+        )}
+      </nav>
+
       <aside className="guide-poc-notice">
         <InfoIcon size={24} />
         <div>
@@ -29,7 +46,7 @@ export function GuidePage({ messages }: GuidePageProps) {
       </aside>
 
       {/* TOP SECTION: Quick Overview & Architecture Decisions */}
-      <section className="architecture-section" aria-labelledby="architecture-title">
+      <section className="architecture-section" id="architecture-section" aria-labelledby="architecture-title">
         <header className="architecture-heading">
           <p className="eyebrow">{guide.quickOverviewTitle}</p>
           <h2 id="architecture-title">
@@ -109,7 +126,7 @@ export function GuidePage({ messages }: GuidePageProps) {
       </section>
 
       {/* TOP SECTION: Implementation Inventory */}
-      <section className="implementation-section" aria-labelledby="implementation-title">
+      <section className="implementation-section" id="implementation-section" aria-labelledby="implementation-title">
         <header className="architecture-heading">
           <p className="eyebrow">{guide.implementationEyebrow}</p>
           <h2 id="implementation-title">{guide.implementationTitle}</h2>
@@ -136,16 +153,24 @@ export function GuidePage({ messages }: GuidePageProps) {
       </section>
 
       {/* BOTTOM SECTION: Step-by-Step Technical Deep Dive & REST API Reference */}
-      <section className="technical-deep-dive-section" aria-labelledby="technical-deep-dive-title">
+      <section className="technical-deep-dive-section" id="technical-deep-dive-section" aria-labelledby="technical-deep-dive-title">
         <header className="architecture-heading">
           <p className="eyebrow">{guide.technicalEyebrow}</p>
           <h2 id="technical-deep-dive-title">{guide.technicalDeepDiveTitle}</h2>
           <p>{guide.technicalDeepDiveIntro}</p>
         </header>
 
+        <div className="guide-step-jump-bar" aria-label="Step quick navigation">
+          {guide.steps.map((_s, idx) => (
+            <a className="guide-step-jump-pill" href={`#guide-step-${idx + 1}`} key={idx}>
+              #{idx + 1}
+            </a>
+          ))}
+        </div>
+
         <ol className="guide-steps">
           {guide.steps.map((step, index) => (
-            <li className="guide-step technical-step-card" key={step.title}>
+            <li className="guide-step technical-step-card" id={`guide-step-${index + 1}`} key={step.title}>
               <div className="guide-step-number" aria-hidden="true">
                 {index + 1}
               </div>
@@ -174,40 +199,44 @@ export function GuidePage({ messages }: GuidePageProps) {
 
                 {step.optionsBehavior && step.optionsBehavior.length > 0 && (
                   <div className="step-section-block">
-                    <h4 className="step-subheading">
-                      <NetworkIcon size={16} />
-                      <span>{guide.optionsBehaviorLabel}</span>
-                    </h4>
-                    <div className="options-behavior-grid">
-                      {step.optionsBehavior.map((opt) => (
-                        <div className="option-behavior-card" key={opt.name}>
-                          <strong>{opt.name}</strong>
-                          <p>{opt.behavior}</p>
-                        </div>
-                      ))}
-                    </div>
+                    <details className="step-collapsible" open>
+                      <summary className="step-collapsible-summary">
+                        <NetworkIcon size={16} />
+                        <span>{guide.optionsBehaviorLabel}</span>
+                      </summary>
+                      <div className="options-behavior-grid">
+                        {step.optionsBehavior.map((opt) => (
+                          <div className="option-behavior-card" key={opt.name}>
+                            <strong>{opt.name}</strong>
+                            <p>{opt.behavior}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
                   </div>
                 )}
 
                 {step.apiCalls && step.apiCalls.length > 0 && (
                   <div className="step-section-block">
-                    <h4 className="step-subheading">
-                      <CodeIcon size={16} />
-                      <span>{guide.apiCallsLabel}</span>
-                    </h4>
-                    <div className="api-calls-list">
-                      {step.apiCalls.map((api) => (
-                        <div className="api-call-row" key={`${api.method}-${api.endpoint}`}>
-                          <span className={`api-badge api-badge-${api.method.toLowerCase()}`}>
-                            {api.method}
-                          </span>
-                          <div className="api-call-content">
-                            <code className="api-endpoint">{api.endpoint}</code>
-                            <p className="api-purpose">{api.purpose}</p>
+                    <details className="step-collapsible" open>
+                      <summary className="step-collapsible-summary">
+                        <CodeIcon size={16} />
+                        <span>{guide.apiCallsLabel} ({step.apiCalls.length})</span>
+                      </summary>
+                      <div className="api-calls-list">
+                        {step.apiCalls.map((api) => (
+                          <div className="api-call-row" key={`${api.method}-${api.endpoint}`}>
+                            <span className={`api-badge api-badge-${api.method.toLowerCase()}`}>
+                              {api.method}
+                            </span>
+                            <div className="api-call-content">
+                              <code className="api-endpoint">{api.endpoint}</code>
+                              <p className="api-purpose">{api.purpose}</p>
+                            </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    </details>
                   </div>
                 )}
 
@@ -228,7 +257,7 @@ export function GuidePage({ messages }: GuidePageProps) {
 
       {/* FAQ & Troubleshooting Section */}
       {guide.faqs && guide.faqs.length > 0 && (
-        <section className="faq-section" aria-labelledby="faq-title">
+        <section className="faq-section" id="faq-section" aria-labelledby="faq-title">
           <header className="architecture-heading">
             <p className="eyebrow">{guide.faqEyebrow}</p>
             <h2 id="faq-title">{guide.faqTitle}</h2>

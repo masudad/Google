@@ -3639,7 +3639,280 @@ apt-get install -y --no-install-recommends nginx python3 ca-certificates
 set -euo pipefail
 {package_setup}
 cat >/var/www/html/index.html <<'EOF'
-Secure Gateway Studio private backend
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Secure Gateway Studio private backend</title>
+<style>
+  :root {{
+    --primary: #1a73e8;
+    --bg: #f8f9fa;
+    --surface: #ffffff;
+    --text: #202124;
+    --muted: #5f6368;
+    --border: #dadce0;
+  }}
+  body {{
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    margin: 0;
+    padding: 32px 16px;
+    display: flex;
+    justify-content: center;
+  }}
+  .container {{
+    max-width: 860px;
+    width: 100%;
+    background: var(--surface);
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    border: 1px solid var(--border);
+    padding: 32px;
+  }}
+  .header {{
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 20px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }}
+  .title-group h1 {{
+    font-size: 22px;
+    margin: 0 0 6px 0;
+    color: #1a73e8;
+  }}
+  .title-group p {{
+    margin: 0;
+    color: var(--muted);
+    font-size: 14px;
+  }}
+  .badge-success {{
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #e6f4ea;
+    color: #137333;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 13px;
+  }}
+  .flow-card {{
+    background: #f1f3f4;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 28px;
+  }}
+  .flow-title {{
+    font-weight: 600;
+    font-size: 13px;
+    margin-bottom: 16px;
+    color: var(--text);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }}
+  .flow-steps {{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }}
+  .step-node {{
+    background: #ffffff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    flex: 1 1 120px;
+    text-align: center;
+  }}
+  .step-node.active {{
+    border-color: #1a73e8;
+  }}
+  .step-node.current {{
+    background: #e8f0fe;
+    border-color: #1a73e8;
+    color: #1a73e8;
+    font-weight: bold;
+  }}
+  .node-label {{
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    display: block;
+  }}
+  .node-detail {{
+    font-size: 11px;
+    color: var(--muted);
+    display: block;
+  }}
+  .flow-arrow {{
+    color: var(--muted);
+    font-size: 16px;
+  }}
+  .grid {{
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }}
+  .card {{
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }}
+  .card h3 {{
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    color: var(--text);
+  }}
+  .data-table {{
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }}
+  .data-table th, .data-table td {{
+    padding: 8px 10px;
+    text-align: left;
+    border-bottom: 1px solid #f1f3f4;
+  }}
+  .data-table th {{
+    color: var(--muted);
+    font-weight: 500;
+    width: 42%;
+  }}
+  .data-table td {{
+    font-family: monospace;
+    word-break: break-all;
+  }}
+  .footer {{
+    text-align: center;
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="title-group">
+      <h1>Secure Gateway Studio private backend</h1>
+      <p>Zero-Trust Private Application &amp; Route Telemetry</p>
+    </div>
+    <div class="badge-success">
+      ● 接続完了 (Verified Gateway Routing)
+    </div>
+  </div>
+
+  <div class="flow-card">
+    <div class="flow-title">📍 リクエスト到達経路 (Architecture Traversal Path)</div>
+    <div class="flow-steps">
+      <div class="step-node active">
+        <span class="node-label">1. Client Browser</span>
+        <span class="node-detail">Managed Chrome</span>
+      </div>
+      <span class="flow-arrow">➔</span>
+      <div class="step-node active">
+        <span class="node-label">2. Secure Web Gateway</span>
+        <span class="node-detail">Cloud SWG Proxy</span>
+      </div>
+      <span class="flow-arrow">➔</span>
+      <div class="step-node active">
+        <span class="node-label">3. Cloud ILB / PSC</span>
+        <span class="node-detail">Gateway Forwarding</span>
+      </div>
+      <span class="flow-arrow">➔</span>
+      <div class="step-node active">
+        <span class="node-label">4. TLS Offload VM</span>
+        <span class="node-detail">Port 443 (Private CA)</span>
+      </div>
+      <span class="flow-arrow">➔</span>
+      <div class="step-node current">
+        <span class="node-label">5. Sample Backend</span>
+        <span class="node-detail">Port 80 (現在地)</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h3>🌐 接続元テレメトリ (Connection Metadata)</h3>
+      <table class="data-table">
+        <tr>
+          <th>Direct Peer IP</th>
+          <td><!--#echo var="remote_addr" default="127.0.0.1" --></td>
+        </tr>
+        <tr>
+          <th>X-Forwarded-For</th>
+          <td><!--#echo var="http_x_forwarded_for" default="None" --></td>
+        </tr>
+        <tr>
+          <th>Forwarded Proto</th>
+          <td><!--#echo var="http_x_forwarded_proto" default="http" --></td>
+        </tr>
+        <tr>
+          <th>Request ID</th>
+          <td><!--#echo var="http_x_request_id" default="None" --></td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <h3>🛡️ セキュリティ検証ステータス (Security Posture)</h3>
+      <table class="data-table">
+        <tr>
+          <th>Public IP</th>
+          <td style="color: #137333; font-weight: bold;">なし (Private VPC Only)</td>
+        </tr>
+        <tr>
+          <th>TLS Verification</th>
+          <td>Private CA / Offload</td>
+        </tr>
+        <tr>
+          <th>Target Hostname</th>
+          <td><!--#echo var="http_host" default="sgsx-backend" --></td>
+        </tr>
+        <tr>
+          <th>Local Server IP</th>
+          <td><!--#echo var="server_addr" default="Private IP" --></td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>📋 受信リクエストヘッダー (HTTP Headers)</h3>
+    <table class="data-table">
+      <tr>
+        <th>Host</th>
+        <td><!--#echo var="http_host" default="-" --></td>
+      </tr>
+      <tr>
+        <th>User-Agent</th>
+        <td><!--#echo var="http_user_agent" default="-" --></td>
+      </tr>
+      <tr>
+        <th>Server Time</th>
+        <td><!--#echo var="date_local" default="-" --></td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="footer">
+    Secure Gateway Studio PoC Environment &bull; Verified Zero-Trust Gateway Architecture
+  </div>
+</div>
+</body>
+</html>
 EOF
 cat >/etc/nginx/conf.d/sgstudio-log.conf <<'EOF'
 log_format sgstudio_backend escape=json
@@ -3654,6 +3927,7 @@ server {{
   server_tokens off;
   root /var/www/html;
   access_log /var/log/nginx/sgstudio-access.log sgstudio_backend;
+  ssi on;
   location / {{
     try_files $uri $uri/ =404;
   }}

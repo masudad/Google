@@ -5576,3 +5576,180 @@ h1 {
 .cep-role-banner {
   margin-top: 12px;
 }
+
+/* Guide Sticky Navigation & Step Quick-Jump */
+.guide-sticky-nav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  gap: 10px;
+  padding: 12px 0;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 24px;
+  overflow-x: auto;
+}
+
+.guide-nav-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: var(--bg-alt);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.guide-nav-pill:hover {
+  background: var(--surface-hover);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.guide-step-jump-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.guide-step-jump-pill {
+  display: inline-block;
+  padding: 5px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.guide-step-jump-pill:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--surface-hover);
+}
+
+/* Step Collapsible Sections */
+.step-collapsible {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: var(--surface);
+  margin-top: 8px;
+}
+
+.step-collapsible[open] {
+  padding-bottom: 12px;
+}
+
+.step-collapsible-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+}
+
+.step-collapsible-summary:hover {
+  color: var(--primary);
+}
+
+/* Gemini Enterprise Zero Trust Section */
+.cep-badge-ai {
+  display: inline-block;
+  background: linear-gradient(135deg, #1a73e8 0%, #8ab4f8 100%);
+  color: #ffffff;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.cep-gemini-layers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin: 18px 0;
+}
+
+.cep-gemini-layer-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.cep-gemini-layer-card .layer-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--primary);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.cep-gemini-layer-card h3 {
+  font-size: 15px;
+  margin: 0 0 8px 0;
+}
+
+.cep-gemini-layer-card p {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0 0 12px 0;
+}
+
+.cep-gemini-layer-card ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.cep-gemini-layer-card li {
+  margin-bottom: 5px;
+}
+
+.cep-gemini-cli-box {
+  background: #1e1e1e;
+  color: #d4d4d4;
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 16px;
+}
+
+.cep-gemini-cli-box .cli-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  color: #9cdcfe;
+  font-size: 13px;
+}
+
+.cep-gemini-cli-box .cli-code {
+  margin: 0;
+  font-family: monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: #ce9178;
+}

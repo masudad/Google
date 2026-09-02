@@ -76,7 +76,7 @@ export function DlpMatrixTable({
     updateRule(id, (prev) => ({ ...prev, watermark: !prev.watermark }));
   }
 
-  function applyPreset(presetName: "recommended" | "strict" | "genai" | "audit") {
+  function applyPreset(presetName: "recommended" | "strict" | "genai" | "audit" | "gemini") {
     switch (presetName) {
       case "recommended":
         onChange({
@@ -120,6 +120,17 @@ export function DlpMatrixTable({
           access_level: { upload: "off", download: "off", paste: "off", print: "off", byodOnly: false },
           watermark: { watermark: false, byodOnly: false },
           genai_block: { paste: "auditOnly", upload: "auditOnly", byodOnly: false },
+        });
+        break;
+      case "gemini":
+        onChange({
+          universal_upload: { upload: "warnUser", byodOnly: false },
+          universal_download: { download: "warnUser", byodOnly: false },
+          payment_card: { upload: "blockContent", paste: "blockContent", print: "blockContent", byodOnly: false },
+          national_id: { upload: "blockContent", paste: "blockContent", print: "blockContent", byodOnly: false },
+          access_level: { upload: "blockContent", download: "blockContent", paste: "blockContent", print: "blockContent", byodOnly: false },
+          watermark: { watermark: true, byodOnly: false },
+          genai_block: { paste: "blockContent", upload: "blockContent", byodOnly: false },
         });
         break;
     }
@@ -210,6 +221,13 @@ export function DlpMatrixTable({
           type="button"
         >
           {m.dlpPresetAuditOnly}
+        </button>
+        <button
+          className="secondary-action dlp-preset-btn"
+          onClick={() => applyPreset("gemini")}
+          type="button"
+        >
+          {m.dlpPresetGeminiEnterprise}
         </button>
       </div>
 

@@ -728,6 +728,23 @@ export interface CepDeployerMessages {
   dlpPresetGenAiSecureDesc: string;
   dlpPresetAuditOnly: string;
   dlpPresetAuditOnlyDesc: string;
+  geminiEnterpriseTitle: string;
+  geminiEnterpriseSubtitle: string;
+  geminiLayer1Title: string;
+  geminiLayer1Desc: string;
+  geminiLayer1Bullet1: string;
+  geminiLayer1Bullet2: string;
+  geminiLayer2Title: string;
+  geminiLayer2Desc: string;
+  geminiLayer2Bullet1: string;
+  geminiLayer2Bullet2: string;
+  geminiLayer3Title: string;
+  geminiLayer3Desc: string;
+  geminiLayer3Bullet1: string;
+  geminiLayer3Bullet2: string;
+  geminiCliTitle: string;
+  geminiCliCopyBtn: string;
+  dlpPresetGeminiEnterprise: string;
 }
 
 const en: Messages = {
@@ -2253,6 +2270,34 @@ const en: Messages = {
     dlpPresetGenAiSecureDesc: "Block unapproved consumer AI, permit Gemini with paste inspection.",
     dlpPresetAuditOnly: "Warning First",
     dlpPresetAuditOnlyDesc: "Use the least disruptive Chrome DLP action supported by the API across all selected surfaces.",
+    geminiEnterpriseTitle: "Gemini Enterprise & Vertex AI Search Protection",
+    geminiEnterpriseSubtitle:
+      "Enterprise Generative AI & Agentic Search requires coordinated defense across Chrome, Identity, and Google Cloud perimeters.",
+    geminiLayer1Title: "1. Chrome Endpoint & DLP Protection",
+    geminiLayer1Desc:
+      "Inspect and protect data sent to or retrieved from enterprise generative AI web applications.",
+    geminiLayer1Bullet1:
+      "Block paste and uploads containing PII, API keys, and confidential customer identifiers into AI prompts.",
+    geminiLayer1Bullet2:
+      "Enforce dynamic watermarking on downloaded AI summaries, synthesized reports, and generated charts.",
+    geminiLayer2Title: "2. Context-Aware Access (CAA)",
+    geminiLayer2Desc:
+      "Restrict user authentication to compliant enterprise endpoints before access is granted.",
+    geminiLayer2Bullet1:
+      "Require Endpoint Verification (device.chrome.management_state == BROWSER_MANAGED) or trusted IP ranges.",
+    geminiLayer2Bullet2:
+      "Native Google Workspace CAA policy assignment now officially covers the Gemini app.",
+    geminiLayer3Title: "3. VPC Service Controls & Agent Gateway",
+    geminiLayer3Desc:
+      "Prevent data exfiltration at the API and internal autonomous agent communication tiers.",
+    geminiLayer3Bullet1:
+      "Enforce discoveryengine.googleapis.com (Gemini Enterprise backend) inside a secure VPC-SC perimeter.",
+    geminiLayer3Bullet2:
+      "Enforce mutual TLS (mTLS) and DPoP (RFC 9449) token binding for Agent-to-Agent interactions.",
+    geminiCliTitle: "Google Cloud VPC-SC & Access Level Provisioning Commands",
+    geminiCliCopyBtn: "Copy commands",
+    dlpPresetGeminiEnterprise: "Gemini Enterprise",
+
   },
 };
 
@@ -3773,6 +3818,34 @@ const ja: Messages = {
     dlpPresetGenAiSecureDesc: "ChatGPT 等のコンシューマー向け AI を遮断し、貼り付け検査を有効にした上で Gemini の安全な業務利用を許可します。",
     dlpPresetAuditOnly: "警告ファースト",
     dlpPresetAuditOnlyDesc: "選択した全操作で、API が Chrome 向けに提供する最も穏やかな DLP 操作を使用します。",
+    geminiEnterpriseTitle: "Gemini Enterprise & Vertex AI Search ゼロトラスト保護",
+    geminiEnterpriseSubtitle:
+      "エンタープライズ生成AI（自社データ連携Agent・社内検索）は、Chrome・アイデンティティ・Google Cloud境界の多層防御で保護します。",
+    geminiLayer1Title: "1. Chrome エンドポイント & DLP 保護",
+    geminiLayer1Desc:
+      "生成AI Web アプリケーションに対するプロンプト入力や生成データのダウンロードをリアルタイムで検査・保護します。",
+    geminiLayer1Bullet1:
+      "個人情報（PII）、API キー、機密コード等のプロンプト貼り付け・アップロードを遮断または警告。",
+    geminiLayer1Bullet2:
+      "社内データ検索結果や AI 生成レポートのダウンロード・画面キャプチャ時に電子透かし（ウォーターマーク）を強制適用。",
+    geminiLayer2Title: "2. コンテキストアウェア アクセス (CAA)",
+    geminiLayer2Desc:
+      "許可された会社支給デバイスや安全なネットワークからのみサインインを許可します。",
+    geminiLayer2Bullet1:
+      "Endpoint Verification（管理対象 Chrome ブラウザ）または社内 IP アドレスをアクセス条件として必須化。",
+    geminiLayer2Bullet2:
+      "Google Workspace 管理コンソールの CAA アプリ割り当てで「Gemini」アプリへのネイティブ保護ポリシーを適用。",
+    geminiLayer3Title: "3. VPC Service Controls & Agent Gateway",
+    geminiLayer3Desc:
+      "API レベルでのデータ持ち出し防止および自社エージェント間通信の暗号的保護を行います。",
+    geminiLayer3Bullet1:
+      "VPC Service Controls サービス境界内で discoveryengine.googleapis.com（Gemini Enterprise API）を隔離・保護。",
+    geminiLayer3Bullet2:
+      "Agent Gateway により、エージェント間通信（A2A）で mTLS および DPoP（RFC 9449）トークンバインディングを強制。",
+    geminiCliTitle: "Google Cloud VPC-SC 境界 & ACM アクセスレベル設定コマンド",
+    geminiCliCopyBtn: "コマンドをコピー",
+    dlpPresetGeminiEnterprise: "Gemini Enterprise 保護",
+
   },
 };
 

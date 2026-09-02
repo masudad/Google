@@ -191,6 +191,28 @@ export function CepDeployerPage({
   const [lastResult, setLastResult] = useState<CepProvisionResult | null>(null);
   const [copiedSnippet, setCopiedSnippet] = useState<string>("");
 
+  const geminiVpcScSnippet = `# 1. Google Cloud ACM: Create Access Level requiring Managed Chrome
+gcloud access-context-manager levels create managed_chrome_access \\
+  --title="Managed Chrome Endpoints" \\
+  --basic-level-spec=<(cat <<EOF
+- devicePolicy:
+    requireScreenlock: true
+    osConstraints:
+      - osType: DESKTOP_CHROME_OS
+      - osType: DESKTOP_WINDOWS
+      - osType: DESKTOP_MAC
+EOF
+) \\
+  --policy=\${POLICY_ID}
+
+# 2. Google Cloud VPC-SC: Protect Discovery Engine (Gemini Enterprise API)
+gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
+  --title="Gemini Enterprise Security Perimeter" \\
+  --resources="projects/\${PROJECT_NUMBER}" \\
+  --restricted-services="discoveryengine.googleapis.com" \\
+  --access-levels="accessPolicies/\${POLICY_ID}/accessLevels/managed_chrome_access" \\
+  --policy=\${POLICY_ID}`;
+
   const [ouLoaded, setOuLoaded] = useState<boolean>(false);
   const [loadingOus, setLoadingOus] = useState<boolean>(false);
 
@@ -989,8 +1011,67 @@ export function CepDeployerPage({
         <p className="cep-inline-note">{m.rolesVerificationNote}</p>
       </section>
 
-      
-<section className="cep-section" aria-labelledby="cep-testing-title">
+      <section className="cep-section" aria-labelledby="cep-gemini-enterprise-title">
+        <div className="cep-section-header">
+          <div className="cep-title-with-badge">
+            <h2 id="cep-gemini-enterprise-title">{m.geminiEnterpriseTitle}</h2>
+            <span className="cep-badge-ai">Gemini Enterprise / Vertex AI</span>
+          </div>
+          <p>{m.geminiEnterpriseSubtitle}</p>
+        </div>
+
+        <div className="cep-gemini-layers-grid">
+          <div className="cep-gemini-layer-card">
+            <span className="layer-badge">Layer 1: Web UI &amp; Data Protection</span>
+            <h3>{m.geminiLayer1Title}</h3>
+            <p>{m.geminiLayer1Desc}</p>
+            <ul>
+              <li><code>vertexaisearch.cloud.google.com</code> &amp; <code>gemini.google.com</code></li>
+              <li>{m.geminiLayer1Bullet1}</li>
+              <li>{m.geminiLayer1Bullet2}</li>
+            </ul>
+          </div>
+
+          <div className="cep-gemini-layer-card">
+            <span className="layer-badge">Layer 2: Context-Aware Access (CAA)</span>
+            <h3>{m.geminiLayer2Title}</h3>
+            <p>{m.geminiLayer2Desc}</p>
+            <ul>
+              <li>{m.geminiLayer2Bullet1}</li>
+              <li>{m.geminiLayer2Bullet2}</li>
+            </ul>
+          </div>
+
+          <div className="cep-gemini-layer-card">
+            <span className="layer-badge">Layer 3: Google Cloud VPC-SC &amp; Agent Gateway</span>
+            <h3>{m.geminiLayer3Title}</h3>
+            <p>{m.geminiLayer3Desc}</p>
+            <ul>
+              <li><code>discoveryengine.googleapis.com</code></li>
+              <li>{m.geminiLayer3Bullet1}</li>
+              <li>{m.geminiLayer3Bullet2}</li>
+            </ul>
+          </div>
+        </div>
+
+        <div className="cep-gemini-cli-box">
+          <div className="cli-header">
+            <strong>{m.geminiCliTitle}</strong>
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() => handleCopy(geminiVpcScSnippet, "gemini-vpc-sc")}
+              type="button"
+            >
+              {copiedSnippet === "gemini-vpc-sc" ? m.copiedToClipboard : m.geminiCliCopyBtn}
+            </button>
+          </div>
+          <pre className="cli-code">
+            <code>{geminiVpcScSnippet}</code>
+          </pre>
+        </div>
+      </section>
+
+      <section className="cep-section" aria-labelledby="cep-testing-title">
         <h2 id="cep-testing-title">{m.testingScenariosTitle}</h2>
         <p>{m.testingScenariosSubtitle}</p>
 
