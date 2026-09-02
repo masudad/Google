@@ -44,6 +44,27 @@ export function parseErrorDiagnostic(
 
   const text = `${rawMsg} ${code || ""}`.toLowerCase();
 
+  // 2. Google Workspace Super Admin Required
+  if (
+    text.includes("not authorized to use directory api") ||
+    text.includes("not authorized to access this resource/api") ||
+    text.includes("customer not found") ||
+    text.includes("admin.directory")
+  ) {
+    return {
+      category: "workspace_superadmin_required",
+      status: 403,
+      code: code || "WORKSPACE_FORBIDDEN",
+      title: m.errDiagWorkspaceTitle,
+      cause: m.errDiagWorkspaceCause,
+      remediation: m.errDiagWorkspaceRemediation,
+      externalLink: {
+        label: m.errDiagWorkspaceConsoleLink,
+        url: "https://admin.google.com/ac/roles",
+      },
+    };
+  }
+
   // 1. Google Cloud IAM Permission Denied
   if (
     status === 403 ||
@@ -70,30 +91,8 @@ export function parseErrorDiagnostic(
     };
   }
 
-  // 2. Google Workspace Super Admin Required
-  if (
-    text.includes("not authorized to use directory api") ||
-    text.includes("not authorized to access this resource/api") ||
-    text.includes("customer not found") ||
-    text.includes("admin.directory")
-  ) {
-    return {
-      category: "workspace_superadmin_required",
-      status: 403,
-      code: code || "WORKSPACE_FORBIDDEN",
-      title: m.errDiagWorkspaceTitle,
-      cause: m.errDiagWorkspaceCause,
-      remediation: m.errDiagWorkspaceRemediation,
-      externalLink: {
-        label: m.errDiagWorkspaceConsoleLink,
-        url: "https://admin.google.com/ac/roles",
-      },
-    };
-  }
-
   // 3. VPC Service Controls Conflict / Already Exists
   if (
-    status === 409 ||
     text.includes("already exists") ||
     text.includes("service perimeter already exists") ||
     text.includes("belongs to perimeter")

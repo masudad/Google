@@ -1593,6 +1593,20 @@ const routeContext = {
     return deploymentRunState(runId);
   },
   runState: deploymentRunState,
+  localPocRootCertificate: async (deploymentName: string) => {
+    const nameKey = `certificate:name:${deploymentName}`;
+    const persisted = await persistentGet([nameKey]);
+    if (!persisted[nameKey]) return undefined;
+    const bundle = persisted[nameKey] as { certificateChainPem?: string[] };
+    if (!Array.isArray(bundle.certificateChainPem) || bundle.certificateChainPem.length === 0) {
+      return undefined;
+    }
+    const rootPem = bundle.certificateChainPem.at(-1) as string;
+    return {
+      content: btoa(rootPem),
+      contentType: "application/x-pem-file",
+    };
+  },
 };
 
 interface ApiMessage {

@@ -156,6 +156,7 @@ export interface RouteContext {
   runState: (runId: string) => Promise<unknown>;
   signIn?: () => Promise<{ authenticated: true; operator: string }>;
   signOut?: () => Promise<void>;
+  localPocRootCertificate?: (deploymentName: string) => Promise<{ content: string; contentType: string } | undefined>;
 }
 
 export class RouteError extends Error {
@@ -1205,6 +1206,23 @@ export async function route(
     return records.map((record) =>
       deploymentRunDto(record as unknown as Record<string, unknown>),
     );
+  }
+
+  if (method === "GET" && templateKey(method, clean) === "GET /api/v1/runs/{}") {
+    const runId = clean.split("/")[4];
+    return context.runState(runId);
+  }
+
+  if (method === "GET" && templateKey(method, clean) === "GET /api/v1/certificates/local-poc/{}") {
+    const deploymentName = clean.split("/")[5];
+    if (!context.localPocRootCertificate) {
+      throw new RouteError(501, "route-not-ported", "GET /api/v1/certificates/local-poc/{}");
+    }
+    const cert = await context.localPocRootCertificate(deploymentName);
+    if (!cert) {
+      throw new RouteError(404, "certificate-not-found", "Certificate not found");
+    }
+    return cert;
   }
 
   if (method === "GET" && templateKey(method, clean) === "GET /api/v1/runs/{}/details") {
