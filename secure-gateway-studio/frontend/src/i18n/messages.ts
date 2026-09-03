@@ -760,6 +760,16 @@ export interface CepDeployerMessages {
   geminiStep2: string;
   geminiStep3: string;
   geminiStep4: string;
+  geminiStep5Rca: string;
+  geminiAdminLockoutWarningTitle: string;
+  geminiAdminLockoutWarningText: string;
+  geminiEnforceRcaLabel: string;
+  geminiRcaGroupKeyLabel: string;
+  geminiRcaGroupKeyPlaceholder: string;
+  geminiRcaGroupKeyHint: string;
+  geminiRcaBindingLabel: string;
+  geminiRcaCliTitle: string;
+  geminiRcaCliCopyBtn: string;
 
   deployProgressTitle: string;
   deployStep1: string;
@@ -824,6 +834,10 @@ export interface CepDeployerMessages {
   errDiagProjectRequiredTitle: string;
   errDiagProjectRequiredCause: string;
   errDiagProjectRequiredRemediation: string;
+  errDiagGeminiTitle: string;
+  errDiagGeminiCause: string;
+  errDiagGeminiRemediation: string;
+  errDiagGeminiConsoleLink: string;
   geminiConfirmProjectLabel: string;
   geminiConfirmProjectHint: string;
   geminiConfirmProjectMismatch: string;
@@ -2446,6 +2460,18 @@ const en: Messages = {
     geminiStep2: "2. Ensuring ACM Access Level (Managed Chrome)",
     geminiStep3: "3. Ensuring VPC-SC Perimeter (Discovery Engine)",
     geminiStep4: "4. Verifying & Finalizing Zero-Trust Posture",
+    geminiStep5Rca: "5. Creating Restricted Client Application (RCA) User Access Binding",
+    geminiAdminLockoutWarningTitle: "Important: GCP Console Administrator Access Requirement",
+    geminiAdminLockoutWarningText:
+      "Enforcing an Access Level on discoveryengine.googleapis.com (VPC-SC) requires GCP administrators managing Gemini Enterprise from the Cloud Console to also access it from a Managed Chrome browser. Unmanaged browsers will receive HTTP 403 errors in the Cloud Console. To avoid admin lockout on unmanaged devices, consider Approach 2 (RCA group binding) or Ingress user exceptions.",
+    geminiEnforceRcaLabel: "Approach 2: Bind Restricted Client Application (RCA) to Google Group",
+    geminiRcaGroupKeyLabel: "Target Google Group (Email or Group ID)",
+    geminiRcaGroupKeyPlaceholder: "e.g. gemini-enterprise-users@example.com or 0184mhaj3tyhbjb",
+    geminiRcaGroupKeyHint:
+      "Directly binds Gemini Enterprise app access levels to the specified group via Access Context Manager (avoids GCP admin console lockouts and VPC-SC perimeter conflicts).",
+    geminiRcaBindingLabel: "RCA Cloud Binding",
+    geminiRcaCliTitle: "Restricted Client Application (RCA) gcloud Provisioning Commands",
+    geminiRcaCliCopyBtn: "Copy RCA commands",
 
     deployProgressTitle: "Deploying Chrome Enterprise Premium...",
     deployStep1: "1. Target OU Validation",
@@ -2510,6 +2536,12 @@ const en: Messages = {
     errDiagProjectRequiredTitle: "Google Cloud Project ID Required",
     errDiagProjectRequiredCause: "Cloud Access Context Manager, VPC Service Controls, or IAM mutations require a valid Google Cloud Project ID.",
     errDiagProjectRequiredRemediation: "Enter or select a valid Google Cloud Project ID in the configuration field.",
+    errDiagGeminiTitle: "Gemini Enterprise / Discovery Engine Access Denied",
+    errDiagGeminiCause:
+      "Access to Gemini Enterprise (vertexaisearch.cloud.google.com or discoveryengine.googleapis.com) was blocked because the current browser is not recognized as a Managed Chrome Browser meeting the Access Level, or a GCP administrator is attempting to access the Cloud Console from an unmanaged device.",
+    errDiagGeminiRemediation:
+      "Ensure you are using a company-managed Chrome browser with policy sync enabled. If you are a GCP administrator, access the Cloud Console from a Managed Chrome browser or configure an ingress exception rule.",
+    errDiagGeminiConsoleLink: "Open Vertex AI Search & Conversation Console",
     geminiConfirmProjectLabel: "Confirm Project ID (Strict Enforcement Safeguard)",
     geminiConfirmProjectHint: "To run Gemini Zero Trust provisioning with strict perimeter enforcement, re-type the exact target Project ID.",
     geminiConfirmProjectMismatch: "Type the exact target Project ID before provisioning in strict mode.",
@@ -4160,6 +4192,18 @@ const ja: Messages = {
     geminiStep2: "2. ACM アクセスレベル作成 (管理対象 Chrome)",
     geminiStep3: "3. VPC-SC サービス境界作成 (Discovery Engine)",
     geminiStep4: "4. ゼロトラスト環境検証 & 完了",
+    geminiStep5Rca: "5. Restricted Client Applications (RCA) ユーザーアクセスバインディング作成",
+    geminiAdminLockoutWarningTitle: "⚠️ 重要: Google Cloud Console 管理者へのアクセス要件（ロックアウト注意）",
+    geminiAdminLockoutWarningText:
+      "discoveryengine.googleapis.com に対してアクセスレベルを適用（VPC-SC）すると、エンドユーザーだけでなく、Google Cloud Console から Gemini Enterprise を設定・管理する GCP 管理者自身も、管理対象ブラウザ（Managed Chrome）から接続しない限りコンソール上で 403 権限エラーとなります。管理者が未管理端末を利用する場合は、Approach 2 (RCA) のグループ限定バインドの併用または Ingress 例外設定を検討してください。",
+    geminiEnforceRcaLabel: "Approach 2: Restricted Client Applications (RCA) を直接プロビジョニングする",
+    geminiRcaGroupKeyLabel: "対象 Google グループ（メールアドレスまたは Group ID）",
+    geminiRcaGroupKeyPlaceholder: "例: gemini-users@example.com または 0184mhaj3tyhbjb",
+    geminiRcaGroupKeyHint:
+      "Access Context Manager API を直接呼び出し、指定したグループのみに Gemini Enterprise アプリのアクセスレベルを直接バインドします（GCP 管理者のコンソールロックアウトや VPC-SC ペリメーター競合を回避可能）。",
+    geminiRcaBindingLabel: "RCA Cloud Binding",
+    geminiRcaCliTitle: "Restricted Client Application (RCA) gcloud コマンドスニペット",
+    geminiRcaCliCopyBtn: "RCA コマンドをコピー",
 
     deployProgressTitle: "Chrome Enterprise Premium デプロイ進行中...",
     deployStep1: "1. 対象 OU の検証",
@@ -4224,6 +4268,12 @@ const ja: Messages = {
     errDiagProjectRequiredTitle: "Google Cloud プロジェクト ID が未指定です",
     errDiagProjectRequiredCause: "Access Context Manager、VPC Service Controls、または IAM 設定には Google Cloud プロジェクト ID が必須です。",
     errDiagProjectRequiredRemediation: "設定入力欄に有効な Google Cloud プロジェクト ID を入力または選択してください。",
+    errDiagGeminiTitle: "Gemini Enterprise / Discovery Engine へのアクセスが拒否されました",
+    errDiagGeminiCause:
+      "Gemini Enterprise (vertexaisearch.cloud.google.com または discoveryengine.googleapis.com) へのアクセスが、ACM アクセスレベルまたは VPC-SC サービス境界によって遮断されました。現在のブラウザが管理対象 Chrome（BROWSER_MANAGED）ではないか、GCP 管理者が未管理端末から Cloud Console に接続しています。",
+    errDiagGeminiRemediation:
+      "組織の管理対象 Chrome ブラウザからアクセスしてください。GCP 管理者がコンソールにアクセスする場合は、管理対象端末から接続するか、Ingress 例外ルールまたは Approach 2 (RCA) のグループ限定バインドを設定してください。",
+    errDiagGeminiConsoleLink: "Gemini Enterprise / Vertex AI Search コンソールを開く",
     geminiConfirmProjectLabel: "プロジェクト ID の確認入力（厳格適用セーフガード）",
     geminiConfirmProjectHint: "厳格モードで Gemini Enterprise のサービス境界とアクセスレベルを強制適用するには、対象プロジェクト ID を再入力してください。",
     geminiConfirmProjectMismatch: "厳格適用を行うには、対象プロジェクト ID を正確に入力してください。",

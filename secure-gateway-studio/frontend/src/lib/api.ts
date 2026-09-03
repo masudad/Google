@@ -839,6 +839,8 @@ export interface CepGeminiZeroTrustConfig {
   enforce_access_level?: boolean;
   enforce_perimeter?: boolean;
   perimeter_name?: string;
+  enforce_rca?: boolean;
+  rca_group_key?: string;
 }
 
 export interface CepGeminiZeroTrustResult {
@@ -847,6 +849,7 @@ export interface CepGeminiZeroTrustResult {
   access_policy_name?: string;
   access_level_name?: string;
   service_perimeter_name?: string;
+  rca_binding_name?: string;
   project_number?: string;
   dry_run?: boolean;
   trace?: Array<{

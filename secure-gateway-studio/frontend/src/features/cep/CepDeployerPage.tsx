@@ -213,6 +213,8 @@ export function CepDeployerPage({
   const [geminiPerimeterName, setGeminiPerimeterName] = useState<string>("gemini_zero_trust_poc");
   const [geminiEnforceAccessLevel, setGeminiEnforceAccessLevel] = useState<boolean>(true);
   const [geminiEnforcePerimeter, setGeminiEnforcePerimeter] = useState<boolean>(true);
+  const [geminiEnforceRca, setGeminiEnforceRca] = useState<boolean>(false);
+  const [geminiRcaGroupKey, setGeminiRcaGroupKey] = useState<string>("");
   const [geminiDryRun, setGeminiDryRun] = useState<boolean>(true);
   const [provisioningGemini, setProvisioningGemini] = useState<boolean>(false);
   const [geminiStep, setGeminiStep] = useState<number>(0);
@@ -240,7 +242,8 @@ export function CepDeployerPage({
     setGeminiStep(1);
 
     const t1 = setTimeout(() => setGeminiStep(2), 1100);
-    const t2 = setTimeout(() => setGeminiStep(3), 2600);
+    const t2 = setTimeout(() => setGeminiStep(3), 2400);
+    const t3 = geminiEnforceRca ? setTimeout(() => setGeminiStep(4), 3800) : undefined;
 
     try {
       const res = await provisionGeminiZeroTrust({
@@ -249,11 +252,14 @@ export function CepDeployerPage({
         perimeter_name: geminiPerimeterName.trim() || "gemini_zero_trust_poc",
         enforce_access_level: geminiEnforceAccessLevel,
         enforce_perimeter: geminiEnforcePerimeter,
+        enforce_rca: geminiEnforceRca,
+        rca_group_key: geminiRcaGroupKey.trim() || undefined,
         dry_run: geminiDryRun,
       });
       clearTimeout(t1);
       clearTimeout(t2);
-      setGeminiStep(4);
+      if (t3) clearTimeout(t3);
+      setGeminiStep(geminiEnforceRca ? 5 : 4);
       setGeminiResult(res);
       if (!res.success) {
         setGeminiError(res);
@@ -261,6 +267,7 @@ export function CepDeployerPage({
     } catch (err) {
       clearTimeout(t1);
       clearTimeout(t2);
+      if (t3) clearTimeout(t3);
       setGeminiError(err);
     } finally {
       setProvisioningGemini(false);
@@ -288,6 +295,24 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
   --restricted-services="discoveryengine.googleapis.com" \\
   --access-levels="accessPolicies/\${POLICY_ID}/accessLevels/managed_chrome_access" \\
   --policy=\${POLICY_ID}`;
+
+  const geminiRcaSnippet = `# 1. Create YAML for Gemini Enterprise application binding (ge-rca.yaml)
+cat << 'EOF' > ge-rca.yaml
+scopedAccessSettings:
+- scope:
+    clientScope:
+      restrictedClientApplication:
+        name: "Gemini Enterprise"
+  activeSettings:
+    accessLevels:
+    - accessPolicies/\${POLICY_ID}/accessLevels/managed_chrome_access
+EOF
+
+# 2. Create the Cloud User Access Binding via gcloud
+gcloud access-context-manager cloud-bindings create \\
+  --organization="\${ORG_ID}" \\
+  --group-key="${geminiRcaGroupKey || "YOUR_GROUP_KEY"}" \\
+  --binding-file="ge-rca.yaml"`;
 
   const [assessmentModalOpen, setAssessmentModalOpen] = useState<boolean>(false);
   const [assessmentAppliedNotice, setAssessmentAppliedNotice] = useState<string>("");
@@ -1213,6 +1238,14 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
           <p>{m.geminiEnterpriseSubtitle}</p>
         </div>
 
+        <div className="cep-warning-banner" role="note">
+          <ExclamationCircleIcon size={18} />
+          <div className="cep-warning-banner-body">
+            <strong>{m.geminiAdminLockoutWarningTitle}</strong>
+            <p>{m.geminiAdminLockoutWarningText}</p>
+          </div>
+        </div>
+
         <div className="cep-gemini-form">
           <div className="cep-section-header">
             <h3>{m.geminiAutoProvisionTitle}</h3>
@@ -1272,6 +1305,14 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
             </label>
             <label>
               <input
+                checked={geminiEnforceRca}
+                onChange={(e) => setGeminiEnforceRca(e.target.checked)}
+                type="checkbox"
+              />
+              <span>{m.geminiEnforceRcaLabel}</span>
+            </label>
+            <label>
+              <input
                 checked={geminiDryRun}
                 onChange={(e) => setGeminiDryRun(e.target.checked)}
                 type="checkbox"
@@ -1279,6 +1320,20 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
               <span>{m.geminiDryRunLabel}</span>
             </label>
           </div>
+
+          {geminiEnforceRca && (
+            <div className="cep-form-field cep-rca-group-box">
+              <label htmlFor="gemini-rca-group-input">{m.geminiRcaGroupKeyLabel}</label>
+              <input
+                id="gemini-rca-group-input"
+                onChange={(e) => setGeminiRcaGroupKey(e.target.value)}
+                placeholder={m.geminiRcaGroupKeyPlaceholder}
+                type="text"
+                value={geminiRcaGroupKey}
+              />
+              <small>{m.geminiRcaGroupKeyHint}</small>
+            </div>
+          )}
 
           {!geminiDryRun && (
             <div className="cep-form-field cep-gemini-confirm-box">
@@ -1317,9 +1372,15 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
             <div className="cep-progress-box" role="status" aria-live="polite">
               <div className="cep-progress-header">
                 <span>{m.geminiAutoProvisioningBtn}</span>
-                <span className="cep-progress-percentage">{geminiStep * 25}%</span>
+                <span className="cep-progress-percentage">
+                  {Math.min(100, Math.round((geminiStep / (geminiEnforceRca ? 5 : 4)) * 100))}%
+                </span>
               </div>
-              <progress className="cep-progress-bar-el" max={100} value={geminiStep * 25} />
+              <progress
+                className="cep-progress-bar-el"
+                max={100}
+                value={Math.min(100, Math.round((geminiStep / (geminiEnforceRca ? 5 : 4)) * 100))}
+              />
               <div className="cep-progress-steps">
                 <span className={`cep-progress-step-item ${geminiStep >= 1 ? (geminiStep > 1 ? "done" : "active") : "pending"}`}>
                   {geminiStep > 1 ? "✓ " : "• "}{m.geminiStep1}
@@ -1330,9 +1391,14 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
                 <span className={`cep-progress-step-item ${geminiStep >= 3 ? (geminiStep > 3 ? "done" : "active") : "pending"}`}>
                   {geminiStep > 3 ? "✓ " : "• "}{m.geminiStep3}
                 </span>
-                <span className={`cep-progress-step-item ${geminiStep >= 4 ? "done" : "pending"}`}>
-                  {geminiStep >= 4 ? "✓ " : "• "}{m.geminiStep4}
+                <span className={`cep-progress-step-item ${geminiStep >= 4 ? (geminiStep > 4 || !geminiEnforceRca ? "done" : "active") : "pending"}`}>
+                  {geminiStep > 4 || (!geminiEnforceRca && geminiStep >= 4) ? "✓ " : "• "}{m.geminiStep4}
                 </span>
+                {geminiEnforceRca && (
+                  <span className={`cep-progress-step-item ${geminiStep >= 5 ? "done" : "pending"}`}>
+                    {geminiStep >= 5 ? "✓ " : "• "}{m.geminiStep5Rca}
+                  </span>
+                )}
               </div>
             </div>
           )}
@@ -1350,6 +1416,9 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
                 )}
                 {geminiResult.service_perimeter_name && (
                   <li><strong>Service Perimeter:</strong> <code>{geminiResult.service_perimeter_name}</code></li>
+                )}
+                {geminiResult.rca_binding_name && (
+                  <li><strong>{m.geminiRcaBindingLabel}:</strong> <code>{geminiResult.rca_binding_name}</code></li>
                 )}
                 {geminiResult.project_number && (
                   <li><strong>Project Number:</strong> <code>{geminiResult.project_number}</code></li>
@@ -1419,6 +1488,22 @@ gcloud access-context-manager perimeters create gemini_enterprise_perimeter \\
             </div>
             <pre className="cli-code">
               <code>{geminiVpcScSnippet}</code>
+            </pre>
+          </div>
+
+          <div className="cep-gemini-cli-box">
+            <div className="cli-header">
+              <strong>{m.geminiRcaCliTitle}</strong>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => handleCopy(geminiRcaSnippet, "gemini-rca")}
+                type="button"
+              >
+                {copiedSnippet === "gemini-rca" ? m.copiedToClipboard : m.geminiRcaCliCopyBtn}
+              </button>
+            </div>
+            <pre className="cli-code">
+              <code>{geminiRcaSnippet}</code>
             </pre>
           </div>
         </details>

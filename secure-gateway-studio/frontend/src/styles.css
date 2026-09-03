@@ -6257,6 +6257,49 @@ h1 {
   background: var(--surface);
 }
 
+.cep-warning-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: #fef7e0;
+  border: 1px solid #f9ab00;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
+.cep-warning-banner svg {
+  color: #b06000;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.cep-warning-banner-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cep-warning-banner-body strong {
+  font-size: 13px;
+  color: #b06000;
+}
+
+.cep-warning-banner-body p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.cep-rca-group-box {
+  margin-top: 10px;
+  padding: 12px;
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
 .cep-assessment-result-panel {
   display: flex;
   flex-direction: column;

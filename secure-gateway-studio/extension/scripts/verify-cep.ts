@@ -3667,6 +3667,22 @@ for (const mode of ["412-commit", "503-commit", "response-loss-commit"] as const
     calls.some((c) => c.method === "POST" && c.url.includes("/servicePerimeters")),
   );
 
+  // Gemini Zero Trust with RCA Binding
+  const rcaStub = stubTransport();
+  const rcaResp = await route(context(rcaStub.transport), "POST", "/api/v1/cep/gemini-zero-trust", {
+    project_id: "test-gemini-project",
+    enforce_access_level: true,
+    enforce_perimeter: true,
+    enforce_rca: true,
+    rca_group_key: "gemini-users@example.com",
+    dry_run: true,
+  });
+  check("Gemini Zero Trust with RCA succeeds", (rcaResp as { success: boolean }).success === true);
+  check(
+    "Gemini Zero Trust creates RCA Binding",
+    rcaStub.calls.some((c) => c.method === "POST" && c.url.includes("/gcpUserAccessBindings")),
+  );
+
   // Missing project_id rejected
   let threwMissingProject = false;
   try {

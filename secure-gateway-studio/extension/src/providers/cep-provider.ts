@@ -264,6 +264,8 @@ export interface CepGeminiZeroTrustConfig {
   enforce_access_level?: boolean;
   enforce_perimeter?: boolean;
   perimeter_name?: string;
+  enforce_rca?: boolean;
+  rca_group_key?: string;
 }
 
 export interface CepGeminiZeroTrustResult {
@@ -272,6 +274,7 @@ export interface CepGeminiZeroTrustResult {
   access_policy_name?: string;
   access_level_name?: string;
   service_perimeter_name?: string;
+  rca_binding_name?: string;
   project_number?: string;
   dry_run?: boolean;
   trace: CepTraceItem[];
@@ -3802,6 +3805,68 @@ if __name__ == "__main__":
       }
     }
 
+    // 5. Ensure Restricted Client Application (RCA) Binding if requested
+    let rcaBindingName: string | undefined;
+    if (config.enforce_rca && config.rca_group_key?.trim()) {
+      if (!organizationId) {
+        trace.push({
+          label: "Create RCA Binding (Gemini Enterprise)",
+          method: "POST",
+          url: `${ACM}/organizations/unknown/gcpUserAccessBindings`,
+          status: 400,
+          ok: false,
+          error: "Organization ID could not be determined for RCA binding.",
+        });
+      } else {
+        const groupKey = config.rca_group_key.trim();
+        const createBindingUrl = `${ACM}/${organizationId}/gcpUserAccessBindings`;
+        const bindingPayload = {
+          groupKey,
+          scopedAccessSettings: [
+            {
+              scope: {
+                clientScope: {
+                  restrictedClientApplication: {
+                    name: "Gemini Enterprise",
+                  },
+                },
+              },
+              activeSettings: {
+                accessLevels: accessLevelName ? [accessLevelName] : [],
+              },
+            },
+          ],
+        };
+        try {
+          const bResp = await this.cloudTransport.requestJson("POST", createBindingUrl, {
+            jsonBody: bindingPayload,
+            acceptedStatuses: [200, 201, 409],
+          });
+          trace.push({
+            label: "Create RCA Binding (Gemini Enterprise)",
+            method: "POST",
+            url: createBindingUrl,
+            status: bResp.status,
+            ok: bResp.status >= 200 && bResp.status < 300,
+          });
+          if (bResp.payload && typeof (bResp.payload as { name?: unknown }).name === "string") {
+            rcaBindingName = (bResp.payload as { name: string }).name;
+          } else if (bResp.status === 409) {
+            rcaBindingName = `${organizationId}/gcpUserAccessBindings (active/already exists)`;
+          }
+        } catch (err) {
+          trace.push({
+            label: "Create RCA Binding (Gemini Enterprise)",
+            method: "POST",
+            url: createBindingUrl,
+            status: 500,
+            ok: false,
+            error: errorMessage(err),
+          });
+        }
+      }
+    }
+
     return {
       success: true,
       message: config.dry_run
@@ -3810,6 +3875,7 @@ if __name__ == "__main__":
       access_policy_name: policyName,
       access_level_name: accessLevelName,
       service_perimeter_name: servicePerimeterName,
+      rca_binding_name: rcaBindingName,
       project_number: projectNumber,
       dry_run: !!config.dry_run,
       trace,

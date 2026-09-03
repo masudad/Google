@@ -18,6 +18,7 @@ export interface ErrorDiagnosticInfo {
     | "root_ou_forbidden"
     | "scope_invalid"
     | "project_required"
+    | "gemini_access_denied"
     | "rate_limit_exceeded"
     | "worker_unavailable"
     | "project_not_in_org"
@@ -219,7 +220,27 @@ export function parseErrorDiagnostic(
     };
   }
 
-  // 9. Google Cloud IAM Permission Denied (403)
+  // 9. Gemini Enterprise / Discovery Engine VPC-SC or Access Level Lockout (403)
+  if (
+    text.includes("discoveryengine") ||
+    text.includes("vertexaisearch") ||
+    text.includes("configuration is not authorized on 'vertexaisearch.cloud.google.com'")
+  ) {
+    return {
+      category: "gemini_access_denied",
+      status: status ?? 403,
+      code: code || "GEMINI_ACCESS_DENIED",
+      title: m.errDiagGeminiTitle,
+      cause: m.errDiagGeminiCause,
+      remediation: m.errDiagGeminiRemediation,
+      externalLink: {
+        label: m.errDiagGeminiConsoleLink,
+        url: "https://console.cloud.google.com/gen-app-builder",
+      },
+    };
+  }
+
+  // 10. Google Cloud IAM Permission Denied (403)
   if (
     code === "PERMISSION_DENIED" ||
     status === 403 ||
