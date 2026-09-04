@@ -127,9 +127,9 @@ export const defaultSetupState: SetupState = {
   mode: "poc",
   platforms: {
     macos: true,
-    windows: false,
-    linux: false,
-    chromeos: false,
+    windows: true,
+    linux: true,
+    chromeos: true,
   },
   networkStrategy: "dedicated",
   certificateStrategy: "enterprise_ca",

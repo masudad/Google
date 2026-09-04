@@ -947,17 +947,17 @@ const en: Messages = {
   productionDescription:
     "Enterprise PKI, regional high availability, dedicated product-scoped service identities (outside the scope of this PoC tool).",
   productionUnavailable: "TBD",
-  platformsTitle: "2. Managed Chrome platforms",
+  platformsTitle: "Managed Chrome platforms",
   managedChromeOnly: "",
   platformNote:
     "Select platforms to include in acceptance testing (multiple selection allowed).",
-  infrastructureTitle: "3. Infrastructure strategy",
+  infrastructureTitle: "2. Infrastructure strategy",
   dedicatedNetwork: "Dedicated network",
   recommended: "Recommended",
   dedicatedDescription: "Create a new VPC dedicated to Secure Gateway services.",
   existingVpc: "Existing VPC",
   existingDescription: "Deploy into an existing VPC that you manage.",
-  certificateTitle: "4. Certificate strategy",
+  certificateTitle: "3. Certificate strategy",
   enterpriseCa: "Enterprise PKI / CA Service",
   enterpriseCaDescription: "Use organization CA or Cloud CA Service for internal TLS certificates.",
   publicCertificate: "Publicly trusted certificate",
@@ -971,7 +971,8 @@ const en: Messages = {
   posture: "Deployment posture",
   mode: "Mode",
   managedPlatforms: "Managed Chrome platforms",
-  platformCount: (count: number) => `${count} platforms selected`,
+  platformCount: (count: number) =>
+    count === 4 ? "All platforms (macOS / Windows / Linux / ChromeOS)" : `${count} platforms selected`,
   infrastructure: "Infrastructure",
   certificateStrategy: "Certificate strategy",
   targetOu: "Target OU",
@@ -1039,7 +1040,7 @@ const en: Messages = {
       "Connection validation is read-only. Apply permissions are checked separately during preflight.",
     bootstrapDeployer: "Create deployer and product-scoped role",
     bootstrapDeployerHint:
-      "Required operator roles: Service Account Admin (roles/iam.serviceAccountAdmin), Role Administrator (roles/iam.roleAdmin), Project IAM Admin (roles/resourcemanager.projectIamAdmin), and permission to grant Policy Editor on the selected Access Context Manager policy. Alternatively, Security Admin (roles/iam.securityAdmin) or Owner plus the Access Policy grant.",
+      "Automatically configures the deployer service account and scoped custom role in your project.",
     bootstrapConfirm:
       "Create or update the deployer service account, custom role, project bindings, Access Policy Editor binding, and your Token Creator binding?",
     bootstrapLegacyMigrationConfirm:
@@ -2719,16 +2720,16 @@ const ja: Messages = {
   productionDescription:
     "エンタープライズ PKI、リージョン高可用性、本番専用サービス ID 等の本格運用向け構成です（PoC 検証ツールのスコープ外）。",
   productionUnavailable: "未定",
-  platformsTitle: "2. 管理対象 Chrome プラットフォーム",
+  platformsTitle: "管理対象 Chrome プラットフォーム",
   managedChromeOnly: "",
   platformNote: "検証対象とする OS を選択してください（複数選択可）。",
-  infrastructureTitle: "3. ネットワーク構成",
+  infrastructureTitle: "2. ネットワーク構成",
   dedicatedNetwork: "専用ネットワーク",
   recommended: "推奨",
   dedicatedDescription: "Secure Gateway サービス専用の新しいVPCを作成します。",
   existingVpc: "既存VPC",
   existingDescription: "管理している既存VPCへデプロイします。",
-  certificateTitle: "4. 証明書方式",
+  certificateTitle: "3. 証明書方式",
   enterpriseCa: "エンタープライズPKI / CA Service",
   enterpriseCaDescription: "組織CAまたはCloud CA Serviceで内部TLS証明書を発行します。",
   publicCertificate: "公開信頼済み証明書",
@@ -2742,7 +2743,8 @@ const ja: Messages = {
   posture: "デプロイ方針",
   mode: "モード",
   managedPlatforms: "管理対象 Chrome",
-  platformCount: (count: number) => `${count} プラットフォーム`,
+  platformCount: (count: number) =>
+    count === 4 ? "全プラットフォーム対応 (macOS / Windows / Linux / ChromeOS)" : `${count} プラットフォーム`,
   infrastructure: "ネットワーク",
   certificateStrategy: "証明書方式",
   targetOu: "対象OU",
@@ -2809,7 +2811,7 @@ const ja: Messages = {
       "接続検証は読み取り専用です。適用権限は事前確認で別途検証します。",
     bootstrapDeployer: "SAと製品用途限定ロールを自動作成",
     bootstrapDeployerHint:
-      "必要な最小ロール: サービス アカウント管理者 (roles/iam.serviceAccountAdmin)、ロール管理者 (roles/iam.roleAdmin)、プロジェクト IAM 管理者 (roles/resourcemanager.projectIamAdmin)、および対象の Access Context Manager ポリシーにおける Policy Editor 付与権限（またはプロジェクトのセキュリティ管理者／オーナー権限）。",
+      "デプロイ操作に必要な専用サービス アカウントと最小権限カスタムロールを自動構成します。",
     bootstrapConfirm:
       "デプロイヤーSA、カスタムロール、プロジェクトIAM、Access Policy Editor、あなたのToken Creator権限を作成または更新します。続行しますか？",
     bootstrapLegacyMigrationConfirm:

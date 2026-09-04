@@ -14,13 +14,12 @@ import {
   ShieldIcon,
 } from "../../components/Icons";
 import { ChoiceCard } from "./ChoiceCard";
-import { PlatformSelector } from "./PlatformSelector";
 
 interface ModeStepProps {
   messages: Messages;
   state: SetupState;
   onModeChange: (mode: DeploymentMode) => void;
-  onPlatformToggle: (platform: ChromePlatform) => void;
+  onPlatformToggle?: (platform: ChromePlatform) => void;
   onNetworkChange: (strategy: NetworkStrategy) => void;
   onCertificateChange: (strategy: CertificateStrategy) => void;
 }
@@ -29,7 +28,6 @@ export function ModeStep({
   messages,
   state,
   onModeChange,
-  onPlatformToggle,
   onNetworkChange,
   onCertificateChange,
 }: ModeStepProps) {
@@ -58,12 +56,6 @@ export function ModeStep({
           />
         </div>
       </section>
-
-      <PlatformSelector
-        messages={messages}
-        onToggle={onPlatformToggle}
-        platforms={state.platforms}
-      />
 
       <div className="strategy-grid">
         <section className="form-section strategy-section">

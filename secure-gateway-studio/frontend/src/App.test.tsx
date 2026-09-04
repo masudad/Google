@@ -327,25 +327,18 @@ describe("Secure Gateway Studio mode screen", () => {
     expect(localCa).not.toBeDisabled();
     fireEvent.click(localCa);
     expect(localCa).toHaveAttribute("aria-pressed", "true");
-
-    fireEvent.click(screen.getByRole("checkbox", { name: "macOS" }));
-    expect(localCa).toHaveAttribute("aria-pressed", "true");
     expect(
       screen.getByText(/Admin console upload required/),
     ).toBeInTheDocument();
   });
 
-  it("defaults a new rapid PoC to macOS only", () => {
+  it("defaults a new rapid PoC with all platforms enabled", () => {
     render(<App />);
 
     expect(screen.queryByText("proj-secgw-lab-01")).not.toBeInTheDocument();
     expect(screen.queryByText("admin@acme.com")).not.toBeInTheDocument();
-    expect(screen.getByRole("checkbox", { name: "macOS" })).toBeChecked();
-    for (const platform of ["Windows", "Linux", "ChromeOS"]) {
-      expect(screen.getByRole("checkbox", { name: platform })).not.toBeChecked();
-    }
     expect(
-      screen.getByText(/acceptance testing/),
+      screen.getByText(/All platforms \(macOS \/ Windows \/ Linux \/ ChromeOS\)/),
     ).toBeInTheDocument();
   });
 
@@ -580,7 +573,7 @@ describe("Secure Gateway Studio mode screen", () => {
     );
     await waitFor(() => expect(window.localStorage.getItem("sgs.workflow.v1")).not.toBeNull());
 
-    fireEvent.click(screen.getByRole("checkbox", { name: "Windows" }));
+    fireEvent.click(screen.getByRole("button", { name: /Existing VPC/ }));
 
     await waitFor(() => expect(window.localStorage.getItem("sgs.workflow.v1")).toBeNull());
   });
