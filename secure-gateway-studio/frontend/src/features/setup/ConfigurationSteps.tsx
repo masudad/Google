@@ -930,7 +930,7 @@ export function EnvironmentStep({ messages, onPatch, state }: StepProps) {
               <p>{activeArchitecture.summary}</p>
             </div>
             <div className="step-architecture-cost-pill">
-              <strong>💰 {activeArchitecture.estimatedCost}</strong>
+              <strong>{activeArchitecture.estimatedCost}</strong>
               <span>({activeArchitecture.costFixed} · {activeArchitecture.costVariable})</span>
             </div>
             <div className="architecture-flow" role="list">

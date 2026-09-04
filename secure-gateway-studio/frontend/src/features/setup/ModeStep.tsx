@@ -65,7 +65,6 @@ export function ModeStep({
           </h2>
           <ChoiceCard
             description={messages.dedicatedDescription}
-            detail={` (${messages.recommended})`}
             icon={<NetworkIcon size={27} />}
             onSelect={() => onNetworkChange("dedicated")}
             selected={state.networkStrategy === "dedicated"}

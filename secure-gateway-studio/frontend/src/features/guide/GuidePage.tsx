@@ -22,17 +22,17 @@ export function GuidePage({ messages }: GuidePageProps) {
 
       <nav className="guide-sticky-nav" aria-label="Guide navigation">
         <a className="guide-nav-pill" href="#architecture-section">
-          🏛️ {guide.quickOverviewTitle}
+          {guide.quickOverviewTitle}
         </a>
         <a className="guide-nav-pill" href="#implementation-section">
-          📦 {guide.implementationTitle}
+          {guide.implementationTitle}
         </a>
         <a className="guide-nav-pill" href="#technical-deep-dive-section">
-          🛠️ {guide.technicalDeepDiveTitle}
+          {guide.technicalDeepDiveTitle}
         </a>
         {guide.faqs && guide.faqs.length > 0 && (
           <a className="guide-nav-pill" href="#faq-section">
-            ❓ {guide.faqTitle}
+            {guide.faqTitle}
           </a>
         )}
       </nav>
@@ -76,7 +76,7 @@ export function GuidePage({ messages }: GuidePageProps) {
 
               <div className="architecture-cost-box">
                 <div className="architecture-cost-header">
-                  <strong>💰 {architecture.estimatedCost}</strong>
+                  <strong>{architecture.estimatedCost}</strong>
                   <span className="cost-tag">{guide.costTag}</span>
                 </div>
                 <div className="architecture-cost-details">

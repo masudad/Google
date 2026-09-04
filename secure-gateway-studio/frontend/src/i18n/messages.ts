@@ -1502,7 +1502,7 @@ const en: Messages = {
     acceptanceIntro:
       "Run automated system checks for backend response, TLS termination, and DNS, then record evidence from managed Chrome acceptance testing.",
     noSuccessfulRun: "A successful deployment run is required before acceptance testing.",
-    runSystemChecks: "Verify T01–T05",
+    runSystemChecks: "Run automated system checks",
     runningSystemChecks: "Verifying Google Cloud resources…",
     acceptanceComplete: "PoC acceptance complete",
     acceptancePending: "Acceptance evidence incomplete",
@@ -2462,7 +2462,7 @@ const en: Messages = {
     dlpSaveContentLabel: "Save Matched Content Evidence (saveContent)",
     dlpSaveContentHint: "Preserve a copy of the matched sensitive content for incident investigation and audit.",
 
-    dlpPresetRecommended: "Recommended PoC",
+    dlpPresetRecommended: "Standard PoC",
     dlpPresetRecommendedDesc: "Warn on sensitive data, block unapproved GenAI, and watermark internal sites without BYOD scoping.",
     dlpPresetStrictZeroTrust: "Strict Zero Trust",
     dlpPresetStrictZeroTrustDesc: "Block supported sensitive uploads and pastes; configure unmanaged-device conditions manually.",
@@ -2611,8 +2611,8 @@ const en: Messages = {
     errDiagRawDetails: "Technical Error Details (for debugging)",
 
     // Security Assessment & Policy Recommender
-    assessOpenBtn: "🛡️ Security Requirements & Policy Wizard",
-    assessModalTitle: "🛡️ Security Requirements & Policy Wizard",
+    assessOpenBtn: "Security Requirements & Policy Wizard",
+    assessModalTitle: "Security Requirements & Policy Wizard",
     assessModalSubtitle: "Select your organization's security challenges and device protection requirements to configure the corresponding Chrome Enterprise Premium policy baseline (DLP and access control).",
     assessPresetLabel: "Quick Presets",
     assessPresetGenAi: "GenAI Safe Adoption",
@@ -2671,8 +2671,8 @@ const en: Messages = {
     assessQ15Solution: "Zero additional agents required; DLP, access control, and auditing run natively inside Chrome",
     assessDefaultDlpCustomMessage: "Confidential data transfer is blocked by corporate security policy. Contact your security administrator if you require an exemption.",
     assessRecHeader: "Selected Policy Baseline",
-    assessRecDlpHeader: "🛡️ DLP (Data Loss Prevention) Matrix:",
-    assessRecModulesHeader: "📦 Policy Modules:",
+    assessRecDlpHeader: "DLP (Data Loss Prevention) Matrix:",
+    assessRecModulesHeader: "Policy Modules:",
     assessRoiHeader: "Expected Outcomes & Security Improvements:",
     assessRoiCostTitle: "License and Infrastructure Cost Efficiency",
     assessRoiCostDesc: "Integrate CASB/SWG controls natively into the browser and optimize infrastructure costs.",
@@ -3853,7 +3853,7 @@ const ja: Messages = {
         summary:
           "承認済みオペレーションを依存順に実行して所有権を追跡し、その後の個別検証用に該当する受入マトリクスを保存します。",
         actions: [
-          "選択したアーキテクチャに応じて、サブネット ➡️ 証明書 ➡️ バックエンド（Nginx VM/MIG または ILB HTTPS サンプル VM）➡️ Gateway ➡️ DNS ➡️ Chrome ポリシーの依存順で作成します。",
+          "選択したアーキテクチャに応じて、サブネット → 証明書 → バックエンド（Nginx VM/MIG または ILB HTTPS サンプル VM）→ Gateway → DNS → Chrome ポリシーの依存順で作成します。",
           "作成したリソースの所有権（Ownership）を記録し、異常発生時は作成済みリソースのみを逆順ロールバックします。",
           "適用後に［運用］画面から自動システム検証（接続性・TLS・DNS等）を実行し、管理対象Chromeの実機接続テスト証跡を記録します。アクセス拒否やログ相関の検証結果を記録し、監査可能なJSON証跡を出力できます。",
         ],
@@ -4283,7 +4283,7 @@ const ja: Messages = {
     geminiStep3: "3. VPC-SC サービス境界作成 (Discovery Engine)",
     geminiStep4: "4. ゼロトラスト環境検証 & 完了",
     geminiStep5Rca: "5. Restricted Client Applications (RCA) ユーザーアクセスバインディング作成",
-    geminiAdminLockoutWarningTitle: "⚠️ 重要: Google Cloud Console 管理者へのアクセス要件（ロックアウト注意）",
+    geminiAdminLockoutWarningTitle: "重要: Google Cloud Console 管理者へのアクセス要件（ロックアウト注意）",
     geminiAdminLockoutWarningText:
       "discoveryengine.googleapis.com に対してアクセスレベルを適用（VPC-SC）すると、エンドユーザーだけでなく、Google Cloud Console から Gemini Enterprise を設定・管理する GCP 管理者自身も、管理対象ブラウザ（Managed Chrome）から接続しない限りコンソール上で 403 権限エラーとなります。管理者が未管理端末を利用する場合は、Approach 2 (RCA) のグループ限定バインドの併用または Ingress 例外設定を検討してください。",
     geminiEnforceRcaLabel: "Approach 2: Restricted Client Applications (RCA) を直接プロビジョニングする",
@@ -4377,8 +4377,8 @@ const ja: Messages = {
     errDiagRawDetails: "技術詳細ログ（デバッグ用）",
 
     // Security Assessment & Policy Recommender
-    assessOpenBtn: "🛡️ セキュリティ要件・ポリシー構成ウィザード",
-    assessModalTitle: "🛡️ セキュリティ要件・ポリシー構成ウィザード",
+    assessOpenBtn: "セキュリティ要件・ポリシー構成ウィザード",
+    assessModalTitle: "セキュリティ要件・ポリシー構成ウィザード",
     assessModalSubtitle: "組織が直面しているセキュリティ課題や端末保護の要件を選択してください。課題に対応する Chrome Enterprise Premium のポリシー構成（DLP・アクセス制御）を設定します。",
     assessPresetLabel: "クイック一括選択",
     assessPresetGenAi: "生成AI安全活用 & 漏洩防止",
@@ -4437,8 +4437,8 @@ const ja: Messages = {
     assessQ15Solution: "エージェント追加不要（Chrome ブラウザ単体）で DLP、SWG、認証、監査ログが完結するゼロエージェント運用",
     assessDefaultDlpCustomMessage: "社内セキュリティポリシーにより、機密データの外部送信・コピペは制限されています。業務上の例外申請が必要な場合はセキュリティ管理者へお問い合わせください。",
     assessRecHeader: "選定されたポリシー構成",
-    assessRecDlpHeader: "🛡️ DLP (データ損失防止) マトリクス設定:",
-    assessRecModulesHeader: "📦 構成モジュール設定:",
+    assessRecDlpHeader: "DLP (データ損失防止) マトリクス設定:",
+    assessRecModulesHeader: "構成モジュール設定:",
     assessRoiHeader: "期待される効果と改善項目:",
     assessRoiCostTitle: "ライセンスおよびインフラ運用の効率化",
     assessRoiCostDesc: "サードパーティ CASB/SWG 機能のブラウザ統合や、VDI 環境のブラウザ移行によるコスト最適化を図ります。",
@@ -4448,8 +4448,8 @@ const ja: Messages = {
     assessRoiSecurityDesc: "Web サービスへの機密データ送信、ダウンロード、画面キャプチャを電子透かしやポリシーで制御します。",
     assessApplyRecBtn: "この構成を PoC 設定に反映する",
     assessAppliedBanner: "✓ 選択した要件に基づき、ポリシー構成および DLP マトリクスを反映しました。",
-    geminiArchDetailsToggle: "🛡️ 3層セキュリティ境界アーキテクチャ・CLI コマンドの解説を見る",
-    assessShowDetails: "📄 現場リスク・解決策の詳細を表示",
+    geminiArchDetailsToggle: "3層セキュリティ境界アーキテクチャ・CLI コマンドの解説を見る",
+    assessShowDetails: "現場リスク・解決策の詳細を表示",
     assessHideDetails: "詳細を折りたたむ",
   },
 };

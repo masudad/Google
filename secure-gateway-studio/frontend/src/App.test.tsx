@@ -2071,7 +2071,9 @@ describe("Secure Gateway Studio mode screen", () => {
       await screen.findByText("Acceptance evidence recorded."),
     ).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Verify T01–T05" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Run automated system checks" }),
+    );
 
     expect(
       await screen.findByText("5 of 13 required cases satisfied"),
