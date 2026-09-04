@@ -388,7 +388,7 @@ export function SecurityAssessmentModal({
           {/* Left: 15 Questions */}
           <div className="cep-assessment-questions-panel">
             <div className="cep-assessment-toolbar">
-              <span className="cep-assessment-counter">
+              <span className="cep-assessment-counter tabular-nums">
                 {selectedQuestions.size} / {questions.length}
               </span>
               <button
@@ -580,7 +580,9 @@ export function SecurityAssessmentModal({
                 type="button"
               >
                 <CheckCircleIcon size={16} />
-                <span>{m.assessApplyRecBtn} ({selectedQuestions.size} 項目反映)</span>
+                <span>
+                  {m.assessApplyRecBtn} (<span className="tabular-nums">{selectedQuestions.size}</span> 項目反映)
+                </span>
               </button>
             </div>
           </div>

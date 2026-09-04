@@ -195,35 +195,35 @@ export function DlpMatrixTable({
       <div className="dlp-matrix-presets">
         <span className="dlp-presets-label">プリセット:</span>
         <button
-          className="secondary-action dlp-preset-btn"
+          className="btn btn-secondary btn-sm dlp-preset-btn"
           onClick={() => applyPreset("recommended")}
           type="button"
         >
           {m.dlpPresetRecommended}
         </button>
         <button
-          className="secondary-action dlp-preset-btn"
+          className="btn btn-secondary btn-sm dlp-preset-btn"
           onClick={() => applyPreset("strict")}
           type="button"
         >
           {m.dlpPresetStrictZeroTrust}
         </button>
         <button
-          className="secondary-action dlp-preset-btn"
+          className="btn btn-secondary btn-sm dlp-preset-btn"
           onClick={() => applyPreset("genai")}
           type="button"
         >
           {m.dlpPresetGenAiSecure}
         </button>
         <button
-          className="secondary-action dlp-preset-btn"
+          className="btn btn-secondary btn-sm dlp-preset-btn"
           onClick={() => applyPreset("audit")}
           type="button"
         >
           {m.dlpPresetAuditOnly}
         </button>
         <button
-          className="secondary-action dlp-preset-btn"
+          className="btn btn-secondary btn-sm dlp-preset-btn"
           onClick={() => applyPreset("gemini")}
           type="button"
         >

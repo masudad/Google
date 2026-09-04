@@ -240,9 +240,9 @@ export function DeploymentManager({ copy, runId, onClose }: DeploymentManagerPro
               {isDeleted ? (copy.statusDeleted || "Deleted") : (copy.statusSucceeded || "Success")}
             </span>
           </div>
-          <code>{runId}</code>
+          <code className="tabular-nums">{runId}</code>
         </div>
-        <button className="secondary-action" onClick={onClose} type="button">
+        <button className="btn btn-secondary btn-sm" onClick={onClose} type="button">
           {copy.close}
         </button>
       </header>
@@ -370,7 +370,7 @@ export function DeploymentManager({ copy, runId, onClose }: DeploymentManagerPro
 
               <button
                 type="button"
-                className="primary-action"
+                className="btn btn-primary"
                 disabled={accessLevelBusy}
                 onClick={() => void handleUpdateAccessLevel()}
               >
@@ -393,7 +393,7 @@ export function DeploymentManager({ copy, runId, onClose }: DeploymentManagerPro
             <div><h3>{copy.logsTitle}</h3><p>{copy.logsIntro}</p></div>
             <div className="deployment-log-actions">
               <button
-                className="primary-action"
+                className="btn btn-primary btn-sm"
                 disabled={logsBusy}
                 onClick={() => void refreshLogs()}
                 type="button"
@@ -445,14 +445,14 @@ export function DeploymentManager({ copy, runId, onClose }: DeploymentManagerPro
                   <span className={`log-severity severity-${entry.severity.toLowerCase()}`}>
                     {entry.severity}
                   </span>
-                  <time>{entry.timestamp ? new Date(entry.timestamp).toLocaleString() : copy.notAvailable}</time>
+                  <time className="tabular-nums">{entry.timestamp ? new Date(entry.timestamp).toLocaleString() : copy.notAvailable}</time>
                 </header>
                 <strong>{entry.summary}</strong>
                 <dl>
                   {entry.principal ? <><dt>{copy.principal}</dt><dd>{entry.principal}</dd></> : null}
                   {entry.method ? <><dt>{copy.method}</dt><dd>{entry.method}</dd></> : null}
-                  {entry.request_id ? <><dt>{copy.requestId}</dt><dd><code>{entry.request_id}</code></dd></> : null}
-                  {entry.caller_ip ? <><dt>{copy.callerIp}</dt><dd><code>{entry.caller_ip}</code></dd></> : null}
+                  {entry.request_id ? <><dt>{copy.requestId}</dt><dd><code className="tabular-nums">{entry.request_id}</code></dd></> : null}
+                  {entry.caller_ip ? <><dt>{copy.callerIp}</dt><dd><code className="tabular-nums">{entry.caller_ip}</code></dd></> : null}
                 </dl>
                 <details><summary>{copy.payload}</summary><pre>{JSON.stringify(entry.payload, null, 2)}</pre></details>
               </article>
@@ -523,7 +523,7 @@ export function DeploymentManager({ copy, runId, onClose }: DeploymentManagerPro
                             ? copy.teardownInterrupted
                             : copy.teardownFailed}
                     </strong>
-                    <small>{copy.teardownProgress(completedTeardownOperations, teardown.operations.length)}</small>
+                    <small className="tabular-nums">{copy.teardownProgress(completedTeardownOperations, teardown.operations.length)}</small>
                     <progress max={Math.max(teardown.operations.length, 1)} value={completedTeardownOperations} />
                   </div>
                 </div>
@@ -531,7 +531,7 @@ export function DeploymentManager({ copy, runId, onClose }: DeploymentManagerPro
               {teardownError ? <p className="connection-error" role="alert">{teardownError}</p> : null}
               {teardown?.status === "interrupted" ? (
                 <button
-                  className="danger-action"
+                  className="btn btn-danger"
                   disabled={teardownBusy}
                   onClick={() => void handleResumeTeardown()}
                   type="button"
@@ -540,7 +540,7 @@ export function DeploymentManager({ copy, runId, onClose }: DeploymentManagerPro
                 </button>
               ) : (
                 <button
-                  className="danger-action"
+                  className="btn btn-danger"
                   disabled={
                     teardownBusy ||
                     confirmation !== teardownPlan.confirmation ||

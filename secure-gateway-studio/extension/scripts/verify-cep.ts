@@ -40,6 +40,8 @@ import type { Transport, TransportResponse } from "../src/providers/executor.ts"
 import {
   CEP_LICENSE_DIRECTORY_PAGE_LIMIT,
   CEP_LICENSE_PILOT_USER_LIMIT,
+  resolveCepTargetGroup,
+  resolveConfirmedCepTargetGroup,
 } from "../src/providers/cep-provider.ts";
 import {
   CepMutationLeaseBusy,
@@ -282,6 +284,7 @@ interface StubOptions {
   directoryPages?: Array<Array<{ primaryEmail?: unknown; orgUnitPath?: unknown }>>;
   /** Override the Directory user-list token, including malformed null/number values. */
   directoryNextPageToken?: unknown;
+  directoryGroups?: Array<{ id: string; email: string; name?: string }>;
 }
 
 function stubTransport(options: StubOptions = {}): {
@@ -689,6 +692,24 @@ function stubTransport(options: StubOptions = {}): {
               : pageIndex + 1 < pages.length
                 ? { nextPageToken: `directory-page-${pageIndex + 1}` }
                 : {}),
+          },
+        };
+      }
+
+      if (url.includes("admin/directory") && /\/groups\/[^/]+$/.test(url)) {
+        const key = decodeURIComponent(url.split("/groups/").pop() ?? "");
+        const group = (options.directoryGroups ?? [
+          { id: "01group_id", email: "sec-poc@example.com", name: "Security PoC Group" },
+        ]).find((g) => g.id === key || g.email.toLowerCase() === key.toLowerCase());
+        if (!group) {
+          return { status: 404, payload: { error: { message: "Group not found" } } };
+        }
+        return {
+          status: 200,
+          payload: {
+            id: group.id,
+            email: group.email,
+            name: group.name ?? group.email,
           },
         };
       }
@@ -3713,6 +3734,269 @@ for (const mode of ["412-commit", "503-commit", "response-loss-commit"] as const
     await ctx.releaseCepMutationLease!(lease);
   }
   check("Gemini Zero Trust acquires project mutation lease and rejects concurrent runs", threwLeaseBusy);
+}
+
+{
+  // 17. Google Group target provision, rollback, script generation, and mutation lease
+  const { transport } = stubTransport();
+
+  // Test 17.1: resolveConfirmedCepTargetGroup
+  const resolved = await resolveConfirmedCepTargetGroup(transport, {
+    customer_id: "C01abcdef",
+    target_group_key: "sec-poc@example.com",
+    target_group_confirmation: "sec-poc@example.com",
+  });
+  check("resolveConfirmedCepTargetGroup resolves group ID and email", resolved.id === "01group_id" && resolved.email === "sec-poc@example.com");
+
+  // Case-insensitive email confirmation match
+  const resolvedCaseInsensitive = await resolveConfirmedCepTargetGroup(transport, {
+    customer_id: "C01abcdef",
+    target_group_key: "sec-poc@example.com",
+    target_group_confirmation: "SEC-POC@EXAMPLE.COM",
+  });
+  check("resolveConfirmedCepTargetGroup allows case-insensitive confirmation", resolvedCaseInsensitive.id === "01group_id");
+
+  // ID-based confirmation match
+  const resolvedById = await resolveConfirmedCepTargetGroup(transport, {
+    customer_id: "C01abcdef",
+    target_group_key: "sec-poc@example.com",
+    target_group_confirmation: "01group_id",
+  });
+  check("resolveConfirmedCepTargetGroup allows ID-based confirmation", resolvedById.id === "01group_id");
+
+  // Target confirmation mismatch fails
+  let threwMismatch = false;
+  try {
+    await resolveConfirmedCepTargetGroup(transport, {
+      customer_id: "C01abcdef",
+      target_group_key: "sec-poc@example.com",
+      target_group_confirmation: "wrong@example.com",
+    });
+  } catch (err) {
+    threwMismatch = (err as RouteError).code === "cep-target-group-confirmation-mismatch";
+  }
+  check("resolveConfirmedCepTargetGroup rejects mismatched confirmation with cep-target-group-confirmation-mismatch", threwMismatch);
+
+  // Missing canonical customer ID fails
+  let threwInvalidCustomer = false;
+  try {
+    await resolveConfirmedCepTargetGroup(transport, {
+      customer_id: "invalid_cust",
+      target_group_key: "sec-poc@example.com",
+      target_group_confirmation: "sec-poc@example.com",
+    });
+  } catch (err) {
+    threwInvalidCustomer = (err as RouteError).code === "cep-target-group-invalid";
+  }
+  check("resolveConfirmedCepTargetGroup rejects non-canonical customer_id", threwInvalidCustomer);
+
+  // Group not found fails with cep-target-group-unresolved
+  let threwNotFound = false;
+  try {
+    await resolveConfirmedCepTargetGroup(transport, {
+      customer_id: "C01abcdef",
+      target_group_key: "nonexistent@example.com",
+      target_group_confirmation: "nonexistent@example.com",
+    });
+  } catch (err) {
+    threwNotFound = (err as RouteError).code === "cep-target-group-unresolved";
+  }
+  check("resolveConfirmedCepTargetGroup rejects nonexistent group with cep-target-group-unresolved", threwNotFound);
+
+  // Test 17.2: Provision with target_type: "group"
+  const groupProvisionTransport = stubTransport();
+  const groupProvisionResp = (await route(
+    context(groupProvisionTransport.transport),
+    "POST",
+    "/api/v1/cep/provision",
+    {
+      customer_id: "C01abcdef",
+      project_id: "secgw-project",
+      target_type: "group",
+      target_group_key: "sec-poc@example.com",
+      target_group_confirmation: "sec-poc@example.com",
+      core_policies: true,
+      connectors: true,
+      dlp_rules: true,
+      internal_urls: ["https://intranet.example.com"],
+    },
+  )) as ProvisionResult;
+  check("group provision succeeds", groupProvisionResp.success === true, JSON.stringify(groupProvisionResp));
+
+  const groupModifyCalls = groupProvisionTransport.calls.filter(
+    (c) => c.method === "POST" && c.url.includes("policies/groups:batchModify"),
+  );
+  const ouModifyCalls = groupProvisionTransport.calls.filter(
+    (c) => c.method === "POST" && c.url.includes("policies/orgunits:batchModify"),
+  );
+  check("group provision uses policies/groups:batchModify endpoint", groupModifyCalls.length > 0);
+  check("group provision does not call policies/orgunits:batchModify", ouModifyCalls.length === 0);
+
+  const groupRequests = groupModifyCalls.flatMap(
+    (c) => (c.body?.requests ?? []) as Array<Record<string, unknown>>,
+  );
+  check(
+    "group provision sets policyTargetKey.targetResource to groups/{id}",
+    groupRequests.length > 0 &&
+      groupRequests.every((req) => {
+        const target = req.policyTargetKey as { targetResource?: string } | undefined;
+        return target?.targetResource === "groups/01group_id";
+      }),
+  );
+
+  // Check DLP policy CEL query for group
+  const groupDlpCreates = groupProvisionTransport.calls.filter(
+    (c) => c.method === "POST" && c.url.includes("cloudidentity.googleapis.com"),
+  );
+  check("group provision creates DLP rules", groupDlpCreates.length > 0);
+  const dlpQueries = groupDlpCreates.map((c) => (c.body?.policyQuery ?? {}) as Record<string, unknown>);
+  check(
+    "group provision DLP rules contain entity.groups.exists CEL query",
+    dlpQueries.every(
+      (pq) =>
+        typeof pq.query === "string" &&
+        pq.query.includes("entity.groups.exists") &&
+        pq.query.includes("group.group_id == groupId('01group_id')") &&
+        pq.group === "groups/01group_id" &&
+        pq.orgUnit === undefined,
+    ),
+  );
+
+  // Test 17.3: Provision confirmation mismatch rejected by router
+  let threwProvisionMismatch = false;
+  let provisionMismatchErr = "";
+  try {
+    await route(
+      context(stubTransport().transport),
+      "POST",
+      "/api/v1/cep/provision",
+      {
+        customer_id: "C01abcdef",
+        project_id: "secgw-project",
+        target_type: "group",
+        target_group_key: "sec-poc@example.com",
+        target_group_confirmation: "wrong@example.com",
+        core_policies: true,
+      },
+    );
+  } catch (err) {
+    provisionMismatchErr = (err as RouteError).code ?? String(err);
+    threwProvisionMismatch = (err as RouteError).code === "cep-target-group-confirmation-mismatch";
+  }
+  check("group provision rejects mismatched confirmation in router", threwProvisionMismatch, provisionMismatchErr);
+
+  // Test 17.4: Rollback with target_type: "group"
+  const groupRollbackTransport = stubTransport();
+  let rollbackResp: ProvisionResult = { success: false, message: "", created_items: [], skipped_items: [], debug_trace: [] };
+  let rollbackErr = "";
+  try {
+    rollbackResp = (await route(
+      context(groupRollbackTransport.transport),
+      "POST",
+      "/api/v1/cep/rollback",
+      {
+        customer_id: "C01abcdef",
+        project_id: "secgw-project",
+        target_type: "group",
+        target_group_key: "sec-poc@example.com",
+        target_group_confirmation: "sec-poc@example.com",
+      },
+    )) as ProvisionResult;
+  } catch (err) {
+    rollbackErr = String(err);
+  }
+  const groupRollbackResolveCalls = groupRollbackTransport.calls.filter(
+    (c) => c.method === "POST" && c.url.endsWith("/policies:resolve"),
+  );
+  check("group rollback inspects candidate policies", groupRollbackResolveCalls.length > 0, rollbackErr);
+  check(
+    "group rollback inspects candidate policies targeting groups/{id}",
+    groupRollbackResolveCalls.length > 0 &&
+      groupRollbackResolveCalls.every(
+        (c) => (c.body?.policyTargetKey as { targetResource?: string })?.targetResource === "groups/01group_id",
+      ),
+  );
+  check(
+    "group rollback reports retained policies safely without destructive mutation",
+    rollbackResp.skipped_items.some((item) => item.includes("Chrome policy targets were retained")),
+  );
+
+  // Test 17.5: Rollback confirmation mismatch rejected
+  let threwRollbackMismatch = false;
+  let rollbackMismatchErr = "";
+  try {
+    await route(
+      context(stubTransport().transport),
+      "POST",
+      "/api/v1/cep/rollback",
+      {
+        customer_id: "C01abcdef",
+        project_id: "secgw-project",
+        target_type: "group",
+        target_group_key: "sec-poc@example.com",
+        target_group_confirmation: "wrong@example.com",
+      },
+    );
+  } catch (err) {
+    rollbackMismatchErr = (err as RouteError).code ?? String(err);
+    threwRollbackMismatch = (err as RouteError).code === "cep-target-group-confirmation-mismatch";
+  }
+  check("group rollback rejects mismatched confirmation", threwRollbackMismatch, rollbackMismatchErr);
+
+  // Test 17.6: Python script generation with target_type: "group"
+  let scriptResp: { script: string } = { script: "" };
+  let scriptErr = "";
+  try {
+    scriptResp = (await route(
+      context(stubTransport().transport),
+      "POST",
+      "/api/v1/cep/script",
+      {
+        customer_id: "C01abcdef",
+        project_id: "secgw-project",
+        target_type: "group",
+        target_group_key: "sec-poc@example.com",
+        target_group_confirmation: "sec-poc@example.com",
+        core_policies: true,
+      },
+    )) as { script: string };
+  } catch (err) {
+    scriptErr = String(err);
+  }
+  check(
+    "group python script contains groups().batchModify",
+    scriptResp.script.includes(".groups()") && scriptResp.script.includes(".batchModify("),
+    scriptErr || scriptResp.script.slice(0, 300),
+  );
+  check("group python script describes Google Group in header", scriptResp.script.includes("Google Group sec-poc@example.com"));
+
+  // Test 17.7: Concurrent group mutation lease conflict
+  const groupLeaseCtx = context(stubTransport().transport);
+  const groupLeaseKey = `cep:group:${canonicalDigestSync({
+    customer_id: "C01abcdef",
+    target_group_key: "sec-poc@example.com",
+  })}`;
+  const groupLease = await groupLeaseCtx.acquireCepMutationLease!({
+    scopeKeys: [groupLeaseKey],
+    operationKind: "cep_provision",
+    requestDigest: "b".repeat(64),
+  });
+  let threwGroupLeaseBusy = false;
+  try {
+    await route(groupLeaseCtx, "POST", "/api/v1/cep/provision", {
+      customer_id: "C01abcdef",
+      project_id: "secgw-project",
+      target_type: "group",
+      target_group_key: "sec-poc@example.com",
+      target_group_confirmation: "sec-poc@example.com",
+      core_policies: true,
+    });
+  } catch (err) {
+    threwGroupLeaseBusy = (err as RouteError).status === 409 && (err as RouteError).code === "cep-mutation-active";
+  } finally {
+    await groupLeaseCtx.releaseCepMutationLease!(groupLease);
+  }
+  check("group mutation acquires cep:group lease and rejects concurrent runs with 409", threwGroupLeaseBusy);
 }
 
 // -- Report -------------------------------------------------------------------

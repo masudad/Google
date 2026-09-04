@@ -528,6 +528,20 @@ export interface CepDeployerMessages {
   intro: string;
   targetOuCardTitle: string;
   targetOuCardSubtitle: string;
+  targetScopeCardTitle: string;
+  targetScopeCardSubtitle: string;
+  targetTypeOu: string;
+  targetTypeGroup: string;
+  selectTargetGroup: string;
+  selectTargetGroupPlaceholder: string;
+  refreshGroups: string;
+  targetGroupImpact: string;
+  targetGroupConfirmationLabel: string;
+  targetGroupConfirmationHint: string;
+  copyTargetGroupEmail: string;
+  groupLoadFailed: string;
+  customGroupInputPlaceholder: string;
+  orEnterGroupEmail: string;
   selectTargetOu: string;
   selectTargetOuPlaceholder: string;
   rootOuUnavailable: string;
@@ -2164,6 +2178,23 @@ const en: Messages = {
     targetOuCardTitle: "1. Target organizational unit",
     targetOuCardSubtitle:
       "Pick an isolated non-production pilot OU. Root is blocked; OU-scoped policy can affect the selected OU and its descendants.",
+    targetScopeCardTitle: "1. Target scope (Organizational Unit / Google Group)",
+    targetScopeCardSubtitle:
+      "Select whether to apply policies to an Organizational Unit (OU) or a Google Group for zero-touch PoC evaluation without moving users.",
+    targetTypeOu: "Organizational Unit (OU)",
+    targetTypeGroup: "Google Group",
+    selectTargetGroup: "Target Google Group",
+    selectTargetGroupPlaceholder: "Select or enter a Google Group",
+    refreshGroups: "↻ Refresh Groups",
+    targetGroupImpact:
+      "Chrome policies (via groups:batchModify) and Cloud Identity DLP rules will apply directly to members of the selected Google Group. Users do not need to be moved to a different OU.",
+    targetGroupConfirmationLabel: "Confirm the target group by typing its exact email address",
+    targetGroupConfirmationHint:
+      "This field is cleared after every mutation. Type the displayed group email to confirm deployment.",
+    copyTargetGroupEmail: "Copy Group Email",
+    groupLoadFailed: "Groups could not be loaded. You can still type the group email manually.",
+    customGroupInputPlaceholder: "e.g. poc-team@yourdomain.com",
+    orEnterGroupEmail: "Or enter group email directly:",
     selectTargetOu: "Target organizational unit",
     selectTargetOuPlaceholder: "Select a non-root pilot OU",
     rootOuUnavailable: "root — unavailable",
@@ -3897,6 +3928,23 @@ const ja: Messages = {
     targetOuCardTitle: "1. 対象の組織部門（OU）",
     targetOuCardSubtitle:
       "隔離された非本番のパイロット OU を選んでください。ルート OU は使用できず、OU 対象ポリシーは選択 OU とその配下へ影響する場合があります。",
+    targetScopeCardTitle: "1. 対象のスコープ（組織部門 / Google グループ）",
+    targetScopeCardSubtitle:
+      "ポリシーの適用先として組織部門（OU）または Google グループを選択します。グループ指定ならユーザーの OU 移動が不要です。",
+    targetTypeOu: "組織部門（OU）",
+    targetTypeGroup: "Google グループ",
+    selectTargetGroup: "対象の Google グループ",
+    selectTargetGroupPlaceholder: "Google グループを選択または直接入力",
+    refreshGroups: "↻ グループを再読込",
+    targetGroupImpact:
+      "Chrome ポリシー（groups:batchModify）および Cloud Identity DLP ルールが、選択した Google グループのメンバーに直接適用されます。ユーザーを別の OU に移動する必要はありません。",
+    targetGroupConfirmationLabel: "確認のため、対象グループのメールアドレスを入力",
+    targetGroupConfirmationHint:
+      "誤適用を防ぐため、変更操作の直前に表示されたグループのメールアドレスを入力してください（横のボタンで自動入力できます）。",
+    copyTargetGroupEmail: "グループアドレスを入力",
+    groupLoadFailed: "グループ一覧を取得できませんでした。メールアドレスを直接入力して適用することも可能です。",
+    customGroupInputPlaceholder: "例: poc-security@yourdomain.com",
+    orEnterGroupEmail: "またはグループのアドレスを直接入力:",
     selectTargetOu: "対象の組織部門",
     selectTargetOuPlaceholder: "ルート以外のパイロット OU を選択",
     rootOuUnavailable: "ルート — 使用不可",

@@ -681,11 +681,21 @@ export interface CepProvisionConfig {
   customer_id: string;
   project_id?: string;
   /** Bare organizational unit id. */
-  target_ou_id: string;
+  target_ou_id?: string;
   /** `orgUnitPath` of the same unit, needed to create sub OUs beneath it. */
   target_ou_path?: string;
   /** Exact current OU path typed immediately before the provision mutation. */
   target_ou_confirmation?: string;
+  /** Target scope kind: "ou" (default) or "group". */
+  target_type?: "ou" | "group";
+  /** Group email address or ID when target_type is "group". */
+  target_group_key?: string;
+  /** Directory group ID resolved from target_group_key. */
+  target_group_id?: string;
+  /** Directory group email address for display. */
+  target_group_email?: string;
+  /** Exact target group email typed by the operator before mutation. */
+  target_group_confirmation?: string;
   create_sub_ous?: boolean;
   core_policies?: boolean;
   force_extensions?: boolean;
@@ -713,8 +723,13 @@ export interface CepProvisionConfig {
 export interface CepRollbackConfig {
   customer_id: string;
   project_id?: string;
-  target_ou_id: string;
+  target_ou_id?: string;
   target_ou_path?: string;
+  target_type?: "ou" | "group";
+  target_group_key?: string;
+  target_group_id?: string;
+  target_group_email?: string;
+  target_group_confirmation?: string;
   verify_match?: boolean;
   rollback_modules?: CepModule[];
   /** AUTO_CREATE candidates are inspected but retained without durable ownership. */

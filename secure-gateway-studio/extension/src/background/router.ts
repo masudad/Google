@@ -49,6 +49,8 @@ import {
   CepProvider,
   CepTargetValidationError,
   resolveConfirmedCepTargetOu,
+  resolveConfirmedCepTargetGroup,
+  resolveCepTargetGroup,
   type CepCustomRoleConfig,
   type CepGeminiZeroTrustConfig,
   type CepLicenseAssignConfig,
@@ -184,16 +186,34 @@ function cepMutationScopeKeys(
     return [`cep:project:${canonicalDigestSync({ project_id: projectId })}`];
   }
   const customerId = (request as CepProvisionConfig | CepRollbackConfig | CepLicenseAssignConfig).customer_id.trim();
-  const targetOuId = (request as CepProvisionConfig | CepRollbackConfig | CepLicenseAssignConfig).target_ou_id.trim();
-  if (customerId === "" || targetOuId === "") {
-    throw new RouteError(400, "cep-scope-invalid", "CEP customer_id and target_ou_id are required.");
-  }
-  const scopes = [
-    `cep:ou:${canonicalDigestSync({
+  const targetType = (request as CepProvisionConfig | CepRollbackConfig).target_type ?? "ou";
+
+  let targetScope: string;
+  if (targetType === "group") {
+    const targetGroupKey = (
+      (request as CepProvisionConfig | CepRollbackConfig).target_group_key ??
+      (request as CepProvisionConfig | CepRollbackConfig).target_group_id ??
+      ""
+    ).trim();
+    if (customerId === "" || targetGroupKey === "") {
+      throw new RouteError(400, "cep-scope-invalid", "CEP customer_id and target_group_key are required.");
+    }
+    targetScope = `cep:group:${canonicalDigestSync({
+      customer_id: customerId,
+      target_group_key: targetGroupKey.toLowerCase(),
+    })}`;
+  } else {
+    const targetOuId = ((request as CepProvisionConfig | CepRollbackConfig | CepLicenseAssignConfig).target_ou_id ?? "").trim();
+    if (customerId === "" || targetOuId === "") {
+      throw new RouteError(400, "cep-scope-invalid", "CEP customer_id and target_ou_id are required.");
+    }
+    targetScope = `cep:ou:${canonicalDigestSync({
       customer_id: customerId,
       target_ou_id: targetOuId,
-    })}`,
-  ];
+    })}`;
+  }
+
+  const scopes = [targetScope];
   const rollbackModules = operationKind === "rollback"
     ? (request as CepRollbackConfig).rollback_modules
     : undefined;
@@ -326,7 +346,38 @@ async function withCepMutationLease<T>(
       scopedReq.customer_id,
     );
     scopedReq.customer_id = canonicalCustomer;
-    if (operationKind !== "rollback") {
+    const targetType = (scopedReq as CepProvisionConfig | CepRollbackConfig).target_type ?? "ou";
+    if (targetType === "group") {
+      try {
+        const targetGroup = await resolveCepTargetGroup(
+          coordinationTransport,
+          canonicalCustomer,
+          (scopedReq as CepProvisionConfig | CepRollbackConfig).target_group_key ?? "",
+        );
+        (scopedReq as CepProvisionConfig).target_group_id = targetGroup.id;
+        (scopedReq as CepProvisionConfig).target_group_email = targetGroup.email;
+
+        const confirmation = (scopedReq as CepProvisionConfig | CepRollbackConfig).target_group_confirmation;
+        if (operationKind === "provision" || confirmation !== undefined) {
+          const normConfirmation = typeof confirmation === "string" ? confirmation.trim().toLowerCase() : "";
+          if (
+            normConfirmation === "" ||
+            (normConfirmation !== targetGroup.email.toLowerCase() && normConfirmation !== targetGroup.id.toLowerCase())
+          ) {
+            throw new CepTargetValidationError(
+              400,
+              "cep-target-group-confirmation-mismatch",
+              `Target group confirmation mismatch: expected "${targetGroup.email}", got "${confirmation ?? ""}".`,
+            );
+          }
+        }
+      } catch (error) {
+        if (error instanceof CepTargetValidationError) {
+          throw new RouteError(error.status, error.code, error.message);
+        }
+        throw error;
+      }
+    } else if (operationKind !== "rollback") {
       try {
         const target = await resolveConfirmedCepTargetOu(
           coordinationTransport,

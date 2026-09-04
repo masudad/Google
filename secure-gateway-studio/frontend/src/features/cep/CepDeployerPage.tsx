@@ -16,6 +16,7 @@ import {
   createCepCustomRoles,
   generateCepScript,
   listAccessLevelOptions,
+  listGroupOptions,
   listOrganizationalUnitOptions,
   provisionCepPolicies,
   provisionGeminiZeroTrust,
@@ -164,10 +165,17 @@ export function CepDeployerPage({
     ? customerId.trim()
     : "";
 
+  const [targetType, setTargetType] = useState<"ou" | "group">("ou");
   const [organizationalUnits, setOrganizationalUnits] = useState<SetupOption[]>([]);
   const [selectedOu, setSelectedOu] = useState<string>("");
   const [targetOuConfirmation, setTargetOuConfirmation] = useState<string>("");
   const [ouError, setOuError] = useState<boolean>(false);
+  const [groups, setGroups] = useState<SetupOption[]>([]);
+  const [selectedGroup, setSelectedGroup] = useState<string>("");
+  const [targetGroupConfirmation, setTargetGroupConfirmation] = useState<string>("");
+  const [loadingGroups, setLoadingGroups] = useState<boolean>(false);
+  const [groupsLoaded, setGroupsLoaded] = useState<boolean>(false);
+  const [groupsError, setGroupsError] = useState<boolean>(false);
   // This write-capable Directory action must be an affirmative administrator
   // choice; merely opening Easy PoC must not opt the tenant into OU creation.
   const [autoSubOus, setAutoSubOus] = useState<boolean>(false);
@@ -394,6 +402,21 @@ gcloud access-context-manager cloud-bindings create \\
       setOrganizationalUnits(options);
       setOuError(options.length === 0);
       setOuLoaded(true);
+
+      // Also attempt to load groups for zero-touch PoC evaluation
+      try {
+        setLoadingGroups(true);
+        const groupOptions = await listGroupOptions(canonicalCustomerId);
+        setGroups(groupOptions);
+        setGroupsLoaded(true);
+        setGroupsError(false);
+      } catch {
+        setGroupsLoaded(true);
+        setGroupsError(true);
+      } finally {
+        setLoadingGroups(false);
+      }
+
       if (projectId) {
         try {
           const accessOptions = await listAccessLevelOptions(projectId);
@@ -416,11 +439,40 @@ gcloud access-context-manager cloud-bindings create \\
     }
   };
 
+  const handleLoadGroups = async () => {
+    setSelectedGroup("");
+    setTargetGroupConfirmation("");
+    if (canonicalCustomerId === "") {
+      setGroupsError(true);
+      setGroupsLoaded(true);
+      return;
+    }
+    setLoadingGroups(true);
+    setGroupsError(false);
+    try {
+      await signInSession();
+      const groupOptions = await listGroupOptions(canonicalCustomerId);
+      setGroups(groupOptions);
+      setGroupsLoaded(true);
+    } catch {
+      setGroupsError(true);
+      setGroupsLoaded(true);
+    } finally {
+      setLoadingGroups(false);
+    }
+  };
+
   const selectedUnit = organizationalUnits.find((unit) => unit.value === selectedOu);
   const targetOuConfirmed =
     selectedUnit !== undefined &&
     selectedUnit.label !== "/" &&
     targetOuConfirmation === selectedUnit.label;
+  const targetGroupConfirmed =
+    targetType === "group" &&
+    selectedGroup.trim() !== "" &&
+    targetGroupConfirmation.trim().toLowerCase() === selectedGroup.trim().toLowerCase();
+  const targetConfirmed = targetType === "group" ? targetGroupConfirmed : targetOuConfirmed;
+
   const anyModuleSelected =
     modules.corePolicies ||
     modules.forceExtensions ||
@@ -430,8 +482,8 @@ gcloud access-context-manager cloud-bindings create \\
     modules.dataBoundaryMode !== "none";
   const canDeploy =
     canonicalCustomerId !== "" &&
-    selectedOu !== "" &&
-    targetOuConfirmed &&
+    (targetType === "group" ? selectedGroup.trim() !== "" : selectedOu !== "") &&
+    targetConfirmed &&
     anyModuleSelected &&
     busy === null;
 
@@ -440,14 +492,19 @@ gcloud access-context-manager cloud-bindings create \\
     setModules((current) => ({ ...current, [key]: value }));
   }
 
-  function currentConfig(confirmation = targetOuConfirmation): CepProvisionConfig {
+  function currentConfig(
+    confirmation = (targetType === "group" ? targetGroupConfirmation : targetOuConfirmation),
+  ): CepProvisionConfig {
     return {
       customer_id: canonicalCustomerId,
       project_id: projectId,
-      target_ou_id: selectedOu,
-      target_ou_path: selectedUnit?.label,
-      target_ou_confirmation: confirmation,
-      create_sub_ous: autoSubOus,
+      target_type: targetType,
+      target_ou_id: targetType === "group" ? (selectedOu || undefined) : selectedOu,
+      target_ou_path: targetType === "group" ? undefined : selectedUnit?.label,
+      target_ou_confirmation: targetType === "group" ? undefined : confirmation,
+      target_group_key: targetType === "group" ? selectedGroup.trim() : undefined,
+      target_group_confirmation: targetType === "group" ? confirmation : undefined,
+      create_sub_ous: targetType === "group" ? false : autoSubOus,
       core_policies: modules.corePolicies,
       force_extensions: modules.forceExtensions,
       connectors: modules.connectors,
@@ -511,9 +568,10 @@ gcloud access-context-manager cloud-bindings create \\
   };
 
   const handleDeploy = async () => {
-    if (canonicalCustomerId === "" || !targetOuConfirmed) return;
-    const config = currentConfig(targetOuConfirmation);
+    if (canonicalCustomerId === "" || !targetConfirmed) return;
+    const config = currentConfig();
     setTargetOuConfirmation("");
+    setTargetGroupConfirmation("");
     setBusy("deploy");
     setDeployStep(1);
     setActionError(null);
@@ -548,8 +606,11 @@ gcloud access-context-manager cloud-bindings create \\
       const res = await rollbackCepPolicies({
         customer_id: canonicalCustomerId,
         project_id: projectId,
-        target_ou_id: selectedOu,
-        target_ou_path: selectedUnit?.label,
+        target_type: targetType,
+        target_ou_id: targetType === "group" ? undefined : selectedOu,
+        target_ou_path: targetType === "group" ? undefined : selectedUnit?.label,
+        target_group_key: targetType === "group" ? selectedGroup.trim() : undefined,
+        target_group_confirmation: targetType === "group" ? targetGroupConfirmation.trim() : undefined,
         access_level: modules.accessLevel,
       });
       clearTimeout(t1);
@@ -748,119 +809,245 @@ gcloud access-context-manager cloud-bindings create \\
         className={`cep-tab-panel ${activeTab === "setup" || activeTab === "all" ? "active" : "hidden"}`}
       >
 <section className="cep-section" aria-labelledby="cep-ou-title">
-        <h2 id="cep-ou-title">{m.targetOuCardTitle}</h2>
-        <p>{m.targetOuCardSubtitle}</p>
+        <h2 id="cep-ou-title">{m.targetScopeCardTitle || m.targetOuCardTitle}</h2>
+        <p>{targetType === "group" ? (m.targetScopeCardSubtitle || m.targetOuCardSubtitle) : m.targetOuCardSubtitle}</p>
         {canonicalCustomerId === "" && (
           <p className="cep-inline-error" role="alert">
             {m.canonicalCustomerIdRequired}
           </p>
         )}
 
-        {!ouLoaded ? (
-          <div className="cep-verify-box">
-            <button
-              className="btn btn-primary cep-auth-btn"
-              disabled={canonicalCustomerId === "" || loadingOus}
-              onClick={() => void handleLoadOus()}
-              type="button"
-            >
-              <KeyIcon size={16} />
-              <span>{loadingOus ? m.verifyingGoogleAccount : m.verifyGoogleAccount}</span>
-            </button>
-            <p className="cep-verify-hint">
-              {m.verifyGoogleAccountHint}
-            </p>
-          </div>
-        ) : ouError ? (
-          <div>
-            <p className="cep-inline-error" role="alert">
-              {m.ouLoadFailed}
-            </p>
-            <button
-              className="cep-btn cep-btn-secondary cep-retry-action"
-              disabled={loadingOus}
-              onClick={() => void handleLoadOus()}
-              type="button"
-            >
-              {m.retry}
-            </button>
-          </div>
-        ) : (
-          <div className="cep-field">
-            <div className="cep-field-heading">
-              <label htmlFor="cep-target-ou">{m.selectTargetOu}</label>
-              <button
-                className="text-action cep-refresh-action"
-                disabled={loadingOus}
-                onClick={() => void handleLoadOus()}
-                type="button"
-              >
-                {loadingOus ? m.reloading : m.refreshOus}
-              </button>
-            </div>
-            <select
-              id="cep-target-ou"
-              onChange={(event) => {
-                setSelectedOu(event.target.value);
-                setTargetOuConfirmation("");
-              }}
-              value={selectedOu}
-            >
-              <option value="">{m.selectTargetOuPlaceholder}</option>
-              {organizationalUnits.map((unit) => (
-                <option disabled={unit.label === "/"} key={unit.value} value={unit.value}>
-                  {unit.label === "/" ? `${unit.label} (${m.rootOuUnavailable})` : unit.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
+        <div className="cep-target-type-nav" role="tablist" aria-label="Target Scope Type">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={targetType === "ou"}
+            className={`cep-target-type-btn ${targetType === "ou" ? "active" : ""}`}
+            onClick={() => setTargetType("ou")}
+          >
+            🏢 {m.targetTypeOu || "組織部門 (OU)"}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={targetType === "group"}
+            className={`cep-target-type-btn ${targetType === "group" ? "active" : ""}`}
+            onClick={() => setTargetType("group")}
+          >
+            👥 {m.targetTypeGroup || "Google グループ"}
+          </button>
+        </div>
 
-        {selectedUnit !== undefined && selectedUnit.label !== "/" && (
-          <div className="cep-license-warning-box">
-            <div className="cep-license-warning-header">
-              <ExclamationCircleIcon size={20} />
-              <strong>{m.targetOuImpact}</strong>
-            </div>
-            <div className="cep-field">
-              <label htmlFor="cep-target-ou-confirmation">
-                {m.targetOuConfirmationLabel}
-              </label>
-              <div className="cep-ou-confirmation-row">
-                <code>{selectedUnit.label}</code>
+        {targetType === "ou" ? (
+          <>
+            {!ouLoaded ? (
+              <div className="cep-verify-box">
                 <button
+                  className="btn btn-primary cep-auth-btn"
+                  disabled={canonicalCustomerId === "" || loadingOus}
+                  onClick={() => void handleLoadOus()}
                   type="button"
-                  className="btn btn-secondary cep-autofill-btn"
-                  onClick={() => setTargetOuConfirmation(selectedUnit.label)}
                 >
-                  {m.copyTargetOuPath}
+                  <KeyIcon size={16} />
+                  <span>{loadingOus ? m.verifyingGoogleAccount : m.verifyGoogleAccount}</span>
+                </button>
+                <p className="cep-verify-hint">
+                  {m.verifyGoogleAccountHint}
+                </p>
+              </div>
+            ) : ouError ? (
+              <div>
+                <p className="cep-inline-error" role="alert">
+                  {m.ouLoadFailed}
+                </p>
+                <button
+                  className="cep-btn cep-btn-secondary cep-retry-action"
+                  disabled={loadingOus}
+                  onClick={() => void handleLoadOus()}
+                  type="button"
+                >
+                  {m.retry}
                 </button>
               </div>
-              <input
-                autoComplete="off"
-                id="cep-target-ou-confirmation"
-                onChange={(event) => setTargetOuConfirmation(event.target.value)}
-                placeholder={selectedUnit.label}
-                spellCheck={false}
-                type="text"
-                value={targetOuConfirmation}
-              />
-              <small>{m.targetOuConfirmationHint}</small>
-            </div>
-          </div>
-        )}
+            ) : (
+              <div className="cep-field">
+                <div className="cep-field-heading">
+                  <label htmlFor="cep-target-ou">{m.selectTargetOu}</label>
+                  <button
+                    className="text-action cep-refresh-action"
+                    disabled={loadingOus}
+                    onClick={() => void handleLoadOus()}
+                    type="button"
+                  >
+                    {loadingOus ? m.reloading : m.refreshOus}
+                  </button>
+                </div>
+                <select
+                  id="cep-target-ou"
+                  onChange={(event) => {
+                    setSelectedOu(event.target.value);
+                    setTargetOuConfirmation("");
+                  }}
+                  value={selectedOu}
+                >
+                  <option value="">{m.selectTargetOuPlaceholder}</option>
+                  {organizationalUnits.map((unit) => (
+                    <option disabled={unit.label === "/"} key={unit.value} value={unit.value}>
+                      {unit.label === "/" ? `${unit.label} (${m.rootOuUnavailable})` : unit.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
-        <label className="cep-check">
-          <input
-            checked={autoSubOus}
-            onChange={(event) => setAutoSubOus(event.target.checked)}
-            type="checkbox"
-          />
-          <span>
-            <strong>{m.autoCreateSubOus}</strong>
-            <small>{m.autoCreateSubOusHint}</small>
-          </span>
-        </label>
+            {selectedUnit !== undefined && selectedUnit.label !== "/" && (
+              <div className="cep-license-warning-box">
+                <div className="cep-license-warning-header">
+                  <ExclamationCircleIcon size={20} />
+                  <strong>{m.targetOuImpact}</strong>
+                </div>
+                <div className="cep-field">
+                  <label htmlFor="cep-target-ou-confirmation">
+                    {m.targetOuConfirmationLabel}
+                  </label>
+                  <div className="cep-ou-confirmation-row">
+                    <code>{selectedUnit.label}</code>
+                    <button
+                      type="button"
+                      className="btn btn-secondary cep-autofill-btn"
+                      onClick={() => setTargetOuConfirmation(selectedUnit.label)}
+                    >
+                      {m.copyTargetOuPath}
+                    </button>
+                  </div>
+                  <input
+                    autoComplete="off"
+                    id="cep-target-ou-confirmation"
+                    onChange={(event) => setTargetOuConfirmation(event.target.value)}
+                    placeholder={selectedUnit.label}
+                    spellCheck={false}
+                    type="text"
+                    value={targetOuConfirmation}
+                  />
+                  <small>{m.targetOuConfirmationHint}</small>
+                </div>
+              </div>
+            )}
+
+            <label className="cep-check">
+              <input
+                checked={autoSubOus}
+                onChange={(event) => setAutoSubOus(event.target.checked)}
+                type="checkbox"
+              />
+              <span>
+                <strong>{m.autoCreateSubOus}</strong>
+                <small>{m.autoCreateSubOusHint}</small>
+              </span>
+            </label>
+          </>
+        ) : (
+          <>
+            {!groupsLoaded && !ouLoaded ? (
+              <div className="cep-verify-box">
+                <button
+                  className="btn btn-primary cep-auth-btn"
+                  disabled={canonicalCustomerId === "" || loadingGroups || loadingOus}
+                  onClick={() => void handleLoadOus()}
+                  type="button"
+                >
+                  <KeyIcon size={16} />
+                  <span>{loadingGroups || loadingOus ? m.verifyingGoogleAccount : m.verifyGoogleAccount}</span>
+                </button>
+                <p className="cep-verify-hint">
+                  {m.verifyGoogleAccountHint}
+                </p>
+              </div>
+            ) : (
+              <div className="cep-field">
+                <div className="cep-field-heading">
+                  <label htmlFor="cep-target-group">{m.selectTargetGroup}</label>
+                  <button
+                    className="text-action cep-refresh-action"
+                    disabled={loadingGroups}
+                    onClick={() => void handleLoadGroups()}
+                    type="button"
+                  >
+                    {loadingGroups ? m.reloading : m.refreshGroups}
+                  </button>
+                </div>
+                {groups.length > 0 ? (
+                  <select
+                    id="cep-target-group"
+                    onChange={(event) => {
+                      setSelectedGroup(event.target.value);
+                      setTargetGroupConfirmation("");
+                    }}
+                    value={selectedGroup}
+                  >
+                    <option value="">{m.selectTargetGroupPlaceholder}</option>
+                    {groups.map((group) => (
+                      <option key={group.value} value={group.value}>
+                        {group.label ? `${group.label} (${group.value})` : group.value}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <p className="text-muted">{m.groupLoadFailed}</p>
+                )}
+                <div className="cep-custom-group-input-row">
+                  <label htmlFor="cep-target-group-manual" className="text-muted">
+                    {m.orEnterGroupEmail}
+                  </label>
+                  <input
+                    id="cep-target-group-manual"
+                    type="email"
+                    value={selectedGroup}
+                    onChange={(e) => {
+                      setSelectedGroup(e.target.value);
+                      setTargetGroupConfirmation("");
+                    }}
+                    placeholder={m.customGroupInputPlaceholder}
+                  />
+                </div>
+              </div>
+            )}
+
+            {selectedGroup.trim() !== "" && (
+              <div className="cep-license-warning-box">
+                <div className="cep-license-warning-header">
+                  <ExclamationCircleIcon size={20} />
+                  <strong>{m.targetGroupImpact}</strong>
+                </div>
+                <div className="cep-field">
+                  <label htmlFor="cep-target-group-confirmation">
+                    {m.targetGroupConfirmationLabel}
+                  </label>
+                  <div className="cep-ou-confirmation-row">
+                    <code>{selectedGroup.trim()}</code>
+                    <button
+                      type="button"
+                      className="btn btn-secondary cep-autofill-btn"
+                      onClick={() => setTargetGroupConfirmation(selectedGroup.trim())}
+                    >
+                      {m.copyTargetGroupEmail}
+                    </button>
+                  </div>
+                  <input
+                    autoComplete="off"
+                    id="cep-target-group-confirmation"
+                    onChange={(event) => setTargetGroupConfirmation(event.target.value)}
+                    placeholder={selectedGroup.trim()}
+                    spellCheck={false}
+                    type="text"
+                    value={targetGroupConfirmation}
+                  />
+                  <small>{m.targetGroupConfirmationHint}</small>
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </section>
 
       
@@ -1586,7 +1773,11 @@ gcloud access-context-manager cloud-bindings create \\
         </button>
         <button
           className="danger-action cep-rollback"
-          disabled={canonicalCustomerId === "" || selectedOu === "" || busy !== null}
+          disabled={
+            canonicalCustomerId === "" ||
+            (targetType === "group" ? selectedGroup.trim() === "" : selectedOu === "") ||
+            busy !== null
+          }
           onClick={handleRollback}
           type="button"
         >

@@ -12,6 +12,11 @@ const OU_OPTIONS = [
   { value: "03pilot", label: "/Pilot", description: "Pilot" },
 ];
 
+const GROUP_OPTIONS = [
+  { value: "sec-poc@example.com", label: "Security PoC Group", description: "sec-poc@example.com" },
+  { value: "finance-dlp@example.com", label: "Finance DLP Pilot", description: "finance-dlp@example.com" },
+];
+
 const ACCESS_LEVELS = [
   {
     value: "accessPolicies/123/accessLevels/corp_managed",
@@ -67,6 +72,7 @@ describe("CepDeployerPage", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.spyOn(api, "listOrganizationalUnitOptions").mockResolvedValue(OU_OPTIONS);
+    vi.spyOn(api, "listGroupOptions").mockResolvedValue(GROUP_OPTIONS);
     vi.spyOn(api, "listAccessLevelOptions").mockResolvedValue(ACCESS_LEVELS);
   });
 
@@ -473,6 +479,112 @@ describe("CepDeployerPage", () => {
     await waitFor(() => {
       expect(screen.getByRole("alert")).toBeInTheDocument();
       expect(screen.getByText(m.errDiagWorkspaceTitle)).toBeInTheDocument();
+    });
+  });
+
+  it("supports switching to Google Group target and renders group selection", async () => {
+    renderPage();
+
+    // Switch to Google Group tab
+    const groupTab = screen.getByRole("tab", { name: new RegExp(m.targetTypeGroup || "Google グループ") });
+    fireEvent.click(groupTab);
+    expect(groupTab).toHaveAttribute("aria-selected", "true");
+
+    // Group dropdown is visible with options
+    const groupSelect = await screen.findByLabelText(m.selectTargetGroup);
+    expect(groupSelect).toBeInTheDocument();
+    expect(within(groupSelect).getByRole("option", { name: /Security PoC Group/ })).toBeInTheDocument();
+
+    // Manual input fallback is visible
+    expect(screen.getByPlaceholderText(m.customGroupInputPlaceholder)).toBeInTheDocument();
+  });
+
+  it("enforces group confirmation before enabling deploy button", async () => {
+    renderPage();
+
+    // Switch to Group tab
+    fireEvent.click(screen.getByRole("tab", { name: new RegExp(m.targetTypeGroup || "Google グループ") }));
+    const groupSelect = await screen.findByLabelText(m.selectTargetGroup);
+
+    // Select group
+    fireEvent.change(groupSelect, { target: { value: "sec-poc@example.com" } });
+
+    // Impact message appears
+    expect(screen.getByText(m.targetGroupImpact)).toBeInTheDocument();
+
+    // Deploy is disabled without confirmation
+    expect(screen.getByText(m.btnDeploy)).toBeDisabled();
+
+    // Enter wrong confirmation
+    const confirmInput = screen.getByLabelText(m.targetGroupConfirmationLabel);
+    fireEvent.change(confirmInput, { target: { value: "wrong@example.com" } });
+    expect(screen.getByText(m.btnDeploy)).toBeDisabled();
+
+    // Autofill confirmation button works
+    fireEvent.click(screen.getByRole("button", { name: m.copyTargetGroupEmail }));
+    expect(confirmInput).toHaveValue("sec-poc@example.com");
+    expect(screen.getByText(m.btnDeploy)).toBeEnabled();
+  });
+
+  it("sends target_type group and confirmation in provision payload", async () => {
+    const provision = vi.spyOn(api, "provisionCepPolicies").mockResolvedValue(
+      emptyResult({ message: "Applied 5 CEP settings to the target Group." }),
+    );
+
+    renderPage();
+
+    // Switch to Group tab
+    fireEvent.click(screen.getByRole("tab", { name: new RegExp(m.targetTypeGroup || "Google グループ") }));
+    const groupSelect = await screen.findByLabelText(m.selectTargetGroup);
+
+    // Select group and auto-fill confirmation
+    fireEvent.change(groupSelect, { target: { value: "sec-poc@example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: m.copyTargetGroupEmail }));
+
+    // Deploy
+    fireEvent.click(screen.getByText(m.btnDeploy));
+
+    await waitFor(() => {
+      expect(provision).toHaveBeenCalledWith(
+        expect.objectContaining({
+          target_type: "group",
+          target_group_key: "sec-poc@example.com",
+          target_group_confirmation: "sec-poc@example.com",
+          create_sub_ous: false,
+        }),
+      );
+    });
+    expect(screen.getByText("Applied 5 CEP settings to the target Group.")).toBeInTheDocument();
+  });
+
+  it("supports manual group email entry and rolls back with group target", async () => {
+    const rollback = vi.spyOn(api, "rollbackCepPolicies").mockResolvedValue(emptyResult());
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    renderPage();
+
+    // Switch to Group tab
+    fireEvent.click(screen.getByRole("tab", { name: new RegExp(m.targetTypeGroup || "Google グループ") }));
+
+    // Type custom group email
+    const manualInput = await screen.findByPlaceholderText(m.customGroupInputPlaceholder);
+    fireEvent.change(manualInput, { target: { value: "custom-sec@example.com" } });
+
+    // Confirm
+    const confirmInput = screen.getByLabelText(m.targetGroupConfirmationLabel);
+    fireEvent.change(confirmInput, { target: { value: "custom-sec@example.com" } });
+
+    // Rollback
+    fireEvent.click(screen.getByText(m.btnRollback));
+
+    await waitFor(() => {
+      expect(rollback).toHaveBeenCalledWith(
+        expect.objectContaining({
+          target_type: "group",
+          target_group_key: "custom-sec@example.com",
+          target_group_confirmation: "custom-sec@example.com",
+        }),
+      );
     });
   });
 });

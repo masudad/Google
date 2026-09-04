@@ -6,6 +6,8 @@
     "Segoe UI", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   --navy-950: #07172e;
   --navy-900: #0b1830;
   --navy-800: #102746;
@@ -55,6 +57,24 @@
   box-sizing: border-box;
 }
 
+/* -- Typography & Numeric Balance ------------------------------------------ */
+h1,
+h2,
+h3,
+h4 {
+  text-wrap: balance;
+}
+
+p,
+.description,
+.lead {
+  text-wrap: pretty;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
 html,
 body,
 #root {
@@ -97,7 +117,12 @@ input:focus-visible + .checkbox-visual {
   padding: 8px 16px;
   border: 1px solid transparent;
   cursor: pointer;
-  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  transition:
+    transform 0.12s cubic-bezier(0.4, 0, 0.2, 1),
+    background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.15s cubic-bezier(0.4, 0, 0.2, 1);
   white-space: nowrap;
   user-select: none;
   text-decoration: none;
@@ -124,7 +149,7 @@ input:focus-visible + .checkbox-visual {
 }
 
 .btn-primary:active:not(:disabled) {
-  transform: scale(0.98);
+  transform: scale(0.96);
 }
 
 .btn-secondary {
@@ -142,7 +167,7 @@ input:focus-visible + .checkbox-visual {
 }
 
 .btn-secondary:active:not(:disabled) {
-  transform: scale(0.98);
+  transform: scale(0.96);
   background: var(--bg-alt);
 }
 
@@ -155,6 +180,10 @@ input:focus-visible + .checkbox-visual {
 .btn-danger:hover:not(:disabled) {
   background: #a51d1a;
   border-color: #a51d1a;
+}
+
+.btn-danger:active:not(:disabled) {
+  transform: scale(0.96);
 }
 
 .btn-link {
@@ -264,7 +293,7 @@ input:focus-visible + .checkbox-visual {
 
 .sidebar-sign-out {
   color: #f87171;
-  transition: all 0.15s ease;
+  transition: color 0.15s ease, background-color 0.15s ease;
 }
 
 .sidebar-sign-out:hover {
@@ -326,7 +355,7 @@ input:focus-visible + .checkbox-visual {
   text-align: left;
   width: 100%;
   box-sizing: border-box;
-  transition: all 0.15s ease;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .nav-subitem:hover {
@@ -429,7 +458,7 @@ input:focus-visible + .checkbox-visual {
   font-size: 13px;
   font-weight: 600;
   color: #dc2626;
-  transition: all 0.15s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 .sign-out-control:hover {
@@ -900,6 +929,28 @@ h1 {
   border: 1px solid var(--border);
   color: #8d98a8;
   background: #f7f8fa;
+  cursor: pointer;
+  transition:
+    transform 0.12s cubic-bezier(0.4, 0, 0.2, 1),
+    background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.secondary-action:hover:not(:disabled) {
+  background: var(--bg-alt);
+  color: var(--text);
+  border-color: #cbd5e1;
+}
+
+.secondary-action:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.secondary-action:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 .primary-action {
@@ -909,10 +960,24 @@ h1 {
   background: var(--teal-600);
   box-shadow: 0 5px 12px rgba(11, 143, 138, 0.2);
   cursor: pointer;
+  transition:
+    transform 0.12s cubic-bezier(0.4, 0, 0.2, 1),
+    background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.primary-action:hover {
+.primary-action:hover:not(:disabled) {
   background: var(--teal-700);
+}
+
+.primary-action:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.primary-action:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 .primary-action:disabled,
@@ -3085,7 +3150,7 @@ h1 {
   min-height: 43px;
   margin-top: 14px;
   padding: 0 18px;
-  border: 0;
+  border: 1px solid #b74237;
   border-radius: 9px;
   color: #fff;
   background: #b74237;
@@ -3093,6 +3158,26 @@ h1 {
   font-size: 12px;
   font-weight: 800;
   cursor: pointer;
+  transition:
+    transform 0.12s cubic-bezier(0.4, 0, 0.2, 1),
+    background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.danger-action:hover:not(:disabled) {
+  background: #9f2f25;
+  border-color: #9f2f25;
+}
+
+.danger-action:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.danger-action:focus-visible {
+  outline: 2px solid var(--danger);
+  outline-offset: 2px;
 }
 
 .danger-action:disabled { opacity: 0.45; cursor: not-allowed; }
@@ -3884,7 +3969,7 @@ h1 {
   border-radius: 6px;
   text-decoration: none;
   color: var(--ink-900);
-  transition: all 0.15s ease-in-out;
+  transition: border-color 0.15s ease-in-out, background-color 0.15s ease-in-out, transform 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
 }
 
 .cloud-console-card:hover {
@@ -4363,7 +4448,7 @@ h1 {
   background: rgba(255, 255, 255, 0.76);
   text-align: left;
   cursor: pointer;
-  transition: all 0.18s ease-in-out;
+  transition: border-color 0.15s ease-in-out, background-color 0.15s ease-in-out, transform 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
   position: relative;
 }
 
@@ -5028,7 +5113,7 @@ h1 {
   border-radius: 8px;
   cursor: pointer;
   box-shadow: 0 2px 6px rgba(11, 143, 138, 0.2);
-  transition: all 0.15s ease-in-out;
+  transition: background-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out, opacity 0.15s ease-in-out;
 }
 
 .cep-license-btn:hover:not(:disabled) {
@@ -5064,7 +5149,7 @@ h1 {
   background: #ffffff;
   color: var(--ink-800);
   text-decoration: none;
-  transition: all 0.15s ease-in-out;
+  transition: border-color 0.15s ease-in-out, color 0.15s ease-in-out, background-color 0.15s ease-in-out;
 }
 
 .cep-role-action-btn:hover {
@@ -5181,9 +5266,8 @@ h1 {
 }
 
 .dlp-preset-btn {
-  padding: 4px 10px;
+  padding: 5px 12px;
   font-size: 12px;
-  border-radius: 6px;
 }
 
 .dlp-table-wrapper {
@@ -5241,19 +5325,46 @@ h1 {
 
 /* DLP Badges */
 .dlp-badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 4px 10px;
+  min-width: 64px;
   border-radius: 6px;
   font-size: 11.5px;
   font-weight: 700;
   border: 1px solid transparent;
   cursor: pointer;
-  transition: all 0.15s ease-in-out;
+  position: relative;
+  transition:
+    transform 0.12s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+    background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.dlp-badge::after {
+  content: "";
+  position: absolute;
+  top: -6px;
+  bottom: -6px;
+  left: -4px;
+  right: -4px;
 }
 
 .dlp-badge:hover {
   transform: translateY(-1px);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+.dlp-badge:active {
+  transform: scale(0.96);
+}
+
+.dlp-badge:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 .dlp-badge-block {
@@ -5602,6 +5713,55 @@ h1 {
 
 .cep-tab-panel.hidden {
   display: none;
+}
+
+/* Target Scope Type Toggle (OU vs Google Group) */
+.cep-target-type-nav {
+  display: inline-flex;
+  gap: 6px;
+  background: var(--surface-hover);
+  padding: 4px;
+  border-radius: var(--radius-md);
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
+}
+
+.cep-target-type-btn {
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: color 0.15s ease, background 0.15s ease, transform 0.1s ease;
+}
+
+.cep-target-type-btn:hover {
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.cep-target-type-btn.active {
+  color: var(--primary);
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  font-weight: 600;
+}
+
+.cep-target-type-btn:active {
+  transform: scale(0.96);
+}
+
+.cep-custom-group-input-row {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 /* OU Autofill row */
@@ -6282,6 +6442,7 @@ h1 {
   z-index: 9999;
   padding: 24px;
   box-sizing: border-box;
+  animation: modalFadeIn 0.15s ease-out;
 }
 
 .cep-assessment-modal {
@@ -6297,6 +6458,36 @@ h1 {
   overflow: hidden;
   padding: 24px 28px;
   box-sizing: border-box;
+  animation: modalPopIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modalPopIn {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cep-assessment-modal-backdrop,
+  .cep-assessment-modal,
+  .cep-assessment-item-details,
+  .cep-banner {
+    animation: none !important;
+  }
 }
 
 .cep-assessment-header {
@@ -6320,20 +6511,27 @@ h1 {
   background: transparent;
   border: none;
   font-size: 22px;
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   display: grid;
   place-items: center;
   color: var(--text-muted);
   cursor: pointer;
   line-height: 1;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.12s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .cep-modal-close-btn:hover {
   background: var(--surface-hover);
   color: var(--text);
+}
+
+.cep-modal-close-btn:active {
+  transform: scale(0.92);
 }
 
 .cep-assessment-subtitle {
@@ -6391,13 +6589,21 @@ h1 {
   border-radius: var(--radius-md);
   margin-bottom: 8px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.1s cubic-bezier(0.4, 0, 0.2, 1);
   background: var(--surface);
 }
 
 .cep-assessment-item:hover {
   border-color: var(--primary);
   background: var(--surface-hover);
+}
+
+.cep-assessment-item:active {
+  transform: scale(0.99);
 }
 
 .cep-assessment-item.selected {
@@ -6448,6 +6654,7 @@ h1 {
 .cep-assessment-counter {
   font-size: 12px;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
   color: var(--primary);
   background: var(--primary-subtle);
   padding: 3px 9px;
@@ -6462,6 +6669,7 @@ h1 {
   margin-top: 6px;
   padding-top: 6px;
   border-top: 1px dashed var(--border);
+  animation: modalFadeIn 0.15s ease-out;
 }
 
 .cep-error-cause-compact {

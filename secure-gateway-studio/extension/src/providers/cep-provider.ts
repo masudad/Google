@@ -194,7 +194,7 @@ export interface CepProvisionConfig {
   customer_id: string;
   project_id?: string;
   /** Bare org unit id, as `catalog.listOrganizationalUnits` returns it. */
-  target_ou_id: string;
+  target_ou_id?: string;
   /** `orgUnitPath` of the same unit; required to create sub OUs beneath it. */
   target_ou_path?: string;
   /**
@@ -202,6 +202,16 @@ export interface CepProvisionConfig {
    * write. Provision routes reject an omitted, stale, or root-OU value.
    */
   target_ou_confirmation?: string;
+  /** Target scope kind: "ou" (default) or "group". */
+  target_type?: "ou" | "group";
+  /** Group email address or unique ID when target_type is "group". */
+  target_group_key?: string;
+  /** Directory group unique ID resolved from target_group_key. */
+  target_group_id?: string;
+  /** Directory group email address for display. */
+  target_group_email?: string;
+  /** Exact target group email typed by the operator before mutation. */
+  target_group_confirmation?: string;
   create_sub_ous?: boolean;
   core_policies?: boolean;
   force_extensions?: boolean;
@@ -297,8 +307,13 @@ export const CEP_LICENSE_PROVIDER_MAX_NETWORK_WAIT_MS =
 
 export interface CepRollbackConfig {
   customer_id: string;
-  target_ou_id: string;
+  target_ou_id?: string;
   target_ou_path?: string;
+  target_type?: "ou" | "group";
+  target_group_key?: string;
+  target_group_id?: string;
+  target_group_email?: string;
+  target_group_confirmation?: string;
   /** Retained compatibility flag; cleanup is read-only without durable ownership. */
   verify_match?: boolean;
   /** Restrict the rollback to these modules. Empty or absent means all. */
@@ -398,23 +413,31 @@ function strictNextPageToken(
 
 function normalizedCloudIdentityPolicyQuery(
   value: Record<string, unknown>,
-): { query: string; orgUnit: string } | null {
+): { query: string; orgUnit?: string; group?: string } | null {
   const allowed = new Set(["query", "orgUnit", "group", "sortOrder"]);
   if (Object.keys(value).some((key) => !allowed.has(key))) return null;
-  if (
-    typeof value.query !== "string" || value.query === "" ||
-    typeof value.orgUnit !== "string" || !/^orgUnits\/[A-Za-z0-9._~-]+$/.test(value.orgUnit)
-  ) {
+  if (typeof value.query !== "string" || value.query === "") {
     return null;
   }
-  if (value.group !== undefined && value.group !== "") return null;
+  const hasOrgUnit = typeof value.orgUnit === "string" && /^orgUnits\/[A-Za-z0-9._~-]+$/.test(value.orgUnit);
+  const hasGroup = typeof value.group === "string" && /^groups\/[A-Za-z0-9._~-]+$/.test(value.group);
+
   if (
     value.sortOrder !== undefined &&
     (typeof value.sortOrder !== "number" || !Number.isSafeInteger(value.sortOrder))
   ) {
     return null;
   }
-  return { query: value.query, orgUnit: value.orgUnit };
+
+  if (hasOrgUnit && (value.group === undefined || value.group === "")) {
+    return { query: value.query, orgUnit: value.orgUnit as string };
+  }
+
+  if (hasGroup && (value.orgUnit === undefined || value.orgUnit === "")) {
+    return { query: value.query, group: value.group as string };
+  }
+
+  return null;
 }
 
 /**
@@ -511,6 +534,9 @@ interface CepContext {
   /** Canonical Directory customer id required by Cloud Identity Policy create. */
   dlpCustomerId?: string;
   projectId?: string;
+  targetType?: "ou" | "group";
+  targetGroupId?: string;
+  targetGroupEmail?: string;
   /** Org unit ids the policies target, per scope. */
   ouIds: Record<CepOu, string>;
   primaryDomain?: string;
@@ -1020,8 +1046,12 @@ function targetKey(
   context: CepContext,
   policy: CepPolicyDefinition,
 ): Record<string, unknown> {
+  const targetResource =
+    context.targetType === "group" && context.targetGroupId
+      ? `groups/${context.targetGroupId}`
+      : `orgunits/${context.ouIds[policy.ou]}`;
   const key: Record<string, unknown> = {
-    targetResource: `orgunits/${context.ouIds[policy.ou]}`,
+    targetResource,
   };
   if (policy.appId !== undefined) {
     key.additionalTargetKeys = { app_id: `chrome:${policy.appId}` };
@@ -1201,6 +1231,93 @@ export async function resolveConfirmedCepTargetOu(
     );
   }
   return target;
+}
+
+export interface ResolvedCepTargetGroup {
+  id: string;
+  email: string;
+  name: string;
+}
+
+export async function resolveCepTargetGroup(
+  transport: Transport,
+  customerId: string,
+  groupKey: string,
+): Promise<ResolvedCepTargetGroup> {
+  const normalizedKey = groupKey.trim();
+  if (normalizedKey === "") {
+    throw new CepTargetValidationError(
+      400,
+      "cep-target-group-invalid",
+      "A target_group_key is required for a CEP group mutation.",
+    );
+  }
+  let payload: Record<string, unknown>;
+  try {
+    const response = await transport.requestJson(
+      "GET",
+      `${DIRECTORY}/groups/${encodeURIComponent(normalizedKey)}`,
+    );
+    if (response.status < 200 || response.status >= 300) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    payload = response.payload;
+  } catch (error) {
+    throw new CepTargetValidationError(
+      502,
+      "cep-target-group-unresolved",
+      `The target Google Group could not be resolved from Directory: ${errorMessage(error)}`,
+    );
+  }
+  const id = typeof payload.id === "string" ? payload.id.trim() : "";
+  const email = typeof payload.email === "string" ? payload.email.trim() : "";
+  const name = typeof payload.name === "string" ? payload.name.trim() : email;
+  if (id === "" || email === "") {
+    throw new CepTargetValidationError(
+      502,
+      "cep-target-group-inventory-invalid",
+      "Directory returned an invalid group resource without id or email.",
+    );
+  }
+  return { id, email, name };
+}
+
+export async function resolveConfirmedCepTargetGroup(
+  transport: Transport,
+  request: Pick<
+    CepProvisionConfig,
+    "customer_id" | "target_group_key" | "target_group_confirmation"
+  >,
+): Promise<ResolvedCepTargetGroup> {
+  const customerId = typeof request.customer_id === "string" ? request.customer_id.trim() : "";
+  if (!/^C[A-Za-z0-9]+$/.test(customerId)) {
+    throw new CepTargetValidationError(
+      400,
+      "cep-target-group-invalid",
+      "A canonical customer_id is required for a CEP group mutation.",
+    );
+  }
+  const group = await resolveCepTargetGroup(
+    transport,
+    customerId,
+    request.target_group_key ?? "",
+  );
+
+  const confirmation = typeof request.target_group_confirmation === "string"
+    ? request.target_group_confirmation.trim().toLowerCase()
+    : "";
+  if (
+    confirmation === "" ||
+    (confirmation !== group.email.toLowerCase() && confirmation !== group.id.toLowerCase())
+  ) {
+    throw new CepTargetValidationError(
+      400,
+      "cep-target-group-confirmation-mismatch",
+      `Target group confirmation mismatch: expected "${group.email}", got "${request.target_group_confirmation ?? ""}".`,
+    );
+  }
+
+  return group;
 }
 
 export class CepProvider {
@@ -1721,6 +1838,12 @@ export class CepProvider {
    * with the org unit repeated in its own field.
    */
   private policyQuery(context: CepContext): Record<string, unknown> {
+    if (context.targetType === "group" && context.targetGroupId) {
+      return {
+        query: `entity.groups.exists(group, group.group_id == groupId('${context.targetGroupId}'))`,
+        group: `groups/${context.targetGroupId}`,
+      };
+    }
     const ouId = context.ouIds.users;
     return {
       query: `entity.org_units.exists(org_unit, org_unit.org_unit_id == orgUnitId('${ouId}'))`,
@@ -2489,11 +2612,21 @@ export class CepProvider {
     const provision = config as CepProvisionConfig;
     const region = provision.dlp_region ?? "";
     const customer = await this.customerMetadata(customerId);
+    const targetType = config.target_type ?? "ou";
+    let targetGroupId = config.target_group_id;
+    let targetGroupEmail = config.target_group_email;
+    if (targetType === "group" && !targetGroupId && config.target_group_key) {
+      targetGroupId = config.target_group_key;
+      targetGroupEmail = config.target_group_key;
+    }
     return {
       customerId,
       dlpCustomerId: customer.dlpCustomerId,
       projectId: config.project_id,
-      ouIds: { users: config.target_ou_id, browsers: config.target_ou_id },
+      targetType,
+      targetGroupId,
+      targetGroupEmail,
+      ouIds: { users: config.target_ou_id ?? "", browsers: config.target_ou_id ?? "" },
       primaryDomain: customer.primaryDomain,
       internalUrls,
       region: NATIONAL_ID_INFOTYPES[region] === undefined ? "US" : region,
@@ -2513,7 +2646,7 @@ export class CepProvider {
     const context = await this.buildContext(config, internalUrls);
     const failedModules = new Set<string>();
 
-    if (config.create_sub_ous === true) {
+    if (context.targetType !== "group" && config.create_sub_ous === true) {
       const childContext: CepContext = {
         ...context,
         ouIds: { ...context.ouIds },
@@ -2599,7 +2732,9 @@ export class CepProvider {
       byModule.set(item.definition.module, bucket);
     }
 
-    const url = `${CHROME_POLICY}/customers/${context.customerId}/policies/orgunits:batchModify`;
+    const url = context.targetType === "group"
+      ? `${CHROME_POLICY}/customers/${context.customerId}/policies/groups:batchModify`
+      : `${CHROME_POLICY}/customers/${context.customerId}/policies/orgunits:batchModify`;
     for (const [module, items] of byModule) {
       const payload = await this.call(
         trace,
@@ -2685,11 +2820,14 @@ export class CepProvider {
       ...context,
       ouIds: { ...context.ouIds },
     };
-    await this.resolveSubOrgUnits(trace, config, childContext, [], [], false);
+    if (context.targetType !== "group") {
+      await this.resolveSubOrgUnits(trace, config, childContext, [], [], false);
+    }
     const inspectionContexts = [context];
     if (
-      childContext.ouIds.users !== context.ouIds.users ||
-      childContext.ouIds.browsers !== context.ouIds.browsers
+      context.targetType !== "group" &&
+      (childContext.ouIds.users !== context.ouIds.users ||
+        childContext.ouIds.browsers !== context.ouIds.browsers)
     ) {
       inspectionContexts.push(childContext);
     }
@@ -3490,10 +3628,14 @@ export class CepProvider {
 
     const requestGroups = groupPolicyRequests(resolved.map((item) => item.request));
     const notes = skipped.length > 0 ? `\n\nNot included:\n  - ${skipped.join("\n  - ")}` : "";
+    const targetDescription = context.targetType === "group"
+      ? `Google Group ${context.targetGroupEmail ?? context.targetGroupId}`
+      : `organizational unit ${context.ouIds.users}`;
+    const policyMethod = context.targetType === "group" ? "groups" : "orgunits";
 
     return `#!/usr/bin/env python3
 """
-Chrome Enterprise Premium configuration for organizational unit ${context.ouIds.users}.
+Chrome Enterprise Premium configuration for ${targetDescription}.
 Generated by Secure Gateway Studio from the options selected in the UI.
 
 The policy values below were resolved against this tenant's live Chrome Policy
@@ -3533,7 +3675,7 @@ def main() -> None:
             response = (
                 service.customers()
                 .policies()
-                .orgunits()
+                .${policyMethod}()
                 .batchModify(customer=f"customers/{CUSTOMER_ID}", body={"requests": requests})
                 .execute()
             )
