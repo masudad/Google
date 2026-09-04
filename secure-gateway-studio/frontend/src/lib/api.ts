@@ -852,6 +852,7 @@ export interface CepGeminiZeroTrustConfig {
   policy_id?: string;
   dry_run?: boolean;
   enforce_access_level?: boolean;
+  access_level_name?: string;
   enforce_perimeter?: boolean;
   perimeter_name?: string;
   enforce_rca?: boolean;

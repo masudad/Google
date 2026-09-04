@@ -220,6 +220,7 @@ export function CepDeployerPage({
   const [geminiPolicyIdInput, setGeminiPolicyIdInput] = useState<string>("");
   const [geminiPerimeterName, setGeminiPerimeterName] = useState<string>("gemini_zero_trust_poc");
   const [geminiEnforceAccessLevel, setGeminiEnforceAccessLevel] = useState<boolean>(true);
+  const [geminiAccessLevelName, setGeminiAccessLevelName] = useState<string>("");
   const [geminiEnforcePerimeter, setGeminiEnforcePerimeter] = useState<boolean>(true);
   const [geminiEnforceRca, setGeminiEnforceRca] = useState<boolean>(false);
   const [geminiRcaGroupKey, setGeminiRcaGroupKey] = useState<string>("");
@@ -259,6 +260,7 @@ export function CepDeployerPage({
         policy_id: geminiPolicyIdInput.trim() || undefined,
         perimeter_name: geminiPerimeterName.trim() || "gemini_zero_trust_poc",
         enforce_access_level: geminiEnforceAccessLevel,
+        access_level_name: geminiAccessLevelName.trim() || undefined,
         enforce_perimeter: geminiEnforcePerimeter,
         enforce_rca: geminiEnforceRca,
         rca_group_key: geminiRcaGroupKey.trim() || undefined,
@@ -817,6 +819,41 @@ gcloud access-context-manager cloud-bindings create \\
           </p>
         )}
 
+        {/* Google OAuth Verification Bar */}
+        {!ouLoaded && !groupsLoaded ? (
+          <div className="cep-verify-box">
+            <button
+              className="btn btn-primary cep-auth-btn"
+              disabled={canonicalCustomerId === "" || loadingOus || loadingGroups}
+              onClick={() => void handleLoadOus()}
+              type="button"
+            >
+              <KeyIcon size={16} />
+              <span>{loadingOus || loadingGroups ? m.verifyingGoogleAccount : m.verifyGoogleAccount}</span>
+            </button>
+            <p className="cep-verify-hint">
+              {m.verifyGoogleAccountHint}
+            </p>
+          </div>
+        ) : (
+          <div className="cep-auth-status-bar">
+            <div className="cep-auth-status-left">
+              <CheckCircleIcon size={18} />
+              <span>
+                <strong>Google アカウント認証完了</strong> (顧客 ID: <code>{canonicalCustomerId}</code> / OU: <strong className="tabular-nums">{organizationalUnits.length}</strong> 件, グループ: <strong className="tabular-nums">{groups.length}</strong> 件)
+              </span>
+            </div>
+            <button
+              type="button"
+              className="btn btn-sm btn-secondary cep-reauth-btn"
+              disabled={loadingOus || loadingGroups}
+              onClick={() => void handleLoadOus()}
+            >
+              {loadingOus || loadingGroups ? m.reloading : m.refreshOus}
+            </button>
+          </div>
+        )}
+
         <div className="cep-target-type-nav" role="tablist" aria-label="Target Scope Type">
           <button
             type="button"
@@ -826,6 +863,9 @@ gcloud access-context-manager cloud-bindings create \\
             onClick={() => setTargetType("ou")}
           >
             🏢 {m.targetTypeOu || "組織部門 (OU)"}
+            {organizationalUnits.length > 0 && (
+              <span className="cep-badge-count tabular-nums">{organizationalUnits.length}</span>
+            )}
           </button>
           <button
             type="button"
@@ -835,27 +875,15 @@ gcloud access-context-manager cloud-bindings create \\
             onClick={() => setTargetType("group")}
           >
             👥 {m.targetTypeGroup || "Google グループ"}
+            {groups.length > 0 && (
+              <span className="cep-badge-count tabular-nums">{groups.length}</span>
+            )}
           </button>
         </div>
 
         {targetType === "ou" ? (
           <>
-            {!ouLoaded ? (
-              <div className="cep-verify-box">
-                <button
-                  className="btn btn-primary cep-auth-btn"
-                  disabled={canonicalCustomerId === "" || loadingOus}
-                  onClick={() => void handleLoadOus()}
-                  type="button"
-                >
-                  <KeyIcon size={16} />
-                  <span>{loadingOus ? m.verifyingGoogleAccount : m.verifyGoogleAccount}</span>
-                </button>
-                <p className="cep-verify-hint">
-                  {m.verifyGoogleAccountHint}
-                </p>
-              </div>
-            ) : ouError ? (
+            {ouError ? (
               <div>
                 <p className="cep-inline-error" role="alert">
                   {m.ouLoadFailed}
@@ -869,7 +897,7 @@ gcloud access-context-manager cloud-bindings create \\
                   {m.retry}
                 </button>
               </div>
-            ) : (
+            ) : ouLoaded ? (
               <div className="cep-field">
                 <div className="cep-field-heading">
                   <label htmlFor="cep-target-ou">{m.selectTargetOu}</label>
@@ -898,7 +926,7 @@ gcloud access-context-manager cloud-bindings create \\
                   ))}
                 </select>
               </div>
-            )}
+            ) : null}
 
             {selectedUnit !== undefined && selectedUnit.label !== "/" && (
               <div className="cep-license-warning-box">
@@ -948,22 +976,7 @@ gcloud access-context-manager cloud-bindings create \\
           </>
         ) : (
           <>
-            {!groupsLoaded && !ouLoaded ? (
-              <div className="cep-verify-box">
-                <button
-                  className="btn btn-primary cep-auth-btn"
-                  disabled={canonicalCustomerId === "" || loadingGroups || loadingOus}
-                  onClick={() => void handleLoadOus()}
-                  type="button"
-                >
-                  <KeyIcon size={16} />
-                  <span>{loadingGroups || loadingOus ? m.verifyingGoogleAccount : m.verifyGoogleAccount}</span>
-                </button>
-                <p className="cep-verify-hint">
-                  {m.verifyGoogleAccountHint}
-                </p>
-              </div>
-            ) : (
+            {groupsLoaded || ouLoaded ? (
               <div className="cep-field">
                 <div className="cep-field-heading">
                   <label htmlFor="cep-target-group">{m.selectTargetGroup}</label>
@@ -1011,7 +1024,7 @@ gcloud access-context-manager cloud-bindings create \\
                   />
                 </div>
               </div>
-            )}
+            ) : null}
 
             {selectedGroup.trim() !== "" && (
               <div className="cep-license-warning-box">
@@ -1482,6 +1495,28 @@ gcloud access-context-manager cloud-bindings create \\
               />
               <span>{m.geminiEnforceAccessLevelLabel}</span>
             </label>
+            {geminiEnforceAccessLevel && (
+              <div className="cep-form-field cep-gemini-level-box">
+                <label htmlFor="gemini-access-level-select">{m.geminiAccessLevelSelectLabel}</label>
+                <select
+                  id="gemini-access-level-select"
+                  onChange={(e) => setGeminiAccessLevelName(e.target.value)}
+                  value={geminiAccessLevelName}
+                >
+                  <option value="">{m.geminiAccessLevelDefaultOption}</option>
+                  {accessLevels.length > 0 && (
+                    <optgroup label={m.accessLevelExistingGroup}>
+                      {accessLevels.map((level) => (
+                        <option key={level.value} value={level.value}>
+                          {level.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                </select>
+                <small>{m.geminiAccessLevelSelectHint}</small>
+              </div>
+            )}
             <label>
               <input
                 checked={geminiEnforcePerimeter}

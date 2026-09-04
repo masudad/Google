@@ -272,6 +272,7 @@ export interface CepGeminiZeroTrustConfig {
   policy_id?: string;
   dry_run?: boolean;
   enforce_access_level?: boolean;
+  access_level_name?: string;
   enforce_perimeter?: boolean;
   perimeter_name?: string;
   enforce_rca?: boolean;
@@ -3805,10 +3806,16 @@ if __name__ == "__main__":
       };
     }
 
-    // 3. Ensure ACM Access Level (secgw_chrome_managed)
+    // 3. Ensure ACM Access Level (secgw_chrome_managed or custom selected level)
     let accessLevelName: string | undefined;
     if (config.enforce_access_level !== false) {
-      const targetLevel = `${policyName}/accessLevels/secgw_chrome_managed`;
+      let targetLevel = `${policyName}/accessLevels/secgw_chrome_managed`;
+      if (config.access_level_name?.trim()) {
+        const customName = config.access_level_name.trim();
+        targetLevel = customName.startsWith("accessPolicies/")
+          ? customName
+          : `${policyName}/accessLevels/${customName}`;
+      }
       const levelCheckUrl = `${ACM}/${targetLevel}`;
       let levelExists = false;
       try {

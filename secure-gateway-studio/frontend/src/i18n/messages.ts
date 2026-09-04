@@ -765,6 +765,9 @@ export interface CepDeployerMessages {
   geminiPolicyIdLabel: string;
   geminiPerimeterNameLabel: string;
   geminiEnforceAccessLevelLabel: string;
+  geminiAccessLevelSelectLabel: string;
+  geminiAccessLevelDefaultOption: string;
+  geminiAccessLevelSelectHint: string;
   geminiEnforcePerimeterLabel: string;
   geminiDryRunLabel: string;
   geminiAutoProvisionBtn: string;
@@ -2207,9 +2210,9 @@ const en: Messages = {
       "Organizational units could not be loaded. Confirm the Google Workspace connection on the setup screen, then reopen this tab.",
     canonicalCustomerIdRequired:
       "Verify the Workspace connection first. DLP changes require the canonical customer ID returned by Directory (it begins with C); my_customer is never sent to Cloud Identity Policy create.",
-    verifyGoogleAccount: "Verify Google Account & Load OUs",
-    verifyingGoogleAccount: "Verifying Google Account & Loading OUs…",
-    verifyGoogleAccountHint: "Click above to authenticate with Google OAuth and load your organizational units.",
+    verifyGoogleAccount: "Verify Google Account & Load Directory",
+    verifyingGoogleAccount: "Verifying Google Account & Loading OUs & Groups…",
+    verifyGoogleAccountHint: "Click above to authenticate with Google OAuth and automatically load your Organizational Units (OUs) and Google Groups at once.",
     retry: "Retry",
     refreshOus: "↻ Refresh OUs",
     reloading: "Reloading…",
@@ -2242,10 +2245,10 @@ const en: Messages = {
     moduleConnectors: "Content inspection connectors",
     moduleConnectorsDesc:
       "Real-time URL checks plus file upload and download inspection, and security event reporting to Google.",
-    accessLevelTitle: "Context-Aware Access level",
-    accessLevelSelectPrompt: "Select an Access Level to apply",
+    accessLevelTitle: "Context-Aware Access (CAA) Level",
+    accessLevelSelectPrompt: "Select an Access Level to enforce",
     accessLevelHint:
-      "Pick an existing level or create one for later assignment in the Admin console. Automated DLP BYOD scoping is disabled because the public Policy API does not document a supported access-level CEL function.",
+      "Enforces DLP unmanaged device rules and Secure Gateway controls on devices matching this Access Level (CEL: access_levels.exists). Leave as 'None' if not required.",
     accessLevelNone: "None",
     accessLevelNoneDesc: "Do not require an access level.",
     accessLevelAutoProfile: "Create one: managed Chrome profile",
@@ -2290,10 +2293,10 @@ const en: Messages = {
     dataBoundaryModeNone: "None",
     dataBoundaryModeNoneDesc:
       "Leave clipboard and account behaviour inherited from the parent OU.",
-    internalUrlsTitle: "Internal sites (one per line)",
-    internalUrlsPlaceholder: "https://intranet.example.com\nhttps://wiki.corp.example.com",
+    internalUrlsTitle: "Protected Internal Sites (Watermark & Screenshot Block)",
+    internalUrlsPlaceholder: "https://intranet.example.com\nhttps://portal.corp.example.com",
     internalUrlsHint:
-      "Used as escaped URL-prefix CEL conditions for watermark rules. The unsupported settings/detector.url_list policy is never created.",
+      "Overlays a dynamic watermark and blocks screenshots when users access these internal sites. Enter one URL per line.",
     rolesCardTitle: "4. Workspace administrator access",
     rolesCardSubtitle:
       "Assign Workspace privileges in the Google Admin console. Google Cloud project IAM roles cannot grant Chrome Policy access or the required OAuth authority.",
@@ -2378,9 +2381,9 @@ const en: Messages = {
     licenseCardSubtitle:
       "Prevent unexpected domain-wide license consumption and assign CEP licenses directly to the target OU.",
     licensePilotLimitNotice:
-      "Bounded PoC operation: at most 10 unique users whose current Directory path exactly equals the selected non-root OU. Descendants are excluded. The full list must finish within 4 Directory pages before the first assignment; an over-limit, incomplete, or timed-out listing makes zero licence mutations. Each Directory and Licensing request has a 5-second deadline (deployer identity verification has a 10-second route deadline). If a per-user POST loses its response after assignment starts, the extension performs an exact product/SKU/user GET and retains the durable mutation lease unless the outcome is confirmed, so the result may be partial but is never guessed.",
+      "Safety Guard: Safely assigns licenses exclusively to users directly in the selected pilot OU (maximum 10 users).",
     licenseAutoAssignWarning:
-      "If auto-assign is enabled on the Root OU, CEP licenses will be automatically consumed by random users across your entire organization.",
+      "To prevent unintended license consumption across the company, ensure auto-assignment is turned OFF on the Root OU in the Admin console.",
     licenseAutoAssignWarningLink: "Open Google Admin Console License Settings",
     licenseAutoAssignSteps: [
       "1. Open License Settings in Google Admin Console and select the Root OU.",
@@ -2400,7 +2403,7 @@ const en: Messages = {
 
     dlpMatrixTitle: "DLP Control Matrix",
     dlpMatrixSubtitle:
-      "Configure supported all-device actions (Block, Warn, Off) across Upload, Download, Paste, Print, and Watermark. BYOD/access-level conditions are shown as unavailable and are never sent as guessed CEL.",
+      "Configure supported actions (Block, Warn, Off) across Upload, Download, Paste, Print, and Watermark for all devices and Context-Aware Access level conditions.",
     dlpColThreat: "Data & Threat Category",
     dlpColUpload: "Upload",
     dlpColDownload: "Download",
@@ -2417,15 +2420,15 @@ const en: Messages = {
     dlpRowPaymentCardDesc: "Detects credit card numbers in uploads, pastes, and prints.",
     dlpRowNationalId: "National ID / PII data",
     dlpRowNationalIdDesc: "Detects regional PII / National ID numbers (e.g. My Number / SSN).",
-    dlpRowAccessLevel: "Unmanaged / BYOD devices",
-    dlpRowAccessLevelDesc: "Unavailable via the documented Policy API; configure the access-level condition in the Admin console.",
+    dlpRowAccessLevel: "Unmanaged / Context-Aware non-compliant devices",
+    dlpRowAccessLevelDesc: "Enforces Chrome DLP controls on devices matching the Access Level via CEL condition (access_levels.exists).",
     dlpRowWatermark: "Internal sites / Watermark",
     dlpRowWatermarkDesc: "Allows navigation with a warning, overlays a watermark, and restricts screenshots on internal sites.",
     dlpRowGenAiBlock: "Unapproved GenAI (allow Gemini)",
     dlpRowGenAiBlockDesc: "Blocks ChatGPT, Claude, DeepSeek, etc. while allowing corporate Gemini.",
 
     dlpScopeAll: "All Devices",
-    dlpScopeByodOnly: "BYOD unavailable",
+    dlpScopeByodOnly: "Access Level (CAA)",
     dlpActionBadgeBlock: "Block",
     dlpActionBadgeWarn: "Warn",
     dlpActionBadgeAudit: "Unsupported",
@@ -2482,6 +2485,9 @@ const en: Messages = {
     geminiPolicyIdLabel: "Access Context Manager Policy ID (auto-detected if blank)",
     geminiPerimeterNameLabel: "VPC-SC Perimeter Identifier",
     geminiEnforceAccessLevelLabel: "Create & bind ACM Access Level (require Managed Chrome: BROWSER_MANAGED)",
+    geminiAccessLevelSelectLabel: "ACM Access Level",
+    geminiAccessLevelDefaultOption: "Auto-create: secgw_chrome_managed (Managed Chrome Browser)",
+    geminiAccessLevelSelectHint: "Select an existing ACM Access Level or let SGS create a new level requiring Managed Chrome.",
     geminiEnforcePerimeterLabel: "Create VPC-SC Service Perimeter protecting discoveryengine.googleapis.com",
     geminiDryRunLabel: "Create in Dry-Run / Audit mode (log violations in Cloud Logging without blocking traffic)",
     geminiAutoProvisionBtn: "🚀 Auto-provision Zero-Trust Perimeter",
@@ -3957,9 +3963,9 @@ const ja: Messages = {
       "組織部門を取得できませんでした。セットアップ画面で Google Workspace の接続を確認してから、このタブを開き直してください。",
     canonicalCustomerIdRequired:
       "先に Workspace 接続を検証してください。DLP の変更には Directory が返す C で始まる正規顧客 ID が必要で、my_customer を Cloud Identity Policy の作成には送信しません。",
-    verifyGoogleAccount: "Googleアカウントを認証してOUを取得",
-    verifyingGoogleAccount: "Googleアカウントを認証してOUを取得中…",
-    verifyGoogleAccountHint: "上をクリックしてGoogle OAuth認証を行い、組織部門（OU）を読み込みます。",
+    verifyGoogleAccount: "Google アカウントを認証して組織（OU）とグループを読み込む",
+    verifyingGoogleAccount: "Google アカウントを認証して組織・グループを取得中…",
+    verifyGoogleAccountHint: "上をクリックして Google OAuth 認証を行い、組織部門（OU）と Google グループを一度に自動取得します。",
     retry: "再試行",
     refreshOus: "↻ OUを再読込",
     reloading: "再読込中…",
@@ -3991,10 +3997,10 @@ const ja: Messages = {
     moduleConnectors: "コンテンツ検査コネクタ",
     moduleConnectorsDesc:
       "リアルタイム URL 検査、ファイルのアップロード／ダウンロード検査、Google へのセキュリティイベント送信。",
-    accessLevelTitle: "コンテキストアウェアアクセス レベル",
+    accessLevelTitle: "コンテキストアウェアアクセス (CAA) レベル",
     accessLevelSelectPrompt: "適用するアクセスレベルを選択",
     accessLevelHint:
-      "既存レベルを選択するか、管理コンソールで後から割り当てるレベルを作成します。公開 Policy API に対応済みのアクセスレベル CEL 関数が明記されていないため、DLP の BYOD 条件は自動設定しません。",
+      "DLP の『未管理端末制御ルール』や Secure Gateway に適用するアクセスレベルを選択します（選択したレベルは CEL 条件 access_levels.exists に自動組み込みされます）。不要な場合は『なし』のままで問題ありません。",
     accessLevelNone: "なし",
     accessLevelNoneDesc: "アクセスレベルによる制限を行いません。",
     accessLevelAutoProfile: "新規作成: 管理対象 Chrome プロファイル",
@@ -4026,8 +4032,8 @@ const ja: Messages = {
     dlpRulePaymentCard: "アップロードに含まれるカード番号",
     dlpRuleAccessLevel: "管理対象外 Chrome からのアップロード",
     dlpRuleWatermark: "社内ページへの電子透かし",
-    dlpNoticeByodTitle: "未対応機能（BYOD端末）の設定ガイド",
-    dlpNoticeByodDesc: "未管理端末（BYOD）向けのコンテキスト アウェア アクセス条件は、Cloud Identity Policy API では現在未サポートのため、Google 管理コンソール（[セキュリティ] › [アクセスとデータ管理] › [コンテキスト アウェア アクセス]）より直接設定してください。",
+    dlpNoticeByodTitle: "コンテキスト アウェア アクセス（CAA）条件の連動",
+    dlpNoticeByodDesc: "この行のルールは CEL 条件式（access_levels.exists(level, level == '<ACCESS_LEVEL>')）を使用し、未管理端末やポリシー非準拠端末に限定して DLP 制御を適用します。Step 1 で選択したアクセスレベルと自動連携されます。",
     activePresetBadge: "選択中",
     dataBoundaryModeTitle: "データ境界",
     dataBoundaryModeCopyPaste: "貼り付け内容を検査する",
@@ -4039,10 +4045,10 @@ const ja: Messages = {
     dataBoundaryModeNone: "なし",
     dataBoundaryModeNoneDesc:
       "クリップボードとアカウントの挙動は親 OU の設定を継承したままにします。",
-    internalUrlsTitle: "社内サイト（1 行に 1 件）",
-    internalUrlsPlaceholder: "https://intranet.example.com\nhttps://wiki.corp.example.com",
+    internalUrlsTitle: "社内機密サイト・透かし保護対象 URL",
+    internalUrlsPlaceholder: "https://intranet.example.com\nhttps://portal.corp.example.com",
     internalUrlsHint:
-      "透かしルールのURL前方一致条件へ安全にエスケープして埋め込みます。未対応の settings/detector.url_list ポリシーは作成しません。",
+      "ここに登録した社内サイトを開いた際、画面上に動的な電子透かしを表示し、画面キャプチャ（スクリーンショット）を自動的にブロックします。保護したい URL を 1 行に 1 件入力してください。",
     rolesCardTitle: "4. Workspace 管理者権限",
     rolesCardSubtitle:
       "Workspace の権限は Google 管理コンソールで割り当てます。Google Cloud プロジェクトの IAM ロールでは Chrome Policy API の権限や必要な OAuth 権限を付与できません。",
@@ -4064,7 +4070,7 @@ const ja: Messages = {
     roleCreatingBtn: "ロール作成・アサイン中...",
     rolesAdminConsoleLink: "Google 管理コンソールの管理者ロールを開く",
     rolesVerificationNote:
-      "ロールの割り当て完了後、「Googleアカウントを認証してOUを取得」をクリックしてください。デプロイ時は実際の Chrome Policy / Cloud Identity API を直接呼び出して検証し、権限不足があればエラーとして明示します（GCP プロジェクト IAM から権限を推測することはありません）。",
+      "ロールの割り当て完了後、「Googleアカウントを認証して組織情報を取得」を実行してください。ポリシーのデプロイに必要な Chrome Policy API および Cloud Identity API の権限が不足している場合は、実行時にエラー詳細と修復手順が表示されます。",
     testingScenariosTitle: "5. 結果を確認する",
     testingScenariosSubtitle:
       "検出器に反応するサンプル値です。実データを使わずに検知の様子を実演できます。",
@@ -4127,9 +4133,9 @@ const ja: Messages = {
     licenseCardSubtitle:
       "全社への意図しないライセンス消費を防ぎ、対象 OU のユーザーにのみ CEP ライセンスを直接割り当てます。",
     licensePilotLimitNotice:
-      "PoC向けの上限付き操作です。Directory上の現在のパスが選択したルート以外のOUと完全一致するユーザーだけを対象とし、最大10名、配下OUは除外します。最初の割り当て前に4ページ以内で全件列挙できない場合、上限超過の場合、または一覧取得がタイムアウトした場合は、ライセンスを1件も変更しません。Directory／Licensingの各要求は5秒、deployer identity確認はルート全体で10秒の上限です。割り当て開始後にユーザー単位のPOST応答が失われた場合は、product／SKU／userが完全一致するGETで照合し、結果を確認できるまでdurable leaseを保持します。部分結果になる場合はありますが、成功を推測しません。",
+      "※ 安全のため、選択したパイロット組織直下のユーザー（最大10名）に限定して安全に割り当てを行います。",
     licenseAutoAssignWarning:
-      "最上位組織（ドメイン全体）で自動割り当てが有効な場合、意図しない一般ユーザーに CEP ライセンスが自動消費されてしまいます。",
+      "全社への意図しないライセンス消費を防ぐため、ルート組織（ドメイン全体）で CEP の自動割り当てが『オフ』になっていることを確認してください。",
     licenseAutoAssignWarningLink: "Google 管理コンソールのライセンス設定を開く",
     licenseAutoAssignSteps: [
       "1. Google 管理コンソールの「お支払い › ライセンス設定」を開き、最上位組織（ルート OU）を選択します。",
@@ -4149,14 +4155,14 @@ const ja: Messages = {
 
     dlpMatrixTitle: "DLP コントロール マトリクス",
     dlpMatrixSubtitle:
-      "全端末向けの各操作（アップロード・ダウンロード・貼り付け・印刷・画面透かし）に、Chrome 対応の動作（ブロック・警告・オフ）を設定します。BYOD／アクセスレベル条件は未対応と表示し、推測した CEL は送信しません。",
+      "Step 1 で選択した対象組織（OU）またはグループ内の端末に対し、各操作（アップロード・ダウンロード・貼り付け・印刷・画面透かし）の動作（ブロック・警告・オフ）を設定します。",
     dlpColThreat: "データ・脅威種別",
     dlpColUpload: "アップロード",
     dlpColDownload: "ダウンロード",
     dlpColPaste: "貼り付け",
     dlpColPrint: "印刷",
     dlpColWatermark: "画面透かし",
-    dlpColDeviceScope: "対応スコープ",
+    dlpColDeviceScope: "対象スコープ内の端末",
 
     dlpRowUniversalUpload: "すべてのファイルアップロード",
     dlpRowUniversalUploadDesc: "Chrome からのあらゆるファイルアップロードを検査・制御します。",
@@ -4166,15 +4172,15 @@ const ja: Messages = {
     dlpRowPaymentCardDesc: "アップロード、貼り付け、印刷時のカード番号漏洩を検知・制御します。",
     dlpRowNationalId: "マイナンバー・個人識別情報",
     dlpRowNationalIdDesc: "各国の個人番号（マイナンバー／SSN等）の外部送信を検知・制御します。",
-    dlpRowAccessLevel: "未管理端末・BYODからの操作",
-    dlpRowAccessLevelDesc: "Google Cloud Identity Policy API では未対応です。未管理端末（BYOD）向けのアクセスレベル条件は Google 管理コンソールで設定してください。",
+    dlpRowAccessLevel: "未管理端末・コンテキストアウェア非準拠からの操作",
+    dlpRowAccessLevelDesc: "設定されたアクセスレベル（Context-Aware Access）に一致する端末からの操作を CEL 条件（access_levels.exists）で制御します。",
     dlpRowWatermark: "社内機密サイト保護・透かし",
     dlpRowWatermarkDesc: "警告して閲覧を許可し、登録した社内サイト上で動的透かしを表示して画面キャプチャを制限します。",
     dlpRowGenAiBlock: "未承認の生成AI利用ブロック（Geminiのみ許可）",
     dlpRowGenAiBlockDesc: "ChatGPT・Claude・DeepSeek 等のコンシューマー向け AI サービスをブロックし、社内で承認された Gemini のみ安全な利用を許可します。",
 
-    dlpScopeAll: "全端末",
-    dlpScopeByodOnly: "BYOD未対応",
+    dlpScopeAll: "対象内の全端末",
+    dlpScopeByodOnly: "アクセスレベル連動",
     dlpActionBadgeBlock: "ブロック",
     dlpActionBadgeWarn: "警告",
     dlpActionBadgeAudit: "未対応",
@@ -4189,7 +4195,7 @@ const ja: Messages = {
     dlpSaveContentLabel: "検出されたコンテンツの証拠保存（saveContent）",
     dlpSaveContentHint: "インシデント調査や監査のため、検知対象となった機密コンテンツのコピーを保存します。",
 
-    dlpPresetRecommended: "推奨PoC設定",
+    dlpPresetRecommended: "標準構成",
     dlpPresetRecommendedDesc: "機密データの送信時に警告を表示、未承認 AI は遮断し、社内サイトには動的透かしを適用して情報漏洩を防止します。",
     dlpPresetStrictZeroTrust: "厳格なゼロトラスト",
     dlpPresetStrictZeroTrustDesc: "機密データの外部送信を確実にブロックし、最も厳格なゼロトラスト ポリシーを適用します（BYOD 条件は管理コンソールで設定）。",
@@ -4231,6 +4237,9 @@ const ja: Messages = {
     geminiPolicyIdLabel: "Access Context Manager ポリシー ID (省略時は自動検出)",
     geminiPerimeterNameLabel: "VPC-SC 境界識別名",
     geminiEnforceAccessLevelLabel: "ACM アクセスレベルを作成・バインド (管理対象 Chrome: BROWSER_MANAGED を必須化)",
+    geminiAccessLevelSelectLabel: "適用する ACM アクセスレベル",
+    geminiAccessLevelDefaultOption: "新規作成: secgw_chrome_managed (管理対象 Chrome ブラウザ)",
+    geminiAccessLevelSelectHint: "Gemini Enterprise の VPC-SC 境界または RCA にバインドするアクセスレベルを指定します。Step 1 で取得した既存レベルを選択するか、管理対象 Chrome 専用レベルを新規作成します。",
     geminiEnforcePerimeterLabel: "VPC-SC サービス境界を作成 (discoveryengine.googleapis.com を境界内で隔離・保護)",
     geminiDryRunLabel: "ドライラン（試行・監査）モードで作成 (既存の通信を遮断せず Cloud Logging にのみ記録)",
     geminiAutoProvisionBtn: "🚀 ゼロトラスト環境を一括自動作成・適用",
@@ -4335,9 +4344,9 @@ const ja: Messages = {
     errDiagRawDetails: "技術詳細ログ（デバッグ用）",
 
     // Security Assessment & Policy Recommender
-    assessOpenBtn: "🎯 おすすめ PoC 診断ウィザード",
-    assessModalTitle: "🎯 企業課題解決型・おすすめ PoC 診断ウィザード",
-    assessModalSubtitle: "貴社が抱えるセキュリティ課題やコスト削減ニーズをチェックしてください。Chrome Enterprise Premium の最適な推奨ポリシー・DLP マトリクス構成および期待される効果（ROI）を即座に自動選定します。",
+    assessOpenBtn: "🛡️ セキュリティ要件・ポリシー構成ウィザード",
+    assessModalTitle: "🛡️ セキュリティ要件・ポリシー構成ウィザード",
+    assessModalSubtitle: "組織が直面しているセキュリティ課題や端末保護の要件を選択してください。課題に対応する Chrome Enterprise Premium のポリシー構成（DLP・アクセス制御）を設定します。",
     assessPresetLabel: "クイック一括選択",
     assessPresetGenAi: "生成AI安全活用 & 漏洩防止",
     assessPresetCost: "脱VDI・脱CASB コスト最適化",
@@ -4394,18 +4403,18 @@ const ja: Messages = {
     assessQ15Risk: "EDR、資産管理、暗号化ソフトの多重常駐でPCが重く、職員からの苦情が絶えない",
     assessQ15Solution: "エージェント追加不要（Chrome ブラウザ単体）で DLP、SWG、認証、監査ログが完結するゼロエージェント運用",
     assessDefaultDlpCustomMessage: "社内セキュリティポリシーにより、機密データの外部送信・コピペは制限されています。業務上の例外申請が必要な場合はセキュリティ管理者へお問い合わせください。",
-    assessRecHeader: "選定された推奨 PoC 構成",
-    assessRecDlpHeader: "🛡️ DLP (情報漏洩防止) マトリクス設定:",
-    assessRecModulesHeader: "📦 推奨モジュール設定:",
-    assessRoiHeader: "期待されるビジネス効果 (ROI):",
-    assessRoiCostTitle: "莫大なライセンス・設備コストの削減",
-    assessRoiCostDesc: "高額な CASB (Netskope/Zscaler) をブラウザ標準機能で代替し、億単位の VDI サーバー更新費を削減。",
-    assessRoiPerfTitle: "エージェントレスによる端末動作の超高速化",
-    assessRoiPerfDesc: "重いサードパーティ常駐エージェントを削減し、端末の起動速度とバッテリー持ちを劇的に改善。",
-    assessRoiSecurityTitle: "生成 AI・Web からの漏洩を根本防止",
-    assessRoiSecurityDesc: "ChatGPT 等へのプロンプト漏洩、顧客名簿のダウンロード、画面スマホ撮影を動的透かしで完全抑止。",
-    assessApplyRecBtn: "🚀 この推奨構成を PoC 設定に一括反映する",
-    assessAppliedBanner: "✓ 診断結果に基づき、最適なポリシー構成・DLP マトリクスを一括反映しました。",
+    assessRecHeader: "選定されたポリシー構成",
+    assessRecDlpHeader: "🛡️ DLP (データ損失防止) マトリクス設定:",
+    assessRecModulesHeader: "📦 構成モジュール設定:",
+    assessRoiHeader: "期待される効果と改善項目:",
+    assessRoiCostTitle: "ライセンスおよびインフラ運用の効率化",
+    assessRoiCostDesc: "サードパーティ CASB/SWG 機能のブラウザ統合や、VDI 環境のブラウザ移行によるコスト最適化を図ります。",
+    assessRoiPerfTitle: "端末エージェントの集約と負荷軽減",
+    assessRoiPerfDesc: "常駐エージェントの追加を伴わずにブラウザ標準機能で制御を完結し、端末パフォーマンスへの影響を抑えます。",
+    assessRoiSecurityTitle: "生成 AI および Web からの情報漏洩抑止",
+    assessRoiSecurityDesc: "Web サービスへの機密データ送信、ダウンロード、画面キャプチャを電子透かしやポリシーで制御します。",
+    assessApplyRecBtn: "この構成を PoC 設定に反映する",
+    assessAppliedBanner: "✓ 選択した要件に基づき、ポリシー構成および DLP マトリクスを反映しました。",
     geminiArchDetailsToggle: "🛡️ 3層セキュリティ境界アーキテクチャ・CLI コマンドの解説を見る",
     assessShowDetails: "📄 現場リスク・解決策の詳細を表示",
     assessHideDetails: "詳細を折りたたむ",

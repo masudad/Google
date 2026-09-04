@@ -393,7 +393,7 @@ export function DlpMatrixTable({
               </td>
               <td className="cell-na">—</td>
               <td>
-                <span className="dlp-scope-pill byod fixed">{m.dlpScopeByodOnly}</span>
+                <span className="dlp-scope-pill access-level fixed">{m.dlpScopeByodOnly}</span>
               </td>
             </tr>
 

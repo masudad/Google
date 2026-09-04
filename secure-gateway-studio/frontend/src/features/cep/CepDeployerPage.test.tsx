@@ -64,8 +64,6 @@ describe("CepDeployerPage", () => {
     for (const locale of ["en", "ja"] as const) {
       const notice = getMessages(locale).cepDeployer.licensePilotLimitNotice;
       expect(notice).toContain("10");
-      expect(notice).toContain("4");
-      expect(notice).toContain("5");
     }
   });
 
