@@ -243,7 +243,7 @@ describe("Secure Gateway Studio mode screen", () => {
     render(<App />);
 
     expect(
-      screen.getByRole("button", { name: /^Rapid proof of concept/ }),
+      screen.getByRole("button", { name: /^PoC/ }),
     ).toHaveAttribute("aria-pressed", "true");
     expect(
       screen.getByRole("button", { name: /^Production/ }),
@@ -345,7 +345,7 @@ describe("Secure Gateway Studio mode screen", () => {
       expect(screen.getByRole("checkbox", { name: platform })).not.toBeChecked();
     }
     expect(
-      screen.getByText(/Each selected platform creates a required T07/),
+      screen.getByText(/acceptance testing/),
     ).toBeInTheDocument();
   });
 

@@ -19,6 +19,10 @@ export interface WorkflowMessages {
   cloudValidationFailed: string;
   workspaceValidationFailed: string;
   workspaceRequiredRolesHint: string;
+  cloudRequiredRolesTitle: string;
+  cloudRequiredRoles: readonly string[];
+  workspaceRequiredRolesTitle: string;
+  workspaceRequiredRoles: readonly string[];
   specInvalid: string;
   connectionNotice: string;
   bootstrapDeployer: string;
@@ -935,18 +939,18 @@ const en: Messages = {
   },
   title: "New secure gateway setup",
   steps: ["Mode", "Identities", "Environment", "Certificate", "Access", "Review", "Apply"],
-  modeTitle: "1. Start a rapid Secure Gateway PoC",
-  poc: "Rapid proof of concept",
+  modeTitle: "1. Start a Secure Gateway PoC",
+  poc: "PoC",
   pocDescription:
     "Build a test-OU deployment quickly with disposable resources and explicit safety gates. A local CA can be uploaded to managed Chrome through the Admin console.",
   production: "Production",
   productionDescription:
-    "Enterprise PKI, regional high availability, dedicated product-scoped service identities, and auditable change control are retained for a future release.",
-  productionUnavailable: "coming later",
+    "Enterprise PKI, regional high availability, dedicated product-scoped service identities (outside the scope of this PoC tool).",
+  productionUnavailable: "TBD",
   platformsTitle: "2. Managed Chrome platforms",
-  managedChromeOnly: "targets managed Google Chrome only",
+  managedChromeOnly: "",
   platformNote:
-    "Select only platforms you can test during this PoC. Each selected platform creates a required T07 end-to-end acceptance case. Other browsers are not targeted.",
+    "Select platforms to include in acceptance testing (multiple selection allowed).",
   infrastructureTitle: "3. Infrastructure strategy",
   dedicatedNetwork: "Dedicated network",
   recommended: "Recommended",
@@ -999,7 +1003,7 @@ const en: Messages = {
       "Used for discovery, planning, and applying approved GCP changes.",
     workspaceAccount: "Workspace and Chrome administrator",
     workspaceAccountDescription:
-      "The extension uses the signed-in administrator's OAuth session; the local app uses an identity with directly assigned Workspace administrator privileges. Required access covers Chrome Policy, Directory reads, and License Management.",
+      "The extension uses your signed-in Google administrator OAuth session to interact with Chrome Policy, Directory (OUs & groups), and License Manager APIs.",
     projectId: "Google Cloud project ID",
     operatorIdentity: "Validated credential",
     adminIdentity: "Validated administrator credential",
@@ -1016,6 +1020,20 @@ const en: Messages = {
       "Workspace validation failed. Verify the customer ID and Chrome Policy administrator permissions.",
     workspaceRequiredRolesHint:
       "Assign only the needed Chrome Policy, OU, group/user read, and License Management privileges. License Manager is required even for the CEP licence preflight because that API has no read-only scope. Listing or creating Chrome DLP rules through the Cloud Identity Policy API requires a Super Administrator; use a dedicated test administrator and pilot OU.",
+    cloudRequiredRolesTitle: "Minimum Google Cloud Roles Required:",
+    cloudRequiredRoles: [
+      "Service Account Admin (roles/iam.serviceAccountAdmin)",
+      "Role Admin (roles/iam.roleAdmin)",
+      "Project IAM Admin (roles/resourcemanager.projectIamAdmin)",
+      "Policy Editor on target Access Context Manager policy (or Security Admin / Owner)",
+    ],
+    workspaceRequiredRolesTitle: "Required Workspace Privileges:",
+    workspaceRequiredRoles: [
+      "Chrome Policy & OU Read (policy distribution & OU inspection)",
+      "Group & User Read (target scope inspection)",
+      "License Management (CEP license inspection & assignment)",
+      "Super Admin (Cloud Identity DLP rules) *dedicated test admin recommended",
+    ],
     specInvalid: "The deployment specification contains invalid or missing fields.",
     connectionNotice:
       "Connection validation is read-only. Apply permissions are checked separately during preflight.",
@@ -2693,18 +2711,17 @@ const ja: Messages = {
   },
   title: "セキュア ゲートウェイの新規セットアップ",
   steps: ["モード", "ID", "環境", "証明書", "アクセス", "確認", "適用"],
-  modeTitle: "1. Secure Gateway の迅速な PoC を開始",
-  poc: "迅速なPoC",
+  modeTitle: "1. Secure Gateway の PoC を開始",
+  poc: "PoC",
   pocDescription:
-    "明示的な安全ゲートと削除可能なリソースを使い、テストOUへ迅速に構築します。管理コンソール経由で管理対象ChromeへローカルCAを配布できます。",
-  production: "本番",
+    "テスト組織（OU）向けにリソースを構築し、評価完了後に安全に削除できます。管理コンソール経由で管理対象 Chrome へローカル CA を配布できます。",
+  production: "本番環境",
   productionDescription:
-    "エンタープライズPKI、リージョン高可用性、製品用途に限定した専用サービスID、監査可能な変更管理などの本番向け機能は、今後のリリースで提供予定です。",
-  productionUnavailable: "今後対応",
+    "エンタープライズ PKI、リージョン高可用性、本番専用サービス ID 等の本格運用向け構成です（PoC 検証ツールのスコープ外）。",
+  productionUnavailable: "未定",
   platformsTitle: "2. 管理対象 Chrome プラットフォーム",
-  managedChromeOnly: "管理対象 Google Chrome のみ",
-  platformNote:
-    "このPoC期間中に実機テストできるプラットフォームだけを選択してください。選択した各プラットフォームが必須のT07 E2E受入ケースになります。他のブラウザは対象外です。",
+  managedChromeOnly: "",
+  platformNote: "検証対象とする OS を選択してください（複数選択可）。",
   infrastructureTitle: "3. ネットワーク構成",
   dedicatedNetwork: "専用ネットワーク",
   recommended: "推奨",
@@ -2756,7 +2773,7 @@ const ja: Messages = {
     cloudAccountDescription: "GCP変更の検出、計画、承認後の適用に使用します。",
     workspaceAccount: "Workspace／Chrome管理者",
     workspaceAccountDescription:
-      "拡張機能はログイン中の管理者OAuthセッションを使用し、ローカルアプリはWorkspace管理者権限を直接割り当てたIDを使用します。Chrome Policy、Directory読み取り、ライセンス管理の権限が必要です。",
+      "ログイン中の Google 管理者アカウント（OAuth セッション）を使用して、Chrome Policy、Directory（OU/グループ）、ライセンス管理の各 API を実行します。",
     projectId: "Google Cloud プロジェクトID",
     operatorIdentity: "検証済み認証情報",
     adminIdentity: "検証済み管理者認証情報",
@@ -2773,6 +2790,20 @@ const ja: Messages = {
       "Workspace の検証に失敗しました。顧客IDと Chrome Policy 管理者権限を確認してください。",
     workspaceRequiredRolesHint:
       "必要な Chrome Policy、OU、グループ／ユーザー読み取り、ライセンス管理の権限だけを割り当てます。Enterprise License Manager API には読み取り専用スコープがないため、CEP ライセンスの事前確認だけでもライセンス管理権限が必要です。Cloud Identity Policy API で Chrome DLP ルールを一覧・作成する操作には特権管理者が必要です。専用のテスト管理者とパイロット OU を使用してください。",
+    cloudRequiredRolesTitle: "必要な Google Cloud 最小ロール:",
+    cloudRequiredRoles: [
+      "サービス アカウント管理者 (roles/iam.serviceAccountAdmin)",
+      "ロール管理者 (roles/iam.roleAdmin)",
+      "プロジェクト IAM 管理者 (roles/resourcemanager.projectIamAdmin)",
+      "対象 Access Context Manager ポリシーの Policy Editor 権限（またはプロジェクトのセキュリティ管理者／オーナー）",
+    ],
+    workspaceRequiredRolesTitle: "必要な Workspace 権限:",
+    workspaceRequiredRoles: [
+      "Chrome 設定 & OU 読み取り（ポリシー配信と組織構造の確認）",
+      "グループ & ユーザー読み取り（対象スコープの確認）",
+      "ライセンス管理（CEP ライセンスの事前確認および割り当て）",
+      "特権管理者（Cloud Identity DLP ルールの作成・一覧取得）※専用テスト管理者を推奨",
+    ],
     specInvalid: "デプロイ設定に無効または不足している項目があります。",
     connectionNotice:
       "接続検証は読み取り専用です。適用権限は事前確認で別途検証します。",

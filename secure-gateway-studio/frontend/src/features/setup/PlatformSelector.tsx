@@ -31,7 +31,7 @@ export function PlatformSelector({
     <section className="form-section platform-section">
       <h2>
         {messages.platformsTitle}
-        <em>({messages.managedChromeOnly})</em>
+        {messages.managedChromeOnly ? <em> ({messages.managedChromeOnly})</em> : null}
       </h2>
       <div className="platform-grid">
         {(Object.keys(platformLabels) as ChromePlatform[]).map((platform) => (

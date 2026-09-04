@@ -427,6 +427,18 @@ export function IdentitiesStep({
             )}
             {statusLabel(state.cloudConnection)}
           </button>
+          {copy.cloudRequiredRoles && copy.cloudRequiredRoles.length > 0 && (
+            <div className="connection-role-box">
+              <span className="connection-role-box-title">
+                {copy.cloudRequiredRolesTitle}
+              </span>
+              <ul className="connection-role-list">
+                {copy.cloudRequiredRoles.map((role) => (
+                  <li key={role}>{role}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           {state.cloudConnectionError && (
             <p className="connection-error" role="alert">
               {state.cloudConnectionError}
@@ -476,9 +488,22 @@ export function IdentitiesStep({
             )}
             {statusLabel(state.workspaceConnection)}
           </button>
-          <small className="connection-help-hint">
-            {copy.workspaceRequiredRolesHint}
-          </small>
+          {copy.workspaceRequiredRoles && copy.workspaceRequiredRoles.length > 0 ? (
+            <div className="connection-role-box">
+              <span className="connection-role-box-title">
+                {copy.workspaceRequiredRolesTitle}
+              </span>
+              <ul className="connection-role-list">
+                {copy.workspaceRequiredRoles.map((role) => (
+                  <li key={role}>{role}</li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <small className="connection-help-hint">
+              {copy.workspaceRequiredRolesHint}
+            </small>
+          )}
           {state.workspaceConnectionError && (
             <p className="connection-error" role="alert">
               {state.workspaceConnectionError}
