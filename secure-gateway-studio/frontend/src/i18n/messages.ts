@@ -962,7 +962,7 @@ const en: Messages = {
   enterpriseCaDescription: "Use organization CA or Cloud CA Service for internal TLS certificates.",
   publicCertificate: "Publicly trusted certificate",
   publicCertificateDescription:
-    "Requires a registrable public DNS hostname and an exact Secret Manager certificate bundle. T03 validates the hostname and chain with the VM system's public trust roots; private, self-signed, and internal-name certificates fail.",
+    "Requires a registrable public DNS hostname and an exact Secret Manager certificate bundle. The hostname and certificate chain are validated using the VM's system public trust roots; private CA, self-signed, or internal-name certificates fail.",
   localPocCa: "Local PoC CA",
   disabledProduction: "disabled in Production",
   localPocAdminConsole: "Admin console upload required",
@@ -1033,7 +1033,7 @@ const en: Messages = {
       "Chrome Policy & OU Read (policy distribution & OU inspection)",
       "Group & User Read (target scope inspection)",
       "License Management (CEP license inspection & assignment)",
-      "Super Admin (Cloud Identity DLP rules) *dedicated test admin recommended",
+      "Super Admin (Cloud Identity DLP rules) *dedicated test admin account required/scoped",
     ],
     specInvalid: "The deployment specification contains invalid or missing fields.",
     connectionNotice:
@@ -1148,7 +1148,7 @@ const en: Messages = {
     confirmBackendConnectivity:
       "I confirm private routing, DNS, and backend firewall access already exist from the selected GCP VPC/subnet",
     backendConnectivityHint:
-      "This PoC configures Nginx and verifies the upstream with T02. It does not create AWS/Azure VPNs, Cloud VPN, Interconnect, or on-premises routing. Establish that private path first; do not enter public endpoints or credentials here.",
+      "This PoC configures Nginx and verifies connectivity to the upstream backend. It does not create AWS/Azure VPNs, Cloud VPN, Interconnect, or on-premises routing. Establish that private path first; do not enter public endpoints or credentials here.",
     cloudConsoleLinks: "Google Cloud & Workspace Console Deep-Links",
     openInCloudConsole: "Open in Cloud Console",
     computeInstancesLink: "Compute Engine VM Instances",
@@ -1272,7 +1272,7 @@ const en: Messages = {
       "endpoint-verification": "Chrome Management Profiles API checks the actual client; Apply force-installs it when it has not reported yet.",
       "no-external-ips": "Every VM or instance template created by Apply omits an external access configuration. Direct HTTPS creates no VM; the internal HTTPS load balancer creates a private sample-backend VM but no Nginx VM.",
       "private-egress": "A dedicated-VPC path with private VMs creates Cloud NAT. An existing-VPC path with private VMs must expose a verified private egress path. Only direct HTTPS needs no package egress.",
-      "backend-connectivity": "The managed sample is created in the deployment VPC. For existing HTTP, the operator confirms private routing, DNS, and firewall access and T02 validates the path from Nginx. Direct HTTPS uses the separately confirmed selected-VPC route; the internal HTTPS load balancer uses backend health. This PoC does not create cross-cloud VPN or Interconnect resources.",
+      "backend-connectivity": "The managed sample is created in the deployment VPC. For existing HTTP, the operator confirms private routing, DNS, and firewall access and verifies the path from Nginx to the upstream. Direct HTTPS uses the separately confirmed selected-VPC route; the internal HTTPS load balancer uses backend health. This PoC does not create cross-cloud VPN or Interconnect resources.",
       "test-ou": "The selected OU was confirmed as a non-production test OU.",
       "cloud-identity": "The Google Cloud deployer identity was validated read-only.",
       "workspace-identity": "The Workspace and Chrome administrator identity was validated read-only.",
@@ -1500,7 +1500,7 @@ const en: Messages = {
     notAvailable: "Not available",
     acceptanceTitle: "Acceptance certification",
     acceptanceIntro:
-      "Run machine checks for T01–T05, then record endpoint and log evidence from the managed Chrome test.",
+      "Run automated system checks for backend response, TLS termination, and DNS, then record evidence from managed Chrome acceptance testing.",
     noSuccessfulRun: "A successful deployment run is required before acceptance testing.",
     runSystemChecks: "Verify T01–T05",
     runningSystemChecks: "Verifying Google Cloud resources…",
@@ -1772,7 +1772,7 @@ const en: Messages = {
         eyebrow: "Verification and local security",
         title: "Acceptance evidence and operator protections",
         items: [
-          "The durable acceptance matrix records applicable T01–T05 system findings, operator-provided T06/T07 evidence, and—in Production only—operator-provided T08 plus two T09 denial cases; evidence exports as portable JSON.",
+          "The durable acceptance matrix records automated system verification (backend response, TLS termination, DNS resolution, Gateway matcher), managed Chrome client evidence, and access denial policy validation, exporting a signed, auditable JSON bundle.",
           "A SHA-256 audit chain, deployment history, sanitized logs, generated request IDs, and query/credential redaction preserve traceability without recording secrets.",
           "The extension uses its isolated MV3 origin, strict CSP, affirmative disclosure, session-only ephemeral private keys, and encrypted IndexedDB state; no static secrets or JSON keys are written to disk.",
           "Google Cloud mutations after bootstrap use the pinned keyless deployer service account. Workspace, Chrome, Cloud Identity, and licensing mutations use the signed-in administrator because those APIs require Workspace user authority. Service-account JSON keys and AWS/Azure credentials are not accepted. The workflow and configuration UI are available in English and Japanese.",
@@ -2087,7 +2087,7 @@ const en: Messages = {
         actions: [
           "Provision the selected runtime path sequentially: subnets -> certificates -> backend (Nginx VM/MIG or ILB HTTPS sample VM) -> gateway -> DNS -> Chrome policies.",
           "Track resource ownership in IndexedDB audit store; reverse-rollback only owned assets on failure.",
-          "After Apply, separately run the applicable T01–T05 system checks from Operations and record operator evidence for T06/T07. Production additionally requires T08 and two T09 denial cases before exporting audited JSON evidence.",
+          "After Apply, run the automated system checks from Operations and record operator evidence from managed Chrome testing. Verify access denial and log correlation before exporting the auditable JSON bundle.",
         ],
         optionsBehavior: [
           {
@@ -2103,7 +2103,7 @@ const en: Messages = {
           {
             name: "Separate acceptance verification and evidence",
             behavior:
-              "Apply only persists the matrix. Operations runs applicable system-verifiable T01–T05 checks; the operator records T06/T07 and, in Production, T08 plus unauthorized-principal and unmanaged-browser T09 cases.",
+              "Apply only persists the matrix. Operations runs automated system verification (connectivity, TLS, DNS); the operator records managed Chrome verification and unauthorized/unmanaged denial cases.",
           },
         ],
         apiCalls: [],
@@ -2124,7 +2124,7 @@ const en: Messages = {
         answer:
           "A 503 error indicates that BeyondCorp Security Gateway cannot establish a TCP/TLS connection with the approved run-scoped backend hostname and reserved private address. Verify the selected or run-owned Compute target, firewall, private DNS, and—only when the approved architecture requires it—Cloud NAT.",
         checklist: [
-          "Open this run's Resources and Logs panels, then run T01–T05 verification; use only the run-scoped inventory and sanitized evidence when comparing live resources.",
+          "Open this run's Resources and Logs panels, then run automated system verification; use only the run-scoped inventory and sanitized evidence when comparing live resources.",
           "Verify the approved firewall rule allows the required backend port from the Secure Gateway source range 136.124.16.0/20, never from 0.0.0.0/0.",
           "Verify Cloud Router and Cloud NAT, when required by the approved network strategy, are configured for the created subnet in the VPC selected in this run.",
           "Ensure the run-scoped Cloud DNS private zone maps the approved hostname to the exact reserved private address shown in that run's resource inventory.",
@@ -2497,9 +2497,9 @@ const en: Messages = {
     geminiCliTitle: "Google Cloud VPC-SC & Access Level Provisioning Commands",
     geminiCliCopyBtn: "Copy commands",
     dlpPresetGeminiEnterprise: "Gemini Enterprise",
-    geminiAutoProvisionTitle: "🚀 Automated Gemini Enterprise Zero-Trust Provisioning",
+    geminiAutoProvisionTitle: "Gemini Enterprise Zero-Trust Provisioning",
     geminiAutoProvisionSubtitle:
-      "Automatically provision Google Cloud Access Context Manager (ACM) access levels and VPC Service Controls security perimeters in one click.",
+      "Provision Google Cloud Access Context Manager (ACM) access levels and VPC Service Controls security perimeters.",
     geminiTargetProjectLabel: "Target Google Cloud Project ID",
     geminiPolicyIdLabel: "Access Context Manager Policy ID (auto-detected if blank)",
     geminiPerimeterNameLabel: "VPC-SC Perimeter Identifier",
@@ -2509,7 +2509,7 @@ const en: Messages = {
     geminiAccessLevelSelectHint: "Select an existing ACM Access Level or let SGS create a new level requiring Managed Chrome.",
     geminiEnforcePerimeterLabel: "Create VPC-SC Service Perimeter protecting discoveryengine.googleapis.com",
     geminiDryRunLabel: "Create in Dry-Run / Audit mode (log violations in Cloud Logging without blocking traffic)",
-    geminiAutoProvisionBtn: "🚀 Auto-provision Zero-Trust Perimeter",
+    geminiAutoProvisionBtn: "Provision Zero-Trust Perimeter",
     geminiAutoProvisioningBtn: "Provisioning Zero-Trust...",
     geminiSuccessTitle: "Zero-Trust Security Perimeter Provisioned Successfully",
     geminiStep1: "1. Resolving GCP Project & Access Policy",
@@ -2734,7 +2734,7 @@ const ja: Messages = {
   enterpriseCaDescription: "組織CAまたはCloud CA Serviceで内部TLS証明書を発行します。",
   publicCertificate: "公開信頼済み証明書",
   publicCertificateDescription:
-    "登録可能な公開DNSホスト名と、Secret Manager内の一致する証明書バンドルが必要です。T03はVMのシステム公開信頼ルートだけでホスト名と証明書チェーンを検証するため、プライベートCA、自己署名、内部名の証明書は失敗します。",
+    "登録可能な公開DNSホスト名と、Secret Manager内の一致する証明書バンドルが必要です。ホスト名と証明書チェーンはシステムの公開信頼ルート（Public Trust Roots）で検証されるため、プライベートCA、自己署名、内部名の証明書は検証に失敗します。",
   localPocCa: "ローカルPoC CA",
   disabledProduction: "本番では無効",
   localPocAdminConsole: "管理コンソールへのアップロードが必要",
@@ -2804,7 +2804,7 @@ const ja: Messages = {
       "Chrome 設定 & OU 読み取り（ポリシー配信と組織構造の確認）",
       "グループ & ユーザー読み取り（対象スコープの確認）",
       "ライセンス管理（CEP ライセンスの事前確認および割り当て）",
-      "特権管理者（Cloud Identity DLP ルールの作成・一覧取得）※専用テスト管理者を推奨",
+      "特権管理者（Cloud Identity DLP ルールの作成・一覧取得）※専用のテスト管理者アカウントを対象",
     ],
     specInvalid: "デプロイ設定に無効または不足している項目があります。",
     connectionNotice:
@@ -2919,7 +2919,7 @@ const ja: Messages = {
     confirmBackendConnectivity:
       "選択したGCP VPC/サブネットからのプライベートルーティング、DNS、バックエンドのファイアウォール許可が確立済みです",
     backendConnectivityHint:
-      "本PoCではNginxを構成し、T02でアップストリームを検証します。AWS/Azure VPN、Cloud VPN、Interconnect、オンプレミス側ルートは作成しません。先にプライベート経路を確立し、公開エンドポイントや認証情報は入力しないでください。",
+      "本PoCではNginxを構成し、アップストリーム（バックエンド）への接続性を検証します。AWS/Azure VPN、Cloud VPN、Interconnect、オンプレミス側ルートは作成しません。先にプライベート経路を確立し、公開エンドポイントや認証情報は入力しないでください。",
     cloudConsoleLinks: "Google Cloud & Workspace コンソール直リンク",
     openInCloudConsole: "コンソールで確認",
     computeInstancesLink: "Compute Engine VM インスタンス一覧",
@@ -3042,7 +3042,7 @@ const ja: Messages = {
       "endpoint-verification": "Chrome Management Profiles APIで実クライアントを確認し、未報告の場合はApplyで対象OUへ強制インストールします。",
       "no-external-ips": "Applyが作成するすべてのVM／インスタンステンプレートは外部アクセス構成を持ちません。直接HTTPSはVMを作成せず、内部HTTPS LBはNginxではなく非公開サンプルバックエンドVMを作成します。",
       "private-egress": "プライベートVMを持つ専用VPC方式はCloud NATを作成します。プライベートVMを持つ既存VPC方式は検証済みのプライベート送信経路が必要です。パッケージ送信経路が不要なのは直接HTTPSだけです。",
-      "backend-connectivity": "管理対象サンプルはデプロイVPC内に作成します。既存HTTPではプライベートルーティング、DNS、ファイアウォール許可を確認し、T02がNginxからの経路を検証します。直接HTTPSは個別確認済みの選択VPC経路、内部HTTPS LBはbackend healthを使用します。本PoCではクロスクラウドVPNやInterconnectを作成しません。",
+      "backend-connectivity": "管理対象サンプルはデプロイVPC内に作成します。既存HTTPではプライベートルーティング、DNS、ファイアウォール許可を確認し、Nginxからのアップストリーム経路を検証します。直接HTTPSは個別確認済みの選択VPC経路、内部HTTPS LBはbackend healthを使用します。本PoCではクロスクラウドVPNやInterconnectを作成しません。",
       "test-ou": "選択したOUが非本番テスト用であることを確認済みです。",
       "cloud-identity": "Google Cloudデプロイヤーを読み取り専用で検証済みです。",
       "workspace-identity": "Workspace／Chrome管理者IDを読み取り専用で検証済みです。",
@@ -3267,9 +3267,9 @@ const ja: Messages = {
     notAvailable: "利用できません",
     acceptanceTitle: "受入検証・テスト",
     acceptanceIntro:
-      "T01〜T05の自動システム検証を実行し、管理対象Chrome（T06〜T09）のテスト結果と監査ログ証跡を記録・管理します。",
+      "バックエンド応答・TLS終端・DNS解決などの自動システム検証を実行し、管理対象Chromeの実機テスト結果と監査ログ証跡を記録・管理します。",
     noSuccessfulRun: "受入テストを開始するには、成功したデプロイ実行が必要です。",
-    runSystemChecks: "T01〜T05を検証",
+    runSystemChecks: "自動システム検証を実行",
     runningSystemChecks: "Google Cloudリソースを検証しています…",
     acceptanceComplete: "PoC受入を完了",
     acceptancePending: "受入証跡が未完了",
@@ -3540,7 +3540,7 @@ const ja: Messages = {
         eyebrow: "検証とローカル保護",
         title: "Acceptance証跡とオペレーター保護",
         items: [
-          "永続的な受入マトリクスには、該当するT01～T05のシステム検証、オペレーターが記録するT06/T07、本番時だけ必要なT08と2種類のT09拒否ケースを保存し、証跡をJSON出力します。",
+          "受入マトリクスには、自動システム検証（バックエンド応答・TLS終端・DNS解決・Gatewayマッチャー等）、管理対象Chromeによる実機接続検証、およびアクセス拒否・認可ポリシーの検証結果を記録し、改ざん防止監査チェーン付きのJSON証跡として出力します。",
           "SHA-256監査チェーン、デプロイ履歴、サニタイズ済みログ、リクエストID、クエリ/認証情報除去により秘密情報を残さず完全な追跡性を確保します。",
           "拡張機能は隔離されたMV3オリジン、厳格なCSP、明示的なデータ同意、セッション限定の一時秘密鍵、および暗号化IndexedDBを使用します。端末ローカルに永続的な秘密鍵やサービスアカウントJSONキーを出力・保存しません。",
           "初回準備後のGoogle Cloud変更は、固定したキーレスデプロイヤーSAで実行します。Workspace、Chrome、Cloud Identity、ライセンスの変更は、各APIがWorkspaceユーザー権限を必要とするためログイン中の管理者で実行します。サービスアカウントJSONキーや他クラウドの認証情報は受け付けません。ワークフローと設定UIは日本語／英語に対応しています。",
@@ -3855,7 +3855,7 @@ const ja: Messages = {
         actions: [
           "選択したアーキテクチャに応じて、サブネット ➡️ 証明書 ➡️ バックエンド（Nginx VM/MIG または ILB HTTPS サンプル VM）➡️ Gateway ➡️ DNS ➡️ Chrome ポリシーの依存順で作成します。",
           "作成したリソースの所有権（Ownership）を記録し、異常発生時は作成済みリソースのみを逆順ロールバックします。",
-          "適用後に［運用］から該当するT01～T05のシステム検証を別途実行し、T06/T07のオペレーター証跡を記録します。本番ではさらにT08と2種類のT09拒否ケースを記録してから監査可能なJSON証跡を出力します。",
+          "適用後に［運用］画面から自動システム検証（接続性・TLS・DNS等）を実行し、管理対象Chromeの実機接続テスト証跡を記録します。アクセス拒否やログ相関の検証結果を記録し、監査可能なJSON証跡を出力できます。",
         ],
         optionsBehavior: [
           {
@@ -3871,7 +3871,7 @@ const ja: Messages = {
           {
             name: "個別の受入検証と証跡出力",
             behavior:
-              "Applyはマトリクスの保存だけを行います。［運用］で該当するT01～T05をシステム検証し、オペレーターがT06/T07、本番ではT08と未許可プリンシパル／未管理ブラウザのT09を記録します。",
+              "Applyはマトリクスの保存だけを行います。［運用］画面で自動システム検証（接続性・TLS・DNS等）を実行し、管理対象Chromeでの実機テスト証跡や未許可・未管理アクセスの拒否結果を記録します。",
           },
         ],
         apiCalls: [],
@@ -3892,7 +3892,7 @@ const ja: Messages = {
         answer:
           "BeyondCorp Security Gatewayが、承認済みrunに記録されたバックエンドのホスト名と予約済みプライベートアドレスへTCP/TLS接続できない状態です。選択済みまたはrun所有のComputeターゲット、ファイアウォール、プライベートDNS、および承認構成で必要な場合だけCloud NATを確認します。",
         checklist: [
-          "対象実行の［リソース］と［ログ］を開き、T01〜T05 検証を実行します。ライブ状態との照合には、その実行に紐づくインベントリとサニタイズ済み証跡だけを使用します。",
+          "対象実行の［リソース］と［ログ］を開き、自動システム検証を実行します。ライブ状態との照合には、その実行に紐づくインベントリとサニタイズ済み証跡だけを使用します。",
           "承認済みファイアウォールルールが必要なバックエンドポートを Secure Gateway 送信元範囲 136.124.16.0/20 からだけ許可し、0.0.0.0/0 を許可していないことを確認します。",
           "承認したネットワーク構成で必要な場合は、この実行で選択したVPC内の作成済みサブネットにCloud RouterとCloud NATが構成されていることを確認します。",
           "runに紐づくCloud DNSプライベートゾーンで、承認済みホスト名がリソース一覧に表示された正確な予約済みプライベートアドレスへ解決されることを確認します。",
@@ -4263,9 +4263,9 @@ const ja: Messages = {
     geminiCliTitle: "Google Cloud VPC-SC 境界 & ACM アクセスレベル設定コマンド",
     geminiCliCopyBtn: "コマンドをコピー",
     dlpPresetGeminiEnterprise: "Gemini Enterprise 保護",
-    geminiAutoProvisionTitle: "🚀 Gemini Enterprise ゼロトラスト境界の自動プロビジョニング",
+    geminiAutoProvisionTitle: "Gemini Enterprise ゼロトラスト境界のプロビジョニング",
     geminiAutoProvisionSubtitle:
-      "Access Context Manager (ACM) アクセスレベルおよび VPC Service Controls 境界を Google Cloud API 経由でワンクリック自動作成・適用します。",
+      "Access Context Manager (ACM) アクセスレベルおよび VPC Service Controls 境界を Google Cloud API 経由で作成・適用します。",
     geminiTargetProjectLabel: "対象 Google Cloud プロジェクト ID",
     geminiPolicyIdLabel: "Access Context Manager ポリシー ID (省略時は自動検出)",
     geminiPerimeterNameLabel: "VPC-SC 境界識別名",
@@ -4275,7 +4275,7 @@ const ja: Messages = {
     geminiAccessLevelSelectHint: "Gemini Enterprise の VPC-SC 境界または RCA にバインドするアクセスレベルを指定します。Step 1 で取得した既存レベルを選択するか、管理対象 Chrome 専用レベルを新規作成します。",
     geminiEnforcePerimeterLabel: "VPC-SC サービス境界を作成 (discoveryengine.googleapis.com を境界内で隔離・保護)",
     geminiDryRunLabel: "ドライラン（試行・監査）モードで作成 (既存の通信を遮断せず Cloud Logging にのみ記録)",
-    geminiAutoProvisionBtn: "🚀 ゼロトラスト環境を一括自動作成・適用",
+    geminiAutoProvisionBtn: "ゼロトラスト境界を作成・適用",
     geminiAutoProvisioningBtn: "プロビジョニング中...",
     geminiSuccessTitle: "ゼロトラスト境界の自動作成が完了しました",
     geminiStep1: "1. Google Cloud プロジェクト & Access Policy 解決",
