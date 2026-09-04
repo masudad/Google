@@ -953,7 +953,7 @@ const en: Messages = {
     "Select platforms to include in acceptance testing (multiple selection allowed).",
   infrastructureTitle: "2. Infrastructure strategy",
   dedicatedNetwork: "Dedicated network",
-  recommended: "Recommended",
+  recommended: "Standard",
   dedicatedDescription: "Create a new VPC dedicated to Secure Gateway services.",
   existingVpc: "Existing VPC",
   existingDescription: "Deploy into an existing VPC that you manage.",
@@ -967,7 +967,7 @@ const en: Messages = {
   disabledProduction: "disabled in Production",
   localPocAdminConsole: "Admin console upload required",
   localPocCaDescription:
-    "Generate a private root and leaf certificate, download the public root after Apply, then upload it for the test OU and selected platforms in the Google Admin console.",
+    "Generate a private root and leaf certificate, download the public root after Apply, then upload it for the test OU in the Google Admin console.",
   posture: "Deployment posture",
   mode: "Mode",
   managedPlatforms: "Managed Chrome platforms",
@@ -998,7 +998,7 @@ const en: Messages = {
   workflow: {
     identitiesTitle: "Connect administrator identities",
     identitiesIntro:
-      "Use keyless service-account impersonation for Google Cloud mutations. The extension starts from administrator OAuth; the local app starts from Application Default Credentials. JSON keys are never accepted or stored.",
+      "Use keyless service-account impersonation for Google Cloud mutations. The extension uses administrator OAuth sessions; static service-account JSON keys are never accepted or stored.",
     cloudAccount: "Google Cloud deployer",
     cloudAccountDescription:
       "Used for discovery, planning, and applying approved GCP changes.",
@@ -1179,9 +1179,9 @@ const en: Messages = {
     caName: "Issuing CA resource",
     secretName: "Secret Manager certificate secret",
     certificateNotice:
-      "Local CA is PoC-only. After Apply, download the public PEM root, add it at Chrome > Connectors > Chrome Root Store, and connect that configuration to the dedicated test OU. Public APIs cannot reliably inspect or perform this handoff; verify trust with T07. Production still requires enterprise-pretrusted PKI or a publicly trusted certificate.",
+      "Local CA is PoC-only. After Apply, download the public PEM root, add it at Chrome > Connectors > Chrome Root Store, and connect that configuration to the dedicated test OU. Public APIs cannot reliably inspect or perform this handoff; verify trust with browser HTTPS testing. Production still requires enterprise-pretrusted PKI or a publicly trusted certificate.",
     internalLbCertificateNotice:
-      "For a local CA, the ILB presents the generated server certificate. After Apply, distribute only its public PEM root through Chrome Root Store to the test OU, restart Chrome, and verify HTTPS with T07. The private key is never distributed to Chrome.",
+      "For a local CA, the ILB presents the generated server certificate. After Apply, distribute only its public PEM root through Chrome Root Store to the test OU, restart Chrome, and verify HTTPS connectivity. The private key is never distributed to Chrome.",
     directCertificateIntro:
       "The HTTPS application owns TLS termination. Secure Gateway does not create or store its certificate or private key.",
     directCertificateNotice:
@@ -1265,7 +1265,7 @@ const en: Messages = {
       "immutable-image": "The exact Compute image resource and its immutable numeric identity are verified before any VM-backed path is approved or applied.",
       "billing-enabled": "Cloud Billing API checks that the project has an active billing association.",
       "enterprise-license": "Enterprise License Manager API checks assigned Chrome Enterprise Premium licenses; administrator confirmation remains a fallback.",
-      "chrome-root-store": "Chrome Root Store configuration, certificate upload, and OU binding are not reliably exposed by public APIs. Complete this one-time Admin console step after Apply, then verify trust with the platform-specific T07 HTTPS test.",
+      "chrome-root-store": "Chrome Root Store configuration, certificate upload, and OU binding are not reliably exposed by public APIs. Complete this one-time Admin console step after Apply, then verify trust with the managed Chrome HTTPS test.",
       "workspace-services": "The target users' Workspace service settings require administrator confirmation.",
       "managed-chrome-profile": "Chrome Management Profiles API checks actual profile and policy-sync reports for the selected OU.",
       "secure-enterprise-browser-client": "Chrome Management Profiles API checks the installed and enabled client extension.",
@@ -1573,7 +1573,7 @@ const en: Messages = {
     statusFailed: "Failed",
     t07DiagnosticsTitle: "Managed Chrome client diagnostics",
     t07DiagnosticsIntro:
-      "Match the browser result before recording T07. These symptoms identify whether routing, authorization, or certificate trust is still incomplete.",
+      "Match the browser result before recording the acceptance test. These symptoms identify whether routing, authorization, or certificate trust is still incomplete.",
     t07Diagnostics: [
       {
         symptom: "ERR_NAME_NOT_RESOLVED",
@@ -1612,9 +1612,9 @@ const en: Messages = {
     title: "What happens in each setup step",
     intro:
       "The wizard turns a small set of PoC choices into a discovered, reviewable, and approved Secure Gateway deployment. Before final Apply, it changes only the deployer service account, custom role, and IAM bindings that you explicitly confirm during the initial bootstrap; discovery and all other setup steps are read-only.",
-    pocNoticeTitle: "Built for doing a Secure Gateway PoC ASAP",
+    pocNoticeTitle: "PoC deployment scope and safety guardrails",
     pocNoticeBody:
-      "Production is shown for future readiness but is disabled in this release. Use a dedicated non-production OU and test principals; do not route production traffic through this workflow.",
+      "Production mode is disabled in this release. Use a dedicated non-production OU and test principals; do not route production traffic through this workflow.",
     quickOverviewTitle: "Quick Overview & Core Concepts",
     quickOverviewIntro:
       "A fast summary of the 3 architecture deployment paths and the 7-step wizard workflow.",
@@ -1774,7 +1774,7 @@ const en: Messages = {
         items: [
           "The durable acceptance matrix records applicable T01–T05 system findings, operator-provided T06/T07 evidence, and—in Production only—operator-provided T08 plus two T09 denial cases; evidence exports as portable JSON.",
           "A SHA-256 audit chain, deployment history, sanitized logs, generated request IDs, and query/credential redaction preserve traceability without recording secrets.",
-          "The local app enforces loopback Host/Origin checks, a per-launch nonce, CSP, no-store responses, and a 0600 SQLite database. The extension uses its isolated MV3 origin, strict CSP, affirmative disclosure, session-only private keys, and encrypted IndexedDB state.",
+          "The extension uses its isolated MV3 origin, strict CSP, affirmative disclosure, session-only ephemeral private keys, and encrypted IndexedDB state; no static secrets or JSON keys are written to disk.",
           "Google Cloud mutations after bootstrap use the pinned keyless deployer service account. Workspace, Chrome, Cloud Identity, and licensing mutations use the signed-in administrator because those APIs require Workspace user authority. Service-account JSON keys and AWS/Azure credentials are not accepted. The workflow and configuration UI are available in English and Japanese.",
         ],
       },
@@ -1785,10 +1785,10 @@ const en: Messages = {
         title: "Mode",
         subtitle: "Deployment boundary and strategy selection",
         summary:
-          "Define the operational scope, client platform targets, network strategy, and certificate authority model.",
+          "Define the deployment scope, network strategy, and certificate authority model.",
         actions: [
           "Keep rapid PoC mode enabled for the lightweight topology, and explicitly select a dedicated non-production project, VPC, and OU. PoC mode does not prove that selected existing resources are non-production.",
-          "Select target Chrome client platforms (macOS, Windows, Linux, ChromeOS) for acceptance testing.",
+          "All desktop platforms (macOS, Windows, Linux, ChromeOS) are supported; client access is governed dynamically by Context-Aware Access levels.",
           "Choose between creating a dedicated VPC network or integrating with an existing corporate VPC.",
           "Select the TLS certificate issuance strategy (Enterprise CA, Public Secret, or Local PoC CA).",
         ],
@@ -1818,7 +1818,7 @@ const en: Messages = {
         summary:
           "Establish keyless administrator sessions and bootstrap a dedicated product-scoped service account for impersonation.",
         actions: [
-          "Use browser-managed administrator OAuth in the extension or keyless ADC in the local app; neither path exports a service-account JSON key.",
+          "Use browser-managed administrator OAuth in the extension; service-account JSON keys are never exported or stored.",
           "Bootstrap the keyless deployer service account (`secure-gateway-deployer`) with the documented all-supported-path custom role.",
           "Validate read-only API access to Google Cloud project and Google Workspace Chrome Policy.",
         ],
@@ -2085,7 +2085,7 @@ const en: Messages = {
         summary:
           "Execute approved mutations in topological dependency order with ownership tracking, then persist the applicable acceptance matrix for separate verification.",
         actions: [
-          "Provision the selected runtime path sequentially: subnets -> certificates -> Nginx VM/MIG (or the local-app-only HTTPS ILB) -> gateway -> DNS -> Chrome policies.",
+          "Provision the selected runtime path sequentially: subnets -> certificates -> backend (Nginx VM/MIG or ILB HTTPS sample VM) -> gateway -> DNS -> Chrome policies.",
           "Track resource ownership in IndexedDB audit store; reverse-rollback only owned assets on failure.",
           "After Apply, separately run the applicable T01–T05 system checks from Operations and record operator evidence for T06/T07. Production additionally requires T08 and two T09 denial cases before exporting audited JSON evidence.",
         ],
@@ -2231,7 +2231,7 @@ const en: Messages = {
       "Verify the Workspace connection first. DLP changes require the canonical customer ID returned by Directory (it begins with C); my_customer is never sent to Cloud Identity Policy create.",
     verifyGoogleAccount: "Verify Google Account & Load Directory",
     verifyingGoogleAccount: "Verifying Google Account & Loading OUs & Groups…",
-    verifyGoogleAccountHint: "Click above to authenticate with Google OAuth and automatically load your Organizational Units (OUs) and Google Groups at once.",
+    verifyGoogleAccountHint: "Authenticate with Google OAuth to load directory Organizational Units (OUs) and Google Groups.",
     retry: "Retry",
     refreshOus: "↻ Refresh OUs",
     reloading: "Reloading…",
@@ -2400,7 +2400,7 @@ const en: Messages = {
     licenseCardSubtitle:
       "Prevent unexpected domain-wide license consumption and assign CEP licenses directly to the target OU.",
     licensePilotLimitNotice:
-      "Safety Guard: Safely assigns licenses exclusively to users directly in the selected pilot OU (maximum 10 users).",
+      "Bounded pilot operation. Targets only users whose current Directory path exactly matches the selected non-root OU, at most 10 unique users, excluding sub-OUs. If the full set cannot be enumerated within 4 Directory pages, if the limit is exceeded, or if listing times out, no licenses are mutated. Every Directory and Licensing request is subject to a 5-second deadline, and deployer identity verification has a 10-second deadline across the root. If a per-user POST response is lost after mutations start, reconciliation falls back to an exact product/SKU/user GET and holds the durable lease until the outcome is confirmed. Partial outcomes are possible; success is never inferred.",
     licenseAutoAssignWarning:
       "To prevent unintended license consumption across the company, ensure auto-assignment is turned OFF on the Root OU in the Admin console.",
     licenseAutoAssignWarningLink: "Open Google Admin Console License Settings",
@@ -2422,7 +2422,7 @@ const en: Messages = {
 
     dlpMatrixTitle: "DLP Control Matrix",
     dlpMatrixSubtitle:
-      "Configure supported actions (Block, Warn, Off) across Upload, Download, Paste, Print, and Watermark for all devices and Context-Aware Access level conditions.",
+      "Configure supported actions (Block, Warn, Off) across Upload, Download, Paste, Print, and Watermark for devices within the target scope (OU or Group) and Context-Aware Access level conditions.",
     dlpColThreat: "Data & Threat Category",
     dlpColUpload: "Upload",
     dlpColDownload: "Download",
@@ -2611,9 +2611,9 @@ const en: Messages = {
     errDiagRawDetails: "Technical Error Details (for debugging)",
 
     // Security Assessment & Policy Recommender
-    assessOpenBtn: "🎯 Security Assessment & Recommended Policies",
-    assessModalTitle: "🎯 Enterprise Security Assessment & Policy Recommender",
-    assessModalSubtitle: "Select your company's top security risks and operational challenges. Chrome Enterprise Premium will automatically calculate the optimal recommended policy baseline, DLP matrix, and projected ROI.",
+    assessOpenBtn: "🛡️ Security Requirements & Policy Wizard",
+    assessModalTitle: "🛡️ Security Requirements & Policy Wizard",
+    assessModalSubtitle: "Select your organization's security challenges and device protection requirements to configure the corresponding Chrome Enterprise Premium policy baseline (DLP and access control).",
     assessPresetLabel: "Quick Presets",
     assessPresetGenAi: "GenAI Safe Adoption",
     assessPresetCost: "Exit VDI / Replace CASB (Cost Cut)",
@@ -2670,18 +2670,18 @@ const en: Messages = {
     assessQ15Risk: "Stacking heavy agents (EDR, DLP, asset mgmt, encryption) causes slow PCs and endless user complaints",
     assessQ15Solution: "Zero additional agents required; DLP, access control, and auditing run natively inside Chrome",
     assessDefaultDlpCustomMessage: "Confidential data transfer is blocked by corporate security policy. Contact your security administrator if you require an exemption.",
-    assessRecHeader: "Recommended Policy Baseline",
-    assessRecDlpHeader: "🛡️ Data Loss Prevention (DLP) Matrix:",
-    assessRecModulesHeader: "📦 Recommended Module Configuration:",
-    assessRoiHeader: "Expected Business ROI & Impact:",
-    assessRoiCostTitle: "Direct Cost Reduction",
-    assessRoiCostDesc: "Replace expensive CASB licenses (Netskope/Zscaler) and eliminate VDI hardware refresh costs.",
-    assessRoiPerfTitle: "Zero-Agent PC Lightening",
-    assessRoiPerfDesc: "No heavy third-party endpoint agents required; eliminate PC lag and employee complaints.",
-    assessRoiSecurityTitle: "Absolute Data Leakage Defense",
-    assessRoiSecurityDesc: "Block GenAI prompt leaks, stop unapproved downloads, and prevent screen photography with dynamic watermarks.",
-    assessApplyRecBtn: "🚀 Apply Recommended Policy to PoC",
-    assessAppliedBanner: "✓ Recommended policy configuration applied successfully from security assessment.",
+    assessRecHeader: "Selected Policy Baseline",
+    assessRecDlpHeader: "🛡️ DLP (Data Loss Prevention) Matrix:",
+    assessRecModulesHeader: "📦 Policy Modules:",
+    assessRoiHeader: "Expected Outcomes & Security Improvements:",
+    assessRoiCostTitle: "License and Infrastructure Cost Efficiency",
+    assessRoiCostDesc: "Integrate CASB/SWG controls natively into the browser and optimize infrastructure costs.",
+    assessRoiPerfTitle: "Endpoint Agent Consolidation",
+    assessRoiPerfDesc: "Enforce security controls natively within Chrome without installing heavy third-party endpoint agents.",
+    assessRoiSecurityTitle: "Data Leakage Prevention & Threat Defense",
+    assessRoiSecurityDesc: "Control sensitive data transfers, downloads, and screen capture using dynamic watermarking and policy enforcement.",
+    assessApplyRecBtn: "Apply Configuration to PoC",
+    assessAppliedBanner: "✓ Applied policy configuration and DLP matrix based on selected requirements.",
     geminiArchDetailsToggle: "View 3-Tier Security Architecture & CLI Commands",
     assessShowDetails: "Show Risk & Solution Details",
     assessHideDetails: "Hide Details",
@@ -2725,7 +2725,7 @@ const ja: Messages = {
   platformNote: "検証対象とする OS を選択してください（複数選択可）。",
   infrastructureTitle: "2. ネットワーク構成",
   dedicatedNetwork: "専用ネットワーク",
-  recommended: "推奨",
+  recommended: "標準",
   dedicatedDescription: "Secure Gateway サービス専用の新しいVPCを作成します。",
   existingVpc: "既存VPC",
   existingDescription: "管理している既存VPCへデプロイします。",
@@ -2739,7 +2739,7 @@ const ja: Messages = {
   disabledProduction: "本番では無効",
   localPocAdminConsole: "管理コンソールへのアップロードが必要",
   localPocCaDescription:
-    "プライベートルート証明書とサーバー証明書を生成します。適用後に公開ルートをダウンロードし、Google管理コンソールでテストOUと対象プラットフォームへアップロードします。",
+    "プライベートルート証明書とサーバー証明書を生成します。適用後に公開ルートをダウンロードし、Google管理コンソールでテストOUへアップロードします。",
   posture: "デプロイ方針",
   mode: "モード",
   managedPlatforms: "管理対象 Chrome",
@@ -2950,9 +2950,9 @@ const ja: Messages = {
     caName: "発行CAのリソース名",
     secretName: "Secret Managerの証明書シークレット",
     certificateNotice:
-      "ローカルCAはPoC専用です。適用後に公開ルート証明書（PEM）をダウンロードし、[Chrome] > [コネクタ] > [Chrome Root Store] へ追加して専用テストOUへ接続します。公開APIではこの引き渡しを確実に参照・実行できないため、T07で信頼を検証します。本番ではエンタープライズPKIまたは公開信頼済み証明書が必要です。",
+      "ローカルCAはPoC専用です。適用後に公開ルート証明書（PEM）をダウンロードし、[Chrome] > [コネクタ] > [Chrome Root Store] へ追加して専用テストOUへ接続します。公開APIではこの引き渡しを確実に参照・実行できないため、管理対象Chromeでの実機HTTPSテストで信頼を検証します。本番ではエンタープライズPKIまたは公開信頼済み証明書が必要です。",
     internalLbCertificateNotice:
-      "ローカルCAではILBが生成済みサーバー証明書を提示します。Apply（適用）後に公開ルート証明書（PEM）を管理コンソールのChrome Root Store経由でテストOUへ配布し、Chrome再起動後にT07でHTTPS接続を検証します。秘密鍵はChromeへ配布しません。",
+      "ローカルCAではILBが生成済みサーバー証明書を提示します。Apply（適用）後に公開ルート証明書（PEM）を管理コンソールのChrome Root Store経由でテストOUへ配布し、Chrome再起動後に管理対象ChromeでHTTPS接続を検証します。秘密鍵はChromeへ配布しません。",
     directCertificateIntro:
       "HTTPSアプリ自身がTLS終端を行います。Secure Gatewayはアプリの証明書や秘密鍵を作成・保存しません。",
     directCertificateNotice:
@@ -3035,7 +3035,7 @@ const ja: Messages = {
       "immutable-image": "VMを使う方式の承認・適用前に、Computeイメージの完全なリソース名と不変の数値IDを検証します。",
       "billing-enabled": "Cloud Billing APIでプロジェクトに有効な課金アカウントが紐付いているか確認します。",
       "enterprise-license": "Enterprise License Manager APIでChrome Enterprise Premiumの割り当て数を確認します。APIで確認できない場合のみ管理者確認を使用します。",
-      "chrome-root-store": "Chrome Root Store構成、証明書アップロード、OUバインドは公開APIで確実に参照できません。Apply後にこの1回限りの管理コンソール操作を完了し、各プラットフォームのT07 HTTPSテストで信頼を検証します。",
+      "chrome-root-store": "Chrome Root Store構成、証明書アップロード、OUバインドは公開APIで確実に参照できません。Apply後にこの1回限りの管理コンソール操作を完了し、管理対象Chromeの実機HTTPSテストで信頼を検証します。",
       "workspace-services": "対象ユーザーのWorkspaceサービス設定は管理者による確認が必要です。",
       "managed-chrome-profile": "Chrome Management Profiles APIで対象OUの実プロファイルとポリシー同期報告を確認します。",
       "secure-enterprise-browser-client": "Chrome Management Profiles APIでクライアント拡張機能のインストール・有効状態を確認します。",
@@ -3341,7 +3341,7 @@ const ja: Messages = {
     statusFailed: "エラー",
     t07DiagnosticsTitle: "管理対象Chromeクライアント診断",
     t07DiagnosticsIntro:
-      "T07受入テストを記録する前に、ブラウザで発生した事象を診断・切り分けます。エラー内容に応じて、ルーティング、IAM認可、証明書信頼のどの設定に問題があるかを特定できます。",
+      "受入テストを記録する前に、ブラウザで発生した事象を診断・切り分けます。エラー内容に応じて、ルーティング、IAM認可、証明書信頼のどの設定に問題があるかを特定できます。",
     t07Diagnostics: [
       {
         symptom: "ERR_NAME_NOT_RESOLVED",
@@ -3380,9 +3380,9 @@ const ja: Messages = {
     title: "各セットアップ手順で実行すること",
     intro:
       "ウィザードは少数のPoC設定から現在の状態を検出し、確認・承認可能なSecure Gatewayデプロイを作成します。最後の「適用」より前に変更するのは、初回準備で明示的に確認したデプロイヤーSA、カスタムロール、IAMバインディングだけです。検出とその他の設定手順は読み取り専用です。",
-    pocNoticeTitle: "Secure Gateway の PoC を最短で実施するためのツール",
+    pocNoticeTitle: "PoC 検証環境のスコープと安全上の注意事項",
     pocNoticeBody:
-      "本番モードは将来対応を示すために表示していますが、このリリースでは無効です。非本番専用OUとテスト用プリンシパルを使用し、本番トラフィックはこの手順へ流さないでください。",
+      "本番モードはこのリリースでは無効化されています。必ず非本番専用の組織部門（OU）とテスト用アカウント・プリンシパルを使用し、本番トラフィックを流さないでください。",
     quickOverviewTitle: "クイック概要 & 基本アーキテクチャ",
     quickOverviewIntro:
       "3つのデプロイアーキテクチャと7つのセットアップステップの概要です。",
@@ -3542,7 +3542,7 @@ const ja: Messages = {
         items: [
           "永続的な受入マトリクスには、該当するT01～T05のシステム検証、オペレーターが記録するT06/T07、本番時だけ必要なT08と2種類のT09拒否ケースを保存し、証跡をJSON出力します。",
           "SHA-256監査チェーン、デプロイ履歴、サニタイズ済みログ、リクエストID、クエリ/認証情報除去により秘密情報を残さず完全な追跡性を確保します。",
-          "ローカルアプリはループバックのHost/Origin検証、起動ごとのnonce、CSP、no-store、権限0600のSQLiteを適用します。拡張機能は隔離されたMV3オリジン、厳格なCSP、明示的なデータ同意、セッション限定の秘密鍵、暗号化IndexedDBを使用します。",
+          "拡張機能は隔離されたMV3オリジン、厳格なCSP、明示的なデータ同意、セッション限定の一時秘密鍵、および暗号化IndexedDBを使用します。端末ローカルに永続的な秘密鍵やサービスアカウントJSONキーを出力・保存しません。",
           "初回準備後のGoogle Cloud変更は、固定したキーレスデプロイヤーSAで実行します。Workspace、Chrome、Cloud Identity、ライセンスの変更は、各APIがWorkspaceユーザー権限を必要とするためログイン中の管理者で実行します。サービスアカウントJSONキーや他クラウドの認証情報は受け付けません。ワークフローと設定UIは日本語／英語に対応しています。",
         ],
       },
@@ -3553,10 +3553,10 @@ const ja: Messages = {
         title: "モード",
         subtitle: "PoC 境界の画定と戦略の選択",
         summary:
-          "PoC の対象範囲、対象クライアント OS、VPC ネットワーク戦略、および TLS 認証局モデルを決定します。",
+          "PoC の対象範囲、VPC ネットワーク戦略、および TLS 認証局モデルを決定します。",
         actions: [
           "軽量構成には迅速なPoCモードを使い、専用の非本番project、VPC、OUを明示的に選択します。PoCモードだけでは、選択した既存リソースが非本番であることを保証しません。",
-          "受入テスト対象とする管理対象 Chrome プラットフォーム（macOS, Windows, Linux, ChromeOS）を選択します。",
+          "全デスクトッププラットフォーム（macOS, Windows, Linux, ChromeOS）に対応しており、クライアント端末のアクセス制御はアクセスレベル（CEL 式）で動的に制御します。",
           "新規の専用 VPC を自動作成するか、既存の社内 VPC に直接ルーティングするかを選択します。",
           "TLS 証明書の発行元（Enterprise CA / パブリック証明書 / ローカル PoC CA）を選択します。",
         ],
@@ -3586,7 +3586,7 @@ const ja: Messages = {
         summary:
           "サービスアカウントキー（JSON）を発行・保存せず、管理者アカウントによる安全なキーレスのサービスアカウント借用（Impersonation）認証を確立します。",
         actions: [
-          "拡張機能ではブラウザ管理の管理者OAuth、ローカルアプリではキーレスADCを使用し、どちらもサービスアカウントJSONキーを出力しません。",
+          "ブラウザ管理の管理者OAuthによるキーレス認証を使用し、サービスアカウントJSONキーを発行・保存しません。",
           "製品の全対応パスに限定したカスタムロールを持つ専用デプロイヤーSAを自動プロビジョニングします。0.2.0移行監査が不一致なら、追加確認後に旧IDを変更せず分離デプロイヤーを作成できます。",
           "GCP プロジェクトおよび Google Workspace Chrome Policy への読み取り専用 API アクセスを検証します。",
         ],
@@ -3853,7 +3853,7 @@ const ja: Messages = {
         summary:
           "承認済みオペレーションを依存順に実行して所有権を追跡し、その後の個別検証用に該当する受入マトリクスを保存します。",
         actions: [
-          "選択した実行環境に応じて、サブネット ➡️ 証明書 ➡️ Nginx VM/MIG（またはローカルアプリ限定の HTTPS ILB）➡️ Gateway ➡️ DNS ➡️ Chrome ポリシーの依存順で作成します。",
+          "選択したアーキテクチャに応じて、サブネット ➡️ 証明書 ➡️ バックエンド（Nginx VM/MIG または ILB HTTPS サンプル VM）➡️ Gateway ➡️ DNS ➡️ Chrome ポリシーの依存順で作成します。",
           "作成したリソースの所有権（Ownership）を記録し、異常発生時は作成済みリソースのみを逆順ロールバックします。",
           "適用後に［運用］から該当するT01～T05のシステム検証を別途実行し、T06/T07のオペレーター証跡を記録します。本番ではさらにT08と2種類のT09拒否ケースを記録してから監査可能なJSON証跡を出力します。",
         ],
@@ -3998,7 +3998,7 @@ const ja: Messages = {
       "先に Workspace 接続を検証してください。DLP の変更には Directory が返す C で始まる正規顧客 ID が必要で、my_customer を Cloud Identity Policy の作成には送信しません。",
     verifyGoogleAccount: "Google アカウントを認証して組織（OU）とグループを読み込む",
     verifyingGoogleAccount: "Google アカウントを認証して組織・グループを取得中…",
-    verifyGoogleAccountHint: "上をクリックして Google OAuth 認証を行い、組織部門（OU）と Google グループを一度に自動取得します。",
+    verifyGoogleAccountHint: "Google アカウントの OAuth 認可を実行し、管理対象の組織部門（OU）および Google グループを一覧取得します。",
     retry: "再試行",
     refreshOus: "↻ OUを再読込",
     reloading: "再読込中…",
@@ -4166,7 +4166,7 @@ const ja: Messages = {
     licenseCardSubtitle:
       "全社への意図しないライセンス消費を防ぎ、対象 OU のユーザーにのみ CEP ライセンスを直接割り当てます。",
     licensePilotLimitNotice:
-      "※ 安全のため、選択したパイロット組織直下のユーザー（最大10名）に限定して安全に割り当てを行います。",
+      "PoC向けの上限付き操作です。Directory上の現在のパスが選択したルート以外のOUと完全一致するユーザーだけを対象とし、最大10名、配下OUは除外します。最初の割り当て前に4ページ以内で全件列挙できない場合、上限超過の場合、または一覧取得がタイムアウトした場合は、ライセンスを1件も変更しません。Directory／Licensingの各要求は5秒、deployer identity確認はルート全体で10秒の上限です。割り当て開始後にユーザー単位のPOST応答が失われた場合は、product／SKU／userが完全一致するGETで照合し、結果を確認できるまでdurable leaseを保持します。部分結果になる場合はありますが、成功を推測しません。",
     licenseAutoAssignWarning:
       "全社への意図しないライセンス消費を防ぐため、ルート組織（ドメイン全体）で CEP の自動割り当てが『オフ』になっていることを確認してください。",
     licenseAutoAssignWarningLink: "Google 管理コンソールのライセンス設定を開く",
@@ -4371,7 +4371,7 @@ const ja: Messages = {
     errDiagGenericCause: "処理の実行中に予期しないエラーが返されました。",
     errDiagGenericRemediation: "以下の技術詳細を確認し、API の有効化状況およびネットワーク接続を確認してください。",
     errDiagCauseLabel: "発生原因:",
-    errDiagRemediationLabel: "推奨される修復手順:",
+    errDiagRemediationLabel: "修復手順:",
     errDiagCommandHeader: "修復用コマンド / 権限付与依頼テンプレート:",
     errDiagRetryBtn: "操作を再試行",
     errDiagRawDetails: "技術詳細ログ（デバッグ用）",

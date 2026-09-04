@@ -3978,7 +3978,7 @@ for (const mode of ["412-commit", "503-commit", "response-loss-commit"] as const
   })}`;
   const groupLease = await groupLeaseCtx.acquireCepMutationLease!({
     scopeKeys: [groupLeaseKey],
-    operationKind: "cep_provision",
+    operationKind: "provision",
     requestDigest: "b".repeat(64),
   });
   let threwGroupLeaseBusy = false;
