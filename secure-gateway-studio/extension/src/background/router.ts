@@ -145,7 +145,7 @@ export interface RouteContext {
   /** Durable cross-worker CEP mutation lease; production must never omit it. */
   acquireCepMutationLease?: (options: {
     scopeKeys: readonly string[];
-    operationKind: "provision" | "rollback" | "assign_licenses" | "gemini_zero_trust";
+    operationKind: "provision" | "rollback" | "assign_licenses" | "gemini_zero_trust" | "roles";
     requestDigest: string;
   }) => Promise<CepMutationLeaseHandle>;
   renewCepMutationLease?: (handle: CepMutationLeaseHandle) => Promise<CepMutationLeaseHandle>;
@@ -175,8 +175,13 @@ export class RouteError extends Error {
 const CEP_LEASE_HEARTBEAT_MS = 30_000;
 
 function cepMutationScopeKeys(
-  operationKind: "provision" | "rollback" | "assign_licenses" | "gemini_zero_trust",
-  request: CepProvisionConfig | CepRollbackConfig | CepLicenseAssignConfig | CepGeminiZeroTrustConfig,
+  operationKind: "provision" | "rollback" | "assign_licenses" | "gemini_zero_trust" | "roles",
+  request:
+    | CepProvisionConfig
+    | CepRollbackConfig
+    | CepLicenseAssignConfig
+    | CepGeminiZeroTrustConfig
+    | CepCustomRoleConfig,
 ): string[] {
   if (operationKind === "gemini_zero_trust") {
     const projectId = (request as CepGeminiZeroTrustConfig).project_id?.trim() ?? "";
@@ -184,6 +189,13 @@ function cepMutationScopeKeys(
       throw new RouteError(400, "project-required", "Gemini Zero Trust requires project_id.");
     }
     return [`cep:project:${canonicalDigestSync({ project_id: projectId })}`];
+  }
+  if (operationKind === "roles") {
+    const customerId = ((request as CepCustomRoleConfig).customer_id ?? "").trim();
+    if (customerId === "") {
+      throw new RouteError(400, "cep-scope-invalid", "CEP customer_id is required.");
+    }
+    return [`cep:customer:${canonicalDigestSync({ customer_id: customerId })}`];
   }
   const customerId = (request as CepProvisionConfig | CepRollbackConfig | CepLicenseAssignConfig).customer_id.trim();
   const targetType = (request as CepProvisionConfig | CepRollbackConfig).target_type ?? "ou";
@@ -312,8 +324,13 @@ function boundedCepLicenseReadTransport(
 
 async function withCepMutationLease<T>(
   context: RouteContext,
-  operationKind: "provision" | "rollback" | "assign_licenses" | "gemini_zero_trust",
-  request: CepProvisionConfig | CepRollbackConfig | CepLicenseAssignConfig | CepGeminiZeroTrustConfig,
+  operationKind: "provision" | "rollback" | "assign_licenses" | "gemini_zero_trust" | "roles",
+  request:
+    | CepProvisionConfig
+    | CepRollbackConfig
+    | CepLicenseAssignConfig
+    | CepGeminiZeroTrustConfig
+    | CepCustomRoleConfig,
   mutate: (administrator: Transport, cloud: Transport) => Promise<T>,
 ): Promise<T> {
   if (
@@ -340,57 +357,63 @@ async function withCepMutationLease<T>(
     const coordinationTransport = operationKind === "assign_licenses"
       ? boundedCepLicenseReadTransport(context.administratorTransport, licenseRequestTimeout)
       : context.administratorTransport;
-    const scopedReq = request as CepProvisionConfig | CepRollbackConfig | CepLicenseAssignConfig;
+    const scopedReq = request as
+      | CepProvisionConfig
+      | CepRollbackConfig
+      | CepLicenseAssignConfig
+      | CepCustomRoleConfig;
     const canonicalCustomer = await canonicalCepCustomerId(
       coordinationTransport,
       scopedReq.customer_id,
     );
     scopedReq.customer_id = canonicalCustomer;
-    const targetType = (scopedReq as CepProvisionConfig | CepRollbackConfig).target_type ?? "ou";
-    if (targetType === "group") {
-      try {
-        const targetGroup = await resolveCepTargetGroup(
-          coordinationTransport,
-          canonicalCustomer,
-          (scopedReq as CepProvisionConfig | CepRollbackConfig).target_group_key ?? "",
-        );
-        (scopedReq as CepProvisionConfig).target_group_id = targetGroup.id;
-        (scopedReq as CepProvisionConfig).target_group_email = targetGroup.email;
+    if (operationKind !== "roles") {
+      const targetType = (scopedReq as CepProvisionConfig | CepRollbackConfig).target_type ?? "ou";
+      if (targetType === "group") {
+        try {
+          const targetGroup = await resolveCepTargetGroup(
+            coordinationTransport,
+            canonicalCustomer,
+            (scopedReq as CepProvisionConfig | CepRollbackConfig).target_group_key ?? "",
+          );
+          (scopedReq as CepProvisionConfig).target_group_id = targetGroup.id;
+          (scopedReq as CepProvisionConfig).target_group_email = targetGroup.email;
 
-        const confirmation = (scopedReq as CepProvisionConfig | CepRollbackConfig).target_group_confirmation;
-        if (operationKind === "provision" || confirmation !== undefined) {
-          const normConfirmation = typeof confirmation === "string" ? confirmation.trim().toLowerCase() : "";
-          if (
-            normConfirmation === "" ||
-            (normConfirmation !== targetGroup.email.toLowerCase() && normConfirmation !== targetGroup.id.toLowerCase())
-          ) {
-            throw new CepTargetValidationError(
-              400,
-              "cep-target-group-confirmation-mismatch",
-              `Target group confirmation mismatch: expected "${targetGroup.email}", got "${confirmation ?? ""}".`,
-            );
+          const confirmation = (scopedReq as CepProvisionConfig | CepRollbackConfig).target_group_confirmation;
+          if (operationKind === "provision" || confirmation !== undefined) {
+            const normConfirmation = typeof confirmation === "string" ? confirmation.trim().toLowerCase() : "";
+            if (
+              normConfirmation === "" ||
+              (normConfirmation !== targetGroup.email.toLowerCase() && normConfirmation !== targetGroup.id.toLowerCase())
+            ) {
+              throw new CepTargetValidationError(
+                400,
+                "cep-target-group-confirmation-mismatch",
+                `Target group confirmation mismatch: expected "${targetGroup.email}", got "${confirmation ?? ""}".`,
+              );
+            }
           }
+        } catch (error) {
+          if (error instanceof CepTargetValidationError) {
+            throw new RouteError(error.status, error.code, error.message);
+          }
+          throw error;
         }
-      } catch (error) {
-        if (error instanceof CepTargetValidationError) {
-          throw new RouteError(error.status, error.code, error.message);
+      } else if (operationKind !== "rollback") {
+        try {
+          const target = await resolveConfirmedCepTargetOu(
+            coordinationTransport,
+            scopedReq as CepProvisionConfig | CepLicenseAssignConfig,
+          );
+          // From this point on, downstream code receives only the fresh
+          // Directory value, never a caller-supplied display path.
+          (scopedReq as CepProvisionConfig | CepLicenseAssignConfig).target_ou_path = target.path;
+        } catch (error) {
+          if (error instanceof CepTargetValidationError) {
+            throw new RouteError(error.status, error.code, error.message);
+          }
+          throw error;
         }
-        throw error;
-      }
-    } else if (operationKind !== "rollback") {
-      try {
-        const target = await resolveConfirmedCepTargetOu(
-          coordinationTransport,
-          scopedReq as CepProvisionConfig | CepLicenseAssignConfig,
-        );
-        // From this point on, downstream code receives only the fresh
-        // Directory value, never a caller-supplied display path.
-        scopedReq.target_ou_path = target.path;
-      } catch (error) {
-        if (error instanceof CepTargetValidationError) {
-          throw new RouteError(error.status, error.code, error.message);
-        }
-        throw error;
       }
     }
   }
@@ -438,8 +461,9 @@ async function withCepMutationLease<T>(
             try {
               await renewFence();
             } catch (error) {
+              const detail = error instanceof Error ? error.message : String(error);
               throw Object.assign(
-                new Error(`cep-mutation-lease-fence: ${(error as Error).message}`),
+                new Error(`cep-mutation-lease-fence: ${detail}`),
                 { cepMutationLeaseFence: true, cause: error },
               );
             }
@@ -1184,17 +1208,17 @@ export async function route(
         )
       : null;
     const recorded = await repository.acceptance(runId);
-    const history = recorded.map((r: any) => ({
-      result_id: r.resultId ?? `res-${r.testId}`,
-      run_id: r.runId,
-      test_id: r.testId,
-      case_key: r.caseKey ?? "default",
-      status: r.status,
+    const history = recorded.map((r: Record<string, unknown>) => ({
+      result_id: String(r.resultId ?? `res-${String(r.testId ?? "")}`),
+      run_id: String(r.runId ?? ""),
+      test_id: String(r.testId ?? ""),
+      case_key: String(r.caseKey ?? "default"),
+      status: String(r.status ?? ""),
       source: r.source === "system_verified" ? "system" : "operator",
-      summary: r.summary,
-      evidence: r.evidence,
-      actor: r.actor,
-      recorded_at: r.recordedAt,
+      summary: String(r.summary ?? ""),
+      evidence: String(r.evidence ?? ""),
+      actor: String(r.actor ?? ""),
+      recorded_at: String(r.recordedAt ?? ""),
     }));
     const latestByCase = new Map<string, (typeof history)[number]>();
     for (const result of history.sort((left, right) =>
@@ -1212,7 +1236,7 @@ export async function route(
     }));
     const operatorCases = requiredCases.filter((c) => c.operator_confirmable);
     const satisfiedCases = requiredCases.filter((required) =>
-      results.some((result: any) => {
+      results.some((result) => {
         if (result.test_id !== required.test_id || result.case_key !== required.case_key) {
           return false;
         }
@@ -1275,15 +1299,32 @@ export async function route(
   }
 
   if (method === "GET" && templateKey(method, clean) === "GET /api/v1/certificates/local-poc/{}") {
-    const deploymentName = clean.split("/")[5];
-    if (!context.localPocRootCertificate) {
-      throw new RouteError(501, "route-not-ported", "GET /api/v1/certificates/local-poc/{}");
+    const deploymentName = decodeURIComponent(clean.split("/")[5] ?? "");
+    if (context.localPocRootCertificate) {
+      const cert = await context.localPocRootCertificate(deploymentName);
+      if (!cert) {
+        throw new RouteError(404, "certificate-not-found", "Certificate not found");
+      }
+      return cert;
     }
-    const cert = await context.localPocRootCertificate(deploymentName);
-    if (!cert) {
-      throw new RouteError(404, "certificate-not-found", "Certificate not found");
+    const bundle = (await encryptedLocalGet<{
+      certificateChainPem?: string[];
+    }>(await openDatabase(), `certificate:name:${deploymentName}`)) as
+      | { certificateChainPem?: string[] }
+      | undefined;
+    if (
+      bundle === undefined ||
+      !Array.isArray(bundle.certificateChainPem) ||
+      bundle.certificateChainPem.length === 0
+    ) {
+      throw new RouteError(
+        404,
+        "certificate-not-issued",
+        "No PoC root certificate for this deployment",
+      );
     }
-    return cert;
+    const rootPem = bundle.certificateChainPem.at(-1) as string;
+    return { content: btoa(rootPem), contentType: "application/x-pem-file" };
   }
 
   if (method === "GET" && templateKey(method, clean) === "GET /api/v1/runs/{}/details") {
@@ -1323,8 +1364,8 @@ export async function route(
         .map((resource) => [resource.resource_key, resource.teardown_action]),
     );
     const summaryByKey = new Map<string, string>(
-      (plan?.changes ?? []).map((change: any) => [
-        `${change.provider}:${change.resource_type}:${change.resource_name}`,
+      ((plan?.changes ?? []) as Array<Record<string, unknown>>).map((change) => [
+        `${String(change.provider ?? "")}:${String(change.resource_type ?? "")}:${String(change.resource_name ?? "")}`,
         String(change.summary ?? ""),
       ]),
     );
@@ -1732,13 +1773,15 @@ export async function route(
     // human-subject and immutable deployer binding used for evidence writes
     // before either the gateway state read or the Cloud Logging query.
     const authorized = await authorizeRunEvidenceMutation(runId);
+    const parsedHours = Number(url.searchParams.get("hours") ?? 24);
+    const parsedLimit = Number(url.searchParams.get("limit") ?? 100);
     return new GatewayObservability(context.transport).listLogs(
       authorized.spec,
       {
         runId,
         category: (url.searchParams.get("category") ?? "connection") as LogCategory,
-        hours: Number(url.searchParams.get("hours") ?? 24),
-        limit: Number(url.searchParams.get("limit") ?? 100),
+        hours: Number.isFinite(parsedHours) && parsedHours > 0 ? parsedHours : 24,
+        limit: Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : 100,
       },
     );
   }
@@ -2042,7 +2085,7 @@ export async function route(
     if (record === undefined) {
       throw new RouteError(404, "teardown-not-found", "Teardown not found");
     }
-    const rawRecord = record as any;
+    const rawRecord = record as Record<string, unknown>;
     return {
       teardown_id: rawRecord.teardownId ?? clean.split("/").pop(),
       source_run_id: rawRecord.runId ?? "",
@@ -2116,10 +2159,6 @@ export async function route(
     return context.resumeApply(clean.split("/")[4]);
   }
 
-  if (method === "GET" && /^\/api\/v1\/runs\/[^/]+$/.test(clean)) {
-    return context.runState(clean.split("/").pop() as string);
-  }
-
   if (key === "GET /api/v1/evidence/audit-events") {
     const db = await openDatabase();
     const records = await new StateRepository(db).auditEvents();
@@ -2176,20 +2215,6 @@ export async function route(
     };
   }
 
-  if (method === "GET" && /^\/api\/v1\/certificates\/local-poc\/[^/]+$/.test(clean)) {
-    const deploymentName = decodeURIComponent(clean.split("/").pop() as string);
-    const bundle = await encryptedLocalGet<{
-      certificateChainPem?: string[];
-    }>(await openDatabase(), `certificate:name:${deploymentName}`) as
-      | { certificateChainPem?: string[] }
-      | undefined;
-    if (bundle === undefined || !Array.isArray(bundle.certificateChainPem) || bundle.certificateChainPem.length === 0) {
-      throw new RouteError(404, "certificate-not-issued", "No PoC root certificate for this deployment");
-    }
-    const rootPem = bundle.certificateChainPem.at(-1) as string;
-    return { content: btoa(rootPem), contentType: "application/x-pem-file" };
-  }
-
   /**
    * Workspace APIs first, Cloud APIs second. The CEP deployer straddles both,
    * and only the Workspace half has to run as the administrator.
@@ -2235,7 +2260,8 @@ export async function route(
     if (typeof request_.project_id === "string" && request_.project_id !== "") {
       await context.requireDeployer(request_.project_id);
     }
-    return (await cepProvider(context, request_.project_id)).createCustomRoles(request_);
+    return withCepMutationLease(context, "roles", request_, async (administrator, cloud) =>
+      await (await cepProvider(context, request_.project_id, administrator, cloud)).createCustomRoles(request_));
   }
 
   if (key === "POST /api/v1/cep/script") {

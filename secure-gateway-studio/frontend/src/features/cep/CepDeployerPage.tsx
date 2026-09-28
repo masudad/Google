@@ -203,6 +203,7 @@ export function CepDeployerPage({
   const [roleError, setRoleError] = useState<unknown>(null);
 
   const [busy, setBusy] = useState<"deploy" | "rollback" | null>(null);
+  const [lastAction, setLastAction] = useState<"deploy" | "rollback">("deploy");
   const [actionError, setActionError] = useState<unknown>(null);
   const [actionSuccess, setActionSuccess] = useState<string>("");
   const [lastResult, setLastResult] = useState<CepProvisionResult | null>(null);
@@ -231,6 +232,7 @@ export function CepDeployerPage({
   const [geminiError, setGeminiError] = useState<unknown>(null);
 
   async function handleProvisionGeminiZeroTrust() {
+    if (provisioningGemini) return;
     const targetProject = (geminiProjectInput || projectId).trim();
     if (!targetProject) {
       setGeminiError(new Error("Target Google Cloud Project ID is required."));
@@ -351,7 +353,7 @@ gcloud access-context-manager cloud-bindings create \\
   const [loadingOus, setLoadingOus] = useState<boolean>(false);
 
   async function handleCreateRoles() {
-    if (!canonicalCustomerId) return;
+    if (creatingRoles || !canonicalCustomerId) return;
     setCreatingRoles(true);
     setRoleError(null);
     setRoleResult(null);
@@ -384,6 +386,7 @@ gcloud access-context-manager cloud-bindings create \\
   }
 
   const handleLoadOus = async () => {
+    if (loadingOus) return;
     // A refresh is a new authorization decision. Never retain or infer a
     // target from the first (normally root) Directory result.
     setSelectedOu("");
@@ -442,6 +445,7 @@ gcloud access-context-manager cloud-bindings create \\
   };
 
   const handleLoadGroups = async () => {
+    if (loadingGroups) return;
     setSelectedGroup("");
     setTargetGroupConfirmation("");
     if (canonicalCustomerId === "") {
@@ -526,7 +530,7 @@ gcloud access-context-manager cloud-bindings create \\
   }
 
   const handleAssignLicenses = async () => {
-    if (!selectedOu || canonicalCustomerId === "" || !targetOuConfirmed) return;
+    if (assigningLicenses || !selectedOu || canonicalCustomerId === "" || !targetOuConfirmed) return;
     const confirmation = targetOuConfirmation;
     setTargetOuConfirmation("");
     setAssigningLicenses(true);
@@ -570,10 +574,11 @@ gcloud access-context-manager cloud-bindings create \\
   };
 
   const handleDeploy = async () => {
-    if (canonicalCustomerId === "" || !targetConfirmed) return;
+    if (busy !== null || canonicalCustomerId === "" || !targetConfirmed) return;
     const config = currentConfig();
     setTargetOuConfirmation("");
     setTargetGroupConfirmation("");
+    setLastAction("deploy");
     setBusy("deploy");
     setDeployStep(1);
     setActionError(null);
@@ -596,8 +601,9 @@ gcloud access-context-manager cloud-bindings create \\
   };
 
   const handleRollback = async () => {
-    if (canonicalCustomerId === "") return;
+    if (busy !== null || canonicalCustomerId === "") return;
     if (!window.confirm(m.confirmRollback)) return;
+    setLastAction("rollback");
     setBusy("rollback");
     setRollbackStep(1);
     setActionError(null);
@@ -1800,7 +1806,11 @@ gcloud access-context-manager cloud-bindings create \\
         </button>
         <button
           className="secondary-action"
-          disabled={canonicalCustomerId === "" || selectedOu === "" || busy !== null}
+          disabled={
+            canonicalCustomerId === "" ||
+            (targetType === "group" ? selectedGroup.trim() === "" : selectedOu === "") ||
+            busy !== null
+          }
           onClick={handleDownloadScript}
           type="button"
         >
@@ -1879,7 +1889,7 @@ gcloud access-context-manager cloud-bindings create \\
         <ErrorDiagnosticCard
           error={actionError}
           messages={messages}
-          onRetry={busy === "deploy" ? handleDeploy : handleRollback}
+          onRetry={lastAction === "deploy" ? handleDeploy : handleRollback}
         />
       )}
 

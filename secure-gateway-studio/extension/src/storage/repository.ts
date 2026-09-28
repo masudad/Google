@@ -200,6 +200,10 @@ export function policyUpdateCompensationTargets(
       return currentRequestDefinitelyRejected ? ["application"] : null;
     case "gateway_applied":
       return ["application", "gateway"];
+    default: {
+      const exhaustiveCheck: never = phase;
+      throw new Error(`Unhandled policy update checkpoint phase: ${String(exhaustiveCheck)}`);
+    }
   }
 }
 
@@ -257,7 +261,7 @@ export const CEP_MUTATION_LEASE_MS = 5 * 60_000;
 export interface CepMutationLeaseRecord {
   leaseKey: string;
   operationId: string;
-  operationKind: "provision" | "rollback" | "assign_licenses" | "gemini_zero_trust";
+  operationKind: "provision" | "rollback" | "assign_licenses" | "gemini_zero_trust" | "roles";
   requestDigest: string;
   ownerToken: string;
   acquiredAt: string;
@@ -766,12 +770,16 @@ export function openDatabase(factory: IDBFactory = indexedDB): Promise<IDBDataba
       if (cacheConnection) {
         db.onversionchange = () => {
           db.close();
-          if (cachedDb === db) cachedDb = null;
-          cachedDbPromise = null;
+          if (cachedDb === db) {
+            cachedDb = null;
+            cachedDbPromise = null;
+          }
         };
         db.onclose = () => {
-          if (cachedDb === db) cachedDb = null;
-          cachedDbPromise = null;
+          if (cachedDb === db) {
+            cachedDb = null;
+            cachedDbPromise = null;
+          }
         };
       }
       void activateAcceptedEncryption(db).then(() => {

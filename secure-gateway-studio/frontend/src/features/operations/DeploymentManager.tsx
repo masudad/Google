@@ -148,6 +148,7 @@ export function DeploymentManager({ copy, runId, onClose }: DeploymentManagerPro
   }, [copy.teardownActionFailed, teardown]);
 
   async function handleUpdateAccessLevel() {
+    if (accessLevelBusy) return;
     setAccessLevelBusy(true);
     setAccessLevelError("");
     setAccessLevelSuccess(false);
@@ -169,8 +170,10 @@ export function DeploymentManager({ copy, runId, onClose }: DeploymentManagerPro
             }
           : prev,
       );
-    } catch (err: any) {
-      setAccessLevelError(err?.message || "Failed to update access level");
+    } catch (err: unknown) {
+      setAccessLevelError(
+        err instanceof Error ? err.message : "Failed to update access level",
+      );
     } finally {
       setAccessLevelBusy(false);
     }

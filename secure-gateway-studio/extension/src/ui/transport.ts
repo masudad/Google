@@ -54,7 +54,11 @@ async function call(request: ApiRequest): Promise<unknown> {
     reply = (await chrome.runtime.sendMessage(request)) as ApiReply;
   } catch (error) {
     // The worker failed to wake, or the extension was reloaded mid-call.
-    throw new ApiError(0, "worker-unavailable", (error as Error).message);
+    throw new ApiError(
+      0,
+      "worker-unavailable",
+      error instanceof Error ? error.message : String(error),
+    );
   }
   if (reply === undefined) {
     throw new ApiError(0, "worker-silent", "The background worker returned no response.");

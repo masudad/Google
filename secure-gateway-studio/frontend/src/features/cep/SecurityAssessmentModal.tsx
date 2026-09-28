@@ -291,7 +291,7 @@ export function SecurityAssessmentModal({
       connectors: has("audit_logs") || has("casb_cost") || has("vdi_cost"),
       accessLevel:
         has("byod_access") || has("device_posture") || has("saas_auth")
-          ? "BROWSER_MANAGED"
+          ? "AUTO_CREATE_BROWSER_MANAGED"
           : "NONE",
       dlpRules:
         has("genai_paste") || has("pii_dlp") || has("print_watermark") || has("casb_cost"),

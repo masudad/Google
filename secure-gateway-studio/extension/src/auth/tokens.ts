@@ -242,6 +242,7 @@ export class DeployerCredentials {
   private readonly now: () => number;
   private cached: DelegatedToken | null = null;
   private inFlight: Promise<DelegatedToken> | null = null;
+  private generation = 0;
 
   constructor(options: DeployerCredentialsOptions) {
     this.serviceAccountEmail = options.serviceAccountEmail;
@@ -258,15 +259,22 @@ export class DeployerCredentials {
     }
     // Collapse concurrent callers onto one mint; the service worker may run
     // several operations at once and each extra mint is a wasted round trip.
-    this.inFlight ??= this.mint().finally(() => {
-      this.inFlight = null;
-    });
+    if (this.inFlight === null) {
+      const gen = this.generation;
+      const promise = this.mint(gen).finally(() => {
+        if (this.inFlight === promise) {
+          this.inFlight = null;
+        }
+      });
+      this.inFlight = promise;
+    }
     const token = await this.inFlight;
     return token.token;
   }
 
   /** Drop cached tokens. Call after a 401 so the next attempt re-consents. */
   async invalidate(): Promise<void> {
+    this.generation += 1;
     this.cached = null;
     this.inFlight = null;
     try {
@@ -282,7 +290,7 @@ export class DeployerCredentials {
     }
   }
 
-  private async mint(): Promise<DelegatedToken> {
+  private async mint(gen = this.generation): Promise<DelegatedToken> {
     // Token renewal happens from alarms and cold workers too. Chrome permits
     // interactive consent only from an explicit explanatory UI action; the
     // sign-in handler performs that action and leaves a cached token here.
@@ -314,8 +322,17 @@ export class DeployerCredentials {
       );
     }
 
-    const payload = (await response.json()) as { accessToken?: string; expireTime?: string };
-    if (!payload.accessToken || !payload.expireTime) {
+    const rawPayload = await response.json();
+    const payload =
+      rawPayload !== null && typeof rawPayload === "object"
+        ? (rawPayload as { accessToken?: unknown; expireTime?: unknown })
+        : {};
+    if (
+      typeof payload.accessToken !== "string" ||
+      payload.accessToken === "" ||
+      typeof payload.expireTime !== "string" ||
+      payload.expireTime === ""
+    ) {
       throw new AuthenticationError(
         "impersonation-failed",
         "Token exchange returned no credential.",
@@ -330,8 +347,11 @@ export class DeployerCredentials {
       );
     }
 
-    this.cached = { token: payload.accessToken, expiresAt };
-    return this.cached;
+    const minted: DelegatedToken = { token: payload.accessToken, expiresAt };
+    if (gen === this.generation) {
+      this.cached = minted;
+    }
+    return minted;
   }
 }
 

@@ -1125,7 +1125,7 @@ async function scheduleRollbackAfterFatalError(runId: string, error: unknown): P
   const current = record.steps.find((step) => step.status !== "done");
   if (current !== undefined) {
     current.status = "failed";
-    current.error = (error as Error).message;
+    current.error = error instanceof Error ? error.message : String(error);
   }
   record.state = "rolling_back";
   await runStore.save(record);
@@ -1689,7 +1689,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       return;
     }
     const code = error instanceof SpecValidationError ? "spec-invalid" : "request-failed";
-    sendResponse({ ok: false, status: 500, code, message: (error as Error).message });
+    sendResponse({
+      ok: false,
+      status: 500,
+      code,
+      message: error instanceof Error ? error.message : String(error),
+    });
   });
   // Keep the message channel open for the async reply.
   return true;

@@ -124,7 +124,7 @@ function parseIPv4(host: string): number[] | null {
   for (const part of parts) {
     if (!/^\d{1,3}$/.test(part)) return null;
     const value = Number(part);
-    if (value > 255) return null;
+    if (Number.isNaN(value) || value > 255) return null;
     octets.push(value);
   }
   return octets;

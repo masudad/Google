@@ -614,6 +614,7 @@ function connectorFields(configurationPattern: RegExp): CepFieldSpec[] {
       value: () => true,
       optional: true,
     },
+    { name: /^minimumDataSize$/i, value: () => 1, optional: true },
   ];
 }
 
@@ -881,6 +882,10 @@ function moduleEnabled(config: CepProvisionConfig, module: CepModule): boolean {
       return config.dlp_rules === true;
     case "dataBoundary":
       return config.data_boundary_mode !== undefined && config.data_boundary_mode !== "none";
+    default: {
+      const exhaustiveCheck: never = module;
+      throw new Error(`Unhandled CEP module: ${String(exhaustiveCheck)}`);
+    }
   }
 }
 
@@ -1569,8 +1574,10 @@ export class CepProvider {
         )) as PolicySchemaShape;
         this.schemaCache.set(definition.schema, schema);
         return { name: definition.schema, schema };
-      } catch {
-        this.schemaCache.set(definition.schema, null);
+      } catch (error) {
+        if (error instanceof CepApiError && error.status === 404) {
+          this.schemaCache.set(definition.schema, null);
+        }
         return null;
       }
     }
@@ -2281,13 +2288,18 @@ export class CepProvider {
       byodOnly: boolean;
     }> = [];
 
+    const accessLevelCondition =
+      context.accessLevelName && context.accessLevelName !== "NONE"
+        ? `access_levels.exists(level, level == \x27${context.accessLevelName}\x27)`
+        : undefined;
+
     for (const base of bases) {
       const matrixRule = context.dlpMatrix[base.id] ?? {};
-      // A requested BYOD scope is reported separately by ensureRules. Never
-      // broaden it silently into an all-device rule.
-      if (matrixRule.byodOnly === true) continue;
+      // When no Access Level is selected, ensureRules reports the BYOD scope as
+      // skipped. Never broaden it silently into an all-device rule.
+      if (matrixRule.byodOnly === true && accessLevelCondition === undefined) continue;
       for (const operation of base.operations) {
-        if (base.id === "access_level" && (!context.accessLevelName || context.accessLevelName === "NONE")) {
+        if (base.id === "access_level" && accessLevelCondition === undefined) {
           continue;
         }
         const selectedAction =
@@ -2311,6 +2323,16 @@ export class CepProvider {
           actionParams.saveContent = true;
         }
 
+        const ruleCondition: Record<string, string> | undefined =
+          matrixRule.byodOnly === true && accessLevelCondition !== undefined && base.id !== "access_level"
+            ? {
+                ...(base.condition ?? {}),
+                contextCondition: base.condition?.contextCondition
+                  ? `(${base.condition.contextCondition}) && (${accessLevelCondition})`
+                  : accessLevelCondition,
+              }
+            : base.condition;
+
         resolved.push({
           id: base.id,
           operation,
@@ -2322,10 +2344,10 @@ export class CepProvider {
               : DLP_OPERATION_TRIGGERS[operation],
           ],
           action: selectedAction,
-          condition: base.condition,
+          condition: ruleCondition,
           actionParams: Object.keys(actionParams).length > 0 ? actionParams : undefined,
           requires: base.requires,
-          byodOnly: false,
+          byodOnly: matrixRule.byodOnly === true,
         });
       }
     }
@@ -2736,44 +2758,60 @@ export class CepProvider {
     const url = context.targetType === "group"
       ? `${CHROME_POLICY}/customers/${context.customerId}/policies/groups:batchModify`
       : `${CHROME_POLICY}/customers/${context.customerId}/policies/orgunits:batchModify`;
-    for (const [module, items] of byModule) {
-      const payload = await this.call(
-        trace,
-        `Apply ${module} policies (${items.length})`,
-        "POST",
-        url,
-        { requests: items.map((item) => item.request) },
-      );
-      if (payload !== null) {
-        for (const item of items) created.push(item.definition.label);
-        continue;
-      }
-
-      // The batch names no policy, so "the connectors batch was rejected"
-      // convicted all four. Re-send them one at a time: whatever the API
-      // objects to belongs to a specific policy, and the others still apply.
-      if (items.length === 1) {
-        failedModules.add(module);
-        skipped.push(`${items[0].definition.label}: ${trace[trace.length - 1]?.error ?? "rejected"}`);
-        continue;
+    for (const [module, moduleItems] of byModule) {
+      const targetGroups = new Map<string, ResolvedPolicy[]>();
+      for (const item of moduleItems) {
+        const targetResource = String(item.request.policyTargetKey.targetResource ?? "");
+        const rawAdditionalKeys = item.request.policyTargetKey.additionalTargetKeys;
+        const additionalKeyNames =
+          rawAdditionalKeys !== null && typeof rawAdditionalKeys === "object"
+            ? Object.keys(rawAdditionalKeys).sort()
+            : [];
+        const signature = JSON.stringify([targetResource, additionalKeyNames]);
+        const bucket = targetGroups.get(signature) ?? [];
+        bucket.push(item);
+        targetGroups.set(signature, bucket);
       }
 
       let moduleFailed = false;
-      for (const item of items) {
-        const before = trace.length;
-        const single = await this.call(
+      for (const items of targetGroups.values()) {
+        const payload = await this.call(
           trace,
-          `Apply ${item.definition.label}`,
+          `Apply ${module} policies (${items.length})`,
           "POST",
           url,
-          { requests: [item.request] },
+          { requests: items.map((item) => item.request) },
         );
-        if (single === null) {
-          moduleFailed = true;
-          skipped.push(`${item.definition.label}: ${trace[before]?.error ?? "rejected"}`);
+        if (payload !== null) {
+          for (const item of items) created.push(item.definition.label);
           continue;
         }
-        created.push(item.definition.label);
+
+        // The batch names no policy, so "the connectors batch was rejected"
+        // convicted all four. Re-send them one at a time: whatever the API
+        // objects to belongs to a specific policy, and the others still apply.
+        if (items.length === 1) {
+          moduleFailed = true;
+          skipped.push(`${items[0].definition.label}: ${trace[trace.length - 1]?.error ?? "rejected"}`);
+          continue;
+        }
+
+        for (const item of items) {
+          const before = trace.length;
+          const single = await this.call(
+            trace,
+            `Apply ${item.definition.label}`,
+            "POST",
+            url,
+            { requests: [item.request] },
+          );
+          if (single === null) {
+            moduleFailed = true;
+            skipped.push(`${item.definition.label}: ${trace[before]?.error ?? "rejected"}`);
+            continue;
+          }
+          created.push(item.definition.label);
+        }
       }
       if (moduleFailed) failedModules.add(module);
     }
@@ -3039,6 +3077,26 @@ export class CepProvider {
     const roles: string[] = [];
     const errors: string[] = [];
 
+    // 0. Discover opaque serviceIds from Workspace Directory privileges when available
+    const privilegeServiceIds = new Map<string, string>();
+    const privilegesUrl = `${DIRECTORY}/customer/${encodeURIComponent(customerId)}/roles/ALL/privileges`;
+    try {
+      const privResp = await this.transport.requestJson("GET", privilegesUrl);
+      if (privResp.status >= 200 && privResp.status < 300 && privResp.payload && typeof privResp.payload === "object") {
+        const items = (privResp.payload as { items?: Array<{ privilegeName?: string; serviceId?: string }> }).items ?? [];
+        for (const item of items) {
+          if (typeof item.privilegeName === "string" && typeof item.serviceId === "string" && item.serviceId !== "") {
+            privilegeServiceIds.set(item.privilegeName, item.serviceId);
+          }
+        }
+      }
+    } catch {
+      // Fall back to default serviceId identifiers when privileges catalogue cannot be read
+    }
+
+    const resolveServiceId = (privilegeName: string, fallbackServiceId: string): string =>
+      privilegeServiceIds.get(privilegeName) ?? fallbackServiceId;
+
     const roleDefinitions: Array<{
       id: string;
       name: string;
@@ -3053,8 +3111,14 @@ export class CepProvider {
         description:
           "Administers Chrome policies and organizational units for Chrome Enterprise Premium evaluation",
         privileges: [
-          { privilegeName: "CHROME_MANAGEMENT", serviceId: "CHROME_MANAGEMENT" },
-          { privilegeName: "ORGANIZATION_UNITS", serviceId: "CUSTOMER_SETTINGS" },
+          {
+            privilegeName: "CHROME_MANAGEMENT",
+            serviceId: resolveServiceId("CHROME_MANAGEMENT", "CHROME_MANAGEMENT"),
+          },
+          {
+            privilegeName: "ORGANIZATION_UNITS",
+            serviceId: resolveServiceId("ORGANIZATION_UNITS", "CUSTOMER_SETTINGS"),
+          },
         ],
       });
     }
@@ -3066,8 +3130,14 @@ export class CepProvider {
         description:
           "Audits Chrome browser logs, events, and reports for Chrome Enterprise Premium evaluation",
         privileges: [
-          { privilegeName: "SECURITY_REPORTS", serviceId: "REPORTS" },
-          { privilegeName: "AUDIT_LOGS", serviceId: "REPORTS" },
+          {
+            privilegeName: "SECURITY_REPORTS",
+            serviceId: resolveServiceId("SECURITY_REPORTS", "REPORTS"),
+          },
+          {
+            privilegeName: "AUDIT_LOGS",
+            serviceId: resolveServiceId("AUDIT_LOGS", "REPORTS"),
+          },
         ],
       });
     }
@@ -3093,7 +3163,7 @@ export class CepProvider {
         label: "List Workspace custom roles",
         method: "GET",
         url: existingRolesUrl,
-        status: 500,
+        status: errorStatus(err) ?? 500,
         ok: false,
         error: errorMessage(err),
       });
@@ -3147,7 +3217,7 @@ export class CepProvider {
           label: `Create Workspace role ${def.name}`,
           method: "POST",
           url: createUrl,
-          status: 500,
+          status: errorStatus(err) ?? 500,
           ok: false,
           error: errorMessage(err),
         });
@@ -3184,6 +3254,7 @@ export class CepProvider {
         try {
           const assignResp = await this.transport.requestJson("POST", assignUrl, {
             jsonBody: assignBody,
+            acceptedStatuses: [200, 201, 409],
           });
           const ok = assignResp.status >= 200 && assignResp.status < 300;
           trace.push({
@@ -3207,6 +3278,14 @@ export class CepProvider {
           }
         } catch (err) {
           errors.push(`ロール ${role.roleName} の割り当てエラー: ${errorMessage(err)}`);
+          trace.push({
+            label: `Assign role ${role.roleName} to ${email}`,
+            method: "POST",
+            url: assignUrl,
+            status: errorStatus(err) ?? 500,
+            ok: false,
+            error: errorMessage(err),
+          });
         }
       }
     }
@@ -3714,7 +3793,57 @@ if __name__ == "__main__":
       };
     }
 
-    // 1. Resolve Project details (projectNumber & organization parent)
+    const extractParentRef = (rawParent: unknown): string | undefined => {
+      if (typeof rawParent === "string" && rawParent.trim() !== "") {
+        return rawParent.trim();
+      }
+      if (rawParent && typeof rawParent === "object" && !Array.isArray(rawParent)) {
+        const pObj = rawParent as Record<string, unknown>;
+        if (typeof pObj.type === "string" && typeof pObj.id === "string" && pObj.id.trim() !== "") {
+          const t = pObj.type.trim().toLowerCase();
+          if (t === "organization" || t === "organizations") return `organizations/${pObj.id.trim()}`;
+          if (t === "folder" || t === "folders") return `folders/${pObj.id.trim()}`;
+        }
+      }
+      return undefined;
+    };
+
+    const pollAcmOperation = async (
+      operationPayload: unknown,
+      label: string,
+    ): Promise<{ ok: boolean; error?: string }> => {
+      if (!operationPayload || typeof operationPayload !== "object") return { ok: true };
+      let current = operationPayload as Record<string, unknown>;
+      const opName = typeof current.name === "string" ? current.name : undefined;
+      for (let attempt = 0; attempt < 30; attempt += 1) {
+        if (current.error && typeof current.error === "object") {
+          const errObj = current.error as { message?: string; code?: number };
+          return {
+            ok: false,
+            error: errObj.message ?? `ACM operation failed (code ${String(errObj.code ?? "unknown")})`,
+          };
+        }
+        if (current.done !== false || !opName) {
+          return { ok: true };
+        }
+        const opUrl = `${ACM}/${opName.replace(/^\/+/, "")}`;
+        const polled = await this.cloudTransport.requestJson("GET", opUrl);
+        trace.push({
+          label: `Poll ${label}`,
+          method: "GET",
+          url: opUrl,
+          status: polled.status,
+          ok: polled.status >= 200 && polled.status < 300,
+        });
+        if (polled.status < 200 || polled.status >= 300 || !polled.payload || typeof polled.payload !== "object") {
+          return { ok: false, error: `Failed polling ACM operation ${opName} (HTTP ${polled.status})` };
+        }
+        current = polled.payload;
+      }
+      return { ok: false, error: `Timed out waiting for ACM operation ${opName ?? label}` };
+    };
+
+    // 1. Resolve Project details (projectNumber & organization parent, walking folders if nested)
     let projectNumber: string | undefined;
     let organizationId: string | undefined;
     const projectUrl = `${CRM}/projects/${encodeURIComponent(projectId)}`;
@@ -3733,11 +3862,33 @@ if __name__ == "__main__":
         if (!projectNumber && typeof p.name === "string" && /^projects\/(\d+)$/.test(p.name)) {
           projectNumber = /^projects\/(\d+)$/.exec(p.name)?.[1];
         }
-        const parent = p.parent as Record<string, unknown> | undefined;
-        if (parent && parent.type === "organization" && typeof parent.id === "string") {
-          organizationId = `organizations/${parent.id}`;
-        } else if (typeof p.parent === "string" && p.parent.startsWith("organizations/")) {
-          organizationId = p.parent;
+        let parentRef = extractParentRef(p.parent);
+        for (
+          let depth = 0;
+          depth < 20 && parentRef !== undefined && !parentRef.startsWith("organizations/");
+          depth += 1
+        ) {
+          const folderUrl = `${CRM}/${parentRef}`;
+          try {
+            const folderResp = await this.cloudTransport.requestJson("GET", folderUrl);
+            trace.push({
+              label: "Resolve parent folder",
+              method: "GET",
+              url: folderUrl,
+              status: folderResp.status,
+              ok: folderResp.status >= 200 && folderResp.status < 300,
+            });
+            if (folderResp.status >= 200 && folderResp.status < 300 && folderResp.payload) {
+              parentRef = extractParentRef((folderResp.payload as Record<string, unknown>).parent);
+            } else {
+              parentRef = undefined;
+            }
+          } catch {
+            parentRef = undefined;
+          }
+        }
+        if (parentRef?.startsWith("organizations/")) {
+          organizationId = parentRef;
         }
       }
     } catch (err) {
@@ -3745,7 +3896,7 @@ if __name__ == "__main__":
         label: "Get Google Cloud Project",
         method: "GET",
         url: projectUrl,
-        status: 500,
+        status: errorStatus(err) ?? 500,
         ok: false,
         error: errorMessage(err),
       });
@@ -3789,7 +3940,7 @@ if __name__ == "__main__":
           label: "List Access Context Manager Policies",
           method: "GET",
           url: policiesUrl,
-          status: 500,
+          status: errorStatus(err) ?? 500,
           ok: false,
           error: errorMessage(err),
         });
@@ -3831,8 +3982,22 @@ if __name__ == "__main__":
           levelExists = true;
           accessLevelName = targetLevel;
         }
-      } catch {
-        // proceed to create
+      } catch (err) {
+        trace.push({
+          label: "Check existing Access Level",
+          method: "GET",
+          url: levelCheckUrl,
+          status: errorStatus(err) ?? 500,
+          ok: false,
+          error: errorMessage(err),
+        });
+        return {
+          success: false,
+          message: `Failed to verify existing ACM Access Level: ${errorMessage(err)}`,
+          access_policy_name: policyName,
+          project_number: projectNumber,
+          trace,
+        };
       }
 
       if (!levelExists) {
@@ -3859,13 +4024,23 @@ if __name__ == "__main__":
             status: createResp.status,
             ok: createResp.status >= 200 && createResp.status < 300,
           });
+          const opOutcome = await pollAcmOperation(createResp.payload, "Access Level creation");
+          if (!opOutcome.ok) {
+            return {
+              success: false,
+              message: `Failed to create ACM Access Level: ${opOutcome.error}`,
+              access_policy_name: policyName,
+              project_number: projectNumber,
+              trace,
+            };
+          }
           accessLevelName = targetLevel;
         } catch (err) {
           trace.push({
             label: "Create Access Level (Managed Chrome)",
             method: "POST",
             url: createLevelUrl,
-            status: 500,
+            status: errorStatus(err) ?? 500,
             ok: false,
             error: errorMessage(err),
           });
@@ -3900,8 +4075,23 @@ if __name__ == "__main__":
           perimeterExists = true;
           servicePerimeterName = targetPerimeter;
         }
-      } catch {
-        // proceed to create
+      } catch (err) {
+        trace.push({
+          label: "Check existing Service Perimeter",
+          method: "GET",
+          url: perimCheckUrl,
+          status: errorStatus(err) ?? 500,
+          ok: false,
+          error: errorMessage(err),
+        });
+        return {
+          success: false,
+          message: `Failed to verify existing VPC-SC Service Perimeter: ${errorMessage(err)}`,
+          access_policy_name: policyName,
+          access_level_name: accessLevelName,
+          project_number: projectNumber,
+          trace,
+        };
       }
 
       if (!perimeterExists) {
@@ -3932,13 +4122,24 @@ if __name__ == "__main__":
             status: pCreateResp.status,
             ok: pCreateResp.status >= 200 && pCreateResp.status < 300,
           });
+          const pOpOutcome = await pollAcmOperation(pCreateResp.payload, "Service Perimeter creation");
+          if (!pOpOutcome.ok) {
+            return {
+              success: false,
+              message: `Failed to create VPC-SC Service Perimeter: ${pOpOutcome.error}`,
+              access_policy_name: policyName,
+              access_level_name: accessLevelName,
+              project_number: projectNumber,
+              trace,
+            };
+          }
           servicePerimeterName = targetPerimeter;
         } catch (err) {
           trace.push({
             label: "Create Service Perimeter (Discovery Engine)",
             method: "POST",
             url: createPerimUrl,
-            status: 500,
+            status: errorStatus(err) ?? 500,
             ok: false,
             error: errorMessage(err),
           });
@@ -3966,53 +4167,85 @@ if __name__ == "__main__":
           ok: false,
           error: "Organization ID could not be determined for RCA binding.",
         });
-      } else {
-        const groupKey = config.rca_group_key.trim();
-        const createBindingUrl = `${ACM}/${organizationId}/gcpUserAccessBindings`;
-        const bindingPayload = {
-          groupKey,
-          scopedAccessSettings: [
-            {
-              scope: {
-                clientScope: {
-                  restrictedClientApplication: {
-                    name: "Gemini Enterprise",
-                  },
+        return {
+          success: false,
+          message: "Failed to create RCA Binding: Organization ID could not be determined for this project.",
+          access_policy_name: policyName,
+          access_level_name: accessLevelName,
+          service_perimeter_name: servicePerimeterName,
+          project_number: projectNumber,
+          dry_run: !!config.dry_run,
+          trace,
+        };
+      }
+      const groupKey = config.rca_group_key.trim();
+      const createBindingUrl = `${ACM}/${organizationId}/gcpUserAccessBindings`;
+      const bindingPayload = {
+        groupKey,
+        scopedAccessSettings: [
+          {
+            scope: {
+              clientScope: {
+                restrictedClientApplication: {
+                  name: "Gemini Enterprise",
                 },
               },
-              activeSettings: {
-                accessLevels: accessLevelName ? [accessLevelName] : [],
-              },
             },
-          ],
-        };
-        try {
-          const bResp = await this.cloudTransport.requestJson("POST", createBindingUrl, {
-            jsonBody: bindingPayload,
-            acceptedStatuses: [200, 201, 409],
-          });
-          trace.push({
-            label: "Create RCA Binding (Gemini Enterprise)",
-            method: "POST",
-            url: createBindingUrl,
-            status: bResp.status,
-            ok: bResp.status >= 200 && bResp.status < 300,
-          });
-          if (bResp.payload && typeof (bResp.payload as { name?: unknown }).name === "string") {
-            rcaBindingName = (bResp.payload as { name: string }).name;
-          } else if (bResp.status === 409) {
-            rcaBindingName = `${organizationId}/gcpUserAccessBindings (active/already exists)`;
-          }
-        } catch (err) {
-          trace.push({
-            label: "Create RCA Binding (Gemini Enterprise)",
-            method: "POST",
-            url: createBindingUrl,
-            status: 500,
-            ok: false,
-            error: errorMessage(err),
-          });
+            activeSettings: {
+              accessLevels: accessLevelName ? [accessLevelName] : [],
+            },
+          },
+        ],
+      };
+      try {
+        const bResp = await this.cloudTransport.requestJson("POST", createBindingUrl, {
+          jsonBody: bindingPayload,
+          acceptedStatuses: [200, 201, 409],
+        });
+        const rcaOk = (bResp.status >= 200 && bResp.status < 300) || bResp.status === 409;
+        trace.push({
+          label: "Create RCA Binding (Gemini Enterprise)",
+          method: "POST",
+          url: createBindingUrl,
+          status: bResp.status,
+          ok: rcaOk,
+        });
+        if (!rcaOk) {
+          return {
+            success: false,
+            message: `Failed to create RCA Binding (HTTP ${bResp.status}).`,
+            access_policy_name: policyName,
+            access_level_name: accessLevelName,
+            service_perimeter_name: servicePerimeterName,
+            project_number: projectNumber,
+            dry_run: !!config.dry_run,
+            trace,
+          };
         }
+        if (bResp.payload && typeof (bResp.payload as { name?: unknown }).name === "string") {
+          rcaBindingName = (bResp.payload as { name: string }).name;
+        } else if (bResp.status === 409) {
+          rcaBindingName = `${organizationId}/gcpUserAccessBindings (active/already exists)`;
+        }
+      } catch (err) {
+        trace.push({
+          label: "Create RCA Binding (Gemini Enterprise)",
+          method: "POST",
+          url: createBindingUrl,
+          status: errorStatus(err) ?? 500,
+          ok: false,
+          error: errorMessage(err),
+        });
+        return {
+          success: false,
+          message: `Failed to create RCA Binding: ${errorMessage(err)}`,
+          access_policy_name: policyName,
+          access_level_name: accessLevelName,
+          service_perimeter_name: servicePerimeterName,
+          project_number: projectNumber,
+          dry_run: !!config.dry_run,
+          trace,
+        };
       }
     }
 

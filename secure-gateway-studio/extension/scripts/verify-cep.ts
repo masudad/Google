@@ -3997,6 +3997,76 @@ for (const mode of ["412-commit", "503-commit", "response-loss-commit"] as const
     await groupLeaseCtx.releaseCepMutationLease!(groupLease);
   }
   check("group mutation acquires cep:group lease and rejects concurrent runs with 409", threwGroupLeaseBusy);
+
+  // Test 18: Battle review regression checks (BYOD Access Level CEL, Roles lease, Gemini Zero Trust folder walk & RCA error)
+  const byodTransport = stubTransport({
+    existingAccessLevels: [
+      {
+        name: "accessPolicies/999/accessLevels/corp_managed",
+        description: "Corporate Managed",
+        expression: "device.is_corp_owned_device == true",
+      },
+    ],
+  });
+  const byodProvision = (await route(
+    context(byodTransport.transport, "999"),
+    "POST",
+    "/api/v1/cep/provision",
+    {
+      customer_id: "C01abcdef",
+      project_id: "secgw-project",
+      target_ou_id: "03pilot",
+      target_ou_path: "/Pilot",
+      target_ou_confirmation: "/Pilot",
+      core_policies: false,
+      force_extensions: false,
+      connectors: false,
+      access_level: "accessPolicies/999/accessLevels/corp_managed",
+      dlp_rules: true,
+      dlp_matrix: {
+        universal_upload: {
+          upload: "blockContent",
+          byodOnly: true,
+        },
+      },
+    },
+  )) as ProvisionResult;
+  const byodDlpCreate = byodTransport.calls.find(
+    (c) => c.method === "POST" && c.url.includes("cloudidentity.googleapis.com"),
+  );
+  const byodCondition = (
+    (byodDlpCreate?.body?.setting as { value?: { condition?: { contextCondition?: string } } })?.value
+      ?.condition?.contextCondition ?? ""
+  );
+  check(
+    "byodOnly rule with selected Access Level creates rule with access_levels.exists CEL condition",
+    byodProvision.success &&
+      byodCondition.includes("access_levels.exists(level, level == 'accessPolicies/999/accessLevels/corp_managed')"),
+    byodCondition,
+  );
+
+  // Roles endpoint acquires cep:customer lease and rejects concurrent mutations
+  const rolesLeaseCtx = context(stubTransport().transport);
+  const rolesLeaseKey = `cep:customer:${canonicalDigestSync({ customer_id: "C01abcdef" })}`;
+  const rolesLease = await rolesLeaseCtx.acquireCepMutationLease!({
+    scopeKeys: [rolesLeaseKey],
+    operationKind: "roles",
+    requestDigest: "c".repeat(64),
+  });
+  let threwRolesLeaseBusy = false;
+  try {
+    await route(rolesLeaseCtx, "POST", "/api/v1/cep/roles", {
+      customer_id: "C01abcdef",
+      project_id: "secgw-project",
+      role_type: "all",
+    });
+  } catch (err) {
+    threwRolesLeaseBusy =
+      (err as RouteError).status === 409 && (err as RouteError).code === "cep-mutation-active";
+  } finally {
+    await rolesLeaseCtx.releaseCepMutationLease!(rolesLease);
+  }
+  check("POST /api/v1/cep/roles acquires cep:customer lease and rejects concurrent runs with 409", threwRolesLeaseBusy);
 }
 
 // -- Report -------------------------------------------------------------------

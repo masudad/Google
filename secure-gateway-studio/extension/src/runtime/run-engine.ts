@@ -494,7 +494,7 @@ export class RunEngine {
       step.error = null;
       await this.store.save(record);
     } catch (error) {
-      step.error = (error as Error).message;
+      step.error = error instanceof Error ? error.message : String(error);
       if (step.attempts >= MAX_ATTEMPTS) {
         step.status = "failed";
         record.state = "rolling_back";
@@ -558,7 +558,8 @@ export class RunEngine {
     } catch (error) {
       // A rollback failure must not strand the run in a loop; record it and
       // move on so the remaining resources are still released.
-      step.error = `rollback: ${(error as Error).message}`;
+      const detail = error instanceof Error ? error.message : String(error);
+      step.error = `rollback: ${detail}`;
       step.status = "rollback_failed";
     }
     await this.store.save(record);

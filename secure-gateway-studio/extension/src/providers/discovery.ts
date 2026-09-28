@@ -1493,7 +1493,7 @@ export class GoogleDiscoveryProvider {
         code: "chrome-profile-readiness-pagination-invalid",
         severity: "error",
         message: "Chrome profile pagination could not be completed safely.",
-        remediation: (error as Error).message,
+        remediation: error instanceof Error ? error.message : String(error),
       });
     }
 

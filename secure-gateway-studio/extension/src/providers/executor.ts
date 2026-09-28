@@ -992,7 +992,7 @@ export class GoogleResourceExecutor {
   private checkpointBeforeImage: ((beforeImage: unknown) => Promise<void>) | undefined;
   private preservePersistedBeforeImage = false;
   /** Set once the run issues a certificate; reused by every step that needs it. */
-  certificate: CertificateBundle | undefined;
+  private certificate: CertificateBundle | undefined;
 
   constructor(
     transport: Transport,

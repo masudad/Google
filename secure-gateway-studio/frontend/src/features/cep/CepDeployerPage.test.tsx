@@ -585,4 +585,46 @@ describe("CepDeployerPage", () => {
       );
     });
   });
+
+  it("enables Download Script when a Google Group target is selected", async () => {
+    renderPage();
+
+    fireEvent.click(screen.getByRole("tab", { name: new RegExp(m.targetTypeGroup || "Google グループ") }));
+    const groupSelect = await screen.findByLabelText(m.selectTargetGroup);
+
+    const downloadBtn = screen.getByRole("button", { name: m.btnDownloadScript });
+    expect(downloadBtn).toBeDisabled();
+
+    fireEvent.change(groupSelect, { target: { value: "sec-poc@example.com" } });
+    expect(downloadBtn).toBeEnabled();
+  });
+
+  it("retries deploy (not rollback) when clicking Retry on ErrorDiagnosticCard after a failed deploy", async () => {
+    const provision = vi.spyOn(api, "provisionCepPolicies").mockRejectedValue(
+      new api.ApiError(403, "WORKSPACE_FORBIDDEN", "Not authorized to access Directory API"),
+    );
+    const rollback = vi.spyOn(api, "rollbackCepPolicies").mockResolvedValue(emptyResult());
+
+    renderPage();
+    await selectPilotOu();
+
+    fireEvent.click(screen.getByText(m.btnDeploy));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+    expect(provision).toHaveBeenCalledTimes(1);
+
+    // Re-confirm OU so handleDeploy can proceed on retry
+    fireEvent.change(screen.getByLabelText(m.targetOuConfirmationLabel), {
+      target: { value: "/Pilot" },
+    });
+    const retryBtn = screen.getByRole("button", { name: m.errDiagRetryBtn });
+    fireEvent.click(retryBtn);
+
+    await waitFor(() => {
+      expect(provision).toHaveBeenCalledTimes(2);
+    });
+    expect(rollback).not.toHaveBeenCalled();
+  });
 });
