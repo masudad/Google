@@ -49,7 +49,8 @@ export function AppShell({
     activeView === "evidence" ||
     activeView === "guide";
 
-  const [sgwMenuOpen, setSgwMenuOpen] = useState(false);
+  const [sgwMenuOpen, setSgwMenuOpen] = useState(true);
+  const showSgwSubmenu = isSgwActive || sgwMenuOpen;
 
   const sgwSubItems: Array<{
     label: string;
@@ -92,10 +93,10 @@ export function AppShell({
           )}
 
           {/* 2. Secure Gateway Deployer (Collapsible dropdown parent) */}
-          <div className={`nav-dropdown-group ${isSgwActive ? "active-parent" : ""} ${sgwMenuOpen ? "open" : ""}`}>
+          <div className={`nav-dropdown-group ${isSgwActive ? "active-parent" : ""} ${showSgwSubmenu ? "open" : ""}`}>
             <button
               aria-label={messages.nav.sgwDeployer}
-              aria-expanded={sgwMenuOpen}
+              aria-expanded={showSgwSubmenu}
               className={`nav-item nav-dropdown-trigger ${isSgwActive ? "active" : ""}`}
               onClick={handleToggleSgw}
               type="button"
@@ -103,12 +104,12 @@ export function AppShell({
               <CubeIcon size={24} />
               <div className="nav-label-with-arrow">
                 <span>{messages.nav.sgwDeployer}</span>
-                {sgwMenuOpen ? <ChevronUpIcon size={14} /> : <ChevronDownIcon size={14} />}
+                {showSgwSubmenu ? <ChevronUpIcon size={14} /> : <ChevronDownIcon size={14} />}
               </div>
             </button>
 
             {/* Submenu containing the 4 SGW tabs */}
-            {sgwMenuOpen && (
+            {showSgwSubmenu && (
               <div className="nav-submenu">
                 {sgwSubItems.map((item) => {
                   const SubIcon = item.icon;
@@ -119,7 +120,7 @@ export function AppShell({
                       className={`nav-subitem ${active ? "active" : ""}`}
                       key={item.view}
                       onClick={() => {
-                        setSgwMenuOpen(false);
+                        setSgwMenuOpen(true);
                         onNavigate(item.view);
                       }}
                       type="button"

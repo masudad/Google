@@ -861,6 +861,13 @@ export function App() {
           <CepDeployerPage
             customerId={setup.customerId}
             messages={messages}
+            onCustomerIdResolved={(resolvedId) =>
+              patchSetup({
+                customerId: resolvedId,
+                workspaceConnection: "connected",
+                workspaceConnectionError: "",
+              })
+            }
             projectId={setup.projectId}
           />
         ) : null

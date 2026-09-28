@@ -41,6 +41,11 @@ export interface WorkflowMessages {
   signInGoogleHint: string;
   signInRequired: string;
   signInOperatorChanged: string;
+  cloudStep1Label: string;
+  cloudStep2Label: string;
+  cloudStep3Label: string;
+  customerIdAutoHint: string;
+  resolveSampleImageQuick: string;
   progressTitle: string;
   progressCount: (completed: number, total: number) => string;
   currentOperation: string;
@@ -158,6 +163,7 @@ export interface WorkflowMessages {
   group: string;
   domain: string;
   accessNotice: string;
+  accessOuVsPrincipalNotice: string;
   reviewTitle: string;
   reviewIntro: string;
   configuration: string;
@@ -189,6 +195,7 @@ export interface WorkflowMessages {
   preflightStage3: string;
   preflightStage4: string;
   preflightStage5: string;
+  preflightStage5Detail: string;
   preflightComplete: string;
   plannedChangesTitle: string;
   plannedChangesIntro: string;
@@ -554,6 +561,12 @@ export interface CepDeployerMessages {
   targetOuConfirmationHint: string;
   ouLoadFailed: string;
   canonicalCustomerIdRequired: string;
+  autoDetectCustomerIdBtn: string;
+  autoDetectingCustomerIdBtn: string;
+  googleAccountVerifiedBanner: (customerId: string, ouCount: number, groupCount: number) => string;
+  dlpMatrixCustomizePrefix: string;
+  dlpMatrixCustomizeMiddle: string;
+  dlpMatrixCustomizeSuffix: string;
   verifyGoogleAccount: string;
   verifyingGoogleAccount: string;
   verifyGoogleAccountHint: string;
@@ -639,6 +652,9 @@ export interface CepDeployerMessages {
   roleCreatingBtn: string;
   rolesAdminConsoleLink: string;
   rolesVerificationNote: string;
+  rolesScopeManualChecklistTitle: string;
+  rolesScopeManualChecklistDesc: string;
+  rolesScopeManualSteps: readonly string[];
   testingScenariosTitle: string;
   testingScenariosSubtitle: string;
   copyDummyData: string;
@@ -1063,6 +1079,12 @@ const en: Messages = {
       "This Chrome profile has not authorized Secure Gateway Studio yet. Sign in with Google to grant access, then retry.",
     signInOperatorChanged:
       "The signed-in Google account differs from the operator this deployer is bound to. Sign in with the original account, or create a replacement deployer.",
+    cloudStep1Label: "Step 1: Authenticate browser OAuth session",
+    cloudStep2Label: "Step 2: Bootstrap dedicated keyless deployer SA & role",
+    cloudStep3Label: "Step 3: Validate read-only project connection",
+    customerIdAutoHint:
+      "Leave as my_customer to automatically detect and fill your canonical C... customer ID when validating.",
+    resolveSampleImageQuick: "Auto-fill Debian 12 PoC image",
     progressTitle: "Deployment progress",
     progressCount: (completed: number, total: number) =>
       `${completed} of ${total} operations complete`,
@@ -1227,6 +1249,8 @@ const en: Messages = {
     domain: "Domain",
     accessNotice:
       "The app conditionally grants application access through the verified managed-Chrome access level, and force-installs Secure Gateway plus Endpoint Verification in this OU; Chrome policy inheritance can also affect descendant OUs.",
+    accessOuVsPrincipalNotice:
+      "Scope distinction: The Dedicated test OU determines which Chrome browsers receive the Secure Gateway and Endpoint Verification policies. Principals below determine which users or groups are granted IAM access through the gateway.",
     reviewTitle: "Review detected state and automatic changes",
     reviewIntro:
       "Compare what the APIs verified, what Apply will configure, and what still needs attention. This screen makes no changes.",
@@ -1307,6 +1331,7 @@ const en: Messages = {
     preflightStage3: "3/5: Discovering BeyondCorp Gateway & VPC network...",
     preflightStage4: "4/5: Resolving Chrome Management & Test OU policies...",
     preflightStage5: "5/5: Compiling change plan & evaluating safety gates...",
+    preflightStage5Detail: "Compiling desired-state diff & evaluating safety gates",
     preflightComplete: "All preflight checks and safety gates verified",
     plannedChangesTitle: "Exact changes requiring approval",
     plannedChangesIntro:
@@ -2229,6 +2254,13 @@ const en: Messages = {
       "Organizational units could not be loaded. Confirm the Google Workspace connection on the setup screen, then reopen this tab.",
     canonicalCustomerIdRequired:
       "Verify the Workspace connection first. DLP changes require the canonical customer ID returned by Directory (it begins with C); my_customer is never sent to Cloud Identity Policy create.",
+    autoDetectCustomerIdBtn: "Auto-detect Customer ID (C...)",
+    autoDetectingCustomerIdBtn: "Detecting Customer ID…",
+    googleAccountVerifiedBanner: (customerId, ouCount, groupCount) =>
+      `Google Account Verified (Customer ID: ${customerId} · ${ouCount} OUs · ${groupCount} Groups)`,
+    dlpMatrixCustomizePrefix: "Customize ",
+    dlpMatrixCustomizeMiddle: " rules in the ",
+    dlpMatrixCustomizeSuffix: " tab",
     verifyGoogleAccount: "Verify Google Account & Load Directory",
     verifyingGoogleAccount: "Verifying Google Account & Loading OUs & Groups…",
     verifyGoogleAccountHint: "Authenticate with Google OAuth to load directory Organizational Units (OUs) and Google Groups.",
@@ -2300,7 +2332,7 @@ const en: Messages = {
     dlpRuleAccessLevel: "Uploads from unmanaged Chrome",
     dlpRuleWatermark: "Watermark internal pages",
     dlpNoticeByodTitle: "Context-Aware Access Level Enforcement",
-    dlpNoticeByodDesc: "Rules in this row use CEL contextCondition: access_levels.exists(level, level == \x27<ACCESS_LEVEL>\x27) to apply controls directly to unmanaged or non-compliant devices.",
+    dlpNoticeByodDesc: "BYOD-scoped rows use CEL contextCondition: !access_levels.exists(level, level == \x27<ACCESS_LEVEL>\x27) so controls apply to unmanaged or non-compliant devices outside the corporate Access Level.",
     activePresetBadge: "Active",
     dataBoundaryModeTitle: "Data boundary",
     dataBoundaryModeCopyPaste: "Inspect pasted content",
@@ -2338,6 +2370,15 @@ const en: Messages = {
     rolesAdminConsoleLink: "Open Admin roles in Google Admin console",
     rolesVerificationNote:
       "Use “Verify Google Account & Load OUs” after assignment. Deployment then calls the real Chrome Policy and Cloud Identity APIs and reports any authorization failure explicitly; no role is inferred from a project IAM binding.",
+    rolesScopeManualChecklistTitle:
+      "Admin Console Setup Guide (Minimal OAuth Scope Design)",
+    rolesScopeManualChecklistDesc:
+      "To keep browser OAuth permissions minimal, this extension omits the high-privilege admin.directory.rolemanagement scope. If the API call returns HTTP 403, assign privileges directly in Google Admin Console (Account > Admin roles):",
+    rolesScopeManualSteps: [
+      "Policy Operator: Enable Chrome Management > Settings and Admin API Privileges > Organization Units (Read/Write), scoped to the pilot OU.",
+      "Read-Only Auditor: Enable Services > Chrome Management > Settings (Read) and Reports / Security Center > Audit Logs.",
+      "Cloud Identity DLP Rules: Creating or modifying Chrome DLP rules requires a Workspace Super Administrator account.",
+    ],
     testingScenariosTitle: "5. Testing the result",
     testingScenariosSubtitle:
       "Sample values that trip the detectors, so you can demonstrate an interception without using real data.",
@@ -2834,6 +2875,12 @@ const ja: Messages = {
       "この Chrome プロファイルはまだ Secure Gateway Studio を承認していません。Google でサインインして権限を付与してから、もう一度実行してください。",
     signInOperatorChanged:
       "サインイン中の Google アカウントが、このデプロイヤーに紐づく運用者と異なります。元のアカウントでサインインするか、置き換え用のデプロイヤーを作成してください。",
+    cloudStep1Label: "手順 1: ブラウザの Google OAuth セッションを承認",
+    cloudStep2Label: "手順 2: 専用キーレス デプロイヤー SA とカスタムロールを自動作成",
+    cloudStep3Label: "手順 3: プロジェクトの読み取り接続を検証",
+    customerIdAutoHint:
+      "my_customer のまま「接続を検証」を押すと、Directory API から C で始まる正規の顧客 ID を自動取得して反映します。",
+    resolveSampleImageQuick: "Debian 12 PoC イメージを自動取得",
     progressTitle: "デプロイ進捗",
     progressCount: (completed: number, total: number) =>
       `${total}件中${completed}件を完了`,
@@ -2997,6 +3044,8 @@ const ja: Messages = {
     domain: "ドメイン",
     accessNotice:
       "検証済みの管理対象Chromeアクセスレベルを条件にアプリへのアクセスを付与し、このOUにSecure GatewayとEndpoint Verificationを強制配布します。Chromeポリシーの継承により配下OUにも影響する場合があります。",
+    accessOuVsPrincipalNotice:
+      "設定範囲の違い: 「専用テスト OU」は Chrome ポリシー（拡張機能・ルーティング設定）の配信先ブラウザを指定します。下の「プリンシパル」は Secure Gateway 経由でアプリケーションへの接続を許可するユーザー／グループ（IAM 認可）を指定します。",
     reviewTitle: "検出結果と自動設定予定を確認",
     reviewIntro:
       "APIで確認できた状態、Applyで自動設定する項目、対応が必要な項目を分けて表示します。この画面ではまだ変更しません。",
@@ -3074,6 +3123,7 @@ const ja: Messages = {
     preflightStage3: "3/5: BeyondCorp Security Gateway & VPC リソースの検出中...",
     preflightStage4: "4/5: Chrome Management & テスト OU ポリシーの照合中...",
     preflightStage5: "5/5: 差分計画の構築 & セーフティゲートの判定中...",
+    preflightStage5Detail: "望ましい状態の差分プラン構築と全セーフティゲートの評価",
     preflightComplete: "すべての事前確認とセーフティゲートの検証が完了しました",
     plannedChangesTitle: "承認対象の変更内容（実行計画）",
     plannedChangesIntro:
@@ -3996,6 +4046,13 @@ const ja: Messages = {
       "組織部門を取得できませんでした。セットアップ画面で Google Workspace の接続を確認してから、このタブを開き直してください。",
     canonicalCustomerIdRequired:
       "先に Workspace 接続を検証してください。DLP の変更には Directory が返す C で始まる正規顧客 ID が必要で、my_customer を Cloud Identity Policy の作成には送信しません。",
+    autoDetectCustomerIdBtn: "顧客 ID (C...) を自動取得して読み込む",
+    autoDetectingCustomerIdBtn: "顧客 ID を自動取得中…",
+    googleAccountVerifiedBanner: (customerId, ouCount, groupCount) =>
+      `Google アカウント認証完了 (顧客 ID: ${customerId} / 取得 OU: ${ouCount} 件 / グループ: ${groupCount} 件)`,
+    dlpMatrixCustomizePrefix: "",
+    dlpMatrixCustomizeMiddle: " の詳細設定は「",
+    dlpMatrixCustomizeSuffix: "」タブからカスタマイズできます",
     verifyGoogleAccount: "Google アカウントを認証して組織（OU）とグループを読み込む",
     verifyingGoogleAccount: "Google アカウントを認証して組織・グループを取得中…",
     verifyGoogleAccountHint: "Google アカウントの OAuth 認可を実行し、管理対象の組織部門（OU）および Google グループを一覧取得します。",
@@ -4066,7 +4123,7 @@ const ja: Messages = {
     dlpRuleAccessLevel: "管理対象外 Chrome からのアップロード",
     dlpRuleWatermark: "社内ページへの電子透かし",
     dlpNoticeByodTitle: "コンテキスト アウェア アクセス（CAA）条件の連動",
-    dlpNoticeByodDesc: "この行のルールは CEL 条件式（access_levels.exists(level, level == '<ACCESS_LEVEL>')）を使用し、未管理端末やポリシー非準拠端末に限定して DLP 制御を適用します。Step 1 で選択したアクセスレベルと自動連携されます。",
+    dlpNoticeByodDesc: "BYOD 限定（アクセスレベル連動）に設定した行は CEL 条件式（!access_levels.exists(level, level == '<ACCESS_LEVEL>')）を使用し、選択したアクセスレベルを満たさない未管理端末に限定して DLP 制御を適用します。",
     activePresetBadge: "選択中",
     dataBoundaryModeTitle: "データ境界",
     dataBoundaryModeCopyPaste: "貼り付け内容を検査する",
@@ -4104,6 +4161,15 @@ const ja: Messages = {
     rolesAdminConsoleLink: "Google 管理コンソールの管理者ロールを開く",
     rolesVerificationNote:
       "ロールの割り当て完了後、「Googleアカウントを認証して組織情報を取得」を実行してください。ポリシーのデプロイに必要な Chrome Policy API および Cloud Identity API の権限が不足している場合は、実行時にエラー詳細と修復手順が表示されます。",
+    rolesScopeManualChecklistTitle:
+      "Google 管理コンソールでの手動設定ガイド（最小 OAuth スコープ設計）",
+    rolesScopeManualChecklistDesc:
+      "ブラウザ拡張機能の OAuth 権限を最小限に保つため、特権スコープ（admin.directory.rolemanagement）は要求していません。API 実行時に 403 となる場合は、Google 管理コンソール（アカウント › 管理者ロール）で以下の権限を割り当ててください。",
+    rolesScopeManualSteps: [
+      "ポリシー実施者: 「サービス › Chrome 管理 › 設定」および「Admin API 権限 › 組織部門」を有効化し、パイロット OU にスコープを限定します。",
+      "読み取り専用の確認者: 「サービス › Chrome 管理 › 設定（読み取り）」および「レポート（監査ログ）」を有効化します。",
+      "Cloud Identity DLP ルール: Chrome DLP ルールの作成・変更には Google Workspace の特権管理者（Super Admin）アカウントが必要です。",
+    ],
     testingScenariosTitle: "5. 結果を確認する",
     testingScenariosSubtitle:
       "検出器に反応するサンプル値です。実データを使わずに検知の様子を実演できます。",

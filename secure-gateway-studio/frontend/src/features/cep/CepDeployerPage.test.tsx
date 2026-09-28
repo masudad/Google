@@ -627,4 +627,53 @@ describe("CepDeployerPage", () => {
     });
     expect(rollback).not.toHaveBeenCalled();
   });
+
+  it("resolves my_customer into a canonical Customer ID via the 1-click auto-detect button", async () => {
+    const validateWs = vi.spyOn(api, "validateWorkspaceConnection").mockResolvedValue({
+      provider: "workspace",
+      status: "connected",
+      principal_hint: "admin@example.com",
+      resource_id: "C09876543",
+      credential_kind: "chrome_identity",
+      access_policy_id: null,
+      read_only: true,
+    });
+    const onResolved = vi.fn();
+
+    render(
+      <CepDeployerPage
+        customerId="my_customer"
+        messages={messages}
+        onCustomerIdResolved={onResolved}
+        projectId="my-test-proj"
+      />,
+    );
+
+    const autoBtn = screen.getByRole("button", { name: m.autoDetectCustomerIdBtn });
+    fireEvent.click(autoBtn);
+
+    await waitFor(() => {
+      expect(validateWs).toHaveBeenCalledWith("my_customer");
+      expect(onResolved).toHaveBeenCalledWith("C09876543");
+      expect(api.listOrganizationalUnitOptions).toHaveBeenCalledWith("C09876543");
+    });
+  });
+
+  it("renders English localization without hardcoded Japanese strings and includes manual role checklist", async () => {
+    const enMessages = getMessages("en");
+    const enM = enMessages.cepDeployer;
+    render(
+      <CepDeployerPage customerId="C012345" messages={enMessages} projectId="my-test-proj" />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: enM.verifyGoogleAccount }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(enM.googleAccountVerifiedBanner("C012345", 2, 2)),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByText(enM.rolesScopeManualChecklistTitle)).toBeInTheDocument();
+    expect(screen.queryByText(/Google アカウント認証完了/)).not.toBeInTheDocument();
+  });
 });
+

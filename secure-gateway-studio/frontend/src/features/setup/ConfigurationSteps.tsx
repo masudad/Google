@@ -365,6 +365,9 @@ export function IdentitiesStep({
           />
           {runtimeCapabilities.sessionSignIn && (
             <>
+              <small className="connection-help-hint">
+                <strong>{copy.cloudStep1Label}</strong>
+              </small>
               <button
                 className="connection-action secondary"
                 disabled={signInBusy || bootstrapBusy}
@@ -379,6 +382,9 @@ export function IdentitiesStep({
               </small>
             </>
           )}
+          <small className="connection-help-hint">
+            <strong>{copy.cloudStep2Label}</strong>
+          </small>
           <button
             className="connection-action secondary"
             disabled={!state.projectId.trim() || bootstrapBusy || signInBusy}
@@ -412,6 +418,9 @@ export function IdentitiesStep({
             readOnly
             value={state.cloudIdentity}
           />
+          <small className="connection-help-hint">
+            <strong>{copy.cloudStep3Label}</strong>
+          </small>
           <button
             className="connection-action"
             disabled={
@@ -466,6 +475,9 @@ export function IdentitiesStep({
             placeholder="C012abcde"
             value={state.customerId}
           />
+          <small className="connection-help-hint">
+            {copy.customerIdAutoHint}
+          </small>
           <Field
             label={copy.adminIdentity}
             onChange={() => undefined}
@@ -712,123 +724,6 @@ export function EnvironmentStep({ messages, onPatch, state }: StepProps) {
           </label>
         )}
       </div>
-      {state.backendKind !== "direct_https" && (
-        <div className="field-grid one">
-          <Field
-            label={copy.sourceImage}
-            onChange={(sourceImage) => onPatch({ sourceImage })}
-            placeholder="projects/my-image-project/global/images/sgs-nginx-20260730"
-            value={state.sourceImage}
-          />
-          <small className="field-hint">
-            {runtimeCapabilities.recommendedPocSourceImage && state.mode === "poc"
-              ? copy.sourceImageAutoHint
-              : copy.sourceImageHint}
-          </small>
-        </div>
-      )}
-      {state.mode === "production" &&
-        !["direct_https", "internal_https_lb"].includes(state.backendKind) && (
-        <>
-          <div className="field-grid three">
-            <Field
-              label={copy.minimumReplicas}
-              min={2}
-              onChange={(offloadMinReplicas) =>
-                onPatch({ offloadMinReplicas })
-              }
-              type="number"
-              value={state.offloadMinReplicas}
-            />
-            <Field
-              label={copy.maximumReplicas}
-              max={1000}
-              min={2}
-              onChange={(offloadMaxReplicas) =>
-                onPatch({ offloadMaxReplicas })
-              }
-              type="number"
-              value={state.offloadMaxReplicas}
-            />
-            <Field
-              label={copy.cpuTarget}
-              max={0.9}
-              min={0.1}
-              onChange={(offloadCpuTarget) => onPatch({ offloadCpuTarget })}
-              step={0.05}
-              type="number"
-              value={state.offloadCpuTarget}
-            />
-          </div>
-          <small className="field-hint">{copy.autoscalingHint}</small>
-        </>
-      )}
-
-      {state.networkStrategy === "existing" && (
-        <>
-          <div className="field-grid two">
-            {usesDeploymentProjectVpc && runtimeCapabilities.vpcNetworkCatalog ? (
-              <CatalogSelect
-                catalog={vpcNetworks}
-                emptyLabel={copy.noOptions}
-                label={copy.vpcName}
-                loadingLabel={copy.optionsLoading}
-                onChange={(vpcName) =>
-                  onPatch(
-                    state.backendKind === "direct_https"
-                      ? { vpcName, existingBackendConnectivityConfirmed: false }
-                      : { vpcName },
-                  )
-                }
-                onRetry={() => void loadVpcNetworks()}
-                placeholder={copy.chooseOption}
-                retryLabel={copy.retryOptions}
-                value={state.vpcName}
-              />
-            ) : (
-              <Field
-                label={copy.vpcName}
-                onChange={(vpcName) =>
-                  onPatch({ vpcName, existingBackendConnectivityConfirmed: false })
-                }
-                value={state.vpcName}
-              />
-            )}
-            {state.backendKind === "direct_https" ? (
-              <Field
-                label={copy.upstreamVpcProjectId}
-                onChange={(upstreamVpcProjectId) =>
-                  onPatch({
-                    upstreamVpcProjectId,
-                    existingBackendConnectivityConfirmed: false,
-                  })
-                }
-                placeholder={state.projectId || "upstream-network-project"}
-                value={state.upstreamVpcProjectId}
-              />
-            ) : (
-              <Field
-                label={copy.subnetName}
-                onChange={(subnetName) => onPatch({ subnetName })}
-                value={state.subnetName}
-              />
-            )}
-          </div>
-          {state.backendKind === "direct_https" ? (
-            <small className="field-hint">{copy.upstreamVpcProjectIdHint}</small>
-          ) : null}
-          {usesDeploymentProjectVpc && runtimeCapabilities.vpcNetworkCatalog ? (
-            <small className="field-hint">{copy.vpcSameProjectHint}</small>
-          ) : null}
-          {state.backendKind === "direct_https" &&
-          state.upstreamVpcProjectId.trim() ? (
-            <Notice tone="security">
-              {copy.upstreamVpcCrossProjectPrerequisite}
-            </Notice>
-          ) : null}
-        </>
-      )}
-
       <h3 className="subsection-title">{copy.network}</h3>
       <div className="mode-grid backend-grid">
         <ChoiceCard
@@ -1033,6 +928,141 @@ export function EnvironmentStep({ messages, onPatch, state }: StepProps) {
           </span>
         </p>
       ) : null}
+
+      {state.backendKind !== "direct_https" && (
+        <div className="field-grid one">
+          <Field
+            label={copy.sourceImage}
+            onChange={(sourceImage) => onPatch({ sourceImage })}
+            placeholder="projects/my-image-project/global/images/sgs-nginx-20260730"
+            value={state.sourceImage}
+          />
+          <small className="field-hint">
+            {runtimeCapabilities.recommendedPocSourceImage && state.mode === "poc"
+              ? copy.sourceImageAutoHint
+              : copy.sourceImageHint}
+          </small>
+          {runtimeCapabilities.recommendedPocSourceImage &&
+            state.mode === "poc" &&
+            !state.sourceImage.trim() && (
+              <button
+                className="connection-action secondary"
+                disabled={sampleImageBusy}
+                onClick={() =>
+                  void (state.backendKind === "internal_https_lb"
+                    ? selectInternalSampleVm()
+                    : selectManagedSampleVm())
+                }
+                type="button"
+              >
+                {sampleImageBusy
+                  ? copy.sampleImageResolving
+                  : copy.resolveSampleImageQuick}
+              </button>
+            )}
+        </div>
+      )}
+      {state.mode === "production" &&
+        !["direct_https", "internal_https_lb"].includes(state.backendKind) && (
+        <>
+          <div className="field-grid three">
+            <Field
+              label={copy.minimumReplicas}
+              min={2}
+              onChange={(offloadMinReplicas) =>
+                onPatch({ offloadMinReplicas })
+              }
+              type="number"
+              value={state.offloadMinReplicas}
+            />
+            <Field
+              label={copy.maximumReplicas}
+              max={1000}
+              min={2}
+              onChange={(offloadMaxReplicas) =>
+                onPatch({ offloadMaxReplicas })
+              }
+              type="number"
+              value={state.offloadMaxReplicas}
+            />
+            <Field
+              label={copy.cpuTarget}
+              max={0.9}
+              min={0.1}
+              onChange={(offloadCpuTarget) => onPatch({ offloadCpuTarget })}
+              step={0.05}
+              type="number"
+              value={state.offloadCpuTarget}
+            />
+          </div>
+          <small className="field-hint">{copy.autoscalingHint}</small>
+        </>
+      )}
+
+      {state.networkStrategy === "existing" && (
+        <>
+          <div className="field-grid two">
+            {usesDeploymentProjectVpc && runtimeCapabilities.vpcNetworkCatalog ? (
+              <CatalogSelect
+                catalog={vpcNetworks}
+                emptyLabel={copy.noOptions}
+                label={copy.vpcName}
+                loadingLabel={copy.optionsLoading}
+                onChange={(vpcName) =>
+                  onPatch(
+                    state.backendKind === "direct_https"
+                      ? { vpcName, existingBackendConnectivityConfirmed: false }
+                      : { vpcName },
+                  )
+                }
+                onRetry={() => void loadVpcNetworks()}
+                placeholder={copy.chooseOption}
+                retryLabel={copy.retryOptions}
+                value={state.vpcName}
+              />
+            ) : (
+              <Field
+                label={copy.vpcName}
+                onChange={(vpcName) =>
+                  onPatch({ vpcName, existingBackendConnectivityConfirmed: false })
+                }
+                value={state.vpcName}
+              />
+            )}
+            {state.backendKind === "direct_https" ? (
+              <Field
+                label={copy.upstreamVpcProjectId}
+                onChange={(upstreamVpcProjectId) =>
+                  onPatch({
+                    upstreamVpcProjectId,
+                    existingBackendConnectivityConfirmed: false,
+                  })
+                }
+                placeholder={state.projectId || "upstream-network-project"}
+                value={state.upstreamVpcProjectId}
+              />
+            ) : (
+              <Field
+                label={copy.subnetName}
+                onChange={(subnetName) => onPatch({ subnetName })}
+                value={state.subnetName}
+              />
+            )}
+          </div>
+          {state.backendKind === "direct_https" ? (
+            <small className="field-hint">{copy.upstreamVpcProjectIdHint}</small>
+          ) : null}
+          {usesDeploymentProjectVpc && runtimeCapabilities.vpcNetworkCatalog ? (
+            <small className="field-hint">{copy.vpcSameProjectHint}</small>
+          ) : null}
+          {state.backendKind === "direct_https" &&
+          state.upstreamVpcProjectId.trim() ? (
+            <Notice tone="security">
+              {copy.upstreamVpcCrossProjectPrerequisite}
+            </Notice>
+          ) : null}
+        </>
+      )}
 
       <div className="field-grid two">
         {state.backendKind !== "direct_https" ? (
@@ -1401,6 +1431,7 @@ export function AccessStep({ messages, onPatch, state }: StepProps) {
   return (
     <section className="workflow-step">
       <StepHeading description={copy.accessIntro} title={copy.accessTitle} />
+      <Notice tone="info">{copy.accessOuVsPrincipalNotice}</Notice>
       <small className="field-hint catalog-intro">{copy.optionsLoadedHint}</small>
       <div className="field-grid one">
         <CatalogSelect
@@ -1963,7 +1994,7 @@ export function ReviewStep({
                       ? "beyondcorp.googleapis.com & compute.googleapis.com"
                       : preflightStage === 4
                         ? "chromepolicy.googleapis.com & chromemanagement.googleapis.com"
-                        : "diff_plan.compile() & safety_gates.evaluate()"}
+                        : copy.preflightStage5Detail}
               </strong>
             </span>
           </div>

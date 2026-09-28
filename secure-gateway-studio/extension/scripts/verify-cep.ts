@@ -4039,9 +4039,9 @@ for (const mode of ["412-commit", "503-commit", "response-loss-commit"] as const
       ?.condition?.contextCondition ?? ""
   );
   check(
-    "byodOnly rule with selected Access Level creates rule with access_levels.exists CEL condition",
+    "byodOnly rule with selected Access Level creates rule with negated !access_levels.exists CEL condition",
     byodProvision.success &&
-      byodCondition.includes("access_levels.exists(level, level == 'accessPolicies/999/accessLevels/corp_managed')"),
+      byodCondition.includes("!access_levels.exists(level, level == 'accessPolicies/999/accessLevels/corp_managed')"),
     byodCondition,
   );
 
@@ -4067,6 +4067,23 @@ for (const mode of ["412-commit", "503-commit", "response-loss-commit"] as const
     await rolesLeaseCtx.releaseCepMutationLease!(rolesLease);
   }
   check("POST /api/v1/cep/roles acquires cep:customer lease and rejects concurrent runs with 409", threwRolesLeaseBusy);
+
+  // Roles endpoint 403 includes English Admin Console remediation guidance
+  const roles403Transport = stubTransport({
+    failing: [{ match: "/roles", status: 403, message: "Request had insufficient authentication scopes." }],
+  });
+  const roles403Result = (await route(context(roles403Transport.transport), "POST", "/api/v1/cep/roles", {
+    customer_id: "C01abcdef",
+    project_id: "secgw-project",
+    role_type: "admin",
+  })) as { success: boolean; message: string };
+  check(
+    "POST /api/v1/cep/roles 403 includes English Admin Console remediation note",
+    roles403Result.success === false &&
+      roles403Result.message.includes("admin.directory.rolemanagement is omitted from extension OAuth scopes") &&
+      roles403Result.message.includes("https://admin.google.com/ac/roles"),
+    roles403Result.message,
+  );
 }
 
 // -- Report -------------------------------------------------------------------

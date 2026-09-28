@@ -6963,3 +6963,56 @@ h1 {
   justify-content: center;
   gap: 8px;
 }
+
+.cep-customer-id-warning {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.cep-customer-id-warning .cep-inline-error {
+  margin: 0;
+  flex: 1 1 280px;
+}
+
+.cep-auto-detect-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.cep-role-manual-checklist {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px solid #dbe5ee;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.cep-role-manual-checklist strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--navy-800);
+  margin-bottom: 6px;
+}
+
+.cep-role-manual-checklist p {
+  margin: 0 0 8px;
+  font-size: 12.5px;
+  color: var(--ink-600);
+  line-height: 1.5;
+}
+
+.cep-role-manual-checklist ol {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 12.5px;
+  color: var(--ink-700);
+  line-height: 1.6;
+}
+

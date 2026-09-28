@@ -239,7 +239,7 @@ export interface CepProvisionConfig {
 export interface CepCustomRoleConfig {
   project_id?: string;
   customer_id: string;
-  role_type: "administrator" | "auditor" | "both";
+  role_type: "administrator" | "admin" | "auditor" | "both" | "all";
   assigned_user_email?: string;
   target_ou_id?: string;
 }
@@ -665,10 +665,11 @@ function resolveDlpMatrix(config: CepProvisionConfig): CepDlpMatrixState {
       operations.map((operation) => [operation, action]),
     ) as CepDlpMatrixRuleConfig;
   }
-  // The public Policy API documentation does not publish a supported CEL
-  // function for evaluating an Access Context Manager level in a DLP rule.
-  // Legacy callers therefore default this row off instead of emitting guessed
-  // CEL that the service rejects.
+  // Legacy callers without an explicit Access Level selection default this row
+  // off so unconfigured calls never emit a broken CEL reference. When an Access
+  // Level is selected, `access_level` uses `access_levels.exists(...)` and
+  // `byodOnly: true` scopes rules to non-matching/BYOD devices via
+  // `!access_levels.exists(...)`.
   expanded.access_level = {
     upload: "off",
     download: "off",
@@ -2292,12 +2293,14 @@ export class CepProvider {
       context.accessLevelName && context.accessLevelName !== "NONE"
         ? `access_levels.exists(level, level == \x27${context.accessLevelName}\x27)`
         : undefined;
+    const byodAccessLevelCondition =
+      accessLevelCondition !== undefined ? `!${accessLevelCondition}` : undefined;
 
     for (const base of bases) {
       const matrixRule = context.dlpMatrix[base.id] ?? {};
       // When no Access Level is selected, ensureRules reports the BYOD scope as
       // skipped. Never broaden it silently into an all-device rule.
-      if (matrixRule.byodOnly === true && accessLevelCondition === undefined) continue;
+      if (matrixRule.byodOnly === true && byodAccessLevelCondition === undefined) continue;
       for (const operation of base.operations) {
         if (base.id === "access_level" && accessLevelCondition === undefined) {
           continue;
@@ -2324,12 +2327,12 @@ export class CepProvider {
         }
 
         const ruleCondition: Record<string, string> | undefined =
-          matrixRule.byodOnly === true && accessLevelCondition !== undefined && base.id !== "access_level"
+          matrixRule.byodOnly === true && byodAccessLevelCondition !== undefined && base.id !== "access_level"
             ? {
                 ...(base.condition ?? {}),
                 contextCondition: base.condition?.contextCondition
-                  ? `(${base.condition.contextCondition}) && (${accessLevelCondition})`
-                  : accessLevelCondition,
+                  ? `(${base.condition.contextCondition}) && (${byodAccessLevelCondition})`
+                  : byodAccessLevelCondition,
               }
             : base.condition;
 
@@ -3104,7 +3107,12 @@ export class CepProvider {
       privileges: Array<{ privilegeName: string; serviceId: string }>;
     }> = [];
 
-    if (config.role_type === "administrator" || config.role_type === "both") {
+    if (
+      config.role_type === "administrator" ||
+      config.role_type === "admin" ||
+      config.role_type === "both" ||
+      config.role_type === "all"
+    ) {
       roleDefinitions.push({
         id: "cep-policy-operator",
         name: "Chrome Enterprise PoC Operator",
@@ -3123,7 +3131,11 @@ export class CepProvider {
       });
     }
 
-    if (config.role_type === "auditor" || config.role_type === "both") {
+    if (
+      config.role_type === "auditor" ||
+      config.role_type === "both" ||
+      config.role_type === "all"
+    ) {
       roleDefinitions.push({
         id: "cep-audit-investigator",
         name: "Chrome Enterprise PoC Auditor",
@@ -3174,7 +3186,7 @@ export class CepProvider {
     for (const def of roleDefinitions) {
       const found = existingRoles.find((r) => r.roleName === def.name);
       if (found) {
-        roles.push(`${def.name} (既存: ${found.roleId})`);
+        roles.push(`${def.name} (existing: ${found.roleId})`);
         createdRoleIds.push({ roleName: def.name, roleId: found.roleId });
         continue;
       }
@@ -3209,15 +3221,24 @@ export class CepProvider {
             typeof createResp.payload === "object" && createResp.payload !== null
               ? JSON.stringify(createResp.payload)
               : `HTTP ${createResp.status}`;
-          errors.push(`ロール ${def.name} の作成に失敗しました: ${errMsg}`);
+          const scopeHint =
+            createResp.status === 403
+              ? " (Note: admin.directory.rolemanagement is omitted from extension OAuth scopes; assign roles in Google Admin Console at https://admin.google.com/ac/roles)"
+              : "";
+          errors.push(`Failed to create role ${def.name}: ${errMsg}${scopeHint}`);
         }
       } catch (err) {
-        errors.push(`ロール ${def.name} の作成エラー: ${errorMessage(err)}`);
+        const status = errorStatus(err);
+        const scopeHint =
+          status === 403
+            ? " (Note: admin.directory.rolemanagement is omitted from extension OAuth scopes; assign roles in Google Admin Console at https://admin.google.com/ac/roles)"
+            : "";
+        errors.push(`Error creating role ${def.name}: ${errorMessage(err)}${scopeHint}`);
         trace.push({
           label: `Create Workspace role ${def.name}`,
           method: "POST",
           url: createUrl,
-          status: errorStatus(err) ?? 500,
+          status: status ?? 500,
           ok: false,
           error: errorMessage(err),
         });
@@ -3268,16 +3289,16 @@ export class CepProvider {
           if (ok) {
             assignedUsers.push(`${role.roleName} -> ${email}`);
           } else if (assignResp.status === 409) {
-            assignedUsers.push(`${role.roleName} -> ${email} (既に割当済)`);
+            assignedUsers.push(`${role.roleName} -> ${email} (already assigned)`);
           } else {
             const errDetail =
               typeof assignResp.payload === "object" && assignResp.payload !== null
                 ? JSON.stringify(assignResp.payload)
                 : `HTTP ${assignResp.status}`;
-            errors.push(`ロール ${role.roleName} の ${email} への割り当て失敗: ${errDetail}`);
+            errors.push(`Failed to assign role ${role.roleName} to ${email}: ${errDetail}`);
           }
         } catch (err) {
-          errors.push(`ロール ${role.roleName} の割り当てエラー: ${errorMessage(err)}`);
+          errors.push(`Error assigning role ${role.roleName} to ${email}: ${errorMessage(err)}`);
           trace.push({
             label: `Assign role ${role.roleName} to ${email}`,
             method: "POST",
@@ -3292,10 +3313,10 @@ export class CepProvider {
 
     const success = errors.length === 0;
     const msg = success
-      ? `Workspace 管理者ロールの作成・処理が完了しました: ${roles.join(", ")}。${
-          assignedUsers.length > 0 ? ` 割当状況: ${assignedUsers.join(", ")}` : ""
+      ? `Workspace administrator roles processed: ${roles.join(", ")}.${
+          assignedUsers.length > 0 ? ` Assignments: ${assignedUsers.join(", ")}` : ""
         }`
-      : `一部の処理でエラーが発生しました: ${errors.join(" / ")}`;
+      : `Completed with errors: ${errors.join(" / ")}`;
 
     return {
       success,

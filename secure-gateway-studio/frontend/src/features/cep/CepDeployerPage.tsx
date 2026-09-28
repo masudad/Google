@@ -22,13 +22,18 @@ import {
   provisionGeminiZeroTrust,
   signInSession,
   rollbackCepPolicies,
+  validateWorkspaceConnection,
 } from "../../lib/api";
 import {
   CheckCircleIcon,
   CheckIcon,
+  ClipboardIcon,
+  CubeIcon,
   ExclamationCircleIcon,
   ExternalLinkIcon,
   KeyIcon,
+  SettingsIcon,
+  ShieldIcon,
   ShieldNetworkIcon,
   SparklesIcon,
   UsersIcon,
@@ -44,6 +49,7 @@ interface CepDeployerPageProps {
   messages: Messages;
   customerId: string;
   projectId: string;
+  onCustomerIdResolved?: (customerId: string) => void;
 }
 
 interface ModuleState {
@@ -159,10 +165,14 @@ export function CepDeployerPage({
   messages,
   customerId,
   projectId,
+  onCustomerIdResolved,
 }: CepDeployerPageProps) {
   const m = messages.cepDeployer;
-  const canonicalCustomerId = /^C[A-Za-z0-9]+$/.test(customerId.trim())
-    ? customerId.trim()
+  const [resolvedCustomerId, setResolvedCustomerId] = useState<string>("");
+  const [detectingCustomerId, setDetectingCustomerId] = useState<boolean>(false);
+  const effectiveCustomerId = resolvedCustomerId || customerId;
+  const canonicalCustomerId = /^C[A-Za-z0-9]+$/.test(effectiveCustomerId.trim())
+    ? effectiveCustomerId.trim()
     : "";
 
   const [targetType, setTargetType] = useState<"ou" | "group">("ou");
@@ -441,6 +451,62 @@ gcloud access-context-manager cloud-bindings create \\
       setOuLoaded(true);
     } finally {
       setLoadingOus(false);
+    }
+  };
+
+  const handleAutoDetectCustomerId = async () => {
+    if (detectingCustomerId || loadingOus || loadingGroups) return;
+    setDetectingCustomerId(true);
+    setOuError(false);
+    try {
+      await signInSession();
+      const ws = await validateWorkspaceConnection("my_customer");
+      const detectedId = (ws.resource_id || "").trim();
+      if (/^C[A-Za-z0-9]+$/.test(detectedId)) {
+        setResolvedCustomerId(detectedId);
+        onCustomerIdResolved?.(detectedId);
+        setLoadingOus(true);
+        try {
+          const options = await listOrganizationalUnitOptions(detectedId);
+          setOrganizationalUnits(options);
+          setOuError(options.length === 0);
+          setOuLoaded(true);
+          try {
+            setLoadingGroups(true);
+            const groupOptions = await listGroupOptions(detectedId);
+            setGroups(groupOptions);
+            setGroupsLoaded(true);
+            setGroupsError(false);
+          } catch {
+            setGroupsLoaded(true);
+            setGroupsError(true);
+          } finally {
+            setLoadingGroups(false);
+          }
+          if (projectId) {
+            try {
+              const accessOptions = await listAccessLevelOptions(projectId);
+              const existing = accessOptions.filter(
+                (option) =>
+                  option.value !== ACCESS_LEVEL_NONE &&
+                  !AUTO_CREATE_SENTINELS.includes(option.value),
+              );
+              setAccessLevels(existing);
+              setAccessLevelError(false);
+            } catch {
+              setAccessLevelError(true);
+            }
+          }
+        } finally {
+          setLoadingOus(false);
+        }
+      } else {
+        setOuError(true);
+      }
+    } catch {
+      setOuError(true);
+    } finally {
+      setDetectingCustomerId(false);
     }
   };
 
@@ -776,7 +842,8 @@ gcloud access-context-manager cloud-bindings create \\
           onClick={() => setActiveTab("setup")}
           aria-pressed={activeTab === "setup"}
         >
-          🚀 {m.tabSetup}
+          <ShieldNetworkIcon size={16} />
+          <span>{m.tabSetup}</span>
         </button>
         <button
           type="button"
@@ -784,7 +851,8 @@ gcloud access-context-manager cloud-bindings create \\
           onClick={() => setActiveTab("licensing")}
           aria-pressed={activeTab === "licensing"}
         >
-          👥 {m.tabLicensing}
+          <UsersIcon size={16} />
+          <span>{m.tabLicensing}</span>
         </button>
         <button
           type="button"
@@ -792,7 +860,8 @@ gcloud access-context-manager cloud-bindings create \\
           onClick={() => setActiveTab("dlp")}
           aria-pressed={activeTab === "dlp"}
         >
-          🛡️ {m.tabDlp}
+          <ShieldIcon size={16} />
+          <span>{m.tabDlp}</span>
         </button>
         <button
           type="button"
@@ -800,7 +869,8 @@ gcloud access-context-manager cloud-bindings create \\
           onClick={() => setActiveTab("operations")}
           aria-pressed={activeTab === "operations"}
         >
-          📊 {m.tabOperations}
+          <SettingsIcon size={16} />
+          <span>{m.tabOperations}</span>
         </button>
         <button
           type="button"
@@ -808,7 +878,8 @@ gcloud access-context-manager cloud-bindings create \\
           onClick={() => setActiveTab("all")}
           aria-pressed={activeTab === "all"}
         >
-          📋 {m.tabAll}
+          <ClipboardIcon size={16} />
+          <span>{m.tabAll}</span>
         </button>
       </nav>
 
@@ -820,9 +891,24 @@ gcloud access-context-manager cloud-bindings create \\
         <h2 id="cep-ou-title">{m.targetScopeCardTitle || m.targetOuCardTitle}</h2>
         <p>{targetType === "group" ? (m.targetScopeCardSubtitle || m.targetOuCardSubtitle) : m.targetOuCardSubtitle}</p>
         {canonicalCustomerId === "" && (
-          <p className="cep-inline-error" role="alert">
-            {m.canonicalCustomerIdRequired}
-          </p>
+          <div className="cep-customer-id-warning">
+            <p className="cep-inline-error" role="alert">
+              {m.canonicalCustomerIdRequired}
+            </p>
+            <button
+              className="btn btn-secondary cep-auto-detect-btn"
+              disabled={detectingCustomerId || loadingOus || loadingGroups}
+              onClick={() => void handleAutoDetectCustomerId()}
+              type="button"
+            >
+              <KeyIcon size={16} />
+              <span>
+                {detectingCustomerId
+                  ? m.autoDetectingCustomerIdBtn
+                  : m.autoDetectCustomerIdBtn}
+              </span>
+            </button>
+          </div>
         )}
 
         {/* Google OAuth Verification Bar */}
@@ -846,7 +932,11 @@ gcloud access-context-manager cloud-bindings create \\
             <div className="cep-auth-status-left">
               <CheckCircleIcon size={18} />
               <span>
-                <strong>Google アカウント認証完了</strong> (顧客 ID: <code>{canonicalCustomerId}</code> / OU: <strong className="tabular-nums">{organizationalUnits.length}</strong> 件, グループ: <strong className="tabular-nums">{groups.length}</strong> 件)
+                {m.googleAccountVerifiedBanner(
+                  canonicalCustomerId,
+                  organizationalUnits.length,
+                  groups.length,
+                )}
               </span>
             </div>
             <button
@@ -868,7 +958,8 @@ gcloud access-context-manager cloud-bindings create \\
             className={`cep-target-type-btn ${targetType === "ou" ? "active" : ""}`}
             onClick={() => setTargetType("ou")}
           >
-            🏢 {m.targetTypeOu || "組織部門 (OU)"}
+            <CubeIcon size={15} />
+            <span>{m.targetTypeOu}</span>
             {organizationalUnits.length > 0 && (
               <span className="cep-badge-count tabular-nums">{organizationalUnits.length}</span>
             )}
@@ -880,7 +971,8 @@ gcloud access-context-manager cloud-bindings create \\
             className={`cep-target-type-btn ${targetType === "group" ? "active" : ""}`}
             onClick={() => setTargetType("group")}
           >
-            👥 {m.targetTypeGroup || "Google グループ"}
+            <UsersIcon size={15} />
+            <span>{m.targetTypeGroup}</span>
             {groups.length > 0 && (
               <span className="cep-badge-count tabular-nums">{groups.length}</span>
             )}
@@ -1131,7 +1223,12 @@ gcloud access-context-manager cloud-bindings create \\
         {modules.dlpRules && (
           <div className="cep-dlp-hint-row">
             <p className="cep-inline-note">
-              🛡️ {m.dlpMatrixTitle} の設定は「<button type="button" className="text-action" onClick={() => setActiveTab("dlp")}>{m.tabDlp}</button>」タブでカスタマイズできます。
+              <ShieldIcon size={15} />{" "}
+              {`${m.dlpMatrixCustomizePrefix}${m.dlpMatrixTitle}${m.dlpMatrixCustomizeMiddle}`}
+              <button type="button" className="text-action" onClick={() => setActiveTab("dlp")}>
+                {m.tabDlp}
+              </button>
+              {m.dlpMatrixCustomizeSuffix}
             </p>
           </div>
         )}
@@ -1431,6 +1528,16 @@ gcloud access-context-manager cloud-bindings create \\
             onRetry={handleCreateRoles}
           />
         )}
+
+        <div className="cep-role-manual-checklist">
+          <strong>{m.rolesScopeManualChecklistTitle}</strong>
+          <p>{m.rolesScopeManualChecklistDesc}</p>
+          <ol>
+            {m.rolesScopeManualSteps.map((step, idx) => (
+              <li key={idx}>{step}</li>
+            ))}
+          </ol>
+        </div>
 
         <p className="cep-inline-note">{m.rolesVerificationNote}</p>
       </section>
