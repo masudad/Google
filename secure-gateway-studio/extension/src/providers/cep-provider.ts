@@ -503,6 +503,108 @@ function normalizedCloudIdentityPolicyQuery(
 }
 
 /**
+ * The single OU or group a Cloud Identity policy query addresses, with the
+ * Directory `id:` prefix removed. Reads the explicit resource field first and
+ * falls back to a single `orgUnitId('…')` / `groupId('…')` term in the CEL
+ * query, which is how the server renders a resource-only create request.
+ */
+function policyQueryTarget(
+  policyQuery: Record<string, unknown>,
+): { orgUnit?: string; group?: string } {
+  const orgUnit = policyQuery.orgUnit ?? policyQuery.org_unit;
+  if (typeof orgUnit === "string" && orgUnit !== "") {
+    return { orgUnit: orgUnit.replace(/^orgUnits\/(?:id:)?/, "") };
+  }
+  const group = policyQuery.group;
+  if (typeof group === "string" && group !== "") {
+    return { group: group.replace(/^groups\/(?:id:)?/, "") };
+  }
+  const query = typeof policyQuery.query === "string" ? policyQuery.query : "";
+  const ouTerms = [...query.matchAll(/orgUnitId\('([^']+)'\)/g)].map((m) => m[1]!);
+  const groupTerms = [...query.matchAll(/groupId\('([^']+)'\)/g)].map((m) => m[1]!);
+  if (ouTerms.length === 1 && groupTerms.length === 0 && !query.includes("!")) {
+    return { orgUnit: ouTerms[0]!.replace(/^id:/, "") };
+  }
+  if (groupTerms.length === 1 && ouTerms.length === 0 && !query.includes("!")) {
+    return { group: groupTerms[0]!.replace(/^id:/, "") };
+  }
+  return {};
+}
+
+const CHROME_ACTION_KINDS = ["warnUser", "blockContent", "auditOnly"] as const;
+const CHROME_PER_TRIGGER_ACTIONS = [
+  "printAction",
+  "uploadAction",
+  "pasteAction",
+  "urlNavigationAction",
+  "downloadAction",
+  "dataCopiedAction",
+] as const;
+
+/**
+ * The warn/block/audit kinds present in a `chromeAction`, whether it uses the
+ * legacy top-level oneof (what this provider sends) or the per-trigger shape
+ * the server renders it back as.
+ */
+function chromeActionKinds(value: Record<string, unknown>): Set<string> {
+  const kinds = new Set<string>();
+  const action = value.action;
+  if (typeof action !== "object" || action === null) return kinds;
+  const chrome = (action as Record<string, unknown>).chromeAction ??
+    (action as Record<string, unknown>).chrome_action;
+  if (typeof chrome !== "object" || chrome === null) return kinds;
+  const record = chrome as Record<string, unknown>;
+  const collect = (candidate: Record<string, unknown>) => {
+    for (const kind of CHROME_ACTION_KINDS) {
+      const snake = kind.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+      if (candidate[kind] !== undefined || candidate[snake] !== undefined) kinds.add(kind);
+    }
+  };
+  collect(record);
+  for (const perTrigger of CHROME_PER_TRIGGER_ACTIONS) {
+    const snake = perTrigger.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+    const nested = record[perTrigger] ?? record[snake];
+    if (typeof nested === "object" && nested !== null) {
+      collect(nested as Record<string, unknown>);
+    }
+  }
+  return kinds;
+}
+
+/**
+ * Whether an existing `rule.dlp` policy is the rule this provider asked for:
+ * same setting type, same trigger set, same warn/block/audit action, same
+ * state, and the same single OU or group target. Output-only fields, the server-derived CEL
+ * query, and the legacy-versus-per-trigger action rendering are ignored.
+ */
+function dlpRuleMatches(
+  found: { type: string; value: Record<string, unknown>; policyQuery: Record<string, unknown> },
+  expectedValue: Record<string, unknown>,
+  expectedQuery: Record<string, unknown>,
+): boolean {
+  if (found.type !== "settings/rule.dlp") return false;
+  const triggersOf = (value: Record<string, unknown>): string[] | null => {
+    const raw = value.triggers;
+    if (!Array.isArray(raw) || raw.some((t) => typeof t !== "string")) return null;
+    return [...(raw as string[])].sort();
+  };
+  const foundTriggers = triggersOf(found.value);
+  const expectedTriggers = triggersOf(expectedValue);
+  if (foundTriggers === null || expectedTriggers === null) return false;
+  if (canonicalJson(foundTriggers) !== canonicalJson(expectedTriggers)) return false;
+  const expectedKinds = [...chromeActionKinds(expectedValue)].sort();
+  const foundKinds = [...chromeActionKinds(found.value)].sort();
+  if (expectedKinds.length === 0 || canonicalJson(expectedKinds) !== canonicalJson(foundKinds)) {
+    return false;
+  }
+  // An INACTIVE rule with the right name is not the protection that was asked
+  // for, so state is part of the match.
+  if (found.value.state !== expectedValue.state) return false;
+  return canonicalJson(policyQueryTarget(found.policyQuery)) ===
+    canonicalJson(policyQueryTarget(expectedQuery));
+}
+
+/**
  * A requestId-less CEP mutation may have committed even though its response
  * was lost. The route layer keeps the durable customer/OU lease when this is
  * raised so only the exact same request can later reconcile the outcome.
@@ -1971,21 +2073,17 @@ export class CepProvider {
   // -- DLP rules and legacy-detector retention --------------------------------
 
   /**
-   * Cloud Identity policies are addressed by a CEL query over the target OU,
-   * with the org unit repeated in its own field.
+   * Cloud Identity policies are addressed by the target resource alone. The
+   * server derives the CEL `query` from `orgUnit`/`group` itself; sending
+   * both only adds a "query does not match org_unit" failure mode, so the
+   * create body carries the single resource field (the same shape as
+   * Google's chrome_enterprise_premium_mcp `createDlpRule`).
    */
   private policyQuery(context: CepContext): Record<string, unknown> {
     if (context.targetType === "group" && context.targetGroupId) {
-      return {
-        query: `entity.groups.exists(group, group.group_id == groupId('${context.targetGroupId}'))`,
-        group: `groups/${context.targetGroupId}`,
-      };
+      return { group: `groups/${context.targetGroupId}` };
     }
-    const ouId = context.ouIds.users;
-    return {
-      query: `entity.org_units.exists(org_unit, org_unit.org_unit_id == orgUnitId('${ouId}'))`,
-      orgUnit: `orgUnits/${ouId}`,
-    };
+    return { orgUnit: `orgUnits/${context.ouIds.users}` };
   }
 
   /**
@@ -2279,13 +2377,18 @@ export class CepProvider {
       }
       const found = matches[0];
       if (found !== undefined) {
-        if (
-          found.type !== `settings/${kind}` ||
-          canonicalJson(found.value) !== canonicalJson(expectedValue) ||
-          canonicalJson(found.policyQuery) !== canonicalJson(expectedQuery)
-        ) {
+        // The list read returns the server's canonical rendering (per-trigger
+        // actions, a derived CEL query, metadata defaults), not the request
+        // body verbatim, so confirmation compares the rule's semantics.
+        const matched = kind === "rule.dlp"
+          ? dlpRuleMatches(found, expectedValue, expectedQuery)
+          : found.type === `settings/${kind}` &&
+            canonicalJson(found.value) === canonicalJson(expectedValue) &&
+            canonicalJson(policyQueryTarget(found.policyQuery)) ===
+              canonicalJson(policyQueryTarget(expectedQuery));
+        if (!matched) {
           this.lastDlpError =
-            `reserved-name-conflict: policy "${displayName}" does not match the requested setting and OU query`;
+            `reserved-name-conflict: policy "${displayName}" does not match the requested setting and target`;
           return null;
         }
         return found;
@@ -2449,7 +2552,10 @@ export class CepProvider {
         };
         const customMessage = matrixRule.customEndUserMessage ?? context.dlpCustomMessage;
         if (customMessage && customMessage.trim() !== "") {
-          actionParams.customEndUserMessage = customMessage.trim();
+          // `ActionParams.custom_end_user_message` is a CustomEndUserMessage
+          // message, not a string: a bare string fails struct-to-proto
+          // conversion and the whole create is rejected as INVALID_ARGUMENT.
+          actionParams.customEndUserMessage = { unsafeHtmlMessageBody: customMessage.trim() };
         }
         const saveContent = matrixRule.saveContent ?? context.dlpSaveContent;
         if (saveContent === true) {
@@ -2540,6 +2646,9 @@ export class CepProvider {
         failed = true;
         continue;
       }
+      // Only the fields the Rule proto declares as admin input. Alert severity
+      // defaults to LOW server-side; timestamps and metadata are output-only
+      // and come back on the list read, so they are never part of the request.
       const value: Record<string, unknown> = {
         displayName: rule.displayName,
         description: rule.description,
@@ -2551,9 +2660,6 @@ export class CepProvider {
               ? { [rule.action]: {} }
               : { [rule.action]: { actionParams: rule.actionParams } },
         },
-        ruleTypeMetadata: {
-          dlpRuleMetadata: { alertSeverity: "LOW" },
-        },
       };
       // Omitted entirely when absent: an empty sub-object is rejected.
       if (rule.condition !== undefined) value.condition = rule.condition;
@@ -2561,16 +2667,14 @@ export class CepProvider {
       const sameName = existing.filter((policy) => policy.displayName === rule.displayName);
       if (sameName.length > 0) {
         const exact = sameName.length === 1 &&
-          sameName[0]!.type === "settings/rule.dlp" &&
-          canonicalJson(sameName[0]!.value) === canonicalJson(value) &&
-          canonicalJson(sameName[0]!.policyQuery) === canonicalJson(policyQuery);
+          dlpRuleMatches(sameName[0]!, value, policyQuery);
         if (exact) {
           skipped.push(`Rule "${rule.displayName}" already exists and was reused`);
         } else {
           failed = true;
           skipped.push(
             `Rule "${rule.displayName}": reserved-name-conflict; ` +
-              `${sameName.length} existing policy record(s) do not exactly match the requested setting and OU query`,
+              `${sameName.length} existing policy record(s) do not match the requested triggers, action, and target`,
           );
         }
         continue;
@@ -2578,9 +2682,9 @@ export class CepProvider {
 
       const createLabel = `Create rule "${rule.displayName}"`;
       const createUrl = `${CLOUD_IDENTITY}/policies`;
+      // `Policy.type` is OUTPUT_ONLY and is not sent.
       const createBody = {
           customer: `customers/${context.dlpCustomerId}`,
-          type: "ADMIN",
           policyQuery,
           setting: { type: "settings/rule.dlp", value },
       };

@@ -2113,15 +2113,26 @@ const PAYMENT_CARD_UPLOAD = await generatedDlpPolicy(PAYMENT_CARD_UPLOAD_NAME);
     policyCalls.map((call) => `${call.method}@${call.at}`).join(", "),
   );
 
-  // The policy query needs the CEL form and the org unit field together.
+  // The policy query carries the org unit resource alone; the server derives
+  // the CEL form, and output-only Policy.type is never sent.
   const firstRule = created.find(
     (call) => ((call.body?.setting ?? {}) as { type?: string }).type === "settings/rule.dlp",
   );
   const query = (firstRule?.body?.policyQuery ?? {}) as { query?: string; orgUnit?: string };
   check(
-    "policies are scoped to the target OU in both required forms",
-    (query.query ?? "").includes("orgUnitId(") && (query.orgUnit ?? "").startsWith("orgUnits/"),
-    JSON.stringify(query),
+    "policies are scoped to the target OU by the orgUnit resource field only",
+    (query.orgUnit ?? "").startsWith("orgUnits/") &&
+      query.query === undefined &&
+      Object.keys(query).length === 1 &&
+      (firstRule?.body as { type?: unknown } | undefined)?.type === undefined,
+    JSON.stringify(firstRule?.body ?? {}),
+  );
+  const firstValue = ((firstRule?.body?.setting ?? {}) as { value?: Record<string, unknown> })
+    .value ?? {};
+  check(
+    "rule.dlp setting value omits server-managed ruleTypeMetadata",
+    firstValue.ruleTypeMetadata === undefined && firstValue.state === "ACTIVE",
+    JSON.stringify(firstValue),
   );
 
   // Watermarking is a rule action parameter, not a Chrome policy.
@@ -2672,16 +2683,18 @@ for (const mode of ["response-loss-commit", "503-commit"] as const) {
     "/api/v1/cep/provision",
     DLP_CONFIG,
   ) as ProvisionResult;
+  // Alert severity is server-side metadata, not a requested rule semantic:
+  // the same triggers, action, state, and target are the same rule.
   check(
-    "a same-name DLP policy with a different alert severity is never reused",
-    !result.success &&
+    "a same-name DLP policy that differs only in alert severity is reused, not recreated",
+    result.success &&
       !calls.some((call) => {
         const setting = call.body?.setting as { value?: { displayName?: string } } | undefined;
         return call.method === "POST" &&
           setting?.value?.displayName === PAYMENT_CARD_UPLOAD_NAME;
       }) &&
       result.skipped_items.some((item) =>
-        item.includes(PAYMENT_CARD_UPLOAD_NAME) && item.includes("reserved-name-conflict")
+        item.includes(PAYMENT_CARD_UPLOAD_NAME) && item.includes("reused")
       ),
     result.skipped_items.join(" | "),
   );
@@ -2706,9 +2719,9 @@ for (const mode of ["response-loss-commit", "503-commit"] as const) {
     DLP_CONFIG,
   ) as ProvisionResult;
   check(
-    "a same-name DLP policy without the approved alert severity is never reused",
-    !result.success && result.skipped_items.some((item) =>
-      item.includes(PAYMENT_CARD_UPLOAD_NAME) && item.includes("reserved-name-conflict")
+    "a same-name DLP policy without alert severity metadata is reused, not recreated",
+    result.success && result.skipped_items.some((item) =>
+      item.includes(PAYMENT_CARD_UPLOAD_NAME) && item.includes("reused")
     ),
     result.skipped_items.join(" | "),
   );
@@ -3145,9 +3158,15 @@ function ruleBodies(calls: Recorded[]): Array<Record<string, unknown>> {
   const uploadRule = rules.find((r) => String(r.displayName ?? "").includes("Universal file upload"));
   const chromeAction = ((uploadRule?.action ?? {}) as { chromeAction?: Record<string, { actionParams?: Record<string, unknown> }> }).chromeAction ?? {};
   const params = chromeAction.blockContent?.actionParams ?? {};
+  // ActionParams.custom_end_user_message is a CustomEndUserMessage message;
+  // a bare string is rejected by the Policies API as INVALID_ARGUMENT.
   check(
-    "actionParams includes customEndUserMessage",
-    params.customEndUserMessage === "Company security policy: please refrain from uploading sensitive data.",
+    "actionParams includes customEndUserMessage as { unsafeHtmlMessageBody }",
+    JSON.stringify(params.customEndUserMessage) ===
+      JSON.stringify({
+        unsafeHtmlMessageBody:
+          "Company security policy: please refrain from uploading sensitive data.",
+      }),
     JSON.stringify(params),
   );
   check(
@@ -3867,15 +3886,15 @@ for (const mode of ["412-commit", "503-commit", "response-loss-commit"] as const
   check("group provision creates DLP rules", groupDlpCreates.length > 0);
   const dlpQueries = groupDlpCreates.map((c) => (c.body?.policyQuery ?? {}) as Record<string, unknown>);
   check(
-    "group provision DLP rules contain entity.groups.exists CEL query",
+    "group provision DLP rules target the group resource field only",
     dlpQueries.every(
       (pq) =>
-        typeof pq.query === "string" &&
-        pq.query.includes("entity.groups.exists") &&
-        pq.query.includes("group.group_id == groupId('01group_id')") &&
         pq.group === "groups/01group_id" &&
-        pq.orgUnit === undefined,
+        pq.query === undefined &&
+        pq.orgUnit === undefined &&
+        Object.keys(pq).length === 1,
     ),
+    JSON.stringify(dlpQueries[0] ?? {}),
   );
 
   // Test 17.3: Provision confirmation mismatch rejected by router
