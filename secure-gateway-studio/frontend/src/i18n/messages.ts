@@ -943,6 +943,18 @@ export interface CepDeployerMessages {
   assessSelectedCountSuffix: string;
   dlpRegionJapanLabel: string;
   dlpPresetsLabel: string;
+  httpHeadersTitle: string;
+  httpHeadersSubtitle: string;
+  httpHeadersPresetLabel: string;
+  httpHeadersAddCustomBtn: string;
+  httpHeadersEmptyHint: string;
+  httpHeadersRemoveRuleBtn: string;
+  httpHeadersPatternsLabel: string;
+  httpHeadersTenantValueLabel: string;
+  httpHeadersNameLabel: string;
+  httpHeadersValueLabel: string;
+  httpHeadersBoxNote: string;
+  httpHeadersM365ContextLabel: string;
 }
 
 function friendlyDiagnosticTarget(raw: string, locale: Locale): string {
@@ -2574,6 +2586,21 @@ const en: Messages = {
     dataBoundaryModeNone: "None",
     dataBoundaryModeNoneDesc:
       "Leave clipboard and account behaviour inherited from the parent OU.",
+    httpHeadersTitle: "SaaS Tenant Restriction Headers (HttpHeaderInjection)",
+    httpHeadersSubtitle:
+      "Inject custom HTTP request headers on matching URLs so SaaS applications (Slack, GitHub, ChatGPT, Claude, Microsoft 365, Dropbox, Box) only permit logins to your corporate tenant.",
+    httpHeadersPresetLabel: "Add SaaS Preset:",
+    httpHeadersAddCustomBtn: "+ Custom Header Rule",
+    httpHeadersEmptyHint:
+      "No HTTP header injection rules configured. Select a SaaS preset above to restrict logins to your organization's workspace or tenant ID.",
+    httpHeadersRemoveRuleBtn: "Remove",
+    httpHeadersPatternsLabel: "Target URL Patterns (comma or newline separated)",
+    httpHeadersTenantValueLabel: "Allowed Tenant / Workspace / Enterprise ID",
+    httpHeadersNameLabel: "Header Name",
+    httpHeadersValueLabel: "Header Value",
+    httpHeadersBoxNote:
+      "Note: Box primarily enforces tenant login boundaries via enterprise vanity URLs (https://<company>.account.box.com) and IdP Conditional Access; use X-Box-Enterprise-Id when inspected by an intermediate gateway or custom integration.",
+    httpHeadersM365ContextLabel: "Directory (Tenant) GUID for Restrict-Access-Context",
     internalUrlsTitle: "Protected Internal Sites (Watermark & Screenshot Block)",
     internalUrlsPlaceholder: "https://intranet.example.com\nhttps://portal.corp.example.com",
     internalUrlsHint:
@@ -4369,6 +4396,21 @@ const ja: Messages = {
     dataBoundaryModeNone: "なし",
     dataBoundaryModeNoneDesc:
       "クリップボードとアカウントの挙動は親 OU の設定を継承したままにします。",
+    httpHeadersTitle: "SaaS テナント制限・カスタム HTTP ヘッダー（HttpHeaderInjection）",
+    httpHeadersSubtitle:
+      "指定した URL へのアクセス時に Chrome から HTTP リクエストヘッダーを付与し、Slack・GitHub・ChatGPT・Claude・Microsoft 365・Dropbox・Box などの SaaS で自社テナント以外へのログインを制限します。",
+    httpHeadersPresetLabel: "SaaS プリセットを追加:",
+    httpHeadersAddCustomBtn: "+ カスタムルールを追加",
+    httpHeadersEmptyHint:
+      "HTTP ヘッダー付与ルールは未設定です。上の SaaS プリセットを選択すると、自社ワークスペース ID やテナント ID のみのログイン制限ルールを追加できます。",
+    httpHeadersRemoveRuleBtn: "削除",
+    httpHeadersPatternsLabel: "対象 URL パターン（カンマまたは改行区切り）",
+    httpHeadersTenantValueLabel: "許可する自社テナント / ワークスペース / Enterprise ID",
+    httpHeadersNameLabel: "ヘッダー名",
+    httpHeadersValueLabel: "ヘッダー値",
+    httpHeadersBoxNote:
+      "※ Box は主に企業専用 URL（https://<company>.account.box.com）および IdP 条件付きアクセスでテナント境界を制御します。中継プロキシや連携基盤でヘッダー検査を行う場合に設定してください。",
+    httpHeadersM365ContextLabel: "ディレクトリ（テナント）GUID（Restrict-Access-Context 用）",
     internalUrlsTitle: "社内機密サイト・透かし保護対象 URL",
     internalUrlsPlaceholder: "https://intranet.example.com\nhttps://portal.corp.example.com",
     internalUrlsHint:

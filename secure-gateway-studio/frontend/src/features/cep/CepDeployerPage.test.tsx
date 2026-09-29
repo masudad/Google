@@ -789,6 +789,49 @@ describe("CepDeployerPage", () => {
       }),
     );
   });
+
+  it("includes SaaS tenant restriction HTTP header rules (HttpHeaderInjection) in Step 1 provision", async () => {
+    const provision = vi.spyOn(api, "provisionCepPolicies").mockResolvedValue(emptyResult());
+    renderPage();
+    await selectPilotOu();
+
+    fireEvent.click(screen.getByRole("button", { name: "+ Slack" }));
+    const slackTenantInput = screen.getByLabelText(
+      `${m.httpHeadersTenantValueLabel} (Slack)`,
+    );
+    fireEvent.change(slackTenantInput, { target: { value: "T0123456789" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "+ ChatGPT (OpenAI)" }));
+    const chatgptTenantInput = screen.getByLabelText(
+      `${m.httpHeadersTenantValueLabel} (ChatGPT (OpenAI))`,
+    );
+    fireEvent.change(chatgptTenantInput, { target: { value: "ws-uuid-999" } });
+
+    fireEvent.click(screen.getByText(m.btnDeploy));
+    await waitFor(() => {
+      expect(provision).toHaveBeenCalledTimes(1);
+    });
+
+    expect(provision.mock.calls[0]?.[0]?.http_header_rules).toEqual([
+      {
+        id: "slack",
+        app: "Slack",
+        patterns: ["https://slack.com", "https://*.slack.com"],
+        headers: [
+          { name: "X-Slack-Allowed-Workspaces-Requester", value: "T0123456789" },
+          { name: "X-Slack-Allowed-Workspaces", value: "T0123456789" },
+        ],
+      },
+      {
+        id: "chatgpt",
+        app: "ChatGPT (OpenAI)",
+        patterns: ["https://chatgpt.com", "https://*.chatgpt.com", "https://chat.openai.com"],
+        headers: [
+          { name: "ChatGPT-Allowed-Workspace-Id", value: "ws-uuid-999" },
+        ],
+      },
+    ]);
+  });
 });
 
 

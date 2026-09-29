@@ -190,6 +190,18 @@ export type CepModule =
 
 export type CepDataBoundaryMode = "copy_paste" | "block_non_corp" | "none";
 
+export interface CepHttpHeaderEntry {
+  name: string;
+  value: string;
+}
+
+export interface CepHttpHeaderRule {
+  id?: string;
+  app?: string;
+  patterns: string[];
+  headers: CepHttpHeaderEntry[];
+}
+
 export interface CepProvisionConfig {
   customer_id: string;
   project_id?: string;
@@ -231,6 +243,7 @@ export interface CepProvisionConfig {
   /** Comprehensive DLP matrix state */
   dlp_matrix?: CepDlpMatrixState;
   data_boundary_mode?: CepDataBoundaryMode;
+  http_header_rules?: CepHttpHeaderRule[];
   internal_urls?: string[];
   dlp_custom_message?: string;
   dlp_save_content?: boolean;
@@ -709,6 +722,7 @@ interface CepContext {
   dlpMatrix: CepDlpMatrixState;
   dlpCustomMessage?: string;
   dlpSaveContent?: boolean;
+  httpHeaderRules: CepHttpHeaderRule[];
   accessLevelName?: string;
   /** True only when this run created it, which is what rollback may delete. */
   accessLevelIsOurs?: boolean;
@@ -785,6 +799,93 @@ function requiresDomain(context: CepContext): string | null {
   return context.primaryDomain
     ? null
     : "the tenant's primary domain could not be resolved from the Directory API";
+}
+
+const HTTP_HEADER_TOKEN_PATTERN = /^[a-zA-Z0-9!#$%&'*+.^_`|~-]+$/;
+const HTTP_HEADER_VALUE_FORBIDDEN = /[\u0000\r\n]/;
+const MAX_HTTP_HEADER_URL_PATTERNS = 500;
+const MAX_HTTP_HEADERS_PER_RULE = 20;
+
+function normalizeHttpHeaderUrlPattern(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed === "*") return trimmed;
+  return trimmed.replace(/\/\*+$/, "").replace(/\/+$/, "");
+}
+
+export function normalizeHttpHeaderRules(
+  rules: readonly CepHttpHeaderRule[] | undefined,
+): Array<{ patterns: string[]; headers: CepHttpHeaderEntry[] }> {
+  if (!rules || !Array.isArray(rules)) return [];
+  const normalized: Array<{ patterns: string[]; headers: CepHttpHeaderEntry[] }> = [];
+  for (const rule of rules) {
+    const patterns = (rule?.patterns ?? [])
+      .map((pattern: string) =>
+        typeof pattern === "string" ? normalizeHttpHeaderUrlPattern(pattern) : "",
+      )
+      .filter(Boolean);
+    const headers = (rule?.headers ?? [])
+      .map((header: CepHttpHeaderEntry) => ({
+        name: typeof header?.name === "string" ? header.name.trim() : "",
+        value: typeof header?.value === "string" ? header.value.trim() : "",
+      }))
+      .filter(
+        (header: CepHttpHeaderEntry) => header.name.length > 0 && header.value.length > 0,
+      );
+    if (patterns.length > 0 && headers.length > 0) {
+      normalized.push({ patterns, headers });
+    }
+  }
+  return normalized;
+}
+
+export function validateHttpHeaderRules(
+  rules: readonly CepHttpHeaderRule[] | undefined,
+): string | null {
+  if (!rules || !Array.isArray(rules) || rules.length === 0) {
+    return "at least one HTTP header rule is required";
+  }
+  let totalPatterns = 0;
+  for (let index = 0; index < rules.length; index += 1) {
+    const rule = rules[index];
+    const label = rule?.app?.trim() ? `rule "${rule.app.trim()}"` : `rule #${index + 1}`;
+    const patterns = (rule?.patterns ?? [])
+      .map((pattern: string) =>
+        typeof pattern === "string" ? normalizeHttpHeaderUrlPattern(pattern) : "",
+      )
+      .filter(Boolean);
+    if (patterns.length === 0) {
+      return `${label} needs at least one URL pattern`;
+    }
+    totalPatterns += patterns.length;
+    const headers = (rule?.headers ?? []).map((header: CepHttpHeaderEntry) => ({
+      name: typeof header?.name === "string" ? header.name.trim() : "",
+      value: typeof header?.value === "string" ? header.value.trim() : "",
+    }));
+    if (headers.length === 0) {
+      return `${label} needs at least one HTTP header`;
+    }
+    if (headers.length > MAX_HTTP_HEADERS_PER_RULE) {
+      return `${label} exceeds the ${MAX_HTTP_HEADERS_PER_RULE}-header limit per rule`;
+    }
+    for (const header of headers) {
+      if (!header.name) {
+        return `${label} has an empty HTTP header name`;
+      }
+      if (!HTTP_HEADER_TOKEN_PATTERN.test(header.name)) {
+        return `HTTP header name "${header.name}" in ${label} contains invalid characters (RFC 2616 token required)`;
+      }
+      if (!header.value) {
+        return `HTTP header "${header.name}" in ${label} requires a non-empty tenant or header value`;
+      }
+      if (HTTP_HEADER_VALUE_FORBIDDEN.test(header.value)) {
+        return `HTTP header "${header.name}" in ${label} must not contain control characters or newlines`;
+      }
+    }
+  }
+  if (totalPatterns > MAX_HTTP_HEADER_URL_PATTERNS) {
+    return `HTTP header rules exceed the ${MAX_HTTP_HEADER_URL_PATTERNS} URL pattern limit across all rules`;
+  }
+  return null;
 }
 
 type ActionableDlpOperation = Exclude<CepDlpOperation, "watermark">;
@@ -1000,6 +1101,22 @@ const CEP_POLICIES: readonly CepPolicyDefinition[] = [
     ],
   },
   {
+    module: "dataBoundary",
+    ou: "users",
+    label: "SaaS tenant restriction headers (HttpHeaderInjection)",
+    schema: "chrome.users.HttpHeaderInjection",
+    schemaMatcher: /HttpHeaderInjection/i,
+    appliesTo: (config) =>
+      Array.isArray(config.http_header_rules) && config.http_header_rules.length > 0,
+    requires: (c) => validateHttpHeaderRules(c.httpHeaderRules),
+    fields: [
+      {
+        name: /httpHeaderInjection/i,
+        value: (c) => ({ rules: normalizeHttpHeaderRules(c.httpHeaderRules) }),
+      },
+    ],
+  },
+  {
     module: "dlpRules",
     ou: "users",
     label: "Block unapproved consumer GenAI services",
@@ -1057,7 +1174,10 @@ function moduleEnabled(config: CepProvisionConfig, module: CepModule): boolean {
     case "dlpRules":
       return config.dlp_rules === true;
     case "dataBoundary":
-      return config.data_boundary_mode !== undefined && config.data_boundary_mode !== "none";
+      return (
+        (config.data_boundary_mode !== undefined && config.data_boundary_mode !== "none") ||
+        (Array.isArray(config.http_header_rules) && config.http_header_rules.length > 0)
+      );
     default: {
       const exhaustiveCheck: never = module;
       throw new Error(`Unhandled CEP module: ${String(exhaustiveCheck)}`);
@@ -2893,6 +3013,7 @@ export class CepProvider {
       dlpMatrix: resolveDlpMatrix(provision),
       dlpCustomMessage: provision.dlp_custom_message,
       dlpSaveContent: provision.dlp_save_content,
+      httpHeaderRules: provision.http_header_rules ?? [],
     };
   }
 

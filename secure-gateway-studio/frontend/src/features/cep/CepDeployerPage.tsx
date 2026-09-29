@@ -5,6 +5,7 @@ import type {
   CepDlpMatrixState,
   CepGeminiZeroTrustConfig,
   CepGeminiZeroTrustResult,
+  CepHttpHeaderRule,
   CepLicenseAssignResult,
   CepRoleResult,
   CepProvisionConfig,
@@ -162,6 +163,70 @@ const PRESET_MATRICES: Record<PresetName, CepDlpMatrixState> = {
   },
 };
 
+interface SaasHeaderPreset {
+  id: string;
+  app: string;
+  patterns: string[];
+  headerNames: string[];
+  placeholder: string;
+}
+
+const SAAS_HEADER_PRESETS: readonly SaasHeaderPreset[] = [
+  {
+    id: "slack",
+    app: "Slack",
+    patterns: ["https://slack.com", "https://*.slack.com"],
+    headerNames: ["X-Slack-Allowed-Workspaces-Requester", "X-Slack-Allowed-Workspaces"],
+    placeholder: "T0123456789",
+  },
+  {
+    id: "github",
+    app: "GitHub Enterprise",
+    patterns: ["https://github.com", "https://*.github.com", "https://api.github.com"],
+    headerNames: ["sec-GitHub-allowed-enterprise"],
+    placeholder: "your-enterprise-slug",
+  },
+  {
+    id: "chatgpt",
+    app: "ChatGPT (OpenAI)",
+    patterns: ["https://chatgpt.com", "https://*.chatgpt.com", "https://chat.openai.com"],
+    headerNames: ["ChatGPT-Allowed-Workspace-Id"],
+    placeholder: "00000000-0000-0000-0000-000000000000",
+  },
+  {
+    id: "claude",
+    app: "Claude (Anthropic)",
+    patterns: ["https://claude.ai", "https://*.claude.ai", "https://console.anthropic.com"],
+    headerNames: ["anthropic-allowed-org-ids"],
+    placeholder: "00000000-0000-0000-0000-000000000000",
+  },
+  {
+    id: "m365",
+    app: "Microsoft 365 (Entra ID)",
+    patterns: [
+      "https://login.microsoftonline.com",
+      "https://login.live.com",
+      "https://login.windows.net",
+    ],
+    headerNames: ["Restrict-Access-To-Tenants", "Restrict-Access-Context"],
+    placeholder: "contoso.onmicrosoft.com",
+  },
+  {
+    id: "dropbox",
+    app: "Dropbox Business",
+    patterns: ["https://www.dropbox.com", "https://*.dropbox.com"],
+    headerNames: ["X-Dropbox-Allowed-Team-Ids"],
+    placeholder: "dbtid:AAFdgehTzw7WlXhZJsbGCLePe8RvQ",
+  },
+  {
+    id: "box",
+    app: "Box",
+    patterns: ["https://app.box.com", "https://*.box.com", "https://account.box.com"],
+    headerNames: ["X-Box-Enterprise-Id"],
+    placeholder: "123456789",
+  },
+];
+
 export function CepDeployerPage({
   messages,
   customerId,
@@ -204,6 +269,7 @@ export function CepDeployerPage({
   const [internalUrls, setInternalUrls] = useState<string>("");
   const [dlpCustomMessage, setDlpCustomMessage] = useState<string>("");
   const [dlpSaveContent, setDlpSaveContent] = useState<boolean>(false);
+  const [httpHeaderRules, setHttpHeaderRules] = useState<CepHttpHeaderRule[]>([]);
 
   const [accessLevels, setAccessLevels] = useState<SetupOption[]>([]);
   const [accessLevelError, setAccessLevelError] = useState<boolean>(false);
@@ -557,7 +623,8 @@ gcloud access-context-manager cloud-bindings create \\
     modules.forceExtensions ||
     modules.connectors ||
     modules.accessLevel !== ACCESS_LEVEL_NONE ||
-    modules.dataBoundaryMode !== "none";
+    modules.dataBoundaryMode !== "none" ||
+    httpHeaderRules.length > 0;
   const anyDlpRuleActive = Object.entries(dlpMatrix).some(([ruleId, cfg]) => {
     if (!cfg) return false;
     if (ruleId === "watermark") return cfg.watermark === true;
@@ -598,6 +665,81 @@ gcloud access-context-manager cloud-bindings create \\
     setModules((current) => ({ ...current, [key]: value }));
   }
 
+  function addSaasHeaderPreset(preset: SaasHeaderPreset) {
+    setHttpHeaderRules((current) => {
+      if (current.some((rule) => rule.id === preset.id)) {
+        return current.filter((rule) => rule.id !== preset.id);
+      }
+      return [
+        ...current,
+        {
+          id: preset.id,
+          app: preset.app,
+          patterns: [...preset.patterns],
+          headers: preset.headerNames.map((name) => ({ name, value: "" })),
+        },
+      ];
+    });
+  }
+
+  function addCustomHeaderRule() {
+    setHttpHeaderRules((current) => [
+      ...current,
+      {
+        id: `custom-${Date.now()}-${current.length + 1}`,
+        app: "Custom SaaS",
+        patterns: ["https://example.com"],
+        headers: [{ name: "X-Allowed-Tenant", value: "" }],
+      },
+    ]);
+  }
+
+  function removeHttpHeaderRule(index: number) {
+    setHttpHeaderRules((current) => current.filter((_, idx) => idx !== index));
+  }
+
+  function updateHttpHeaderRulePatterns(index: number, raw: string) {
+    const patterns = raw
+      .split(/[\n,]+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+    setHttpHeaderRules((current) =>
+      current.map((rule, idx) => (idx === index ? { ...rule, patterns } : rule)),
+    );
+  }
+
+  function updateHttpHeaderRuleTenantValue(index: number, value: string) {
+    setHttpHeaderRules((current) =>
+      current.map((rule, idx) =>
+        idx === index
+          ? {
+              ...rule,
+              headers: rule.headers.map((header) => ({ ...header, value })),
+            }
+          : rule,
+      ),
+    );
+  }
+
+  function updateHttpHeaderRuleEntry(
+    ruleIndex: number,
+    headerIndex: number,
+    patch: { name?: string; value?: string },
+  ) {
+    setHttpHeaderRules((current) =>
+      current.map((rule, idx) =>
+        idx === ruleIndex
+          ? {
+              ...rule,
+              headers: rule.headers.map((header, hIdx) =>
+                hIdx === headerIndex ? { ...header, ...patch } : header,
+              ),
+            }
+          : rule,
+      ),
+    );
+  }
+
   function currentConfig(
     confirmation = (targetType === "group" ? targetGroupConfirmation : targetOuConfirmation),
   ): CepProvisionConfig {
@@ -626,6 +768,8 @@ gcloud access-context-manager cloud-bindings create \\
       dlp_custom_message: dlpCustomMessage,
       dlp_save_content: dlpSaveContent,
       data_boundary_mode: isDlpOnly ? "none" : modules.dataBoundaryMode,
+      http_header_rules:
+        isDlpOnly || httpHeaderRules.length === 0 ? undefined : httpHeaderRules,
       internal_urls: internalUrls
         .split("\n")
         .map((url) => url.trim())
@@ -1339,6 +1483,171 @@ gcloud access-context-manager cloud-bindings create \\
               </label>
             ))}
           </div>
+        </fieldset>
+
+        <fieldset className="cep-fieldset cep-http-headers-fieldset">
+          <legend>{m.httpHeadersTitle}</legend>
+          <p className="cep-inline-note">{m.httpHeadersSubtitle}</p>
+
+          <div className="cep-http-headers-presets">
+            <span className="cep-http-headers-preset-label">{m.httpHeadersPresetLabel}</span>
+            {SAAS_HEADER_PRESETS.map((preset) => {
+              const isAdded = httpHeaderRules.some((rule) => rule.id === preset.id);
+              return (
+                <button
+                  className={`btn ${isAdded ? "btn-primary" : "btn-secondary"} btn-sm cep-http-preset-btn`}
+                  key={preset.id}
+                  onClick={() => addSaasHeaderPreset(preset)}
+                  type="button"
+                >
+                  {isAdded ? `✓ ${preset.app}` : `+ ${preset.app}`}
+                </button>
+              );
+            })}
+            <button
+              className="btn btn-secondary btn-sm cep-http-preset-btn"
+              onClick={addCustomHeaderRule}
+              type="button"
+            >
+              {m.httpHeadersAddCustomBtn}
+            </button>
+          </div>
+
+          {httpHeaderRules.length === 0 ? (
+            <p className="cep-inline-note cep-http-headers-empty">{m.httpHeadersEmptyHint}</p>
+          ) : (
+            <div className="cep-http-header-rules-list">
+              {httpHeaderRules.map((rule, index) => {
+                const preset = SAAS_HEADER_PRESETS.find((item) => item.id === rule.id);
+                const isCustom = !preset;
+                const isM365 = rule.id === "m365";
+                const ruleKey = rule.id ?? `rule-${index}`;
+                return (
+                  <div className="cep-http-header-rule-card" key={ruleKey}>
+                    <div className="cep-http-header-rule-head">
+                      <div className="cep-http-header-rule-title">
+                        <strong>{rule.app || "Custom SaaS"}</strong>
+                        <div className="cep-http-header-badges">
+                          {rule.headers.map((header, hIdx) => (
+                            <code className="cep-http-header-badge" key={`${ruleKey}-h-${hIdx}`}>
+                              {header.name || "X-Header"}
+                            </code>
+                          ))}
+                        </div>
+                      </div>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => removeHttpHeaderRule(index)}
+                        type="button"
+                      >
+                        {m.httpHeadersRemoveRuleBtn}
+                      </button>
+                    </div>
+
+                    {rule.id === "box" && (
+                      <p className="cep-inline-note">{m.httpHeadersBoxNote}</p>
+                    )}
+
+                    <div className="cep-http-header-rule-grid">
+                      {isCustom ? (
+                        <>
+                          <div className="cep-field">
+                            <label htmlFor={`cep-http-header-name-${index}`}>
+                              {m.httpHeadersNameLabel}
+                            </label>
+                            <input
+                              id={`cep-http-header-name-${index}`}
+                              onChange={(event) =>
+                                updateHttpHeaderRuleEntry(index, 0, { name: event.target.value })
+                              }
+                              placeholder="X-Allowed-Tenant"
+                              type="text"
+                              value={rule.headers[0]?.name ?? ""}
+                            />
+                          </div>
+                          <div className="cep-field">
+                            <label htmlFor={`cep-http-header-value-${index}`}>
+                              {m.httpHeadersValueLabel}
+                            </label>
+                            <input
+                              id={`cep-http-header-value-${index}`}
+                              onChange={(event) =>
+                                updateHttpHeaderRuleEntry(index, 0, { value: event.target.value })
+                              }
+                              placeholder="tenant-id-123"
+                              type="text"
+                              value={rule.headers[0]?.value ?? ""}
+                            />
+                          </div>
+                        </>
+                      ) : isM365 ? (
+                        <>
+                          <div className="cep-field">
+                            <label htmlFor={`cep-http-header-tenant-${index}`}>
+                              {m.httpHeadersTenantValueLabel}
+                            </label>
+                            <input
+                              id={`cep-http-header-tenant-${index}`}
+                              onChange={(event) =>
+                                updateHttpHeaderRuleEntry(index, 0, { value: event.target.value })
+                              }
+                              placeholder={preset.placeholder}
+                              type="text"
+                              value={rule.headers[0]?.value ?? ""}
+                            />
+                          </div>
+                          <div className="cep-field">
+                            <label htmlFor={`cep-http-header-context-${index}`}>
+                              {m.httpHeadersM365ContextLabel}
+                            </label>
+                            <input
+                              id={`cep-http-header-context-${index}`}
+                              onChange={(event) =>
+                                updateHttpHeaderRuleEntry(index, 1, { value: event.target.value })
+                              }
+                              placeholder="00000000-0000-0000-0000-000000000000"
+                              type="text"
+                              value={rule.headers[1]?.value ?? ""}
+                            />
+                          </div>
+                        </>
+                      ) : (
+                        <div className="cep-field">
+                          <label htmlFor={`cep-http-header-tenant-${index}`}>
+                            {m.httpHeadersTenantValueLabel} ({rule.app})
+                          </label>
+                          <input
+                            id={`cep-http-header-tenant-${index}`}
+                            onChange={(event) =>
+                              updateHttpHeaderRuleTenantValue(index, event.target.value)
+                            }
+                            placeholder={preset.placeholder}
+                            type="text"
+                            value={rule.headers[0]?.value ?? ""}
+                          />
+                        </div>
+                      )}
+
+                      <div className="cep-field">
+                        <label htmlFor={`cep-http-header-patterns-${index}`}>
+                          {m.httpHeadersPatternsLabel}
+                        </label>
+                        <input
+                          id={`cep-http-header-patterns-${index}`}
+                          onChange={(event) =>
+                            updateHttpHeaderRulePatterns(index, event.target.value)
+                          }
+                          placeholder="https://slack.com, https://*.slack.com"
+                          type="text"
+                          value={rule.patterns.join(", ")}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </fieldset>
 
         {activeTab !== "dlp" && (

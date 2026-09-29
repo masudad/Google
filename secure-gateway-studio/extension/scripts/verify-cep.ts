@@ -168,6 +168,9 @@ const SCHEMA_FIELDS: Record<string, StubField[]> = {
   "chrome.users.AllowedDomainsForApps": [
     { name: "allowedDomainsForApps", type: "TYPE_STRING" },
   ],
+  "chrome.users.HttpHeaderInjection": [
+    { name: "httpHeaderInjection", type: "TYPE_MESSAGE" },
+  ],
   "chrome.users.URLBlocklist": [
     { name: "urlBlocklist", type: "TYPE_STRING", repeated: true },
   ],
@@ -4822,6 +4825,129 @@ for (const mode of ["412-commit", "503-commit", "response-loss-commit"] as const
   check(
     "Easy PoC provision still propagates consent-required when the administrator session is not signed in",
     consentRequiredPropagated,
+  );
+}
+
+// -- SaaS Tenant Restriction HTTP Header Injection (HttpHeaderInjection) ------
+
+{
+  const { transport, calls } = stubTransport();
+  const res = (await route(
+    context(transport),
+    "POST",
+    "/api/v1/cep/provision",
+    {
+      customer_id: "C01abcdef",
+      target_ou_id: "03pilot",
+      target_ou_path: "/Pilot",
+      target_ou_confirmation: "/Pilot",
+      core_policies: false,
+      force_extensions: false,
+      connectors: false,
+      dlp_rules: false,
+      data_boundary_mode: "none",
+      http_header_rules: [
+        {
+          id: "slack",
+          app: "Slack",
+          patterns: ["https://slack.com/*", "https://*.slack.com/"],
+          headers: [
+            { name: "X-Slack-Allowed-Workspaces-Requester", value: "T01234567" },
+            { name: "X-Slack-Allowed-Workspaces", value: "T01234567" },
+          ],
+        },
+        {
+          id: "github",
+          app: "GitHub Enterprise",
+          patterns: ["https://github.com", "https://*.github.com"],
+          headers: [
+            { name: "sec-GitHub-allowed-enterprise", value: "acme-corp" },
+          ],
+        },
+      ],
+    },
+  )) as {
+    success: boolean;
+    created_items: string[];
+    skipped_items: string[];
+  };
+
+  check(
+    "HttpHeaderInjection provision succeeds standalone even when data_boundary_mode is none",
+    res.success === true &&
+      res.created_items.includes("SaaS tenant restriction headers (HttpHeaderInjection)"),
+    JSON.stringify(res),
+  );
+
+  const batchModifyCall = calls.find(
+    (c) => c.method === "POST" && c.url.includes("policies/orgunits:batchModify"),
+  );
+  const modifyRequests =
+    (batchModifyCall?.body as { requests?: Array<Record<string, unknown>> })?.requests ?? [];
+  const headerReq = modifyRequests.find((r) => {
+    const pv = r.policyValue as { policySchema?: string } | undefined;
+    return pv?.policySchema === "chrome.users.HttpHeaderInjection";
+  });
+  const injectedValue = (
+    headerReq?.policyValue as {
+      value?: {
+        httpHeaderInjection?: {
+          rules?: Array<{ patterns: string[]; headers: Array<{ name: string; value: string }> }>;
+        };
+      };
+    }
+  )?.value?.httpHeaderInjection;
+
+  check(
+    "HttpHeaderInjection normalizes trailing /* and / from URL patterns and strips UI metadata fields",
+    Array.isArray(injectedValue?.rules) &&
+      injectedValue.rules.length === 2 &&
+      injectedValue.rules[0]?.patterns[0] === "https://slack.com" &&
+      injectedValue.rules[0]?.patterns[1] === "https://*.slack.com" &&
+      injectedValue.rules[0]?.headers[0]?.name === "X-Slack-Allowed-Workspaces-Requester" &&
+      injectedValue.rules[0]?.headers[0]?.value === "T01234567" &&
+      !("id" in (injectedValue.rules[0] as Record<string, unknown>)) &&
+      !("app" in (injectedValue.rules[0] as Record<string, unknown>)),
+    JSON.stringify(injectedValue),
+  );
+
+  // Validation rejects empty header value cleanly in skipped_items
+  const { transport: invalidTransport } = stubTransport();
+  const invalidRes = (await route(
+    context(invalidTransport),
+    "POST",
+    "/api/v1/cep/provision",
+    {
+      customer_id: "C01abcdef",
+      target_ou_id: "03pilot",
+      target_ou_path: "/Pilot",
+      target_ou_confirmation: "/Pilot",
+      core_policies: false,
+      force_extensions: false,
+      connectors: false,
+      dlp_rules: false,
+      data_boundary_mode: "none",
+      http_header_rules: [
+        {
+          id: "chatgpt",
+          app: "ChatGPT Enterprise",
+          patterns: ["https://chatgpt.com"],
+          headers: [{ name: "ChatGPT-Allowed-Workspace-Id", value: "   " }],
+        },
+      ],
+    },
+  )) as {
+    skipped_items: string[];
+  };
+
+  check(
+    "HttpHeaderInjection skips rule when tenant/header value is blank with a descriptive message",
+    invalidRes.skipped_items.some(
+      (s) =>
+        s.includes("SaaS tenant restriction headers (HttpHeaderInjection)") &&
+        s.includes("ChatGPT-Allowed-Workspace-Id"),
+    ),
+    JSON.stringify(invalidRes.skipped_items),
   );
 }
 

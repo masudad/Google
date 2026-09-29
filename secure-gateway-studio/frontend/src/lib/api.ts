@@ -677,6 +677,18 @@ export interface CepDlpMatrixRuleConfig {
 
 export type CepDlpMatrixState = Partial<Record<CepDlpRuleId, CepDlpMatrixRuleConfig>>;
 
+export interface CepHttpHeaderEntry {
+  name: string;
+  value: string;
+}
+
+export interface CepHttpHeaderRule {
+  id?: string;
+  app?: string;
+  patterns: string[];
+  headers: CepHttpHeaderEntry[];
+}
+
 export interface CepProvisionConfig {
   customer_id: string;
   project_id?: string;
@@ -715,6 +727,7 @@ export interface CepProvisionConfig {
   /** Comprehensive DLP matrix state */
   dlp_matrix?: CepDlpMatrixState;
   data_boundary_mode?: CepDataBoundaryMode;
+  http_header_rules?: CepHttpHeaderRule[];
   internal_urls?: string[];
   dlp_custom_message?: string;
   dlp_save_content?: boolean;
