@@ -2648,7 +2648,7 @@ export class CepProvider {
     return {
       customerId,
       dlpCustomerId: customer.dlpCustomerId,
-      projectId: config.project_id,
+      projectId: config.project_id?.trim() || undefined,
       targetType,
       targetGroupId,
       targetGroupEmail,
@@ -2708,7 +2708,9 @@ export class CepProvider {
         skipped,
         config.access_level ?? "",
       ))) {
-        failedModules.add("contextAwareAccess");
+        if (context.projectId) {
+          failedModules.add("contextAwareAccess");
+        }
       }
     }
 
@@ -2945,7 +2947,7 @@ export class CepProvider {
     );
 
     const retained = retainedChrome || retainedDlp ||
-      (wanted("contextAwareAccess") && selectedLevel.startsWith("AUTO_CREATE_"));
+      (wanted("contextAwareAccess") && selectedLevel.startsWith("AUTO_CREATE_") && Boolean(context.projectId));
     return {
       success: !retained,
       message: retained

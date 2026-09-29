@@ -50,6 +50,7 @@ interface CepDeployerPageProps {
   customerId: string;
   projectId: string;
   onCustomerIdResolved?: (customerId: string) => void;
+  onProjectIdChange?: (projectId: string) => void;
 }
 
 interface ModuleState {
@@ -166,10 +167,16 @@ export function CepDeployerPage({
   customerId,
   projectId,
   onCustomerIdResolved,
+  onProjectIdChange,
 }: CepDeployerPageProps) {
   const m = messages.cepDeployer;
   const [resolvedCustomerId, setResolvedCustomerId] = useState<string>("");
   const [detectingCustomerId, setDetectingCustomerId] = useState<boolean>(false);
+  const [localProjectId, setLocalProjectId] = useState<string>(projectId);
+  useEffect(() => {
+    setLocalProjectId(projectId);
+  }, [projectId]);
+  const effectiveProjectId = localProjectId.trim();
   const effectiveCustomerId = resolvedCustomerId || customerId;
   const canonicalCustomerId = /^C[A-Za-z0-9]+$/.test(effectiveCustomerId.trim())
     ? effectiveCustomerId.trim()
@@ -243,7 +250,7 @@ export function CepDeployerPage({
 
   async function handleProvisionGeminiZeroTrust() {
     if (provisioningGemini) return;
-    const targetProject = (geminiProjectInput || projectId).trim();
+    const targetProject = (geminiProjectInput || effectiveProjectId).trim();
     if (!targetProject) {
       setGeminiError(new Error("Target Google Cloud Project ID is required."));
       return;
@@ -374,7 +381,7 @@ gcloud access-context-manager cloud-bindings create \\
     try {
       const res = await createCepCustomRoles({
         customer_id: canonicalCustomerId,
-        project_id: projectId,
+        project_id: effectiveProjectId,
         role_type: roleType,
         assigned_user_email: assignedUserEmail.trim() || undefined,
         target_ou_id: scopeRoleToOu && selectedOu ? selectedOu : undefined,
@@ -432,9 +439,9 @@ gcloud access-context-manager cloud-bindings create \\
         setLoadingGroups(false);
       }
 
-      if (projectId) {
+      if (effectiveProjectId) {
         try {
-          const accessOptions = await listAccessLevelOptions(projectId);
+          const accessOptions = await listAccessLevelOptions(effectiveProjectId);
           const existing = accessOptions.filter(
             (option) =>
               option.value !== ACCESS_LEVEL_NONE &&
@@ -483,9 +490,9 @@ gcloud access-context-manager cloud-bindings create \\
           } finally {
             setLoadingGroups(false);
           }
-          if (projectId) {
+          if (effectiveProjectId) {
             try {
-              const accessOptions = await listAccessLevelOptions(projectId);
+              const accessOptions = await listAccessLevelOptions(effectiveProjectId);
               const existing = accessOptions.filter(
                 (option) =>
                   option.value !== ACCESS_LEVEL_NONE &&
@@ -569,7 +576,7 @@ gcloud access-context-manager cloud-bindings create \\
   ): CepProvisionConfig {
     return {
       customer_id: canonicalCustomerId,
-      project_id: projectId,
+      project_id: effectiveProjectId,
       target_type: targetType,
       target_ou_id: targetType === "group" ? (selectedOu || undefined) : selectedOu,
       target_ou_path: targetType === "group" ? undefined : selectedUnit?.label,
@@ -608,7 +615,7 @@ gcloud access-context-manager cloud-bindings create \\
     try {
       const res = await assignCepLicenses({
         customer_id: canonicalCustomerId,
-        project_id: projectId,
+        project_id: effectiveProjectId,
         target_ou_id: selectedOu,
         target_ou_path: selectedUnit?.label,
         target_ou_confirmation: confirmation,
@@ -679,7 +686,7 @@ gcloud access-context-manager cloud-bindings create \\
     try {
       const res = await rollbackCepPolicies({
         customer_id: canonicalCustomerId,
-        project_id: projectId,
+        project_id: effectiveProjectId,
         target_type: targetType,
         target_ou_id: targetType === "group" ? undefined : selectedOu,
         target_ou_path: targetType === "group" ? undefined : selectedUnit?.label,
@@ -949,6 +956,24 @@ gcloud access-context-manager cloud-bindings create \\
             </button>
           </div>
         )}
+
+        <div className="cep-field">
+          <label htmlFor="cep-project-id-input">{m.projectIdOptionalLabel}</label>
+          <input
+            autoComplete="off"
+            id="cep-project-id-input"
+            onChange={(event) => {
+              const next = event.target.value;
+              setLocalProjectId(next);
+              onProjectIdChange?.(next.trim());
+            }}
+            placeholder={m.projectIdOptionalPlaceholder}
+            spellCheck={false}
+            type="text"
+            value={localProjectId}
+          />
+          <small>{m.projectIdOptionalHint}</small>
+        </div>
 
         <div className="cep-target-type-nav" role="tablist" aria-label="Target Scope Type">
           <button
@@ -2028,7 +2053,7 @@ gcloud access-context-manager cloud-bindings create \\
           <details className="cep-trace-details" open={false}>
             <summary className="cep-trace-summary">
               <span>{m.statusLogTitle}</span>
-              <span className="cep-trace-count">（{lastResult.debug_trace.length} 件の API 呼び出し）</span>
+              <span className="cep-trace-count">{m.statusLogApiCallCount(lastResult.debug_trace.length)}</span>
             </summary>
             <ul className="cep-trace">
               {lastResult.debug_trace.map((entry, index) => (

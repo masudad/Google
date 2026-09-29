@@ -538,7 +538,7 @@ export function SecurityAssessmentModal({
                   </li>
                   <li>
                     {m.dlpColWatermark}:{" "}
-                    <code>{currentConfig.dlpMatrix.watermark?.watermark ? "ON (有効)" : "OFF"}</code>
+                    <code>{currentConfig.dlpMatrix.watermark?.watermark ? m.assessStatusWatermarkOn : "OFF"}</code>
                   </li>
                 </ul>
               </div>
@@ -547,20 +547,20 @@ export function SecurityAssessmentModal({
                 <strong>{m.assessRecModulesHeader}</strong>
                 <ul>
                   <li>
-                    Core Policies: {currentConfig.corePolicies ? "✓ 有効" : "無効"}
+                    Core Policies: {currentConfig.corePolicies ? m.assessStatusEnabled : m.assessStatusDisabled}
                   </li>
                   <li>
-                    Force Extensions: {currentConfig.forceExtensions ? "✓ ホワイトリスト管理" : "無効"}
+                    Force Extensions: {currentConfig.forceExtensions ? m.assessStatusAllowlistManaged : m.assessStatusDisabled}
                   </li>
                   <li>
-                    Connectors / Log Sync: {currentConfig.connectors ? "✓ Cloud Logging 連携" : "無効"}
+                    Connectors / Log Sync: {currentConfig.connectors ? m.assessStatusCloudLogging : m.assessStatusDisabled}
                   </li>
                   <li>
                     Context-Aware Access: <code>{currentConfig.accessLevel}</code>
                   </li>
                   <li>
                     Gemini Enterprise Zero Trust:{" "}
-                    {currentConfig.geminiEnforcePerimeter ? "✓ VPC-SC 境界保護" : "標準"}
+                    {currentConfig.geminiEnforcePerimeter ? m.assessStatusVpcScProtected : m.assessStatusStandard}
                   </li>
                 </ul>
               </div>
@@ -581,7 +581,7 @@ export function SecurityAssessmentModal({
               >
                 <CheckCircleIcon size={16} />
                 <span>
-                  {m.assessApplyRecBtn} (<span className="tabular-nums">{selectedQuestions.size}</span> 項目反映)
+                  {m.assessApplyRecBtn} (<span className="tabular-nums">{selectedQuestions.size}</span> {m.assessSelectedCountSuffix})
                 </span>
               </button>
             </div>

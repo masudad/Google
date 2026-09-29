@@ -659,7 +659,7 @@ describe("CepDeployerPage", () => {
     });
   });
 
-  it("renders English localization without hardcoded Japanese strings and includes manual role checklist", async () => {
+  it("renders English localization without any Japanese characters across Setup, DLP Matrix, and Security Assessment Wizard", async () => {
     const enMessages = getMessages("en");
     const enM = enMessages.cepDeployer;
     render(
@@ -673,7 +673,52 @@ describe("CepDeployerPage", () => {
       ).toBeInTheDocument();
     });
     expect(screen.getByText(enM.rolesScopeManualChecklistTitle)).toBeInTheDocument();
-    expect(screen.queryByText(/Google アカウント認証完了/)).not.toBeInTheDocument();
+
+    // Open Security Assessment & Policy Wizard
+    fireEvent.click(screen.getByRole("button", { name: enM.assessOpenBtn }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    // Verify zero Japanese characters (Hiragana, Katakana, Kanji) in the entire rendered page & modal
+    const fullText = document.body.textContent ?? "";
+    expect(fullText).not.toMatch(/[\u3040-\u30ff\u4e00-\u9faf]/);
+  });
+
+  it("allows applying policies without a GCP Project ID and editing the optional GCP Project ID in Easy PoC", async () => {
+    const provision = vi.spyOn(api, "provisionCepPolicies").mockResolvedValue(emptyResult());
+    const onProjectIdChange = vi.fn();
+
+    render(
+      <CepDeployerPage
+        customerId="C012345"
+        messages={messages}
+        onProjectIdChange={onProjectIdChange}
+        projectId=""
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: m.verifyGoogleAccount }));
+    await selectPilotOu();
+    fireEvent.click(screen.getByText(m.btnDeploy));
+
+    await waitFor(() => {
+      expect(provision).toHaveBeenCalledTimes(1);
+    });
+    expect(provision.mock.calls[0]?.[0]?.project_id).toBe("");
+
+    // Now enter an optional GCP Project ID directly in Easy PoC
+    const projectInput = screen.getByLabelText(m.projectIdOptionalLabel);
+    fireEvent.change(projectInput, { target: { value: "easy-poc-gcp-proj" } });
+    expect(onProjectIdChange).toHaveBeenCalledWith("easy-poc-gcp-proj");
+
+    fireEvent.change(screen.getByLabelText(m.targetOuConfirmationLabel), {
+      target: { value: "/Pilot" },
+    });
+    fireEvent.click(screen.getByText(m.btnDeploy));
+
+    await waitFor(() => {
+      expect(provision).toHaveBeenCalledTimes(2);
+    });
+    expect(provision.mock.calls[1]?.[0]?.project_id).toBe("easy-poc-gcp-proj");
   });
 });
 

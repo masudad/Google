@@ -4084,6 +4084,63 @@ for (const mode of ["412-commit", "503-commit", "response-loss-commit"] as const
       roles403Result.message.includes("https://admin.google.com/ac/roles"),
     roles403Result.message,
   );
+
+  // Test 19: Workspace-only CEP provision, rollback, and assign-licenses work without project_id
+  const wsOnlyTransport = stubTransport();
+  const wsOnlyProvision = (await route(
+    context(wsOnlyTransport.transport),
+    "POST",
+    "/api/v1/cep/provision",
+    {
+      ...FULL_CONFIG,
+      project_id: "",
+      access_level: "AUTO_CREATE_CHROME_ANY",
+      dlp_rules: true,
+    },
+  )) as ProvisionResult;
+  check(
+    "Workspace-only provision with empty project_id and AUTO_CREATE preset succeeds and skips CAA gracefully",
+    wsOnlyProvision.success === true &&
+      wsOnlyProvision.created_items.length > 0 &&
+      wsOnlyProvision.skipped_items.some((s) => s.includes("creating a level needs a Google Cloud project")),
+    JSON.stringify(wsOnlyProvision),
+  );
+
+  const wsOnlyRollback = (await route(
+    context(stubTransport().transport),
+    "POST",
+    "/api/v1/cep/rollback",
+    {
+      project_id: "",
+      customer_id: "C01abcdef",
+      target_ou_id: "03pilot",
+      target_ou_path: "/Pilot",
+      access_level: "AUTO_CREATE_CHROME_ANY",
+    },
+  )) as ProvisionResult;
+  check(
+    "Workspace-only rollback with empty project_id runs without throwing project-required",
+    wsOnlyRollback.skipped_items.some((s) => s.includes("no project id, so no access level was looked for")),
+    JSON.stringify(wsOnlyRollback),
+  );
+
+  const wsOnlyLicenses = (await route(
+    context(stubTransport().transport),
+    "POST",
+    "/api/v1/cep/assign-licenses",
+    {
+      project_id: "",
+      customer_id: "C01abcdef",
+      target_ou_id: "03pilot",
+      target_ou_path: "/Pilot",
+      target_ou_confirmation: "/Pilot",
+    },
+  )) as { success: boolean; assigned_count: number };
+  check(
+    "Workspace-only assign-licenses with empty project_id succeeds without throwing project-required",
+    wsOnlyLicenses.success === true && wsOnlyLicenses.assigned_count === 2,
+    JSON.stringify(wsOnlyLicenses),
+  );
 }
 
 // -- Report -------------------------------------------------------------------

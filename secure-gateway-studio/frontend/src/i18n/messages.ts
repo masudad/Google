@@ -929,6 +929,20 @@ export interface CepDeployerMessages {
   geminiArchDetailsToggle: string;
   assessShowDetails: string;
   assessHideDetails: string;
+  projectIdOptionalLabel: string;
+  projectIdOptionalHint: string;
+  projectIdOptionalPlaceholder: string;
+  statusLogApiCallCount: (count: number) => string;
+  assessStatusWatermarkOn: string;
+  assessStatusEnabled: string;
+  assessStatusDisabled: string;
+  assessStatusAllowlistManaged: string;
+  assessStatusCloudLogging: string;
+  assessStatusVpcScProtected: string;
+  assessStatusStandard: string;
+  assessSelectedCountSuffix: string;
+  dlpRegionJapanLabel: string;
+  dlpPresetsLabel: string;
 }
 
 const en: Messages = {
@@ -2726,6 +2740,20 @@ const en: Messages = {
     geminiArchDetailsToggle: "View 3-Tier Security Architecture & CLI Commands",
     assessShowDetails: "Show Risk & Solution Details",
     assessHideDetails: "Hide Details",
+    projectIdOptionalLabel: "Google Cloud Project ID (Optional — for Context-Aware Access & Gemini Zero Trust)",
+    projectIdOptionalHint: "Chrome policies, DLP rules, and CEP license assignment work with Workspace Customer ID alone. Enter a GCP Project ID only if you want to list or auto-create Access Context Manager levels or VPC-SC perimeters.",
+    projectIdOptionalPlaceholder: "e.g. my-gcp-project-id (leave blank for Workspace-only PoC)",
+    statusLogApiCallCount: (count: number) => `(${count} API calls)`,
+    assessStatusWatermarkOn: "ON (Enabled)",
+    assessStatusEnabled: "✓ Enabled",
+    assessStatusDisabled: "Disabled",
+    assessStatusAllowlistManaged: "✓ Allowlist Managed",
+    assessStatusCloudLogging: "✓ Cloud Logging Linked",
+    assessStatusVpcScProtected: "✓ VPC-SC Perimeter Protected",
+    assessStatusStandard: "Standard",
+    assessSelectedCountSuffix: "selected",
+    dlpRegionJapanLabel: "Japan (My Number / Bank Account)",
+    dlpPresetsLabel: "Presets:",
   },
 };
 
@@ -4517,6 +4545,20 @@ const ja: Messages = {
     geminiArchDetailsToggle: "3層セキュリティ境界アーキテクチャ・CLI コマンドの解説を見る",
     assessShowDetails: "現場リスク・解決策の詳細を表示",
     assessHideDetails: "詳細を折りたたむ",
+    projectIdOptionalLabel: "Google Cloud プロジェクト ID（任意 — Context-Aware Access・Gemini ゼロトラスト用）",
+    projectIdOptionalHint: "Chrome ポリシー、DLP ルール、CEP ライセンス割り当ては Workspace 顧客 ID のみで実行できます。Access Context Manager のアクセスレベル一覧取得・自動作成や VPC-SC 境界設定を行う場合のみ GCP プロジェクト ID を入力してください。",
+    projectIdOptionalPlaceholder: "例: my-gcp-project-id（Workspace のみの PoC では空欄可）",
+    statusLogApiCallCount: (count: number) => `（${count} 件の API 呼び出し）`,
+    assessStatusWatermarkOn: "ON (有効)",
+    assessStatusEnabled: "✓ 有効",
+    assessStatusDisabled: "無効",
+    assessStatusAllowlistManaged: "✓ ホワイトリスト管理",
+    assessStatusCloudLogging: "✓ Cloud Logging 連携",
+    assessStatusVpcScProtected: "✓ VPC-SC 境界保護",
+    assessStatusStandard: "標準",
+    assessSelectedCountSuffix: "項目反映",
+    dlpRegionJapanLabel: "Japan (マイナンバー・銀行口座)",
+    dlpPresetsLabel: "プリセット:",
   },
 };
 

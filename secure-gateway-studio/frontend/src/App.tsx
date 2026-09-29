@@ -868,6 +868,11 @@ export function App() {
                 workspaceConnectionError: "",
               })
             }
+            onProjectIdChange={(nextProjectId) =>
+              patchSetup({
+                projectId: nextProjectId,
+              })
+            }
             projectId={setup.projectId}
           />
         ) : null

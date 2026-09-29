@@ -19,7 +19,7 @@ interface DlpMatrixTableProps {
 }
 
 const DLP_REGIONS: Array<{ value: string; label: string }> = [
-  { value: "JP", label: "Japan (マイナンバー・銀行口座)" },
+  { value: "JP", label: "Japan (My Number / Bank Account)" },
   { value: "US", label: "United States (SSN / Driver's License)" },
   { value: "GB", label: "United Kingdom (National Insurance)" },
   { value: "DE", label: "Germany (Identity Card)" },
@@ -153,7 +153,7 @@ export function DlpMatrixTable({
         : act === "warnUser"
         ? m.dlpActionBadgeWarn
         : act === "auditOnly"
-        ? m.dlpActionBadgeAuditOnly || "監査のみ"
+        ? m.dlpActionBadgeAuditOnly
         : m.dlpActionBadgeOff;
 
     return (
@@ -185,7 +185,7 @@ export function DlpMatrixTable({
           >
             {DLP_REGIONS.map((r) => (
               <option key={r.value} value={r.value}>
-                {r.label}
+                {r.value === "JP" ? m.dlpRegionJapanLabel : r.label}
               </option>
             ))}
           </select>
@@ -193,7 +193,7 @@ export function DlpMatrixTable({
       </div>
 
       <div className="dlp-matrix-presets">
-        <span className="dlp-presets-label">プリセット:</span>
+        <span className="dlp-presets-label">{m.dlpPresetsLabel}</span>
         <button
           className="btn btn-secondary btn-sm dlp-preset-btn"
           onClick={() => applyPreset("recommended")}
