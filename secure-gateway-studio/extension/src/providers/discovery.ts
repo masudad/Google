@@ -2850,7 +2850,10 @@ export class GoogleDiscoveryProvider {
     }
 
     if (resourceType === "security_gateway") {
-      return this.ownsManagedResource(key, payload) &&
+      const ownedOrSharedDefault = this.ownershipProofs[key] === undefined
+        ? resourceName === "default"
+        : this.ownsManagedResource(key, payload);
+      return ownedOrSharedDefault &&
         isCompatibleSecurityGatewayPayload(payload, spec);
     }
 

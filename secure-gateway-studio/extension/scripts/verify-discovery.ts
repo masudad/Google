@@ -2143,6 +2143,27 @@ class IntegrityProbeTransport extends ReplayTransport {
         "shared gateway: exact finalized CREATE proof did not produce non-owned REUSE",
       );
     }
+
+    const withoutGatewayProof = await new GoogleDiscoveryProvider(
+      new IntegrityProbeTransport(encodedSecret, "none"),
+      {
+        cloudIdentity: "secure-gateway-deployer@enterprise-secgw-01.iam.gserviceaccount.com",
+        ownershipProofs: otherProofs,
+      },
+    ).preflight(spec);
+    const reusedDefaultGateway = buildPlan(spec, withoutGatewayProof.snapshot).changes.find(
+      (change) =>
+        `${change.provider}:${change.resource_type}:${change.resource_name}` === resourceKey,
+    );
+    if (
+      withoutGatewayProof.snapshot.conflicting_resource_keys?.includes(resourceKey) ||
+      reusedDefaultGateway?.action !== "reuse" ||
+      reusedDefaultGateway.owned_after_apply !== false
+    ) {
+      failures.push(
+        "shared gateway: compatible pre-existing default gateway without local ownership proof conflicted instead of reusing",
+      );
+    }
   }
 
   for (const mismatch of [
