@@ -285,6 +285,8 @@ interface StubOptions {
   /** Override the Directory user-list token, including malformed null/number values. */
   directoryNextPageToken?: unknown;
   directoryGroups?: Array<{ id: string; email: string; name?: string }>;
+  /** Raw PolicySchema payloads keyed by schemaName to test multi-message FileDescriptorProto shapes. */
+  rawSchemas?: Record<string, Record<string, unknown>>;
 }
 
 function stubTransport(options: StubOptions = {}): {
@@ -473,9 +475,19 @@ function stubTransport(options: StubOptions = {}): {
           payload: {
             policySchemas:
               pageIndex === 0
-                ? Object.entries(SCHEMA_FIELDS)
-                    .filter(([name]) => !(options.missingSchemas ?? []).includes(name))
-                    .map(([name, fields]) => ({ schemaName: name, ...schemaPayload(fields) }))
+                ? [
+                    ...Object.entries(SCHEMA_FIELDS)
+                      .filter(
+                        ([name]) =>
+                          !(options.missingSchemas ?? []).includes(name) &&
+                          options.rawSchemas?.[name] === undefined,
+                      )
+                      .map(([name, fields]) => ({ schemaName: name, ...schemaPayload(fields) })),
+                    ...Object.entries(options.rawSchemas ?? {}).map(([name, payload]) => ({
+                      schemaName: name,
+                      ...payload,
+                    })),
+                  ]
                 : [],
             ...(pageIndex === 0 && "schemaNextPageToken" in options
               ? { nextPageToken: options.schemaNextPageToken }
@@ -491,6 +503,9 @@ function stubTransport(options: StubOptions = {}): {
         const name = schemaMatch[1];
         if ((options.missingSchemas ?? []).includes(name)) {
           return { status: 404, payload: { error: { message: "not found" } } };
+        }
+        if (options.rawSchemas?.[name] !== undefined) {
+          return { status: 200, payload: options.rawSchemas[name] };
         }
         const fields = SCHEMA_FIELDS[name];
         if (fields === undefined) {
@@ -4140,6 +4155,513 @@ for (const mode of ["412-commit", "503-commit", "response-loss-commit"] as const
     "Workspace-only assign-licenses with empty project_id succeeds without throwing project-required",
     wsOnlyLicenses.success === true && wsOnlyLicenses.assigned_count === 2,
     JSON.stringify(wsOnlyLicenses),
+  );
+
+  // Test 20: Real Chrome Policy v1 multi-message FileDescriptorProto shapes,
+  // PasswordAlert, SecondaryGoogleAccountSignin, and live Cloud Identity DLP list shapes
+  const commonConnectorEnums = [
+    {
+      name: "ServiceProvider",
+      value: [
+        { name: "SERVICE_PROVIDER_UNSPECIFIED" },
+        { name: "SERVICE_PROVIDER_CHROME_ENTERPRISE_PREMIUM" },
+        { name: "SERVICE_PROVIDER_SYMANTEC_ENDPOINT_DLP" },
+        { name: "SERVICE_PROVIDER_TRELLIX" },
+      ],
+    },
+    {
+      name: "DefaultAction",
+      value: [{ name: "DEFAULT_ACTION_ALLOW" }, { name: "DEFAULT_ACTION_BLOCK" }],
+    },
+  ];
+  const urlPatternsMsg = {
+    name: "ContentAnalysisUrlPatterns",
+    field: [
+      { name: "onByDefault", type: "TYPE_BOOL", label: "LABEL_OPTIONAL" },
+      { name: "urlPatterns", type: "TYPE_STRING", label: "LABEL_REPEATED" },
+      { name: "requireJustification", type: "TYPE_BOOL", label: "LABEL_OPTIONAL" },
+      { name: "customMessage", type: "TYPE_STRING", label: "LABEL_OPTIONAL" },
+      { name: "learnMoreUrl", type: "TYPE_STRING", label: "LABEL_OPTIONAL" },
+    ],
+  };
+
+  const liveTenantStub = stubTransport({
+    missingSchemas: [
+      "chrome.users.PasswordProtectionWarningTrigger",
+      "chrome.users.AllowedDomainsForApps",
+    ],
+    rawSchemas: {
+      "chrome.users.PasswordAlert": {
+        definition: {
+          messageType: [
+            {
+              name: "PasswordAlert",
+              field: [
+                {
+                  name: "passwordProtectionWarningTrigger",
+                  type: "TYPE_ENUM",
+                  typeName: ".chrome.policy.api.v1.userpolicy.PasswordProtectionWarningTriggerEnum",
+                  label: "LABEL_OPTIONAL",
+                },
+              ],
+            },
+          ],
+          enumType: [
+            {
+              name: "PasswordProtectionWarningTriggerEnum",
+              value: [
+                { name: "PASSWORD_PROTECTION_WARNING_TRIGGER_ENUM_UNSPECIFIED" },
+                { name: "PASSWORD_PROTECTION_WARNING_TRIGGER_ENUM_PASSWORD_PROTECTION_OFF" },
+                { name: "PASSWORD_PROTECTION_WARNING_TRIGGER_ENUM_WARN_ON_PASSWORD_REUSE" },
+                { name: "PASSWORD_PROTECTION_WARNING_TRIGGER_ENUM_WARN_ON_PHISHING_REUSE" },
+              ],
+            },
+          ],
+        },
+      },
+      "chrome.users.SecondaryGoogleAccountSignin": {
+        definition: {
+          messageType: [
+            {
+              name: "SecondaryGoogleAccountSignin",
+              field: [
+                {
+                  name: "secondaryGoogleAccountSigninAllowed",
+                  type: "TYPE_ENUM",
+                  typeName: ".chrome.policy.api.v1.userpolicy.SecondaryGoogleAccountSigninAllowed",
+                  label: "LABEL_OPTIONAL",
+                },
+                {
+                  name: "allowedDomainsForApps",
+                  type: "TYPE_STRING",
+                  label: "LABEL_REPEATED",
+                },
+              ],
+            },
+          ],
+          enumType: [
+            {
+              name: "SecondaryGoogleAccountSigninAllowed",
+              value: [
+                { name: "SECONDARY_GOOGLE_ACCOUNT_SIGNIN_ALLOWED_UNSET" },
+                { name: "TRUE" },
+                { name: "FALSE" },
+              ],
+            },
+          ],
+        },
+      },
+      "chrome.users.OnFileAttachedConnectorPolicy": {
+        definition: {
+          messageType: [
+            {
+              name: "OnFileAttachedConnectorPolicy",
+              field: [
+                {
+                  name: "onFileAttachedAnalysisConnectorConfiguration",
+                  type: "TYPE_MESSAGE",
+                  typeName:
+                    ".chrome.policy.api.v1.connectorsuserpolicy.OnFileAttachedConnectorPolicy.OnFileAttachedAnalysisConnectorConfiguration",
+                  label: "LABEL_OPTIONAL",
+                },
+              ],
+              nestedType: [
+                {
+                  name: "OnFileAttachedAnalysisConnectorConfiguration",
+                  field: [
+                    {
+                      name: "fileAttachedConfiguration",
+                      type: "TYPE_MESSAGE",
+                      typeName:
+                        ".chrome.policy.api.v1.connectorsuserpolicy.OnFileAttachedConnectorPolicy.OnFileAttachedAnalysisConnectorConfiguration.FileAttachedConfiguration",
+                      label: "LABEL_OPTIONAL",
+                    },
+                  ],
+                  nestedType: [
+                    {
+                      name: "FileAttachedConfiguration",
+                      field: [
+                        {
+                          name: "serviceProvider",
+                          type: "TYPE_ENUM",
+                          typeName: ".chrome.policy.api.commonconnectorpolicy.ServiceProvider",
+                          label: "LABEL_OPTIONAL",
+                        },
+                        {
+                          name: "delayDeliveryUntilVerdict",
+                          type: "TYPE_BOOL",
+                          label: "LABEL_OPTIONAL",
+                        },
+                        {
+                          name: "defaultAction",
+                          type: "TYPE_ENUM",
+                          typeName: ".chrome.policy.api.commonconnectorpolicy.DefaultAction",
+                          label: "LABEL_OPTIONAL",
+                        },
+                        {
+                          name: "blockPasswordProtectedFiles",
+                          type: "TYPE_BOOL",
+                          label: "LABEL_OPTIONAL",
+                        },
+                        {
+                          name: "blockLargeFileTransfer",
+                          type: "TYPE_BOOL",
+                          label: "LABEL_OPTIONAL",
+                        },
+                        {
+                          name: "sensitiveUrlPatterns",
+                          type: "TYPE_MESSAGE",
+                          typeName:
+                            ".chrome.policy.api.commonconnectorpolicy.ContentAnalysisUrlPatterns",
+                          label: "LABEL_OPTIONAL",
+                        },
+                        {
+                          name: "malwareUrlPatterns",
+                          type: "TYPE_MESSAGE",
+                          typeName:
+                            ".chrome.policy.api.commonconnectorpolicy.ContentAnalysisUrlPatterns",
+                          label: "LABEL_OPTIONAL",
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+            urlPatternsMsg,
+          ],
+          enumType: commonConnectorEnums,
+        },
+      },
+      "chrome.users.OnFileDownloadedConnectorPolicy": {
+        definition: {
+          messageType: [
+            {
+              name: "OnFileDownloadedConnectorPolicy",
+              field: [
+                {
+                  name: "onFileDownloadedAnalysisConnectorConfiguration",
+                  type: "TYPE_MESSAGE",
+                  typeName:
+                    ".chrome.policy.api.v1.connectorsuserpolicy.OnFileDownloadedConnectorPolicy.OnFileDownloadedAnalysisConnectorConfiguration",
+                  label: "LABEL_OPTIONAL",
+                },
+              ],
+              nestedType: [
+                {
+                  name: "OnFileDownloadedAnalysisConnectorConfiguration",
+                  field: [
+                    {
+                      name: "fileDownloadedConfiguration",
+                      type: "TYPE_MESSAGE",
+                      typeName:
+                        ".chrome.policy.api.v1.connectorsuserpolicy.OnFileDownloadedConnectorPolicy.OnFileDownloadedAnalysisConnectorConfiguration.FileDownloadedConfiguration",
+                      label: "LABEL_OPTIONAL",
+                    },
+                  ],
+                  nestedType: [
+                    {
+                      name: "FileDownloadedConfiguration",
+                      field: [
+                        {
+                          name: "serviceProvider",
+                          type: "TYPE_ENUM",
+                          typeName: ".chrome.policy.api.commonconnectorpolicy.ServiceProvider",
+                          label: "LABEL_OPTIONAL",
+                        },
+                        {
+                          name: "delayDeliveryUntilVerdict",
+                          type: "TYPE_BOOL",
+                          label: "LABEL_OPTIONAL",
+                        },
+                        {
+                          name: "defaultAction",
+                          type: "TYPE_ENUM",
+                          typeName: ".chrome.policy.api.commonconnectorpolicy.DefaultAction",
+                          label: "LABEL_OPTIONAL",
+                        },
+                        {
+                          name: "blockPasswordProtectedFiles",
+                          type: "TYPE_BOOL",
+                          label: "LABEL_OPTIONAL",
+                        },
+                        {
+                          name: "blockLargeFileTransfer",
+                          type: "TYPE_BOOL",
+                          label: "LABEL_OPTIONAL",
+                        },
+                        {
+                          name: "sensitiveUrlPatterns",
+                          type: "TYPE_MESSAGE",
+                          typeName:
+                            ".chrome.policy.api.commonconnectorpolicy.ContentAnalysisUrlPatterns",
+                          label: "LABEL_OPTIONAL",
+                        },
+                        {
+                          name: "malwareUrlPatterns",
+                          type: "TYPE_MESSAGE",
+                          typeName:
+                            ".chrome.policy.api.commonconnectorpolicy.ContentAnalysisUrlPatterns",
+                          label: "LABEL_OPTIONAL",
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+            urlPatternsMsg,
+          ],
+          enumType: commonConnectorEnums,
+        },
+      },
+      "chrome.users.OnBulkTextEntryConnectorPolicy": {
+        definition: {
+          messageType: [
+            {
+              name: "OnBulkTextEntryConnectorPolicy",
+              field: [
+                {
+                  name: "onBulkTextEntryAnalysisConnectorConfiguration",
+                  type: "TYPE_MESSAGE",
+                  typeName:
+                    ".chrome.policy.api.v1.connectorsuserpolicy.OnBulkTextEntryConnectorPolicy.OnBulkTextEntryAnalysisConnectorConfiguration",
+                  label: "LABEL_OPTIONAL",
+                },
+              ],
+              nestedType: [
+                {
+                  name: "OnBulkTextEntryAnalysisConnectorConfiguration",
+                  field: [
+                    {
+                      name: "bulkTextEntryConfiguration",
+                      type: "TYPE_MESSAGE",
+                      typeName:
+                        ".chrome.policy.api.v1.connectorsuserpolicy.OnBulkTextEntryConnectorPolicy.OnBulkTextEntryAnalysisConnectorConfiguration.BulkTextEntryConfiguration",
+                      label: "LABEL_OPTIONAL",
+                    },
+                  ],
+                  nestedType: [
+                    {
+                      name: "BulkTextEntryConfiguration",
+                      field: [
+                        {
+                          name: "serviceProvider",
+                          type: "TYPE_ENUM",
+                          typeName: ".chrome.policy.api.commonconnectorpolicy.ServiceProvider",
+                          label: "LABEL_OPTIONAL",
+                        },
+                        {
+                          name: "delayDeliveryUntilVerdict",
+                          type: "TYPE_BOOL",
+                          label: "LABEL_OPTIONAL",
+                        },
+                        {
+                          name: "defaultAction",
+                          type: "TYPE_ENUM",
+                          typeName: ".chrome.policy.api.commonconnectorpolicy.DefaultAction",
+                          label: "LABEL_OPTIONAL",
+                        },
+                        {
+                          name: "minimumBytesToScan",
+                          type: "TYPE_INT32",
+                          label: "LABEL_OPTIONAL",
+                        },
+                        {
+                          name: "sensitiveUrlPatterns",
+                          type: "TYPE_MESSAGE",
+                          typeName:
+                            ".chrome.policy.api.commonconnectorpolicy.ContentAnalysisUrlPatterns",
+                          label: "LABEL_OPTIONAL",
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+            urlPatternsMsg,
+          ],
+          enumType: commonConnectorEnums,
+        },
+      },
+      "chrome.users.OnSecurityEvent": {
+        definition: {
+          messageType: [
+            {
+              name: "OnSecurityEvent",
+              field: [
+                {
+                  name: "reportingConnector",
+                  type: "TYPE_MESSAGE",
+                  typeName:
+                    ".chrome.policy.api.v1.userpolicy.ReportingConnectorConfiguration",
+                  label: "LABEL_OPTIONAL",
+                },
+              ],
+            },
+            {
+              name: "ReportingConnectorConfiguration",
+              field: [
+                {
+                  name: "eventConfiguration",
+                  type: "TYPE_MESSAGE",
+                  typeName: ".chrome.policy.api.v1.userpolicy.EventConfiguration",
+                  label: "LABEL_OPTIONAL",
+                },
+              ],
+            },
+            {
+              name: "EventConfiguration",
+              field: [
+                {
+                  name: "enabledEventNames",
+                  type: "TYPE_STRING",
+                  label: "LABEL_REPEATED",
+                },
+                {
+                  name: "explicitlyEmptyEventNames",
+                  type: "TYPE_BOOL",
+                  label: "LABEL_OPTIONAL",
+                },
+                {
+                  name: "optInEvents",
+                  type: "TYPE_MESSAGE",
+                  typeName: ".chrome.policy.api.v1.userpolicy.OptInEvent",
+                  label: "LABEL_REPEATED",
+                },
+              ],
+            },
+            {
+              name: "OptInEvent",
+              field: [
+                { name: "name", type: "TYPE_STRING", label: "LABEL_OPTIONAL" },
+                { name: "enabled", type: "TYPE_BOOL", label: "LABEL_OPTIONAL" },
+                { name: "urlPatterns", type: "TYPE_STRING", label: "LABEL_REPEATED" },
+              ],
+            },
+          ],
+        },
+      },
+    },
+    existingDlp: [
+      {
+        name: "policies/existing-admin-rule-decimal-sort",
+        displayName: "Admin Console Multi-OU Rule",
+        type: "settings/rule.dlp",
+        value: {
+          displayName: "Admin Console Multi-OU Rule",
+          state: "ACTIVE",
+          ruleTypeMetadata: {
+            dlpRuleMetadata: {
+              alertSeverity: "ALERT_SEVERITY_UNSPECIFIED",
+            },
+          },
+        },
+        policyQuery: {
+          query:
+            "entity.org_units.exists(org_unit, org_unit.org_unit_id == orgUnitId('03a')) || entity.org_units.exists(org_unit, org_unit.org_unit_id == orgUnitId('03b'))",
+          orgUnit: "",
+          group: "",
+          sortOrder: 1.5,
+        },
+      },
+    ],
+  });
+
+  const liveTenantResult = (await route(
+    context(liveTenantStub.transport),
+    "POST",
+    "/api/v1/cep/provision",
+    {
+      ...FULL_CONFIG,
+      project_id: "",
+      access_level: "NONE",
+      dlp_rules: true,
+    },
+  )) as ProvisionResult;
+
+  check(
+    "Live Chrome Policy v1 multi-message connector/reporting schemas, PasswordAlert, SecondaryGoogleAccountSignin, and decimal sortOrder DLP list succeed 100%",
+    liveTenantResult.success === true &&
+      liveTenantResult.created_items.includes("Password reuse warning") &&
+      liveTenantResult.created_items.includes("Block non-corporate Google accounts in apps") &&
+      liveTenantResult.created_items.includes("File upload inspection") &&
+      liveTenantResult.created_items.includes("File download inspection") &&
+      liveTenantResult.created_items.includes("Paste inspection (bulk text)") &&
+      liveTenantResult.created_items.includes("Security event reporting"),
+    JSON.stringify(liveTenantResult),
+  );
+
+  const liveBatchReqs = batchRequests(liveTenantStub.calls, "batchModify");
+  const liveUploadReq = liveBatchReqs.find(
+    (r) =>
+      (r.policyValue as { policySchema?: string })?.policySchema ===
+      "chrome.users.OnFileAttachedConnectorPolicy",
+  );
+  const liveSecurityEventReq = liveBatchReqs.find(
+    (r) =>
+      (r.policyValue as { policySchema?: string })?.policySchema ===
+      "chrome.users.OnSecurityEvent",
+  );
+  const liveSecondarySigninReq = liveBatchReqs.find(
+    (r) =>
+      (r.policyValue as { policySchema?: string })?.policySchema ===
+      "chrome.users.SecondaryGoogleAccountSignin",
+  );
+
+  check(
+    "OnFileAttachedConnectorPolicy updateMask only contains top-level field and sets SERVICE_PROVIDER_CHROME_ENTERPRISE_PREMIUM + URL patterns",
+    liveUploadReq?.updateMask === "onFileAttachedAnalysisConnectorConfiguration" &&
+      JSON.stringify(liveUploadReq?.policyValue) ===
+        JSON.stringify({
+          policySchema: "chrome.users.OnFileAttachedConnectorPolicy",
+          value: {
+            onFileAttachedAnalysisConnectorConfiguration: {
+              fileAttachedConfiguration: {
+                serviceProvider: "SERVICE_PROVIDER_CHROME_ENTERPRISE_PREMIUM",
+                delayDeliveryUntilVerdict: true,
+                defaultAction: "DEFAULT_ACTION_ALLOW",
+                blockPasswordProtectedFiles: false,
+                blockLargeFileTransfer: false,
+                sensitiveUrlPatterns: { onByDefault: true },
+                malwareUrlPatterns: { onByDefault: true },
+              },
+            },
+          },
+        }),
+    JSON.stringify(liveUploadReq),
+  );
+
+  check(
+    "OnSecurityEvent updateMask only contains reportingConnector and sets explicitlyEmptyEventNames: false without optInEvents",
+    liveSecurityEventReq?.updateMask === "reportingConnector" &&
+      JSON.stringify(liveSecurityEventReq?.policyValue) ===
+        JSON.stringify({
+          policySchema: "chrome.users.OnSecurityEvent",
+          value: {
+            reportingConnector: {
+              eventConfiguration: {
+                explicitlyEmptyEventNames: false,
+              },
+            },
+          },
+        }),
+    JSON.stringify(liveSecurityEventReq),
+  );
+
+  check(
+    "SecondaryGoogleAccountSignin sets secondaryGoogleAccountSigninAllowed: TRUE and repeated allowedDomainsForApps array",
+    liveSecondarySigninReq?.updateMask === "secondaryGoogleAccountSigninAllowed,allowedDomainsForApps" &&
+      JSON.stringify(liveSecondarySigninReq?.policyValue) ===
+        JSON.stringify({
+          policySchema: "chrome.users.SecondaryGoogleAccountSignin",
+          value: {
+            secondaryGoogleAccountSigninAllowed: "TRUE",
+            allowedDomainsForApps: ["example.com"],
+          },
+        }),
+    JSON.stringify(liveSecondarySigninReq),
   );
 }
 

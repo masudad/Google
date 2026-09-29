@@ -415,30 +415,91 @@ function strictNextPageToken(
 function normalizedCloudIdentityPolicyQuery(
   value: Record<string, unknown>,
 ): { query: string; orgUnit?: string; group?: string } | null {
-  const allowed = new Set(["query", "orgUnit", "group", "sortOrder"]);
+  const allowed = new Set([
+    "query",
+    "orgUnit",
+    "org_unit",
+    "group",
+    "sortOrder",
+    "sort_order",
+    "licenses",
+  ]);
   if (Object.keys(value).some((key) => !allowed.has(key))) return null;
-  if (typeof value.query !== "string" || value.query === "") {
-    return null;
-  }
-  const hasOrgUnit = typeof value.orgUnit === "string" && /^orgUnits\/[A-Za-z0-9._~-]+$/.test(value.orgUnit);
-  const hasGroup = typeof value.group === "string" && /^groups\/[A-Za-z0-9._~-]+$/.test(value.group);
+
+  const rawOrgUnit = value.orgUnit ?? value.org_unit;
+  const rawGroup = value.group;
+  const rawSortOrder = value.sortOrder ?? value.sort_order;
 
   if (
+    value.orgUnit !== undefined &&
+    value.org_unit !== undefined &&
+    value.orgUnit !== value.org_unit
+  ) {
+    return null;
+  }
+  if (
     value.sortOrder !== undefined &&
-    (typeof value.sortOrder !== "number" || !Number.isSafeInteger(value.sortOrder))
+    value.sort_order !== undefined &&
+    value.sortOrder !== value.sort_order
   ) {
     return null;
   }
 
-  if (hasOrgUnit && (value.group === undefined || value.group === "")) {
-    return { query: value.query, orgUnit: value.orgUnit as string };
+  if (
+    rawOrgUnit !== undefined &&
+    rawOrgUnit !== "" &&
+    (typeof rawOrgUnit !== "string" || !/^orgUnits\/[A-Za-z0-9:._~-]+$/.test(rawOrgUnit))
+  ) {
+    return null;
+  }
+  if (
+    rawGroup !== undefined &&
+    rawGroup !== "" &&
+    (typeof rawGroup !== "string" || !/^groups\/[A-Za-z0-9:._~-]+$/.test(rawGroup))
+  ) {
+    return null;
+  }
+  if (
+    rawSortOrder !== undefined &&
+    (typeof rawSortOrder !== "number" || !Number.isFinite(rawSortOrder))
+  ) {
+    return null;
+  }
+  if (
+    value.licenses !== undefined &&
+    (!Array.isArray(value.licenses) ||
+      value.licenses.some((item) => typeof item !== "string"))
+  ) {
+    return null;
   }
 
-  if (hasGroup && (value.orgUnit === undefined || value.orgUnit === "")) {
-    return { query: value.query, group: value.group as string };
+  const hasOrgUnit = typeof rawOrgUnit === "string" && rawOrgUnit !== "";
+  const hasGroup = typeof rawGroup === "string" && rawGroup !== "";
+  const hasQuery = typeof value.query === "string" && value.query.trim() !== "";
+  if (value.query !== undefined && typeof value.query !== "string") {
+    return null;
+  }
+  if (!hasQuery && !hasOrgUnit && !hasGroup) {
+    return null;
   }
 
-  return null;
+  const normalizedOrgUnit = hasOrgUnit
+    ? (rawOrgUnit as string).replace(/^orgUnits\/id:/, "orgUnits/")
+    : undefined;
+  const normalizedGroup = hasGroup
+    ? (rawGroup as string).replace(/^groups\/id:/, "groups/")
+    : undefined;
+  const normalizedQuery = hasQuery
+    ? (value.query as string)
+    : normalizedOrgUnit
+      ? `entity.org_units.exists(org_unit, org_unit.org_unit_id == orgUnitId('${normalizedOrgUnit.replace(/^orgUnits\//, "")}'))`
+      : `entity.groups.exists(group, group.group_id == groupId('${normalizedGroup!.replace(/^groups\//, "")}'))`;
+
+  return {
+    query: normalizedQuery,
+    ...(normalizedOrgUnit !== undefined ? { orgUnit: normalizedOrgUnit } : {}),
+    ...(normalizedGroup !== undefined ? { group: normalizedGroup } : {}),
+  };
 }
 
 /**
@@ -587,8 +648,8 @@ interface CepPolicyDefinition {
 
 /** Turn a pipeline on, whatever this tenant calls the switch. */
 const TURN_ON: EnumHint = {
-  prefer: /ENABLE|SCAN|ALL|UPLOAD|DOWNLOAD|GOOGLE/,
-  avoid: /UNSPECIFIED|DISABLE|NONE|OFF|INHERIT/,
+  prefer: /CHROME_ENTERPRISE_PREMIUM|ALLOW|ENABLE|SCAN|ALL|UPLOAD|DOWNLOAD|GOOGLE/,
+  avoid: /UNSPECIFIED|DISABLE|NONE|OFF|INHERIT|BLOCK/,
 };
 
 /**
@@ -714,13 +775,14 @@ const CEP_POLICIES: readonly CepPolicyDefinition[] = [
     schema: "chrome.users.PasswordProtectionWarningTrigger",
     // Deliberately narrow: a looser pattern matched
     // `PasswordDismissCompromisedAlertEnabled`, which is a different setting.
-    schemaMatcher: /PasswordProtection/,
+    // Live Chrome Policy v1 serves this setting under `chrome.users.PasswordAlert`.
+    schemaMatcher: /PasswordAlert|PasswordProtection/,
     // The previous value was PASSWORD_PROTECTION_OFF, which turned the warning
     // the UI advertises off rather than on.
     fields: [
       {
         name: /passwordProtection/i,
-        enumHint: { prefer: /PASSWORD_REUSE/, avoid: /UNSPECIFIED|OFF|PHISHING/ },
+        enumHint: { prefer: /PASSWORD_REUSE/, avoid: /UNSPECIFIED|OFF|NO_WARNING|PHISHING/ },
       },
     ],
   },
@@ -813,6 +875,10 @@ const CEP_POLICIES: readonly CepPolicyDefinition[] = [
     ou: "users",
     label: "Block non-corporate Google accounts in apps",
     schema: "chrome.users.AllowedDomainsForApps",
+    // Live Chrome Policy v1 serves `allowedDomainsForApps` under
+    // `chrome.users.SecondaryGoogleAccountSignin` paired with
+    // `secondaryGoogleAccountSigninAllowed = "TRUE"`.
+    schemaMatcher: /SecondaryGoogleAccountSignin|AllowedDomainsForApps/i,
     // RestrictAccountsToPatterns only applies on Android/iOS. This policy is
     // supported by managed Chrome on desktop and ChromeOS, which are also in
     // this product's advertised platform boundary.
@@ -820,9 +886,16 @@ const CEP_POLICIES: readonly CepPolicyDefinition[] = [
       config.data_boundary_mode === "copy_paste" ||
       config.data_boundary_mode === "block_non_corp",
     requires: requiresDomain,
-    // A comma-separated domain list, per the published policy. The previous
-    // value was `*.{customer_id}`, and customer_id is `my_customer` or `C0…`.
-    fields: [{ name: /allowedDomainsForApps/i, value: (c) => c.primaryDomain }],
+    // A comma-separated domain list or repeated string array, per the schema.
+    fields: [
+      {
+        name: /secondaryGoogleAccountSigninAllowed/i,
+        enumHint: { prefer: /^TRUE$/i, avoid: /UNSET|FALSE/i },
+        value: () => "TRUE",
+        optional: true,
+      },
+      { name: /allowedDomainsForApps/i, value: (c) => c.primaryDomain },
+    ],
   },
   {
     module: "dlpRules",
@@ -918,6 +991,7 @@ interface ProtoMessage {
   name?: string;
   field?: ProtoField[];
   enumType?: ProtoEnum[];
+  nestedType?: ProtoMessage[];
 }
 
 interface PolicySchemaShape {
@@ -927,8 +1001,48 @@ interface PolicySchemaShape {
   };
 }
 
-function schemaFields(schema: PolicySchemaShape): ProtoField[] {
-  return (schema.definition?.messageType ?? []).flatMap((message) => message.field ?? []);
+function collectMessages(messages: ProtoMessage[] | undefined): ProtoMessage[] {
+  if (!messages) return [];
+  const out: ProtoMessage[] = [];
+  for (const msg of messages) {
+    out.push(msg);
+    if (msg.nestedType) {
+      out.push(...collectMessages(msg.nestedType));
+    }
+  }
+  return out;
+}
+
+function allMessages(schema: PolicySchemaShape): ProtoMessage[] {
+  return collectMessages(schema.definition?.messageType);
+}
+
+/**
+ * Return only the top-level fields of the policy message itself.
+ *
+ * `FileDescriptorProto.messageType` includes sibling helper messages (such as
+ * `ReportingConnectorConfiguration`, `EventConfiguration`, and
+ * `ContentAnalysisUrlPatterns`); flattening all `messageType` entries treated
+ * inner sub-message fields as top-level policy fields in `updateMask`.
+ */
+function schemaFields(schema: PolicySchemaShape, schemaName?: string): ProtoField[] {
+  const topMessages = schema.definition?.messageType ?? [];
+  if (topMessages.length === 0) return [];
+  const leaf = schemaName?.split(".").pop();
+  if (leaf) {
+    const byName = topMessages.find((m) => m.name === leaf);
+    if (byName?.field) return byName.field;
+  }
+  const allMsgs = allMessages(schema);
+  const referencedLeaves = new Set(
+    allMsgs
+      .flatMap((m) => m.field ?? [])
+      .map((f) => f.typeName?.split(".").pop())
+      .filter((n): n is string => Boolean(n)),
+  );
+  const root =
+    topMessages.find((m) => !m.name || !referencedLeaves.has(m.name)) ?? topMessages[0];
+  return root?.field ?? [];
 }
 
 function matchesName(field: ProtoField, wanted: string | RegExp): boolean {
@@ -946,7 +1060,7 @@ function matchesName(field: ProtoField, wanted: string | RegExp): boolean {
 function enumValuesForField(schema: PolicySchemaShape, field: ProtoField): string[] {
   const declared = [
     ...(schema.definition?.enumType ?? []),
-    ...(schema.definition?.messageType ?? []).flatMap((message) => message.enumType ?? []),
+    ...allMessages(schema).flatMap((message) => message.enumType ?? []),
   ];
   const leaf = (field.typeName ?? "").split(".").pop();
   const scoped = declared.filter((entry) => entry.name !== undefined && entry.name === leaf);
@@ -970,7 +1084,7 @@ function findMessageType(
 ): ProtoMessage | undefined {
   const leaf = (typeName ?? "").split(".").pop();
   if (leaf === undefined || leaf === "") return undefined;
-  return (schema.definition?.messageType ?? []).find((message) => message.name === leaf);
+  return allMessages(schema).find((message) => message.name === leaf);
 }
 
 /**
@@ -1006,6 +1120,7 @@ function buildFieldValue(
     const built: Record<string, unknown> = {};
     for (const inner of nested.field ?? []) {
       if (typeof inner.name !== "string") continue;
+      if (inner.name === "optInEvents" || inner.name === "requireJustification") continue;
       const value = buildFieldValue(schema, inner, undefined, defaultLiteral(inner), depth - 1);
       if (value !== undefined) built[inner.name] = value;
     }
@@ -1013,7 +1128,9 @@ function buildFieldValue(
     return repeated ? [built] : built;
   }
 
-  if (literal !== undefined) return literal;
+  if (literal !== undefined) {
+    return repeated && !Array.isArray(literal) ? [literal] : literal;
+  }
   if (field.type === "TYPE_BOOL") return repeated ? [true] : true;
   return undefined;
 }
@@ -1027,6 +1144,17 @@ function buildFieldValue(
  */
 function defaultLiteral(field: ProtoField): unknown {
   if (field.name === "serviceProvider") return "google";
+  if (
+    field.name === "explicitlyEmptyEventNames" ||
+    field.name === "blockPasswordProtectedFiles" ||
+    field.name === "blockLargeFileTransfer"
+  ) {
+    return false;
+  }
+  if (field.name === "requireJustification") return undefined;
+  if (field.name === "minimumBytesToScan" || field.name === "minimumDataSize") {
+    return 100;
+  }
   if (field.type === "TYPE_BOOL") return true;
   return undefined;
 }
@@ -1550,11 +1678,11 @@ export class CepProvider {
       }
     }
 
-    const usable = candidates.find(([, schema]) =>
+    const usable = candidates.find(([name, schema]) =>
       definition.fields.some(
         (spec) =>
           spec.optional !== true &&
-          schemaFields(schema).some((field) => matchesName(field, spec.name)),
+          schemaFields(schema, name).some((field) => matchesName(field, spec.name)),
       ),
     );
     if (usable !== undefined) return { name: usable[0], schema: usable[1] };
@@ -2009,6 +2137,7 @@ export class CepProvider {
           ): Record<string, unknown> | null => {
             if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
             const metadata = raw as Record<string, unknown>;
+            if (Object.keys(metadata).length === 0) return {};
             if (!Object.keys(metadata).every(
               (key) => key === "dlpRuleMetadata" || key === "dlp_rule_metadata"
             )) return null;
@@ -2021,6 +2150,7 @@ export class CepProvider {
                 Array.isArray(candidate)
               ) return null;
               const record = candidate as Record<string, unknown>;
+              if (Object.keys(record).length === 0) return {};
               if (!Object.keys(record).every(
                 (key) => key === "alertSeverity" || key === "alert_severity"
               )) return null;
@@ -2033,7 +2163,7 @@ export class CepProvider {
               const severity = camelSeverity ?? snakeSeverity;
               if (
                 typeof severity !== "string" ||
-                !["LOW", "MEDIUM", "HIGH"].includes(severity)
+                !["LOW", "MEDIUM", "HIGH", "ALERT_SEVERITY_UNSPECIFIED"].includes(severity)
               ) return null;
               return { alertSeverity: severity };
             };
@@ -2572,7 +2702,7 @@ export class CepProvider {
       }
 
       const { name: schemaName, schema } = match;
-      const available = schemaFields(schema);
+      const available = schemaFields(schema, schemaName);
       const value: Record<string, unknown> = {};
       const paths: string[] = [];
       const problems: string[] = [];
@@ -2591,7 +2721,7 @@ export class CepProvider {
           field,
           spec.enumHint,
           spec.value?.(context),
-          3,
+          5,
         );
         if (chosen === undefined) {
           if (spec.optional !== true) {
