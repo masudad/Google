@@ -552,13 +552,40 @@ gcloud access-context-manager cloud-bindings create \\
     targetGroupConfirmation.trim().toLowerCase() === selectedGroup.trim().toLowerCase();
   const targetConfirmed = targetType === "group" ? targetGroupConfirmed : targetOuConfirmed;
 
-  const anyModuleSelected =
+  const anyStep1ModuleSelected =
     modules.corePolicies ||
     modules.forceExtensions ||
     modules.connectors ||
     modules.accessLevel !== ACCESS_LEVEL_NONE ||
-    modules.dlpRules ||
     modules.dataBoundaryMode !== "none";
+  const anyDlpRuleActive = Object.entries(dlpMatrix).some(([ruleId, cfg]) => {
+    if (!cfg) return false;
+    if (ruleId === "watermark") return cfg.watermark === true;
+    return (
+      (cfg.upload !== undefined && cfg.upload !== "off") ||
+      (cfg.download !== undefined && cfg.download !== "off") ||
+      (cfg.paste !== undefined && cfg.paste !== "off") ||
+      (cfg.print !== undefined && cfg.print !== "off")
+    );
+  });
+  const dlpNeedsAccessLevel = Object.entries(dlpMatrix).some(([ruleId, cfg]) => {
+    if (!cfg) return false;
+    if (ruleId === "access_level") {
+      return (
+        (cfg.upload !== undefined && cfg.upload !== "off") ||
+        (cfg.download !== undefined && cfg.download !== "off") ||
+        (cfg.paste !== undefined && cfg.paste !== "off") ||
+        (cfg.print !== undefined && cfg.print !== "off")
+      );
+    }
+    return cfg.byodOnly === true;
+  });
+  const anyModuleSelected =
+    activeTab === "setup"
+      ? anyStep1ModuleSelected
+      : activeTab === "dlp"
+        ? anyDlpRuleActive
+        : anyStep1ModuleSelected || (modules.dlpRules && anyDlpRuleActive);
   const canDeploy =
     canonicalCustomerId !== "" &&
     (targetType === "group" ? selectedGroup.trim() !== "" : selectedOu !== "") &&
@@ -574,6 +601,8 @@ gcloud access-context-manager cloud-bindings create \\
   function currentConfig(
     confirmation = (targetType === "group" ? targetGroupConfirmation : targetOuConfirmation),
   ): CepProvisionConfig {
+    const isSetupOnly = activeTab === "setup";
+    const isDlpOnly = activeTab === "dlp";
     return {
       customer_id: canonicalCustomerId,
       project_id: effectiveProjectId,
@@ -583,18 +612,20 @@ gcloud access-context-manager cloud-bindings create \\
       target_ou_confirmation: targetType === "group" ? undefined : confirmation,
       target_group_key: targetType === "group" ? selectedGroup.trim() : undefined,
       target_group_confirmation: targetType === "group" ? confirmation : undefined,
-      create_sub_ous: targetType === "group" ? false : autoSubOus,
-      core_policies: modules.corePolicies,
-      force_extensions: modules.forceExtensions,
-      connectors: modules.connectors,
-      access_level: modules.accessLevel,
+      create_sub_ous: isDlpOnly || targetType === "group" ? false : autoSubOus,
+      core_policies: isDlpOnly ? false : modules.corePolicies,
+      force_extensions: isDlpOnly ? false : modules.forceExtensions,
+      connectors: isDlpOnly ? false : modules.connectors,
+      access_level: isDlpOnly
+        ? (dlpNeedsAccessLevel ? modules.accessLevel : ACCESS_LEVEL_NONE)
+        : modules.accessLevel,
       dlp_detectors: false,
-      dlp_rules: modules.dlpRules,
+      dlp_rules: isSetupOnly ? false : isDlpOnly ? true : modules.dlpRules,
       dlp_region: modules.dlpRegion,
       dlp_matrix: dlpMatrix,
       dlp_custom_message: dlpCustomMessage,
       dlp_save_content: dlpSaveContent,
-      data_boundary_mode: modules.dataBoundaryMode,
+      data_boundary_mode: isDlpOnly ? "none" : modules.dataBoundaryMode,
       internal_urls: internalUrls
         .split("\n")
         .map((url) => url.trim())
@@ -1051,7 +1082,7 @@ gcloud access-context-manager cloud-bindings create \\
               </div>
             ) : null}
 
-            {selectedUnit !== undefined && selectedUnit.label !== "/" && (
+            {activeTab !== "licensing" && activeTab !== "dlp" && selectedUnit !== undefined && selectedUnit.label !== "/" && (
               <div className="cep-license-warning-box">
                 <div className="cep-license-warning-header">
                   <ExclamationCircleIcon size={20} />
@@ -1149,7 +1180,7 @@ gcloud access-context-manager cloud-bindings create \\
               </div>
             ) : null}
 
-            {selectedGroup.trim() !== "" && (
+            {activeTab !== "dlp" && selectedGroup.trim() !== "" && (
               <div className="cep-license-warning-box">
                 <div className="cep-license-warning-header">
                   <ExclamationCircleIcon size={20} />
@@ -1227,7 +1258,12 @@ gcloud access-context-manager cloud-bindings create \\
 
         <div className="cep-module-list">
           {moduleToggles.map((module) => (
-            <label className="cep-check cep-module" key={module.key}>
+            <label
+              className={`cep-check cep-module ${
+                module.key === "dlpRules" && activeTab === "setup" ? "cep-tab-panel hidden" : ""
+              }`}
+              key={module.key}
+            >
               <input
                 checked={modules[module.key]}
                 onChange={(event) => update(module.key, event.target.checked)}
@@ -1243,20 +1279,18 @@ gcloud access-context-manager cloud-bindings create \\
             </label>
           ))}
         </div>
-        {anyDlpSelected && <p className="cep-inline-note">{m.dlpBetaNote}</p>}
+        {anyDlpSelected && activeTab === "all" && <p className="cep-inline-note">{m.dlpBetaNote}</p>}
 
-        {modules.dlpRules && (
-          <div className="cep-dlp-hint-row">
-            <p className="cep-inline-note">
-              <ShieldIcon size={15} />{" "}
-              {`${m.dlpMatrixCustomizePrefix}${m.dlpMatrixTitle}${m.dlpMatrixCustomizeMiddle}`}
-              <button type="button" className="text-action" onClick={() => setActiveTab("dlp")}>
-                {m.tabDlp}
-              </button>
-              {m.dlpMatrixCustomizeSuffix}
-            </p>
-          </div>
-        )}
+        <div className="cep-dlp-hint-row">
+          <p className="cep-inline-note">
+            <ShieldIcon size={15} />{" "}
+            {`${m.dlpMatrixCustomizePrefix}${m.dlpMatrixTitle}${m.dlpMatrixCustomizeMiddle}`}
+            <button type="button" className="text-action" onClick={() => setActiveTab("dlp")}>
+              {m.tabDlp}
+            </button>
+            {m.dlpMatrixCustomizeSuffix}
+          </p>
+        </div>
         <fieldset className="cep-fieldset">
           <legend className="sr-only">{m.accessLevelTitle}</legend>
           <div className="cep-field">
@@ -1307,17 +1341,19 @@ gcloud access-context-manager cloud-bindings create \\
           </div>
         </fieldset>
 
-        <div className="cep-field">
-          <label htmlFor="cep-internal-urls">{m.internalUrlsTitle}</label>
-          <textarea
-            id="cep-internal-urls"
-            onChange={(event) => setInternalUrls(event.target.value)}
-            placeholder={m.internalUrlsPlaceholder}
-            rows={3}
-            value={internalUrls}
-          />
-          <small>{m.internalUrlsHint}</small>
-        </div>
+        {activeTab !== "dlp" && (
+          <div className={`cep-field ${activeTab === "setup" ? "cep-tab-panel hidden" : ""}`}>
+            <label htmlFor="cep-internal-urls">{m.internalUrlsTitle}</label>
+            <textarea
+              id="cep-internal-urls"
+              onChange={(event) => setInternalUrls(event.target.value)}
+              placeholder={m.internalUrlsPlaceholder}
+              rows={3}
+              value={internalUrls}
+            />
+            <small>{m.internalUrlsHint}</small>
+          </div>
+        )}
       </section>
 
       
@@ -1351,6 +1387,40 @@ gcloud access-context-manager cloud-bindings create \\
             {m.licenseAutoAssignWarningLink} ↗
           </a>
         </div>
+
+        {activeTab === "licensing" && selectedUnit !== undefined && selectedUnit.label !== "/" && (
+          <div className="cep-license-warning-box">
+            <div className="cep-license-warning-header">
+              <ExclamationCircleIcon size={20} />
+              <strong>{m.targetOuImpact}</strong>
+            </div>
+            <div className="cep-field">
+              <label htmlFor="cep-target-ou-confirmation">
+                {m.targetOuConfirmationLabel}
+              </label>
+              <div className="cep-ou-confirmation-row">
+                <code>{selectedUnit.label}</code>
+                <button
+                  type="button"
+                  className="btn btn-secondary cep-autofill-btn"
+                  onClick={() => setTargetOuConfirmation(selectedUnit.label)}
+                >
+                  {m.copyTargetOuPath}
+                </button>
+              </div>
+              <input
+                autoComplete="off"
+                id="cep-target-ou-confirmation"
+                onChange={(event) => setTargetOuConfirmation(event.target.value)}
+                placeholder={selectedUnit.label}
+                spellCheck={false}
+                type="text"
+                value={targetOuConfirmation}
+              />
+              <small>{m.targetOuConfirmationHint}</small>
+            </div>
+          </div>
+        )}
 
         <div className="cep-license-card">
           <div className="cep-license-card-info">
@@ -1421,7 +1491,95 @@ gcloud access-context-manager cloud-bindings create \\
         className={`cep-tab-panel ${activeTab === "dlp" || activeTab === "all" ? "active" : "hidden"}`}
       >
         <section className="cep-section" aria-labelledby="cep-dlp-matrix-heading">
-{modules.dlpRules && (
+          {activeTab === "dlp" && (
+            <>
+              {targetType === "ou" ? (
+                selectedUnit !== undefined && selectedUnit.label !== "/" ? (
+                  <div className="cep-license-warning-box">
+                    <div className="cep-license-warning-header">
+                      <ExclamationCircleIcon size={20} />
+                      <strong>{m.targetOuImpact}</strong>
+                    </div>
+                    <div className="cep-field">
+                      <label htmlFor="cep-target-ou-confirmation">
+                        {m.targetOuConfirmationLabel}
+                      </label>
+                      <div className="cep-ou-confirmation-row">
+                        <code>{selectedUnit.label}</code>
+                        <button
+                          type="button"
+                          className="btn btn-secondary cep-autofill-btn"
+                          onClick={() => setTargetOuConfirmation(selectedUnit.label)}
+                        >
+                          {m.copyTargetOuPath}
+                        </button>
+                      </div>
+                      <input
+                        autoComplete="off"
+                        id="cep-target-ou-confirmation"
+                        onChange={(event) => setTargetOuConfirmation(event.target.value)}
+                        placeholder={selectedUnit.label}
+                        spellCheck={false}
+                        type="text"
+                        value={targetOuConfirmation}
+                      />
+                      <small>{m.targetOuConfirmationHint}</small>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="cep-inline-note">
+                    <button type="button" className="text-action" onClick={() => setActiveTab("setup")}>
+                      {m.tabSetup}
+                    </button>
+                    {" — "}
+                    {m.selectTargetOu}
+                  </p>
+                )
+              ) : selectedGroup.trim() !== "" ? (
+                <div className="cep-license-warning-box">
+                  <div className="cep-license-warning-header">
+                    <ExclamationCircleIcon size={20} />
+                    <strong>{m.targetGroupImpact}</strong>
+                  </div>
+                  <div className="cep-field">
+                    <label htmlFor="cep-target-group-confirmation">
+                      {m.targetGroupConfirmationLabel}
+                    </label>
+                    <div className="cep-ou-confirmation-row">
+                      <code>{selectedGroup.trim()}</code>
+                      <button
+                        type="button"
+                        className="btn btn-secondary cep-autofill-btn"
+                        onClick={() => setTargetGroupConfirmation(selectedGroup.trim())}
+                      >
+                        {m.copyTargetGroupEmail}
+                      </button>
+                    </div>
+                    <input
+                      autoComplete="off"
+                      id="cep-target-group-confirmation"
+                      onChange={(event) => setTargetGroupConfirmation(event.target.value)}
+                      placeholder={selectedGroup.trim()}
+                      spellCheck={false}
+                      type="text"
+                      value={targetGroupConfirmation}
+                    />
+                    <small>{m.targetGroupConfirmationHint}</small>
+                  </div>
+                </div>
+              ) : (
+                <p className="cep-inline-note">
+                  <button type="button" className="text-action" onClick={() => setActiveTab("setup")}>
+                    {m.tabSetup}
+                  </button>
+                  {" — "}
+                  {m.selectTargetGroup}
+                </p>
+              )}
+              <p className="cep-inline-note">{m.dlpBetaNote}</p>
+            </>
+          )}
+
           <DlpMatrixTable
             customMessage={dlpCustomMessage}
             matrix={dlpMatrix}
@@ -1433,9 +1591,20 @@ gcloud access-context-manager cloud-bindings create \\
             region={modules.dlpRegion}
             saveContent={dlpSaveContent}
           />
-        )}
 
-        
+          {activeTab === "dlp" && (
+            <div className="cep-field">
+              <label htmlFor="cep-internal-urls">{m.internalUrlsTitle}</label>
+              <textarea
+                id="cep-internal-urls"
+                onChange={(event) => setInternalUrls(event.target.value)}
+                placeholder={m.internalUrlsPlaceholder}
+                rows={3}
+                value={internalUrls}
+              />
+              <small>{m.internalUrlsHint}</small>
+            </div>
+          )}
         </section>
       </div>
 
@@ -1926,150 +2095,158 @@ gcloud access-context-manager cloud-bindings create \\
       
       </div>
 
-      {/* PERSISTENT ACTIONS & RESULTS ACROSS ALL TABS */}
-<div className="cep-actions">
-        <button
-          className="primary-action"
-          disabled={!canDeploy}
-          onClick={handleDeploy}
-          type="button"
-        >
-          {busy === "deploy" ? m.btnDeploying : m.btnDeploy}
-        </button>
-        <button
-          className="secondary-action"
-          disabled={
-            canonicalCustomerId === "" ||
-            (targetType === "group" ? selectedGroup.trim() === "" : selectedOu === "") ||
-            busy !== null
-          }
-          onClick={handleDownloadScript}
-          type="button"
-        >
-          {m.btnDownloadScript}
-        </button>
-        <button
-          className="danger-action cep-rollback"
-          disabled={
-            canonicalCustomerId === "" ||
-            (targetType === "group" ? selectedGroup.trim() === "" : selectedOu === "") ||
-            busy !== null
-          }
-          onClick={handleRollback}
-          type="button"
-        >
-          {busy === "rollback" ? m.btnRollingBack : m.btnRollback}
-        </button>
-      </div>
-
-      {busy === "deploy" && (
-        <div className="cep-progress-box" role="status" aria-live="polite">
-          <div className="cep-progress-header">
-            <span>{m.deployProgressTitle}</span>
-            <span className="cep-progress-percentage">{deployStep * 25}%</span>
-          </div>
-          <progress className="cep-progress-bar-el" max={100} value={deployStep * 25} />
-          <div className="cep-progress-steps">
-            <span className={`cep-progress-step-item ${deployStep >= 1 ? (deployStep > 1 ? "done" : "active") : "pending"}`}>
-              {deployStep > 1 ? "✓ " : "• "}{m.deployStep1}
-            </span>
-            <span className={`cep-progress-step-item ${deployStep >= 2 ? (deployStep > 2 ? "done" : "active") : "pending"}`}>
-              {deployStep > 2 ? "✓ " : "• "}{m.deployStep2}
-            </span>
-            <span className={`cep-progress-step-item ${deployStep >= 3 ? (deployStep > 3 ? "done" : "active") : "pending"}`}>
-              {deployStep > 3 ? "✓ " : "• "}{m.deployStep3}
-            </span>
-            <span className={`cep-progress-step-item ${deployStep >= 4 ? "done" : "pending"}`}>
-              {deployStep >= 4 ? "✓ " : "• "}{m.deployStep4}
-            </span>
-          </div>
+      {/* POLICY ACTIONS & RESULTS (VISIBLE ON SETUP, DLP, AND VIEW ALL TABS) */}
+      <div
+        className={`cep-tab-panel ${
+          activeTab === "setup" || activeTab === "dlp" || activeTab === "all"
+            ? "active"
+            : "hidden"
+        }`}
+      >
+        <div className="cep-actions">
+          <button
+            className="primary-action"
+            disabled={!canDeploy}
+            onClick={handleDeploy}
+            type="button"
+          >
+            {busy === "deploy" ? m.btnDeploying : m.btnDeploy}
+          </button>
+          <button
+            className="secondary-action"
+            disabled={
+              canonicalCustomerId === "" ||
+              (targetType === "group" ? selectedGroup.trim() === "" : selectedOu === "") ||
+              busy !== null
+            }
+            onClick={handleDownloadScript}
+            type="button"
+          >
+            {m.btnDownloadScript}
+          </button>
+          <button
+            className="danger-action cep-rollback"
+            disabled={
+              canonicalCustomerId === "" ||
+              (targetType === "group" ? selectedGroup.trim() === "" : selectedOu === "") ||
+              busy !== null
+            }
+            onClick={handleRollback}
+            type="button"
+          >
+            {busy === "rollback" ? m.btnRollingBack : m.btnRollback}
+          </button>
         </div>
-      )}
 
-      {busy === "rollback" && (
-        <div className="cep-progress-box" role="status" aria-live="polite">
-          <div className="cep-progress-header">
-            <span>{m.rollbackProgressTitle}</span>
-            <span className="cep-progress-percentage">{rollbackStep * 25}%</span>
+        {busy === "deploy" && (
+          <div className="cep-progress-box" role="status" aria-live="polite">
+            <div className="cep-progress-header">
+              <span>{m.deployProgressTitle}</span>
+              <span className="cep-progress-percentage">{deployStep * 25}%</span>
+            </div>
+            <progress className="cep-progress-bar-el" max={100} value={deployStep * 25} />
+            <div className="cep-progress-steps">
+              <span className={`cep-progress-step-item ${deployStep >= 1 ? (deployStep > 1 ? "done" : "active") : "pending"}`}>
+                {deployStep > 1 ? "✓ " : "• "}{m.deployStep1}
+              </span>
+              <span className={`cep-progress-step-item ${deployStep >= 2 ? (deployStep > 2 ? "done" : "active") : "pending"}`}>
+                {deployStep > 2 ? "✓ " : "• "}{m.deployStep2}
+              </span>
+              <span className={`cep-progress-step-item ${deployStep >= 3 ? (deployStep > 3 ? "done" : "active") : "pending"}`}>
+                {deployStep > 3 ? "✓ " : "• "}{m.deployStep3}
+              </span>
+              <span className={`cep-progress-step-item ${deployStep >= 4 ? "done" : "pending"}`}>
+                {deployStep >= 4 ? "✓ " : "• "}{m.deployStep4}
+              </span>
+            </div>
           </div>
-          <progress className="cep-progress-bar-el" max={100} value={rollbackStep * 25} />
-          <div className="cep-progress-steps">
-            <span className={`cep-progress-step-item ${rollbackStep >= 1 ? (rollbackStep > 1 ? "done" : "active") : "pending"}`}>
-              {rollbackStep > 1 ? "✓ " : "• "}{m.rollbackStep1}
-            </span>
-            <span className={`cep-progress-step-item ${rollbackStep >= 2 ? (rollbackStep > 2 ? "done" : "active") : "pending"}`}>
-              {rollbackStep > 2 ? "✓ " : "• "}{m.rollbackStep2}
-            </span>
-            <span className={`cep-progress-step-item ${rollbackStep >= 3 ? (rollbackStep > 3 ? "done" : "active") : "pending"}`}>
-              {rollbackStep > 3 ? "✓ " : "• "}{m.rollbackStep3}
-            </span>
-            <span className={`cep-progress-step-item ${rollbackStep >= 4 ? "done" : "pending"}`}>
-              {rollbackStep >= 4 ? "✓ " : "• "}{m.rollbackStep4}
-            </span>
+        )}
+
+        {busy === "rollback" && (
+          <div className="cep-progress-box" role="status" aria-live="polite">
+            <div className="cep-progress-header">
+              <span>{m.rollbackProgressTitle}</span>
+              <span className="cep-progress-percentage">{rollbackStep * 25}%</span>
+            </div>
+            <progress className="cep-progress-bar-el" max={100} value={rollbackStep * 25} />
+            <div className="cep-progress-steps">
+              <span className={`cep-progress-step-item ${rollbackStep >= 1 ? (rollbackStep > 1 ? "done" : "active") : "pending"}`}>
+                {rollbackStep > 1 ? "✓ " : "• "}{m.rollbackStep1}
+              </span>
+              <span className={`cep-progress-step-item ${rollbackStep >= 2 ? (rollbackStep > 2 ? "done" : "active") : "pending"}`}>
+                {rollbackStep > 2 ? "✓ " : "• "}{m.rollbackStep2}
+              </span>
+              <span className={`cep-progress-step-item ${rollbackStep >= 3 ? (rollbackStep > 3 ? "done" : "active") : "pending"}`}>
+                {rollbackStep > 3 ? "✓ " : "• "}{m.rollbackStep3}
+              </span>
+              <span className={`cep-progress-step-item ${rollbackStep >= 4 ? "done" : "pending"}`}>
+                {rollbackStep >= 4 ? "✓ " : "• "}{m.rollbackStep4}
+              </span>
+            </div>
           </div>
-        </div>
-      )}
-      {!anyModuleSelected && <p className="cep-inline-note">{m.noModulesSelected}</p>}
+        )}
+        {!anyModuleSelected && <p className="cep-inline-note">{m.noModulesSelected}</p>}
 
-      {actionSuccess !== "" && (
-        <p className="cep-banner cep-banner-ok">
-          <CheckCircleIcon size={18} />
-          <span>{actionSuccess}</span>
-        </p>
-      )}
-      {actionError != null && (
-        <ErrorDiagnosticCard
-          error={actionError}
-          messages={messages}
-          onRetry={lastAction === "deploy" ? handleDeploy : handleRollback}
-        />
-      )}
+        {actionSuccess !== "" && (
+          <p className="cep-banner cep-banner-ok">
+            <CheckCircleIcon size={18} />
+            <span>{actionSuccess}</span>
+          </p>
+        )}
+        {actionError != null && (
+          <ErrorDiagnosticCard
+            error={actionError}
+            messages={messages}
+            onRetry={lastAction === "deploy" ? handleDeploy : handleRollback}
+          />
+        )}
 
-      {lastResult !== null && lastResult.created_items.length > 0 && (
-        <section className="cep-outcome" aria-labelledby="cep-applied-title">
-          <h3 id="cep-applied-title">{m.appliedTitle}</h3>
-          <ul>
-            {lastResult.created_items.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {lastResult !== null && lastResult.skipped_items.length > 0 && (
-        <section className="cep-outcome cep-outcome-skipped" aria-labelledby="cep-skipped-title">
-          <h3 id="cep-skipped-title">{m.skippedTitle}</h3>
-          <ul>
-            {lastResult.skipped_items.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      <section className="cep-outcome" aria-labelledby="cep-trace-title">
-        <h3 id="cep-trace-title">{m.statusLogTitle}</h3>
-        {lastResult !== null && lastResult.debug_trace.length > 0 ? (
-          <details className="cep-trace-details" open={false}>
-            <summary className="cep-trace-summary">
-              <span>{m.statusLogTitle}</span>
-              <span className="cep-trace-count">{m.statusLogApiCallCount(lastResult.debug_trace.length)}</span>
-            </summary>
-            <ul className="cep-trace">
-              {lastResult.debug_trace.map((entry, index) => (
-                <li className={entry.ok ? "ok" : "failed"} key={`${entry.label}-${index}`}>
-                  <span>
-                    {entry.method} {entry.label}
-                  </span>
-                  <small>{entry.error ?? `HTTP ${entry.status}`}</small>
-                </li>
+        {lastResult !== null && lastResult.created_items.length > 0 && (
+          <section className="cep-outcome" aria-labelledby="cep-applied-title">
+            <h3 id="cep-applied-title">{m.appliedTitle}</h3>
+            <ul>
+              {lastResult.created_items.map((item) => (
+                <li key={item}>{item}</li>
               ))}
             </ul>
-          </details>
-        ) : (
-          <p>{m.noActionYet}</p>
+          </section>
         )}
-      </section>
+
+        {lastResult !== null && lastResult.skipped_items.length > 0 && (
+          <section className="cep-outcome cep-outcome-skipped" aria-labelledby="cep-skipped-title">
+            <h3 id="cep-skipped-title">{m.skippedTitle}</h3>
+            <ul>
+              {lastResult.skipped_items.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        <section className="cep-outcome" aria-labelledby="cep-trace-title">
+          <h3 id="cep-trace-title">{m.statusLogTitle}</h3>
+          {lastResult !== null && lastResult.debug_trace.length > 0 ? (
+            <details className="cep-trace-details" open={false}>
+              <summary className="cep-trace-summary">
+                <span>{m.statusLogTitle}</span>
+                <span className="cep-trace-count">{m.statusLogApiCallCount(lastResult.debug_trace.length)}</span>
+              </summary>
+              <ul className="cep-trace">
+                {lastResult.debug_trace.map((entry, index) => (
+                  <li className={entry.ok ? "ok" : "failed"} key={`${entry.label}-${index}`}>
+                    <span>
+                      {entry.method} {entry.label}
+                    </span>
+                    <small>{entry.error ?? `HTTP ${entry.status}`}</small>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          ) : (
+            <p>{m.noActionYet}</p>
+          )}
+        </section>
+      </div>
     
       <SecurityAssessmentModal
         isOpen={assessmentModalOpen}
