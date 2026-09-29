@@ -493,12 +493,48 @@ const UPSTREAM_PROJECT_PERMISSIONS = new Set([
   "resourcemanager.projects.setIamPolicy",
 ]);
 
+function isServiceDisabledError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    message.includes("(SERVICE_DISABLED)") ||
+    /API has not been used in project [^\s]+ before or it is disabled/i.test(message)
+  );
+}
+
+function disabledServiceHost(error: unknown, url?: string): string | null {
+  const message = error instanceof Error ? error.message : String(error);
+  const match = message.match(/\/apis\/api\/([a-z0-9-]+\.googleapis\.com)\/overview/i);
+  if (match?.[1]) return match[1].toLowerCase();
+  if (url) {
+    try {
+      const parsed = new URL(url);
+      const host = parsed.hostname.toLowerCase();
+      if (host === "www.googleapis.com" && parsed.pathname.startsWith("/compute/")) {
+        return "compute.googleapis.com";
+      }
+      if (host.endsWith(".googleapis.com")) return host;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function serviceEnableUrlFromError(error: unknown): string | null {
+  const message = error instanceof Error ? error.message : String(error);
+  const match = message.match(/https:\/\/console\.developers\.google\.com\/apis\/api\/[^\s)]+/i);
+  return match?.[0] ?? null;
+}
+
 export class GoogleDiscoveryProvider {
   private readonly transport: Transport;
   private readonly workspaceTransport: Transport;
   private readonly cloudIdentity: string;
   private readonly ownershipProofs: DiscoveryOwnershipProofs;
   private readonly discoveredAddresses = new Map<string, string>();
+  private readonly plannedProjectApis = new Set<string>();
+  private readonly mustExistProbeKeys = new Set<string>();
+  private readonly reportedDisabledServices = new Set<string>();
   private publicCertificateVersionName: string | undefined;
   private sourceImageBinding: SourceImageBinding | undefined;
 
@@ -539,6 +575,9 @@ export class GoogleDiscoveryProvider {
 
   async preflight(spec: DeploymentSpec): Promise<PreflightResult> {
     this.discoveredAddresses.clear();
+    this.plannedProjectApis.clear();
+    this.mustExistProbeKeys.clear();
+    this.reportedDisabledServices.clear();
     this.publicCertificateVersionName = undefined;
     this.sourceImageBinding = undefined;
     const diagnostics: PreflightDiagnostic[] = [];
@@ -556,6 +595,24 @@ export class GoogleDiscoveryProvider {
     const publicSecretKey = publicSecretName === null
       ? null
       : `secretmanager:secret:${publicSecretName}`;
+    for (const api of requiredApis(spec)) this.plannedProjectApis.add(api);
+    if (spec.managed_chrome_access_level) {
+      this.mustExistProbeKeys.add(
+        `accesscontextmanager:access_level:${spec.managed_chrome_access_level}`,
+      );
+    }
+    if (spec.source_image) {
+      this.mustExistProbeKeys.add(`compute:source_image:${spec.source_image}`);
+    }
+    if (publicSecretKey !== null) {
+      this.mustExistProbeKeys.add(publicSecretKey);
+    }
+    if (spec.network_strategy === "existing") {
+      this.mustExistProbeKeys.add(`compute:network:${networkName(spec)}`);
+      if (spec.subnet_name && spec.subnet_name !== "secgw-test-subnet") {
+        this.mustExistProbeKeys.add(`compute:subnetwork:${spec.subnet_name}`);
+      }
+    }
     let publicCertificateBinding: ValidatedPublicCertificateSecret | null = null;
 
     try {
@@ -681,12 +738,10 @@ export class GoogleDiscoveryProvider {
           throw new Error(`Unexpected discovery status ${response.status}`);
         }
       } catch (error) {
-        // 404 is the only safe proof of absence.  Any unreadable or ambiguous
-        // same-name resource must block planning; treating 403/5xx/transport
-        // loss as absence would turn the next Apply into a blind CREATE.
-        existing.delete(probe.key);
-        conflicting.add(probe.key);
-        diagnostics.push(this.diagnostic(probe.key, error));
+        // 404 is the only safe proof of absence unless the target project API
+        // itself has not been enabled yet and is scheduled for enablement in
+        // Step 1 of Apply (serviceusage:project_services:required-apis).
+        this.handleProbeError(probe.key, probe.url, error, existing, conflicting, diagnostics);
       }
     }
 
@@ -849,9 +904,19 @@ export class GoogleDiscoveryProvider {
         gatewayAccount = account;
       }
     } catch (error) {
-      conflicting.add(`beyondcorp:security_gateway:${spec.gateway_id}`);
-      conflicting.add(`cloudresourcemanager:project_iam:${spec.name}-upstream-access`);
-      diagnostics.push(this.diagnostic("beyondcorp:security_gateway", error));
+      const disabledHost = isServiceDisabledError(error)
+        ? disabledServiceHost(error, gateway)
+        : null;
+      if (disabledHost !== null && this.plannedProjectApis.has(disabledHost)) {
+        if (!this.reportedDisabledServices.has(disabledHost)) {
+          this.reportedDisabledServices.add(disabledHost);
+          diagnostics.push(this.diagnostic(disabledHost, error, true));
+        }
+      } else {
+        conflicting.add(`beyondcorp:security_gateway:${spec.gateway_id}`);
+        conflicting.add(`cloudresourcemanager:project_iam:${spec.name}-upstream-access`);
+        diagnostics.push(this.diagnostic("beyondcorp:security_gateway", error));
+      }
     }
 
     if (gatewayAccount !== null) {
@@ -924,9 +989,14 @@ export class GoogleDiscoveryProvider {
         options.existing.add(options.key);
       }
     } catch (error) {
-      options.existing.delete(options.key);
-      options.conflicting.add(options.key);
-      options.diagnostics.push(this.diagnostic(options.key, error));
+      this.handleProbeError(
+        options.key,
+        options.url,
+        error,
+        options.existing,
+        options.conflicting,
+        options.diagnostics,
+      );
     }
   }
 
@@ -1082,39 +1152,53 @@ export class GoogleDiscoveryProvider {
         "chrome.users.apps.ManagedConfiguration",
         CHROME_EXTENSIONS.secureEnterpriseBrowser,
       );
-      if (configuration.value !== null) {
+      if (
+        configuration.value !== null &&
+        configuration.source === `orgunits/${spec.target_ou_id}`
+      ) {
         const encoded = configuration.value.managedConfiguration;
-        if (typeof encoded !== "string") {
+        if (typeof encoded === "string" && encoded.trim() !== "") {
+          let decoded: unknown = null;
+          let validJsonObject = false;
+          try {
+            decoded = JSON.parse(encoded);
+            validJsonObject =
+              typeof decoded === "object" && decoded !== null && !Array.isArray(decoded);
+          } catch {
+            validJsonObject = false;
+          }
+          if (!validJsonObject) {
+            diagnostics.push({
+              code: "invalid-chrome-managed-configuration",
+              severity: "warning",
+              message:
+                "The existing Chrome extension configuration in the target OU is not valid JSON.",
+              remediation:
+                "Apply will replace the target OU's extension configuration with the approved Secure Gateway JSON payload.",
+            });
+          } else {
+            const securityGateway = (decoded as Record<string, unknown>).securityGateway;
+            const wrapped = typeof securityGateway === "object" && securityGateway !== null &&
+                !Array.isArray(securityGateway)
+              ? (securityGateway as Record<string, unknown>).Value
+              : null;
+            const context = typeof wrapped === "object" && wrapped !== null && !Array.isArray(wrapped)
+              ? (wrapped as Record<string, unknown>).context
+              : null;
+            const resource = typeof context === "object" && context !== null && !Array.isArray(context)
+              ? (context as Record<string, unknown>).resource
+              : null;
+            if (
+              resource ===
+                `projects/${spec.project_id}/locations/global/securityGateways/${spec.gateway_id}`
+            ) {
+              existing.add(
+                `chromepolicy:extension_configuration:${CHROME_EXTENSIONS.secureEnterpriseBrowser}`,
+              );
+            }
+          }
+        } else if (encoded !== undefined && typeof encoded !== "string") {
           throw new Error("Chrome managed configuration is missing managedConfiguration");
-        }
-        let decoded: unknown;
-        try {
-          decoded = JSON.parse(encoded);
-        } catch {
-          throw new Error("Chrome managed configuration is not valid JSON");
-        }
-        if (typeof decoded !== "object" || decoded === null || Array.isArray(decoded)) {
-          throw new Error("Chrome managed configuration is not a JSON object");
-        }
-        const securityGateway = (decoded as Record<string, unknown>).securityGateway;
-        const wrapped = typeof securityGateway === "object" && securityGateway !== null &&
-            !Array.isArray(securityGateway)
-          ? (securityGateway as Record<string, unknown>).Value
-          : null;
-        const context = typeof wrapped === "object" && wrapped !== null && !Array.isArray(wrapped)
-          ? (wrapped as Record<string, unknown>).context
-          : null;
-        const resource = typeof context === "object" && context !== null && !Array.isArray(context)
-          ? (context as Record<string, unknown>).resource
-          : null;
-        if (
-          configuration.source === `orgunits/${spec.target_ou_id}` &&
-          resource ===
-            `projects/${spec.project_id}/locations/global/securityGateways/${spec.gateway_id}`
-        ) {
-          existing.add(
-            `chromepolicy:extension_configuration:${CHROME_EXTENSIONS.secureEnterpriseBrowser}`,
-          );
         }
       }
     } catch (error) {
@@ -1602,8 +1686,59 @@ export class GoogleDiscoveryProvider {
     };
   }
 
-  private diagnostic(resource: string, error: unknown): PreflightDiagnostic {
+  private handleProbeError(
+    key: string,
+    url: string | undefined,
+    error: unknown,
+    existing: Set<string>,
+    conflicting: Set<string>,
+    diagnostics: PreflightDiagnostic[],
+  ): void {
+    existing.delete(key);
+    const disabledHost = isServiceDisabledError(error)
+      ? disabledServiceHost(error, url)
+      : null;
+    if (
+      disabledHost !== null &&
+      this.plannedProjectApis.has(disabledHost) &&
+      !this.mustExistProbeKeys.has(key)
+    ) {
+      if (!this.reportedDisabledServices.has(disabledHost)) {
+        this.reportedDisabledServices.add(disabledHost);
+        diagnostics.push(this.diagnostic(disabledHost, error, true));
+      }
+      return;
+    }
+    conflicting.add(key);
+    diagnostics.push(this.diagnostic(key, error));
+  }
+
+  private diagnostic(
+    resource: string,
+    error: unknown,
+    plannedEnablement = false,
+  ): PreflightDiagnostic {
     const workspaceResource = resource.startsWith("chrome-");
+    const enableUrl = isServiceDisabledError(error) ? serviceEnableUrlFromError(error) : null;
+    if (plannedEnablement) {
+      return {
+        code: "api-unavailable",
+        severity: "info",
+        message: `${resource} is currently disabled in the project and will be enabled during Apply: ${(error as Error).message}`,
+        remediation: enableUrl
+          ? `Apply will automatically enable ${resource} in Step 1 (serviceusage:project_services:required-apis), or you can enable it now at ${enableUrl} and rerun Preflight.`
+          : `Apply will automatically enable ${resource} in Step 1 (serviceusage:project_services:required-apis).`,
+      };
+    }
+    if (enableUrl !== null && !workspaceResource) {
+      return {
+        code: "api-unavailable",
+        severity: "warning",
+        message: `${resource} could not be inspected: ${(error as Error).message}`,
+        remediation:
+          `Enable the API at ${enableUrl}, wait a few minutes for propagation, and rerun Preflight.`,
+      };
+    }
     return {
       code: "api-unavailable",
       severity: "warning",

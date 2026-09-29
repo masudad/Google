@@ -945,6 +945,232 @@ export interface CepDeployerMessages {
   dlpPresetsLabel: string;
 }
 
+function friendlyDiagnosticTarget(raw: string, locale: Locale): string {
+  const known: Record<string, { en: string; ja: string }> = {
+    "cloud-billing": {
+      en: "Cloud Billing API (cloudbilling.googleapis.com)",
+      ja: "Cloud Billing API (cloudbilling.googleapis.com)",
+    },
+    "service-usage": {
+      en: "Service Usage API (serviceusage.googleapis.com)",
+      ja: "Service Usage API (serviceusage.googleapis.com)",
+    },
+    "project-permissions": {
+      en: "Google Cloud project IAM permissions",
+      ja: "Google Cloud プロジェクト IAM 権限",
+    },
+    "upstream-project-permissions": {
+      en: "Upstream Google Cloud project IAM permissions",
+      ja: "アップストリーム Google Cloud プロジェクト IAM 権限",
+    },
+    "target-ou-invalid": {
+      en: "Target organizational unit (OU)",
+      ja: "対象の組織部門（OU）",
+    },
+    "chrome-policy": {
+      en: "Chrome Policy API (target OU)",
+      ja: "Chrome Policy API（対象OU）",
+    },
+    "chrome-group-policy": {
+      en: "Chrome Policy API (group policies)",
+      ja: "Chrome Policy API（グループポリシー）",
+    },
+    "chrome-root-store": {
+      en: "Chrome Root Store policy",
+      ja: "Chrome Root Store ポリシー",
+    },
+    "secretmanager.googleapis.com": {
+      en: "Secret Manager API (secretmanager.googleapis.com)",
+      ja: "Secret Manager API (secretmanager.googleapis.com)",
+    },
+    "compute.googleapis.com": {
+      en: "Compute Engine API (compute.googleapis.com)",
+      ja: "Compute Engine API (compute.googleapis.com)",
+    },
+    "dns.googleapis.com": {
+      en: "Cloud DNS API (dns.googleapis.com)",
+      ja: "Cloud DNS API (dns.googleapis.com)",
+    },
+    "beyondcorp.googleapis.com": {
+      en: "Cloud BeyondCorp API (beyondcorp.googleapis.com)",
+      ja: "Cloud BeyondCorp API (beyondcorp.googleapis.com)",
+    },
+    "privateca.googleapis.com": {
+      en: "Certificate Authority Service API (privateca.googleapis.com)",
+      ja: "Certificate Authority Service API (privateca.googleapis.com)",
+    },
+    "iam.googleapis.com": {
+      en: "Identity and Access Management API (iam.googleapis.com)",
+      ja: "Identity and Access Management API (iam.googleapis.com)",
+    },
+  };
+  if (known[raw]) return known[raw][locale];
+  if (raw.startsWith("secretmanager:secret_iam:")) {
+    const name = raw.slice("secretmanager:secret_iam:".length);
+    return locale === "ja"
+      ? `Secret Manager IAM ポリシー (${name})`
+      : `Secret Manager IAM policy (${name})`;
+  }
+  if (raw.startsWith("secretmanager:secret_version:")) {
+    const name = raw.slice("secretmanager:secret_version:".length);
+    return locale === "ja"
+      ? `Secret Manager シークレットバージョン (${name})`
+      : `Secret Manager secret version (${name})`;
+  }
+  if (raw.startsWith("secretmanager:secret:")) {
+    const name = raw.slice("secretmanager:secret:".length);
+    return locale === "ja"
+      ? `Secret Manager シークレット (${name})`
+      : `Secret Manager secret (${name})`;
+  }
+  if (raw.startsWith("compute:")) {
+    const name = raw.slice("compute:".length);
+    return locale === "ja" ? `Compute Engine リソース (${name})` : `Compute Engine resource (${name})`;
+  }
+  if (raw.startsWith("beyondcorp:")) {
+    const name = raw.slice("beyondcorp:".length);
+    return locale === "ja" ? `Secure Gateway リソース (${name})` : `Secure Gateway resource (${name})`;
+  }
+  if (raw.startsWith("dns:")) {
+    const name = raw.slice("dns:".length);
+    return locale === "ja" ? `Cloud DNS リソース (${name})` : `Cloud DNS resource (${name})`;
+  }
+  if (raw.startsWith("iam:")) {
+    const name = raw.slice("iam:".length);
+    return locale === "ja" ? `IAM サービスアカウント (${name})` : `IAM service account (${name})`;
+  }
+  if (raw.startsWith("accesscontextmanager:")) {
+    return locale === "ja"
+      ? "Access Context Manager アクセスレベル"
+      : "Access Context Manager access level";
+  }
+  return raw;
+}
+
+function formatDiagnosticMessage(locale: Locale, code: string, fallback: string): string {
+  if (code === "legacy-pac-policy-detected") {
+    return locale === "ja"
+      ? "親OUから継承した旧PACポリシーが、このテストOUでまだ有効です。"
+      : "A legacy PAC policy inherited from a parent OU is still active for this test OU.";
+  }
+  if (code === "chrome-extension-group-policy-conflict") {
+    return locale === "ja"
+      ? "Chromeのグループポリシーが、対象OUのSecure Enterprise Browser設定を上書きしています。"
+      : "A Chrome group policy overrides the Secure Enterprise Browser configuration from the target OU.";
+  }
+  if (code === "invalid-chrome-managed-configuration") {
+    return locale === "ja"
+      ? "対象OUの既存のChrome拡張機能ポリシー設定が有効なJSON形式ではありません。"
+      : "The existing Chrome extension configuration in the target OU is not valid JSON.";
+  }
+  if (code === "billing-disabled") {
+    return locale === "ja"
+      ? "対象Google Cloudプロジェクトに有効な請求先アカウント（Cloud Billing）が紐付いていません。"
+      : "The deployment project has no active billing association.";
+  }
+  if (code === "workspace-oauth-required" && locale === "ja") {
+    return "Google Cloudの認証は有効ですが、借用サービスアカウントのChrome管理者ロールの確認が必要です。";
+  }
+  if (code === "chrome-enterprise-premium-license-not-detected" && locale === "ja") {
+    return "Enterprise License Manager APIでChrome Enterprise Premiumのユーザー割り当てが検出されませんでした。";
+  }
+  if (code === "chrome-enterprise-premium-manual-confirmation" && locale === "ja") {
+    return "Enterprise License Manager API経由でChrome Enterprise Premiumの利用権を自動確認できませんでした。";
+  }
+  if (code === "managed-certificate-rotation-required" && locale === "ja") {
+    return "既存の管理対象TLS証明書がローテーション期間に入っています。";
+  }
+  if (code === "api-unavailable") {
+    const plannedMatch = fallback.match(
+      /^([^ ]+) is currently disabled in the project and will be enabled during Apply:/,
+    );
+    if (plannedMatch?.[1]) {
+      const target = friendlyDiagnosticTarget(plannedMatch[1], locale);
+      return locale === "ja"
+        ? `${target} は対象プロジェクトでまだ有効化されていません（Apply実行時に自動で有効化されます）。`
+        : `${target} is not enabled yet in the target project (will be enabled automatically during Apply).`;
+    }
+    const inspectMatch = fallback.match(/^([^ ]+) could not be inspected: ([\s\S]+)$/);
+    if (inspectMatch?.[1] && inspectMatch[2]) {
+      const target = friendlyDiagnosticTarget(inspectMatch[1], locale);
+      const detail = inspectMatch[2];
+      if (
+        detail.includes("(SERVICE_DISABLED)") ||
+        /API has not been used in project [^\s]+ before or it is disabled/i.test(detail)
+      ) {
+        return locale === "ja"
+          ? `${target} がこのプロジェクトで無効化されているか、まだ使用されていません。`
+          : `${target} is disabled or has not been used in this project yet.`;
+      }
+      if (detail.includes("Chrome managed configuration is not valid JSON")) {
+        return locale === "ja"
+          ? "対象OUの既存のChrome拡張機能ポリシー設定が有効なJSON形式ではありません。"
+          : "The existing Chrome extension configuration in the target OU is not valid JSON.";
+      }
+      return locale === "ja"
+        ? `${target} の状態を確認できませんでした。`
+        : `Could not inspect ${target}.`;
+    }
+  }
+  return fallback;
+}
+
+function formatDiagnosticRemediation(
+  locale: Locale,
+  code: string,
+  fallback: string | null,
+): string {
+  if (code === "legacy-pac-policy-detected") {
+    return locale === "ja"
+      ? "PACに定義されていないホスト名はDIRECT（直接接続）となり、通常DNSで名前解決できずに ERR_NAME_NOT_RESOLVED が発生します。Applyでは選択したテストOUだけを上書きし、親OUと既存PACファイルは変更しません。"
+      : "A hostname omitted from the PAC falls through to DIRECT, where private DNS commonly returns ERR_NAME_NOT_RESOLVED. Apply will override only the selected test OU; the parent OU and existing PAC file are not changed.";
+  }
+  if (code === "chrome-extension-group-policy-conflict") {
+    return locale === "ja"
+      ? "表示されたグループの［アプリと拡張機能］を確認し、空または不整合な管理対象設定を削除するか、テストOUと同じSecure Gateway設定にします。グループ変更は全メンバーへ影響するため、自動適用せずブロックします。"
+      : "Review the named group in Apps & extensions. Remove its empty or incompatible managed configuration, or set it to the same Secure Gateway configuration as the test OU. This is blocked because changing a group affects every member.";
+  }
+  if (code === "invalid-chrome-managed-configuration") {
+    return locale === "ja"
+      ? "Apply実行時に、対象OUの拡張機能設定を承認済みのSecure Gateway用JSON構成で上書きします。"
+      : "Apply will replace the target OU's extension configuration with the approved Secure Gateway JSON payload.";
+  }
+  if (code === "billing-disabled" && locale === "ja") {
+    return "Applyを実行する前に、対象プロジェクトへ有効な請求先アカウントをリンクしてください。";
+  }
+  if (code === "workspace-oauth-required" && locale === "ja") {
+    return "テストOUに対するChrome管理者ロールをサービスアカウントへ付与し、Apply前にChrome Policy APIアクセスを確認してください。";
+  }
+  if (code === "chrome-enterprise-premium-license-not-detected" && locale === "ja") {
+    return "対象ユーザーにChrome Enterprise Premium（SKU 1010400001）を割り当てるか、Google管理コンソールでドメイン全体の利用権を確認してください。";
+  }
+  if (code === "chrome-enterprise-premium-manual-confirmation" && locale === "ja") {
+    return "Google管理コンソールで対象ユーザーのライセンスまたはドメイン全体の利用権を確認してください。";
+  }
+  if (code === "managed-certificate-rotation-required" && locale === "ja") {
+    return "計画された証明書発行およびSecret Managerのローテーションを承認してください。";
+  }
+  if (code === "api-unavailable" && locale === "ja") {
+    const raw = fallback ?? "";
+    const urlMatch = raw.match(/https:\/\/console\.developers\.google\.com\/apis\/api\/[^\s,)]+/i);
+    if (raw.includes("serviceusage:project_services:required-apis")) {
+      return urlMatch
+        ? `Applyの最初のステップ（serviceusage:project_services:required-apis）で自動的に有効化されます。事前確認（Preflight）の段階で既存リソースを検査したい場合は、${urlMatch[0]} でAPIを有効化してから再実行してください。`
+        : "Applyの最初のステップ（serviceusage:project_services:required-apis）で自動的に有効化されます。";
+    }
+    if (urlMatch) {
+      return `${urlMatch[0]} にアクセスしてAPIを有効化し、数分待ってから事前確認（Preflight）を再実行してください。`;
+    }
+    if (raw.includes("Chrome Policy API")) {
+      return "Chrome Policy APIが有効であり、ログイン中のWorkspace管理者が選択した組織部門（OU）とグループの読み取り権限を持っていることを確認してください。";
+    }
+    if (raw === "Confirm the API is enabled and the deployer has read access.") {
+      return "対象のAPIが有効であり、デプロイヤー（サービスアカウント）に読み取り権限があることを確認してください。";
+    }
+  }
+  return fallback ?? "";
+}
+
 const en: Messages = {
   mainTitle: "Secure Gateway Studio",
   productName: "Administrator deployment console",
@@ -1362,18 +1588,8 @@ const en: Messages = {
         : fallback,
     diagnosticsTitle: "Detected conditions",
     apiEvidence: "API evidence",
-    diagnosticMessage: (code, fallback) =>
-      code === "legacy-pac-policy-detected"
-        ? "A legacy PAC policy inherited from a parent OU is still active for this test OU."
-        : code === "chrome-extension-group-policy-conflict"
-          ? "A Chrome group policy overrides the Secure Enterprise Browser configuration from the target OU."
-        : fallback,
-    diagnosticRemediation: (code, fallback) =>
-      code === "legacy-pac-policy-detected"
-        ? "A hostname omitted from the PAC falls through to DIRECT, where private DNS commonly returns ERR_NAME_NOT_RESOLVED. Apply will override only the selected test OU; the parent OU and existing PAC file are not changed."
-        : code === "chrome-extension-group-policy-conflict"
-          ? "Review the named group in Apps & extensions. Remove its empty or incompatible managed configuration, or set it to the same Secure Gateway configuration as the test OU. This is blocked because changing a group affects every member."
-        : fallback ?? "",
+    diagnosticMessage: (code, fallback) => formatDiagnosticMessage("en", code, fallback),
+    diagnosticRemediation: (code, fallback) => formatDiagnosticRemediation("en", code, fallback),
     approveWorking: "Binding approval…",
     approvalReady: "Exact plan approved",
     continueToApply: "Continue to Apply",
@@ -3168,18 +3384,8 @@ const ja: Messages = {
         : fallback,
     diagnosticsTitle: "検出した状態",
     apiEvidence: "API検出値",
-    diagnosticMessage: (code, fallback) =>
-      code === "legacy-pac-policy-detected"
-        ? "親OUから継承した旧PACポリシーが、このテストOUでまだ有効です。"
-        : code === "chrome-extension-group-policy-conflict"
-          ? "Chromeのグループポリシーが、対象OUのSecure Enterprise Browser設定を上書きしています。"
-        : fallback,
-    diagnosticRemediation: (code, fallback) =>
-      code === "legacy-pac-policy-detected"
-        ? "PACに定義されていないホスト名はDIRECT（直接接続）となり、通常DNSで名前解決できずに ERR_NAME_NOT_RESOLVED が発生します。Applyでは選択したテストOUだけを上書きし、親OUと既存PACファイルは変更しません。"
-        : code === "chrome-extension-group-policy-conflict"
-          ? "表示されたグループの［アプリと拡張機能］を確認し、空または不整合な管理対象設定を削除するか、テストOUと同じSecure Gateway設定にします。グループ変更は全メンバーへ影響するため、自動適用せずブロックします。"
-        : fallback ?? "",
+    diagnosticMessage: (code, fallback) => formatDiagnosticMessage("ja", code, fallback),
+    diagnosticRemediation: (code, fallback) => formatDiagnosticRemediation("ja", code, fallback),
     approveWorking: "承認を紐付けています…",
     approvalReady: "実行計画を承認済み",
     continueToApply: "適用へ進む",

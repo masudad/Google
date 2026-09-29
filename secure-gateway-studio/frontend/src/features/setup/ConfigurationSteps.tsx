@@ -1931,23 +1931,26 @@ export function ReviewStep({
             <aside className="plan-diagnostics">
               <h3>{copy.diagnosticsTitle}</h3>
               <ul>
-                {preparedPlan.preflight.diagnostics.map((diagnostic, index) => (
-                  <li key={`${diagnostic.code}-${index}`}>
-                    <strong>
-                      {copy.diagnosticMessage(diagnostic.code, diagnostic.message)}
-                    </strong>
-                    <p>
-                      {copy.diagnosticRemediation(
-                        diagnostic.code,
-                        diagnostic.remediation,
+                {preparedPlan.preflight.diagnostics.map((diagnostic, index) => {
+                  const headline = copy.diagnosticMessage(diagnostic.code, diagnostic.message);
+                  return (
+                    <li key={`${diagnostic.code}-${index}`}>
+                      <strong>{headline}</strong>
+                      <p>
+                        {copy.diagnosticRemediation(
+                          diagnostic.code,
+                          diagnostic.remediation,
+                        )}
+                      </p>
+                      {headline !== diagnostic.message && (
+                        <small className="diagnostic-evidence">
+                          <span>{copy.apiEvidence}: </span>
+                          <code>{diagnostic.message}</code>
+                        </small>
                       )}
-                    </p>
-                    <small className="diagnostic-evidence">
-                      <span>{copy.apiEvidence}</span>
-                      <code>{diagnostic.message}</code>
-                    </small>
-                  </li>
-                ))}
+                    </li>
+                  );
+                })}
               </ul>
             </aside>
           )}

@@ -2181,6 +2181,142 @@ class IntegrityProbeTransport extends ReplayTransport {
   }
 }
 
+{
+  const ilbSpec = parseDeploymentSpec({
+    project_id: "dlp-rule-getter",
+    mode: "poc",
+    target_ou_id: "03-test-ou",
+    test_ou_confirmed: true,
+    principals: [{ type: "group", value: "secure-access@example.com" }],
+    backend_kind: "internal_https_lb",
+    network_strategy: "dedicated",
+    certificate_strategy: "local_poc",
+    source_image: IMMUTABLE_SOURCE_IMAGE,
+  });
+
+  class DisabledSecretManagerAndChromeTransport extends ReplayTransport {
+    private readonly chromeMode: "empty" | "inherited-invalid" | "direct-invalid";
+
+    constructor(chromeMode: "empty" | "inherited-invalid" | "direct-invalid") {
+      super(null, null);
+      this.chromeMode = chromeMode;
+    }
+
+    override async requestJson(
+      method: string,
+      url: string,
+      options: {
+        params?: Record<string, string | number>;
+        jsonBody?: Record<string, unknown>;
+        acceptedStatuses?: readonly number[];
+      } = {},
+    ): Promise<{ status: number; payload: Record<string, unknown> }> {
+      if (url.endsWith("/global/images/sgs-nginx-20260824")) {
+        return {
+          status: 200,
+          payload: {
+            id: "987654321",
+            name: "sgs-nginx-20260824",
+            selfLink: `https://www.googleapis.com/compute/v1/${IMMUTABLE_SOURCE_IMAGE}`,
+          },
+        };
+      }
+      if (url.includes("/global/networks/")) {
+        return { status: 404, payload: {} };
+      }
+      if (url.includes("serviceusage.googleapis.com")) {
+        return {
+          status: 200,
+          payload: {
+            services: ENABLED.filter((name) => name !== "secretmanager.googleapis.com").map(
+              (name) => ({ config: { name } }),
+            ),
+          },
+        };
+      }
+      if (url.includes("secretmanager.googleapis.com")) {
+        throw new GoogleApiError({
+          status: 403,
+          method,
+          url,
+          payload: {
+            error: {
+              code: 403,
+              message:
+                "Secret Manager API has not been used in project dlp-rule-getter before or it is disabled. " +
+                "Enable it by visiting https://console.developers.google.com/apis/api/secretmanager.googleapis.com/overview?project=dlp-rule-getter then retry.",
+              status: "PERMISSION_DENIED",
+              details: [{ reason: "SERVICE_DISABLED" }],
+            },
+          },
+        });
+      }
+      if (
+        method === "POST" &&
+        url.endsWith("/policies:resolve") &&
+        options.jsonBody?.policySchemaFilter === "chrome.users.apps.ManagedConfiguration" &&
+        (options.jsonBody.policyTargetKey as Record<string, unknown> | undefined)
+          ?.targetResource === "orgunits/03-test-ou"
+      ) {
+        const targetKey = {
+          targetResource: "orgunits/03-test-ou",
+          additionalTargetKeys: { app_id: "chrome:ekajlcmdfcigmdbphhifahdfjbkciflj" },
+        };
+        const sourceKey = {
+          targetResource:
+            this.chromeMode === "inherited-invalid"
+              ? "orgunits/03-parent-ou"
+              : "orgunits/03-test-ou",
+        };
+        const managedConfiguration = this.chromeMode === "empty" ? "" : "{";
+        return {
+          status: 200,
+          payload: {
+            resolvedPolicies: [{
+              targetKey,
+              sourceKey,
+              value: {
+                policySchema: "chrome.users.apps.ManagedConfiguration",
+                value: { managedConfiguration },
+              },
+            }],
+          },
+        };
+      }
+      return super.requestJson(method, url, options);
+    }
+  }
+
+  for (const chromeMode of ["empty", "inherited-invalid", "direct-invalid"] as const) {
+    const result = await new GoogleDiscoveryProvider(
+      new DisabledSecretManagerAndChromeTransport(chromeMode),
+      { cloudIdentity: "secure-gateway-deployer@dlp-rule-getter.iam.gserviceaccount.com" },
+    ).preflight(ilbSpec);
+    if ((result.snapshot.conflicting_resource_keys ?? []).length > 0) {
+      failures.push(
+        `disabled planned API / ${chromeMode} Chrome config falsely produced conflicts: ` +
+          JSON.stringify(result.snapshot.conflicting_resource_keys),
+      );
+    }
+    const secretDiagnostics = result.diagnostics.filter((item) =>
+      item.message.includes("secretmanager.googleapis.com"),
+    );
+    if (secretDiagnostics.length !== 1) {
+      failures.push(
+        `disabled secretmanager API emitted ${secretDiagnostics.length} diagnostics instead of 1`,
+      );
+    }
+    const hasInvalidChromeWarning = result.diagnostics.some(
+      (item) => item.code === "invalid-chrome-managed-configuration",
+    );
+    if ((chromeMode === "direct-invalid") !== hasInvalidChromeWarning) {
+      failures.push(
+        `Chrome ${chromeMode} managedConfiguration warning mismatch: ${hasInvalidChromeWarning}`,
+      );
+    }
+  }
+}
+
 if (failures.length > 0) {
   console.error(`FAIL ${failures.length} difference(s)\n`);
   for (const failure of failures.slice(0, 10)) console.error(`  ${failure}\n`);
