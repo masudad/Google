@@ -1054,7 +1054,22 @@ export async function route(
 
   if (key === "POST /api/v1/setup-options/access-levels") {
     const projectId = (body as { project_id: string }).project_id;
-    const existing = await (await cloudCatalog(projectId)).listAccessLevels(projectId);
+    let existing;
+    try {
+      existing = await (await cloudCatalog(projectId)).listAccessLevels(projectId);
+    } catch (error) {
+      if (
+        error instanceof AuthenticationError &&
+        error.code !== "consent-required" &&
+        error.code !== "operator-identity-unavailable"
+      ) {
+        existing = await (
+          await administratorCloudCatalog(await context.accessPolicyId(projectId))
+        ).listAccessLevels(projectId);
+      } else {
+        throw error;
+      }
+    }
     const defaults = [
       {
         value: "NONE",
@@ -2217,8 +2232,28 @@ export async function route(
 
   /**
    * Workspace APIs first, Cloud APIs second. The CEP deployer straddles both,
-   * and only the Workspace half has to run as the administrator.
+   * and only the Workspace half has to run as the administrator. When Easy PoC
+   * runs without a bootstrapped Secure Gateway deployer for `projectId`, Cloud
+   * calls fall back to the signed-in administrator's `cloud-platform` token.
    */
+  async function hasPinnedProjectDeployer(
+    checkDeployer: () => Promise<unknown>,
+  ): Promise<boolean> {
+    try {
+      await checkDeployer();
+      return true;
+    } catch (error) {
+      if (
+        error instanceof AuthenticationError &&
+        error.code !== "consent-required" &&
+        error.code !== "operator-identity-unavailable"
+      ) {
+        return false;
+      }
+      throw error;
+    }
+  }
+
   async function cepProvider(
     routeContext: RouteContext,
     projectId?: string,
@@ -2238,31 +2273,54 @@ export async function route(
   if (key === "POST /api/v1/cep/provision") {
     const request_ = body as CepProvisionConfig;
     const projectId = typeof request_.project_id === "string" ? request_.project_id.trim() : "";
-    if (projectId !== "" && (request_.access_level ?? "").startsWith("AUTO_CREATE_")) {
-      await context.requireDeployer(projectId);
-    }
+    const useDeployer =
+      projectId !== "" &&
+      (request_.access_level ?? "").startsWith("AUTO_CREATE_") &&
+      (await hasPinnedProjectDeployer(() => context.requireDeployer(projectId)));
     return withCepMutationLease(context, "provision", request_, async (administrator, cloud) =>
-      await (await cepProvider(context, projectId || undefined, administrator, cloud)).provision(request_));
+      await (
+        await cepProvider(
+          context,
+          projectId || undefined,
+          administrator,
+          useDeployer ? cloud : administrator,
+        )
+      ).provision(request_));
   }
 
   if (key === "POST /api/v1/cep/rollback") {
     const request_ = body as CepRollbackConfig;
     const projectId = typeof request_.project_id === "string" ? request_.project_id.trim() : "";
-    if (projectId !== "" && (request_.access_level ?? "").startsWith("AUTO_CREATE_")) {
-      await context.requireDeployer(projectId);
-    }
+    const useDeployer =
+      projectId !== "" &&
+      (request_.access_level ?? "").startsWith("AUTO_CREATE_") &&
+      (await hasPinnedProjectDeployer(() => context.requireDeployer(projectId)));
     return withCepMutationLease(context, "rollback", request_, async (administrator, cloud) =>
-      await (await cepProvider(context, projectId || undefined, administrator, cloud)).rollback(request_));
+      await (
+        await cepProvider(
+          context,
+          projectId || undefined,
+          administrator,
+          useDeployer ? cloud : administrator,
+        )
+      ).rollback(request_));
   }
 
   if (key === "POST /api/v1/cep/roles") {
     const request_ = body as CepCustomRoleConfig;
     const projectId = typeof request_.project_id === "string" ? request_.project_id.trim() : "";
-    if (projectId !== "") {
-      await context.requireDeployer(projectId);
-    }
+    const useDeployer =
+      projectId !== "" &&
+      (await hasPinnedProjectDeployer(() => context.requireDeployer(projectId)));
     return withCepMutationLease(context, "roles", request_, async (administrator, cloud) =>
-      await (await cepProvider(context, projectId || undefined, administrator, cloud)).createCustomRoles(request_));
+      await (
+        await cepProvider(
+          context,
+          projectId || undefined,
+          administrator,
+          useDeployer ? cloud : administrator,
+        )
+      ).createCustomRoles(request_));
   }
 
   if (key === "POST /api/v1/cep/script") {
@@ -2277,16 +2335,25 @@ export async function route(
   if (key === "POST /api/v1/cep/assign-licenses") {
     const request_ = body as CepLicenseAssignConfig;
     const projectId = typeof request_.project_id === "string" ? request_.project_id.trim() : "";
-    if (projectId !== "") {
-      await withinCepLicenseRouteDeadline(
-        context.requireDeployer(projectId),
-        CEP_LICENSE_AUTH_TIMEOUT_MS,
-        "cep-license-auth-timeout",
-        "CEP licence assignment stopped because deployer identity verification timed out.",
-      );
-    }
+    const useDeployer =
+      projectId !== "" &&
+      (await hasPinnedProjectDeployer(() =>
+        withinCepLicenseRouteDeadline(
+          context.requireDeployer(projectId),
+          CEP_LICENSE_AUTH_TIMEOUT_MS,
+          "cep-license-auth-timeout",
+          "CEP licence assignment stopped because deployer identity verification timed out.",
+        ),
+      ));
     return withCepMutationLease(context, "assign_licenses", request_, async (administrator, cloud) =>
-      await (await cepProvider(context, projectId || undefined, administrator, cloud)).assignLicenses(request_));
+      await (
+        await cepProvider(
+          context,
+          projectId || undefined,
+          administrator,
+          useDeployer ? cloud : administrator,
+        )
+      ).assignLicenses(request_));
   }
 
   if (key === "POST /api/v1/cep/gemini-zero-trust") {
@@ -2294,9 +2361,18 @@ export async function route(
     if (typeof request_?.project_id !== "string" || !request_.project_id.trim()) {
       throw new RouteError(400, "project-required", "Gemini Zero Trust requires project_id.");
     }
-    await context.requireDeployer(request_.project_id);
+    const useDeployer = await hasPinnedProjectDeployer(() =>
+      context.requireDeployer(request_.project_id),
+    );
     return withCepMutationLease(context, "gemini_zero_trust", request_, async (administrator, cloud) =>
-      await (await cepProvider(context, request_.project_id, administrator, cloud)).provisionGeminiZeroTrust(request_));
+      await (
+        await cepProvider(
+          context,
+          request_.project_id,
+          administrator,
+          useDeployer ? cloud : administrator,
+        )
+      ).provisionGeminiZeroTrust(request_));
   }
 
   throw new RouteError(

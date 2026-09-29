@@ -48,6 +48,7 @@ import {
   type CepMutationLeaseHandle,
 } from "../src/storage/repository.ts";
 import { canonicalDigestSync } from "../src/domain/canonical.ts";
+import { AuthenticationError } from "../src/auth/tokens.ts";
 
 interface Recorded {
   method: string;
@@ -4662,6 +4663,146 @@ for (const mode of ["412-commit", "503-commit", "response-loss-commit"] as const
           },
         }),
     JSON.stringify(liveSecondarySigninReq),
+  );
+}
+
+// -- 21. Easy PoC with project_id but no bootstrapped Secure Gateway deployer --
+
+{
+  const unbootstrappedStub = stubTransport();
+  const brokenDeployerTransport: Transport = {
+    async requestJson() {
+      throw new AuthenticationError(
+        "deployer-required",
+        "A project-bound impersonated deployer is required for Google Cloud mutations.",
+      );
+    },
+  };
+  const unbootstrappedCtx: RouteContext = {
+    ...context(unbootstrappedStub.transport),
+    discoveryTransport: brokenDeployerTransport,
+    transport: brokenDeployerTransport,
+    administratorTransport: unbootstrappedStub.transport,
+    requireDeployer: async (projectId) => {
+      throw new AuthenticationError(
+        "deployer-project-mismatch",
+        `Bootstrap and impersonate the Secure Gateway deployer for ${projectId} before continuing.`,
+      );
+    },
+  };
+
+  const provisionUnbootstrapped = (await route(
+    unbootstrappedCtx,
+    "POST",
+    "/api/v1/cep/provision",
+    {
+      ...FULL_CONFIG,
+      project_id: "montreal-436802",
+      access_level: "AUTO_CREATE_CHROME_ANY",
+      dlp_rules: true,
+    },
+  )) as ProvisionResult;
+
+  check(
+    "Easy PoC provision with project_id and AUTO_CREATE_CHROME_ANY succeeds via administratorTransport without a bootstrapped deployer SA",
+    provisionUnbootstrapped.success === true &&
+      provisionUnbootstrapped.created_items.some((item) =>
+        item.startsWith("Context-Aware Access level"),
+      ),
+    JSON.stringify(provisionUnbootstrapped),
+  );
+
+  const rollbackUnbootstrapped = (await route(
+    unbootstrappedCtx,
+    "POST",
+    "/api/v1/cep/rollback",
+    {
+      customer_id: "C01abcdef",
+      project_id: "montreal-436802",
+      target_ou_id: "03pilot",
+      access_level: "AUTO_CREATE_CHROME_ANY",
+    },
+  )) as ProvisionResult;
+  check(
+    "Easy PoC rollback with project_id and AUTO_CREATE_CHROME_ANY inspects cleanup candidates without a bootstrapped deployer SA",
+    rollbackUnbootstrapped.skipped_items.some((item) =>
+      item.includes("accessPolicies/999/accessLevels/secgw_chrome_managed"),
+    ),
+    JSON.stringify(rollbackUnbootstrapped),
+  );
+
+  const licensesUnbootstrapped = (await route(
+    unbootstrappedCtx,
+    "POST",
+    "/api/v1/cep/assign-licenses",
+    {
+      customer_id: "C01abcdef",
+      project_id: "montreal-436802",
+      target_ou_id: "03pilot",
+      target_ou_path: "/Pilot",
+      target_ou_confirmation: "/Pilot",
+    },
+  )) as { success: boolean };
+  check(
+    "Easy PoC assign-licenses with project_id succeeds without a bootstrapped deployer SA",
+    licensesUnbootstrapped.success === true,
+    JSON.stringify(licensesUnbootstrapped),
+  );
+
+  const geminiUnbootstrapped = (await route(
+    unbootstrappedCtx,
+    "POST",
+    "/api/v1/cep/gemini-zero-trust",
+    {
+      project_id: "montreal-436802",
+      enforce_access_level: true,
+      enforce_perimeter: true,
+      dry_run: true,
+    },
+  )) as { success: boolean };
+  check(
+    "Easy PoC gemini-zero-trust succeeds via administratorTransport without a bootstrapped deployer SA",
+    geminiUnbootstrapped.success === true,
+    JSON.stringify(geminiUnbootstrapped),
+  );
+
+  const accessLevelsUnbootstrapped = (await route(
+    unbootstrappedCtx,
+    "POST",
+    "/api/v1/setup-options/access-levels",
+    { project_id: "montreal-436802" },
+  )) as { options: Array<{ value: string }> };
+  check(
+    "setup-options/access-levels falls back to administratorCloudCatalog when deployer discovery transport is unavailable",
+    Array.isArray(accessLevelsUnbootstrapped.options) &&
+      accessLevelsUnbootstrapped.options.length >= 1,
+    JSON.stringify(accessLevelsUnbootstrapped),
+  );
+
+  let consentRequiredPropagated = false;
+  try {
+    await route(
+      {
+        ...unbootstrappedCtx,
+        requireDeployer: async () => {
+          throw new AuthenticationError("consent-required", "Sign in required.");
+        },
+      },
+      "POST",
+      "/api/v1/cep/provision",
+      {
+        ...FULL_CONFIG,
+        project_id: "montreal-436802",
+        access_level: "AUTO_CREATE_CHROME_ANY",
+      },
+    );
+  } catch (error) {
+    consentRequiredPropagated =
+      error instanceof AuthenticationError && error.code === "consent-required";
+  }
+  check(
+    "Easy PoC provision still propagates consent-required when the administrator session is not signed in",
+    consentRequiredPropagated,
   );
 }
 
