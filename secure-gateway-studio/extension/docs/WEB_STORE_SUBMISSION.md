@@ -5,7 +5,7 @@ that runs separately in Google Cloud Console. Every justification here states
 what the extension actually does; a reviewer who reads the source should find
 nothing claimed that the code does not do.
 
-Verified against `manifest.json` at version 0.2.30.
+Verified against `manifest.json` at version 0.2.31.
 
 ---
 
