@@ -3017,9 +3017,9 @@ const ja: Messages = {
   certificateTitle: "3. 証明書方式",
   enterpriseCa: "エンタープライズPKI / CA Service",
   enterpriseCaDescription: "組織CAまたはCloud CA Serviceで内部TLS証明書を発行します。",
-  publicCertificate: "公開信頼済み証明書",
+  publicCertificate: "パブリック証明書（公的CA発行）",
   publicCertificateDescription:
-    "登録可能な公開DNSホスト名と、Secret Manager内の一致する証明書バンドルが必要です。ホスト名と証明書チェーンはシステムの公開信頼ルート（Public Trust Roots）で検証されるため、プライベートCA、自己署名、内部名の証明書は検証に失敗します。",
+    "公開DNSホスト名と、Secret Manager内の証明書チェーンが必要です。公的ルートCA（Public Trust Roots）で検証されるため、プライベートCA、自己署名、内部ドメイン名の証明書は使用できません。",
   localPocCa: "ローカルPoC CA",
   disabledProduction: "本番では無効",
   localPocAdminConsole: "管理コンソールへのアップロードが必要",
@@ -3053,22 +3053,22 @@ const ja: Messages = {
   justNow: "数秒前",
   languages: { english: "English", japanese: "日本語" },
   workflow: {
-    identitiesTitle: "管理者IDを接続",
+    identitiesTitle: "Google Cloud と Workspace の接続設定",
     identitiesIntro:
-      "Google Cloud のリソース変更には、専用サービス アカウントのキーレス権限借用（Service Account Impersonation）を使用します。拡張機能は管理者 OAuth セッションを使用します。静的な JSON 秘密鍵ファイルは一切使用せず、安全にデプロイを実行します。",
+      "左側の Google Cloud（手順 1〜3）と右側の Google Workspace の順に接続します。JSON キーファイルは作成せず、ブラウザの管理者ログインとサービスアカウントの権限借用で安全に動作します。",
     cloudAccount: "Google Cloud デプロイヤー",
-    cloudAccountDescription: "GCP変更の検出、計画、承認後の適用に使用します。",
+    cloudAccountDescription: "最初に対象の GCP プロジェクト ID を入力し、上から順にボタンを押して接続します。",
     workspaceAccount: "Workspace／Chrome管理者",
     workspaceAccountDescription:
-      "ログイン中の Google 管理者アカウント（OAuth セッション）を使用して、Chrome Policy、Directory（OU/グループ）、ライセンス管理の各 API を実行します。",
+      "顧客 ID（初期値 my_customer のままで可）を確認し、「接続を確認」を押して Google Workspace に接続します。",
     projectId: "Google Cloud プロジェクトID",
-    operatorIdentity: "検証済み認証情報",
-    adminIdentity: "検証済み管理者認証情報",
-    connect: "接続を検証",
+    operatorIdentity: "接続済みのサービスアカウント",
+    adminIdentity: "接続済みの管理者アカウント",
+    connect: "接続を確認",
     connected: "接続済み",
     notConnected: "未接続",
-    checking: "検証中…",
-    connectionFailed: "検証に失敗しました",
+    checking: "接続を確認中…",
+    connectionFailed: "接続確認に失敗しました",
     adcUnavailable:
       "キーレス Application Default Credentials がありません。「gcloud auth application-default login --impersonate-service-account=SERVICE_ACCOUNT_EMAIL」を実行し、再試行してください。",
     cloudValidationFailed:
@@ -3094,9 +3094,9 @@ const ja: Messages = {
     specInvalid: "デプロイ設定に無効または不足している項目があります。",
     connectionNotice:
       "接続検証は読み取り専用です。適用権限は事前確認で別途検証します。",
-    bootstrapDeployer: "SAと製品用途限定ロールを自動作成",
+    bootstrapDeployer: "サービスアカウントを作成して接続",
     bootstrapDeployerHint:
-      "デプロイ操作に必要な専用サービス アカウントと最小権限カスタムロールを自動構成します。",
+      "専用サービスアカウントとカスタムロールを自動作成し、そのまま接続確認まで自動で完了します（約10〜30秒）。",
     bootstrapConfirm:
       "デプロイヤーSA、カスタムロール、プロジェクトIAM、Access Policy Editor、あなたのToken Creator権限を作成または更新します。続行しますか？",
     bootstrapLegacyMigrationConfirm:
@@ -3105,23 +3105,23 @@ const ja: Messages = {
       "旧デプロイヤーは厳密な移行監査に一致せず、変更されていません。旧デプロイヤーを監査用にそのまま残し、別の予約名で新しい分離デプロイヤーSAとロールを作成しますか？",
     bootstrapDeletedDeployerConfirm:
       "このブラウザに不変IDで固定されたデプロイヤーはCloud上に存在しません。意図してCloudリソースを削除したことを確認してください。拡張機能は、対象SAが存在しないこと、カスタムロールが存在しないかGoogleの削除済み状態でSGSの完全な定義と一致すること、プロジェクトIAMとAccess Policy IAMに残存バインディングがないことを検証します。その後、旧数値IDを恒久的に廃止し、必要なら論理削除中のロールを安全に復元して、新しいデプロイヤーを作成します。続行しますか？",
-    bootstrapWorking: "デプロイヤーを作成中…",
-    bootstrapValidating: "IAM権限の反映を待機中…",
-    bootstrapComplete: "デプロイヤーの自動構成が完了しました",
+    bootstrapWorking: "1/2: サービスアカウントを作成中…",
+    bootstrapValidating: "2/2: IAM権限の反映と接続を確認中…",
+    bootstrapComplete: "Google Cloud の接続準備が完了しました",
     bootstrapNext:
-      "デプロイヤー用サービス アカウント、最小権限カスタムロール、および Access Policy 権限の構成が完了しました。以降の API 呼び出しは安全なキーレス認証経路を経由して実行されます。",
-    bootstrapFailed: "デプロイヤーの自動準備に失敗しました",
+      "デプロイ用サービスアカウントの作成と接続確認が完了しました。右側の Google Workspace 接続も「接続済み」になったら「続行」を押してください。",
+    bootstrapFailed: "サービスアカウントの自動準備に失敗しました",
     signInGoogle: "Google でサインイン",
     signingInGoogle: "Google の応答を待っています…",
     signInGoogleHint:
-      "Google の同意画面を開きます。デプロイヤーを準備する前に、Chrome プロファイルごとに一度だけ必要です。",
+      "Google の承認画面を開きます。この Chrome プロファイルで初めて使う場合のみ実行してください。",
     signInRequired:
-      "この Chrome プロファイルはまだ Secure Gateway Studio を承認していません。Google でサインインして権限を付与してから、もう一度実行してください。",
+      "この Chrome プロファイルはまだ Secure Gateway Studio を承認していません。「Google でサインイン」を押して承認してから、もう一度実行してください。",
     signInOperatorChanged:
       "サインイン中の Google アカウントが、このデプロイヤーに紐づく運用者と異なります。元のアカウントでサインインするか、置き換え用のデプロイヤーを作成してください。",
-    cloudStep1Label: "手順 1: ブラウザの Google OAuth セッションを承認",
-    cloudStep2Label: "手順 2: 専用キーレス デプロイヤー SA とカスタムロールを自動作成",
-    cloudStep3Label: "手順 3: プロジェクトの読み取り接続を検証",
+    cloudStep1Label: "手順 1: Google アカウントの承認（初回のみ）",
+    cloudStep2Label: "手順 2: デプロイ用サービスアカウントの作成と自動接続",
+    cloudStep3Label: "手順 3: 接続状態の再確認（すでに作成済みの場合）",
     customerIdAutoHint:
       "my_customer のまま「接続を検証」を押すと、Directory API から C で始まる正規の顧客 ID を自動取得して反映します。",
     resolveSampleImageQuick: "Debian 12 PoC イメージを自動取得",
@@ -3142,17 +3142,17 @@ const ja: Messages = {
     region: "リージョン",
     zone: "ゾーン",
     secondaryZone: "セカンダリゾーン（本番HA）",
-    sourceImage: "不変のVMイメージ",
+    sourceImage: "サンプルVM用 OSイメージ",
     sourceImageHint:
-      "VMを使うすべての方式で、バージョン固定されたComputeイメージの完全なリソース名が必要です。イメージファミリーは使用できません。本番用イメージにはPython 3とNginxを事前導入してください。",
+      "作成するVMで使用するCompute Engineイメージ名（バージョン固定のリソースパス）を指定します。",
     sourceImageAutoHint:
-      "PoCのサンプルVMでは、信頼済み事前確認がGoogle Debian 12を完全な不変イメージ名へ解決し、イメージの数値IDを検証してからこの欄へ設定します。別のイメージを使う場合は完全なリソース名を入力してください。",
-    sampleImageResolving: "不変のPoCイメージを解決中…",
+      "PoC用のDebian 12イメージが自動で設定されます。別のカスタムイメージを使う場合のみ書き換えてください。",
+    sampleImageResolving: "サンプルVM用イメージを取得中…",
     sampleImageResolveFailed:
-      "PoCサンプルVM用の不変なGoogle Debian 12イメージを取得できませんでした。",
+      "サンプルVM用のGoogle Debian 12イメージを取得できませんでした。",
     sampleImageConnectionRequired:
-      "PoCサンプルVMのイメージを設定する前に、Google Cloud接続を検証してください。",
-    sampleImageResolved: "不変のPoCイメージを設定しました",
+      "サンプルVMのイメージを取得する前に、ステップ2でGoogle Cloud接続を完了してください。",
+    sampleImageResolved: "サンプルVM用イメージを設定しました",
     minimumReplicas: "Nginx最小レプリカ数",
     maximumReplicas: "Nginx最大レプリカ数",
     cpuTarget: "オートスケーリングCPU目標値（0.1～0.9）",
@@ -3182,13 +3182,13 @@ const ja: Messages = {
       "Option B — Internal Application Load BalancerでHTTPSオフロード",
     internalHttpsLbDescription:
       "専用VPC内でRegional Internal Application Load BalancerがHTTPSを終端し、プライベートサンプルVMへHTTP転送します。専用VPC・サブネット・ILB・サンプルVMが自動作成されます。",
-    configureSampleVm: "承認済みApplyでプライベートサンプルVMを作成",
+    configureSampleVm: "サンプルVMのOSイメージを自動設定（Debian 12）",
     configureSampleVmDescription:
-      "Option Bの安全なPoC既定値を設定します。VMは最終Applyの明示承認後だけ作成され、外部IPを持たず、削除対象としてrunに記録されます。",
-    directSampleVmAction: "Option BのプライベートサンプルVMを使う",
+      "Option Bでは、最終ステップ（適用）の実行時にテスト用の非公開サンプルVM（外部IPなし）を1台自動作成します。ボタンを押すと、サンプルVM用のDebian 12イメージを自動設定します。",
+    directSampleVmAction: "Option B（サンプルVM付き構成）へ切り替える",
     directSampleVmDescription:
-      "Option Aには既存のプライベートHTTPSアプリが必要で、VMは作成しません。HTTPSテスト先がない場合はOption Bへ切り替え、承認済みApplyでプライベートサンプルVMを作成します。",
-    managedSampleVmAction: "ApplyでプライベートサンプルVMを作成",
+      "Option Aは既存のHTTPSアプリへ直接接続する方式のため、テスト用VMは作成しません。テスト用VMも自動作成したい場合はOption Bへ切り替えてください。",
+    managedSampleVmAction: "サンプルVMのOSイメージを自動設定（Debian 12）",
     managedSampleVmDescription:
       "管理対象サンプルでは、Option CのNginx層とプライベートHTTPバックエンドVMを最終承認済みApplyで作成します。",
     existingSampleVmDescription:
@@ -3305,7 +3305,7 @@ const ja: Messages = {
     reviewGateLegend:
       "【検証済み】API検出や構成条件で確認完了 / 【Applyで自動設定】承認後に自動プロビジョニング / 【手動確認】管理者の確認が必要な項目 / 【要対応】適用をブロックする問題です。",
     gateLabels: {
-      "immutable-image": "不変のVMイメージ",
+      "immutable-image": "サンプルVM用 OSイメージ",
       "billing-enabled": "Cloud Billing",
       "enterprise-license": "Chrome Enterprise Premiumライセンス",
       "chrome-root-store": "Chrome Root Store信頼配布",
@@ -3325,7 +3325,7 @@ const ja: Messages = {
       "human-approval": "承認",
     },
     gateDescriptions: {
-      "immutable-image": "VMを使う方式の承認・適用前に、Computeイメージの完全なリソース名と不変の数値IDを検証します。",
+      "immutable-image": "VMを作成する方式では、バージョン固定されたComputeイメージのリソース名と数値IDを検証します。",
       "billing-enabled": "Cloud Billing APIでプロジェクトに有効な課金アカウントが紐付いているか確認します。",
       "enterprise-license": "Enterprise License Manager APIでChrome Enterprise Premiumの割り当て数を確認します。APIで確認できない場合のみ管理者確認を使用します。",
       "chrome-root-store": "Chrome Root Store構成、証明書アップロード、OUバインドは公開APIで確実に参照できません。Apply後にこの1回限りの管理コンソール操作を完了し、管理対象Chromeの実機HTTPSテストで信頼を検証します。",
@@ -3356,10 +3356,10 @@ const ja: Messages = {
     approvePlanDescription:
       "承認は構成ハッシュに紐付き、設定を変更すると無効になります。",
     generatePlan: "事前確認を実行してプランを生成",
-    runPreflight: "信頼済み事前確認を実行",
-    preparingPlan: "リソースの現状を検出し、実行計画を生成しています…",
-    planReady: "サーバー検証済みプランを生成しました",
-    planBlocked: "プランにブロッキングゲートがあります",
+    runPreflight: "事前確認（プリフライト）を実行",
+    preparingPlan: "環境の現状を検査し、実行計画を作成しています…",
+    planReady: "事前確認が完了し、実行計画を作成しました",
+    planBlocked: "事前確認で要対応の項目が見つかりました（解消後に再実行できます）",
     changesCount: (count: number) => `承認が必要な実変更 ${count} 件`,
     preflightProgressTitle: "事前確認・リソース検出の進捗",
     preflightStage1: "1/5: Service Usage & IAM 権限の検証中...",

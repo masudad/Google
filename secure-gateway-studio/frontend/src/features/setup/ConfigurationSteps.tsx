@@ -399,11 +399,19 @@ export function IdentitiesStep({
           <small className="connection-help-hint">
             {copy.bootstrapDeployerHint}
           </small>
-          {bootstrapResult && (
+          {bootstrapBusy && (
+            <div className="bootstrap-result" role="status">
+              <strong>
+                {bootstrapResult ? copy.bootstrapValidating : copy.bootstrapWorking}
+              </strong>
+              <small>{copy.bootstrapDeployerHint}</small>
+            </div>
+          )}
+          {!bootstrapBusy && (bootstrapResult || state.cloudConnection === "connected") && (
             <div className="bootstrap-result" role="status">
               <strong>{copy.bootstrapComplete}</strong>
               <small>{copy.bootstrapNext}</small>
-              <code>{bootstrapResult.service_account_email}</code>
+              <code>{state.cloudIdentity || bootstrapResult?.service_account_email}</code>
             </div>
           )}
           {bootstrapError && (
@@ -579,9 +587,9 @@ export function EnvironmentStep({ messages, onPatch, state }: StepProps) {
     return () => window.clearTimeout(timer);
   }, [loadVpcNetworks]);
 
-  async function resolveSampleImage(): Promise<void> {
+  async function resolveSampleImage(force = false): Promise<void> {
     if (
-      state.sourceImage.trim() ||
+      (!force && state.sourceImage.trim()) ||
       state.mode !== "poc" ||
       !runtimeCapabilities.recommendedPocSourceImage
     ) {
@@ -624,7 +632,7 @@ export function EnvironmentStep({ messages, onPatch, state }: StepProps) {
       existingBackendUrl: "",
       existingBackendConnectivityConfirmed: false,
     });
-    await resolveSampleImage();
+    await resolveSampleImage(true);
   }
 
   async function selectManagedSampleVm() {
@@ -639,7 +647,7 @@ export function EnvironmentStep({ messages, onPatch, state }: StepProps) {
       existingBackendUrl: "",
       existingBackendConnectivityConfirmed: false,
     });
-    await resolveSampleImage();
+    await resolveSampleImage(true);
   }
 
   return (
@@ -1124,6 +1132,11 @@ export function EnvironmentStep({ messages, onPatch, state }: StepProps) {
               <div>
                 <strong>{copy.configureSampleVm}</strong>
                 <p>{copy.configureSampleVmDescription}</p>
+                {state.sourceImage.trim() && (
+                  <small className="field-hint">
+                    ✓ {copy.sampleImageResolved}: <code>{state.sourceImage}</code>
+                  </small>
+                )}
               </div>
               <button
                 className="connection-action"
@@ -1131,6 +1144,9 @@ export function EnvironmentStep({ messages, onPatch, state }: StepProps) {
                 onClick={() => void selectInternalSampleVm()}
                 type="button"
               >
+                {state.sourceImage.trim() && !sampleImageBusy ? (
+                  <CheckIcon size={18} />
+                ) : null}
                 {sampleImageBusy ? copy.sampleImageResolving : copy.configureSampleVm}
               </button>
             </div>
@@ -2004,7 +2020,7 @@ export function ReviewStep({
         </article>
       )}
 
-      {preparedPlan && (
+      {preparedPlan && gatesReady && (
         <article className="preflight-completed-banner">
           <CheckIcon size={20} />
           <div>

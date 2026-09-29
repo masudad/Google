@@ -26,7 +26,7 @@ import {
   discoveryOwnershipProofs,
   GoogleDiscoveryProvider,
 } from "../providers/discovery.ts";
-import { GoogleSetupCatalog } from "../providers/catalog.ts";
+import { ConnectionError, GoogleSetupCatalog } from "../providers/catalog.ts";
 import {
   bootstrapDeployer,
   type BootstrapOwnershipCheckpoint,
@@ -907,7 +907,34 @@ export async function route(
 
   if (key === "POST /api/v1/connections/google-cloud/validate") {
     const projectId = (body as { project_id: string }).project_id;
-    const validation = await (await cloudCatalog(projectId)).validateCloud(projectId);
+    let validation;
+    try {
+      validation = await (await cloudCatalog(projectId)).validateCloud(projectId);
+    } catch (error) {
+      if (
+        (error instanceof ConnectionError &&
+          error.code === "deployer-required-api-disabled") ||
+        (error instanceof GoogleApiError &&
+          error.status === 403 &&
+          error.url.includes("serviceusage.googleapis.com"))
+      ) {
+        try {
+          await context.administratorTransport.requestJson(
+            "POST",
+            `https://serviceusage.googleapis.com/v1/projects/${projectId}/services/serviceusage.googleapis.com:enable`,
+          );
+          await context.administratorTransport.requestJson(
+            "POST",
+            `https://serviceusage.googleapis.com/v1/projects/${projectId}/services/dns.googleapis.com:enable`,
+          );
+        } catch {
+          // Best-effort enablement before re-running validation.
+        }
+        validation = await (await cloudCatalog(projectId)).validateCloud(projectId);
+      } else {
+        throw error;
+      }
+    }
     await context.rememberAccessPolicyId(projectId, validation.access_policy_id);
     return validation;
   }

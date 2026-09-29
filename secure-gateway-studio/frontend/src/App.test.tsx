@@ -311,7 +311,7 @@ describe("Secure Gateway Studio mode screen", () => {
     );
 
     fireEvent.click(
-      screen.getByRole("button", { name: "SAと製品用途限定ロールを自動作成" }),
+      screen.getByRole("button", { name: "サービスアカウントを作成して接続" }),
     );
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -372,7 +372,7 @@ describe("Secure Gateway Studio mode screen", () => {
     );
 
     fireEvent.click(
-      screen.getByRole("button", { name: "SAと製品用途限定ロールを自動作成" }),
+      screen.getByRole("button", { name: "サービスアカウントを作成して接続" }),
     );
     expect(screen.getByRole("textbox", { name: "Google Cloud プロジェクトID" }))
       .toBeDisabled();
@@ -388,7 +388,7 @@ describe("Secure Gateway Studio mode screen", () => {
       adc_command: "",
     });
     await waitFor(() => expect(onValidateCloud).toHaveBeenCalledWith(true));
-    expect(screen.getByRole("button", { name: "IAM権限の反映を待機中…" }))
+    expect(screen.getByRole("button", { name: "2/2: IAM権限の反映と接続を確認中…" }))
       .toBeDisabled();
     finishValidation();
     await waitFor(() => expect(
@@ -423,7 +423,7 @@ describe("Secure Gateway Studio mode screen", () => {
       />,
     );
 
-    const button = screen.getByRole("button", { name: "信頼済み事前確認を実行" });
+    const button = screen.getByRole("button", { name: "事前確認（プリフライト）を実行" });
     expect(button).toBeEnabled();
     fireEvent.click(button);
     expect(onPrepare).toHaveBeenCalledTimes(1);
@@ -459,7 +459,7 @@ describe("Secure Gateway Studio mode screen", () => {
     );
 
     fireEvent.click(
-      screen.getByRole("button", { name: "SAと製品用途限定ロールを自動作成" }),
+      screen.getByRole("button", { name: "サービスアカウントを作成して接続" }),
     );
 
     await waitFor(() => expect(onBootstrapCloud).toHaveBeenCalledTimes(2));
@@ -500,7 +500,7 @@ describe("Secure Gateway Studio mode screen", () => {
     );
 
     fireEvent.click(
-      screen.getByRole("button", { name: "SAと製品用途限定ロールを自動作成" }),
+      screen.getByRole("button", { name: "サービスアカウントを作成して接続" }),
     );
 
     await waitFor(() => expect(onBootstrapCloud).toHaveBeenCalledTimes(2));
@@ -547,7 +547,7 @@ describe("Secure Gateway Studio mode screen", () => {
     );
 
     fireEvent.click(
-      screen.getByRole("button", { name: "SAと製品用途限定ロールを自動作成" }),
+      screen.getByRole("button", { name: "サービスアカウントを作成して接続" }),
     );
 
     await waitFor(() => expect(onBootstrapCloud).toHaveBeenCalledTimes(3));
@@ -1037,14 +1037,14 @@ describe("Secure Gateway Studio mode screen", () => {
     try {
       render(<Harness />);
       fireEvent.click(screen.getByRole("button", {
-        name: "承認済みApplyでプライベートサンプルVMを作成",
+        name: "サンプルVMのOSイメージを自動設定（Debian 12）",
       }));
       await waitFor(() => {
-        expect(screen.getByRole("textbox", { name: "不変のVMイメージ" }))
+        expect(screen.getByRole("textbox", { name: "サンプルVM用 OSイメージ" }))
           .toHaveValue(immutableImage);
       });
       expect(screen.getByRole("status")).toHaveTextContent(
-        `不変のPoCイメージを設定しました${immutableImage}`,
+        `サンプルVM用イメージを設定しました${immutableImage}`,
       );
     } finally {
       mutableCapabilities.recommendedPocSourceImage = previousCapability;

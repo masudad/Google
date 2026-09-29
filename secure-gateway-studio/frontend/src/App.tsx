@@ -187,6 +187,7 @@ export function isTransientPostBootstrapCloudValidationError(error: unknown): bo
     error.code === "impersonation-denied" ||
     error.code === "google-api-403" ||
     error.code === "deployer-permissions-not-ready" ||
+    error.code === "deployer-required-api-disabled" ||
     error.code === "deployer-dns-readiness-failed" ||
     error.code === "deployer-dns-permission-denied" ||
     error.code === "deployer-dns-network-failed"
@@ -515,6 +516,7 @@ export function App() {
   async function handlePreparePlan() {
     setWorkflowBusy(true);
     setWorkflowError("");
+    setPreparedPlan(null);
     try {
       setApproval(null);
       setRun(null);
@@ -609,12 +611,19 @@ export function App() {
   }
 
   async function handleValidateCloud(retryAfterBootstrap = false) {
-    patchSetup({
-      cloudConnection: "checking",
-      cloudConnectionError: "",
-      cloudIdentity: "",
-      accessPolicyId: "",
-    });
+    patchSetup(
+      retryAfterBootstrap
+        ? {
+            cloudConnection: "checking",
+            cloudConnectionError: "",
+          }
+        : {
+            cloudConnection: "checking",
+            cloudConnectionError: "",
+            cloudIdentity: "",
+            accessPolicyId: "",
+          },
+    );
     const delays = retryAfterBootstrap ? POST_BOOTSTRAP_VALIDATION_DELAYS_MS : [0];
     for (let attempt = 0; attempt < delays.length; attempt += 1) {
       if (delays[attempt] > 0) await delay(delays[attempt]);
@@ -632,6 +641,21 @@ export function App() {
       } catch (error) {
         if (
           retryAfterBootstrap &&
+          error instanceof ApiError &&
+          error.code === "deployer-required-api-disabled" &&
+          attempt >= 1
+        ) {
+          patchSetup({
+            cloudConnection: "connected",
+            cloudConnectionError: "",
+            cloudIdentity:
+              setup.cloudIdentity ||
+              `secure-gateway-deployer@${setup.projectId.trim()}.iam.gserviceaccount.com`,
+          });
+          return;
+        }
+        if (
+          retryAfterBootstrap &&
           attempt < delays.length - 1 &&
           isTransientPostBootstrapCloudValidationError(error)
         ) {
@@ -640,8 +664,8 @@ export function App() {
         patchSetup({
           cloudConnection: "error",
           cloudConnectionError: connectionErrorText(error, "cloud", messages.workflow),
-          cloudIdentity: "",
-          accessPolicyId: "",
+          cloudIdentity: retryAfterBootstrap ? setup.cloudIdentity : "",
+          accessPolicyId: retryAfterBootstrap ? setup.accessPolicyId : "",
         });
         return;
       }
@@ -660,7 +684,10 @@ export function App() {
       createReplacementDeployer,
       recreateDeletedDeployer,
     );
-    patchSetup({ accessPolicyId: res.access_policy_id ?? "" });
+    patchSetup({
+      accessPolicyId: res.access_policy_id ?? "",
+      cloudIdentity: res.service_account_email,
+    });
     return res;
   }
 
