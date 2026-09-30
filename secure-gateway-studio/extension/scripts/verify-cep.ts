@@ -3701,8 +3701,8 @@ for (const mode of ["412-commit", "503-commit", "response-loss-commit"] as const
   const downloadRule = accessRules.find((r) => String(r.displayName ?? "").includes("download"));
   const condition = (downloadRule?.condition ?? {}) as { contextCondition?: string };
   check(
-    "access_level rule uses contextCondition with access_levels.exists",
-    condition.contextCondition === "access_levels.exists(level, level == \x27accessPolicies/12345/accessLevels/corp_managed\x27)",
+    "access_level rule uses contextCondition with access_levels.meets_access_requirements",
+    condition.contextCondition === "access_levels.meets_access_requirements(['accessPolicies/12345/accessLevels/corp_managed'])",
     JSON.stringify(condition),
   );
 }
@@ -4077,9 +4077,9 @@ for (const mode of ["412-commit", "503-commit", "response-loss-commit"] as const
       ?.condition?.contextCondition ?? ""
   );
   check(
-    "byodOnly rule with selected Access Level creates rule with negated !access_levels.exists CEL condition",
+    "byodOnly rule with selected Access Level creates rule with negated !access_levels.meets_access_requirements CEL condition",
     byodProvision.success &&
-      byodCondition.includes("!access_levels.exists(level, level == 'accessPolicies/999/accessLevels/corp_managed')"),
+      byodCondition.includes("!access_levels.meets_access_requirements(['accessPolicies/999/accessLevels/corp_managed'])"),
     byodCondition,
   );
 

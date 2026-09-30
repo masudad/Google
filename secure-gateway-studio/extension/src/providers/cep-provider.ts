@@ -931,9 +931,10 @@ function resolveDlpMatrix(config: CepProvisionConfig): CepDlpMatrixState {
   }
   // Legacy callers without an explicit Access Level selection default this row
   // off so unconfigured calls never emit a broken CEL reference. When an Access
-  // Level is selected, `access_level` uses `access_levels.exists(...)` and
-  // `byodOnly: true` scopes rules to non-matching/BYOD devices via
-  // `!access_levels.exists(...)`.
+  // Level is selected, `access_level` uses
+  // `access_levels.meets_access_requirements(['...'])` and `byodOnly: true`
+  // scopes rules to non-matching/BYOD devices via
+  // `!access_levels.meets_access_requirements(['...'])`.
   expanded.access_level = {
     upload: "off",
     download: "off",
@@ -2598,7 +2599,7 @@ export class CepProvider {
         condition:
           context.accessLevelName && context.accessLevelName !== "NONE"
             ? {
-                contextCondition: `access_levels.exists(level, level == \x27${context.accessLevelName}\x27)`,
+                contextCondition: `access_levels.meets_access_requirements([\x27${context.accessLevelName}\x27])`,
               }
             : undefined,
       },
@@ -2644,7 +2645,7 @@ export class CepProvider {
 
     const accessLevelCondition =
       context.accessLevelName && context.accessLevelName !== "NONE"
-        ? `access_levels.exists(level, level == \x27${context.accessLevelName}\x27)`
+        ? `access_levels.meets_access_requirements([\x27${context.accessLevelName}\x27])`
         : undefined;
     const byodAccessLevelCondition =
       accessLevelCondition !== undefined ? `!${accessLevelCondition}` : undefined;
