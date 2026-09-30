@@ -9,8 +9,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
-	"os/exec"
-	"runtime"
+	"os"
 	"strings"
 	"time"
 
@@ -19,7 +18,7 @@ import (
 	"cep-local-dlp-agent/pkg/webprotect"
 )
 
-// AppURLMap maps common native desktop application process/bundle names to canonical URLs
+// DefaultAppURLMap maps common native desktop application process/bundle names to canonical URLs
 // so Google Admin Console DLP URL rules apply seamlessly across both browser and desktop apps.
 var DefaultAppURLMap = map[string]string{
 	"cursor":          "https://cursor.com/local-app/cursor",
@@ -41,13 +40,19 @@ var DefaultAppURLMap = map[string]string{
 // ClipboardGuard monitors the OS clipboard and active foreground application, evaluating
 // copied/pasted text against CEP WebProtect (BULK_DATA_ENTRY) and clearing the clipboard
 // if a BLOCK rule is triggered for the active native app.
+//
+// Windows uses in-process Win32 APIs (GetClipboardSequenceNumber, OpenClipboard/GetClipboardData,
+// GetForegroundWindow/QueryFullProcessImageNameW) so polling costs <0.1ms and never spawns PowerShell.
 type ClipboardGuard struct {
-	WebProtect        *webprotect.Client
-	TokenInfo         *dmtoken.TokenInfo
-	Notifier          notifier.Notifier
-	MinChars          int
-	PollInterval      time.Duration
-	LastEvaluatedHash string
+	WebProtect          *webprotect.Client
+	TokenInfo           *dmtoken.TokenInfo
+	Notifier            notifier.Notifier
+	MinChars            int
+	PollInterval        time.Duration
+	LastEvaluatedHash   string
+	lastBypassLogHash   string
+	lastSeqNum          uint32
+	lastCachedClipboard string
 }
 
 // NewClipboardGuard creates a new Layer-1 OS Clipboard DLP guard.
@@ -88,6 +93,17 @@ func ResolveAppURL(appName string) (string, bool) {
 	return fmt.Sprintf("https://local-app.internal/%s", strings.Trim(sanitized, "-")), false
 }
 
+// hashClipboardContent computes the SHA-256 hex digest of clipboard text alone.
+// Deduplicating by clipboard content (rather than activeApp + clipboardText) ensures that:
+//  1. Copying text in a native app scans it once; Alt-Tabbing across windows never re-scans.
+//  2. Copying text inside Chrome is bypassed while in Chrome, and scanned once the first time
+//     the user switches to any native app (before they can paste), without re-scanning on
+//     subsequent native-to-native window switches.
+func hashClipboardContent(clipboardText string) string {
+	sum := sha256.Sum256([]byte(clipboardText))
+	return hex.EncodeToString(sum[:])
+}
+
 // EvaluateClipboardOnce inspects the given clipboard text in the context of activeApp.
 // Returns (allowed, verdict, error).
 func (g *ClipboardGuard) EvaluateClipboardOnce(ctx context.Context, activeApp string, clipboardText string) (bool, *webprotect.ScanVerdict, error) {
@@ -95,16 +111,21 @@ func (g *ClipboardGuard) EvaluateClipboardOnce(ctx context.Context, activeApp st
 		return true, nil, nil
 	}
 
-	targetURL, bypass := ResolveAppURL(activeApp)
-	if bypass {
-		return true, nil, nil
-	}
-
-	sum := sha256.Sum256([]byte(activeApp + "\x00" + clipboardText))
-	hashHex := hex.EncodeToString(sum[:])
+	hashHex := hashClipboardContent(clipboardText)
 	if hashHex == g.LastEvaluatedHash {
 		return true, nil, nil
 	}
+
+	targetURL, bypass := ResolveAppURL(activeApp)
+	if bypass {
+		if debugEnabled() && hashHex != g.lastBypassLogHash {
+			g.lastBypassLogHash = hashHex
+			log.Printf("[oshook] clipboard change (%d bytes) in browser app=%q -> bypassed (will scan if switched to native app)",
+				len(clipboardText), activeApp)
+		}
+		return true, nil, nil
+	}
+
 	g.LastEvaluatedHash = hashHex
 
 	verdict, err := g.WebProtect.Scan(ctx, webprotect.ScanInput{
@@ -123,11 +144,16 @@ func (g *ClipboardGuard) EvaluateClipboardOnce(ctx context.Context, activeApp st
 		MachineUser:    g.TokenInfo.MachineUser,
 	})
 	if err != nil {
+		log.Printf("[oshook] WebProtect clipboard scan error for app=%s (%s): %v (failing open)", activeApp, targetURL, err)
 		return true, nil, err
 	}
 
+	log.Printf("[oshook] CEP DLP Clipboard Verdict for app=%s url=%s (%d bytes): %s (rule=%q, %dms)",
+		activeApp, targetURL, len(clipboardText), verdict.ActionName, verdict.RuleName, verdict.LatencyMs)
+
 	if !verdict.Allowed {
 		_ = clearOSClipboard()
+		log.Printf("[oshook] BLOCKED clipboard content in app=%q (%s) rule=%q -> clipboard cleared", activeApp, targetURL, verdict.RuleName)
 		if g.Notifier != nil {
 			g.Notifier.NotifyBlock(fmt.Sprintf("%s (%s)", activeApp, targetURL), verdict.RuleName, verdict.CustomMessage)
 		}
@@ -136,6 +162,7 @@ func (g *ClipboardGuard) EvaluateClipboardOnce(ctx context.Context, activeApp st
 	if verdict.Action == webprotect.ActionWarn && g.Notifier != nil {
 		if !g.Notifier.PromptWarn(fmt.Sprintf("%s (%s)", activeApp, targetURL), verdict.RuleName, verdict.CustomMessage) {
 			_ = clearOSClipboard()
+			log.Printf("[oshook] WARN declined by user in app=%q (%s) rule=%q -> clipboard cleared", activeApp, targetURL, verdict.RuleName)
 			return false, verdict, nil
 		}
 	}
@@ -153,83 +180,36 @@ func (g *ClipboardGuard) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			clipText := readOSClipboard()
+			clipText := g.currentClipboardText()
 			if len(strings.TrimSpace(clipText)) < g.MinChars {
 				continue
 			}
-			activeApp := detectForegroundApp()
-			allowed, verdict, err := g.EvaluateClipboardOnce(ctx, activeApp, clipText)
-			if err != nil {
+			// Fast path: if this exact clipboard content was already evaluated in a native app,
+			// skip foreground-window detection and WebProtect scanning entirely.
+			if hashClipboardContent(clipText) == g.LastEvaluatedHash {
 				continue
 			}
-			if !allowed && verdict != nil {
-				log.Printf("[oshook] BLOCKED clipboard content in app=%q rule=%q", activeApp, verdict.RuleName)
-			}
+			activeApp := detectForegroundApp()
+			_, _, _ = g.EvaluateClipboardOnce(ctx, activeApp, clipText)
 		}
 	}
 }
 
-func readOSClipboard() string {
-	switch runtime.GOOS {
-	case "darwin":
-		out, err := exec.Command("pbpaste").Output()
-		if err == nil {
-			return string(out)
+// currentClipboardText returns the current OS clipboard text, using the Win32 sequence number
+// on Windows to avoid calling OpenClipboard when the clipboard has not changed since the last tick.
+func (g *ClipboardGuard) currentClipboardText() string {
+	if seq := clipboardSequenceNumber(); seq != 0 {
+		if seq == g.lastSeqNum {
+			return g.lastCachedClipboard
 		}
-	case "windows":
-		out, err := exec.Command("powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", "Get-Clipboard").Output()
-		if err == nil {
-			return string(out)
-		}
-	default:
-		out, err := exec.Command("xclip", "-o", "-selection", "clipboard").Output()
-		if err == nil {
-			return string(out)
-		}
+		g.lastSeqNum = seq
+		g.lastCachedClipboard = readOSClipboard()
+		return g.lastCachedClipboard
 	}
-	return ""
+	return readOSClipboard()
 }
 
-func clearOSClipboard() error {
-	switch runtime.GOOS {
-	case "darwin":
-		cmd := exec.Command("pbcopy")
-		cmd.Stdin = strings.NewReader("")
-		return cmd.Run()
-	case "windows":
-		return exec.Command("powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", "Set-Clipboard -Value $null").Run()
-	default:
-		cmd := exec.Command("xclip", "-i", "-selection", "clipboard")
-		cmd.Stdin = strings.NewReader("")
-		return cmd.Run()
-	}
-}
-
-func detectForegroundApp() string {
-	switch runtime.GOOS {
-	case "darwin":
-		out, err := exec.Command("osascript", "-e", `tell application "System Events" to get name of first application process whose frontmost is true`).Output()
-		if err == nil {
-			return strings.TrimSpace(string(out))
-		}
-	case "windows":
-		ps := `Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-public class Win32 {
-  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
-  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
-}
-"@; $hwnd = [Win32]::GetForegroundWindow(); $pidOut = 0; [Win32]::GetWindowThreadProcessId($hwnd, [ref]$pidOut) | Out-Null; (Get-Process -Id $pidOut).ProcessName`
-		out, err := exec.Command("powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps).Output()
-		if err == nil {
-			return strings.TrimSpace(string(out))
-		}
-	default:
-		out, err := exec.Command("xdotool", "getwindowfocus", "getwindowname").Output()
-		if err == nil {
-			return strings.TrimSpace(string(out))
-		}
-	}
-	return "local-app"
+func debugEnabled() bool {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv("CEP_AGENT_DEBUG")))
+	return v == "1" || v == "true" || v == "yes"
 }

@@ -7,7 +7,7 @@ Chrome Enterprise Premium (CEP) の DLP 検証サーバー（**WebProtect**: `ht
 1. **Chrome 拡張機能不要・シングルバイナリ完結（macOS / Windows / Linux 対応）**:
    OS 上の Chrome Enterprise Core (CBCM) DM Token（Windows レジストリ、macOS `Chrome Cloud Enrollment`、Linux Enrollment ディレクトリ）および Chrome Profile メタデータを自動検出し、エージェントから直接 Scotty Multipart プロトコル（`ContentAnalysisRequest` / `ContentAnalysisResponse` Protobuf）で CEP サーバーへ問い合わせます。
 2. **2層ハイブリッドフック**:
-   - **【第1層】OS クリップボード ＆ アクティブアプリ監視 (`pkg/oshook`)**: TLS 復号不要で、ネイティブアプリへの機密テキスト貼り付けを検知・遮断（`BLOCK` 時はクリップボードを即座にクリアし OS ネイティブ警告を表示）。
+   - **【第1層】OS クリップボード ＆ アクティブアプリ監視 (`pkg/oshook`)**: TLS 復号不要で、ネイティブアプリへの機密テキスト貼り付けを検知・遮断（`BLOCK` 時はクリップボードを即座にクリアし OS ネイティブ警告を表示）。Windows は `user32.dll` / `kernel32.dll` の Win32 API（`GetClipboardSequenceNumber`, `OpenClipboard`/`GetClipboardData`, `GetForegroundWindow`/`QueryFullProcessImageNameW`）を直接呼び出し、PowerShell 子プロセスを一切起動せずに 0.1ms 未満で監視。重複判定はクリップボード内容ハッシュ基準のため、ウィンドウ切り替え（Alt+Tab）による不要な再スキャンは発生しません。
    - **【第2層】スマート HTTPS プロキシ (`pkg/proxy`)**: Cursor 等のバックグラウンドでのソースコード自動送信や、ネイティブアプリからのファイルアップロード（`multipart/form-data`）・API 送信（`POST` / `PUT` / `PATCH`）を捕捉・遮断。
 3. **Smart Bypass（Quota 保護・Chrome 二重検査回避・証明書ピニング自動回避）**:
    - **ローカルプロセス識別 (`pkg/proxy/proc_inspector*.go`)**: ループバック接続元のプロセス名を特定し、`Google Chrome` / `chrome.exe`（ブラウザ内蔵 CEP で保護済み）や OS 更新プロセスの通信は自動的に TCP パススルーへバイパス。Windows は Win32 API（`GetExtendedTcpTable` / `QueryFullProcessImageNameW`）を直接呼び出すため 1ms 未満で判定（PowerShell 起動なし）。macOS / Linux は `lsof`。
@@ -104,6 +104,7 @@ Google 管理コンソールの「ユーザーとブラウザの設定」から 
 | `CEP DLP Verdict for https://play.google.com/log ...` / `clients4.google.com` / `*.clients6.google.com` が大量に出る | Chrome 内部通信が復号されている（旧バージョンの Windows プロセス判定不具合）。最新版では Win32 API 判定 + ホスト除外で出なくなる。 |
 | `FILE_ATTACHED` が JSON / protobuf の POST に付く | 旧バージョンの Connector 判定。最新版では実ファイルのみ `FILE_ATTACHED`。 |
 | `local rate limiter active ...` | 端末側 40 QPS のトークンバケットが枯渇。テレメトリ除外が効いていれば通常発生しない。 |
+| `[oshook] CEP DLP Clipboard Verdict for app=Cursor url=...` | 第1層（OS クリップボード監視）がネイティブアプリ上で新しいコピー文字列を検知し、CEP WebProtect でスキャンした結果（`ACTION_UNSPECIFIED` / `WARN` / `BLOCK`）。 |
 | `ACTION_UNSPECIFIED (rule="")` | どの DLP ルールにも一致せず許可。ルールに一致すると `BLOCK` / `WARN` とルール名が出力され、管理コンソールの監査ログにも記録される。 |
 
 ```bash
