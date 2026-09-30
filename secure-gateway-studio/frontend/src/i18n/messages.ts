@@ -1205,7 +1205,7 @@ function formatDiagnosticRemediation(
 }
 
 const en: Messages = {
-  mainTitle: "Secure Gateway Studio",
+  mainTitle: "Chrome Enterprise Premium PoC Deployer",
   productName: "Administrator deployment console",
   localOnly: "Runs locally",
   cloudIdentity: "Google Cloud",
@@ -3043,7 +3043,7 @@ const en: Messages = {
 };
 
 const ja: Messages = {
-  mainTitle: "Secure Gateway Studio",
+  mainTitle: "Chrome Enterprise Premium PoC Deployer",
   productName: "管理者向けデプロイコンソール",
   localOnly: "ローカル実行",
   cloudIdentity: "Google Cloud",
