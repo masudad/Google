@@ -58,7 +58,7 @@ func InstallUserSpaceAgent(certPath string, listenAddr string, dmToken string) (
 
 	switch runtime.GOOS {
 	case "darwin":
-		if err := installMacOSLaunchAgent(home, targetBin, listenAddr); err != nil {
+		if err := installMacOSLaunchAgentAndApp(home, targetBin, listenAddr); err != nil {
 			return targetBin, err
 		}
 	case "windows":
@@ -71,6 +71,10 @@ func InstallUserSpaceAgent(certPath string, listenAddr string, dmToken string) (
 		}
 	}
 
+	// Ensure the background daemon is running right now so the user / Chrome extension
+	// sees http://127.0.0.1:8843/healthz online immediately after `install`.
+	ensureDaemonRunningNow(targetBin, listenAddr)
+
 	return targetBin, nil
 }
 
@@ -82,6 +86,7 @@ func UninstallUserSpaceAgent() error {
 		plistPath := filepath.Join(home, "Library/LaunchAgents", macLaunchAgentLabel+".plist")
 		_ = exec.Command("launchctl", "unload", "-w", plistPath).Run()
 		_ = os.Remove(plistPath)
+		_ = os.RemoveAll(filepath.Join(home, "Applications", "CEP Local DLP Agent.app"))
 	case "windows":
 		_ = exec.Command("reg", "delete", `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, "/v", winRunValueName, "/f").Run()
 		_ = exec.Command("reg", "delete", `HKCU\Software\Classes\cep-dlp`, "/f").Run()
@@ -93,7 +98,7 @@ func UninstallUserSpaceAgent() error {
 	return nil
 }
 
-func installMacOSLaunchAgent(home, binPath, listenAddr string) error {
+func installMacOSLaunchAgentAndApp(home, binPath, listenAddr string) error {
 	launchAgentsDir := filepath.Join(home, "Library/LaunchAgents")
 	if err := os.MkdirAll(launchAgentsDir, 0o755); err != nil {
 		return fmt.Errorf("create LaunchAgents dir: %w", err)
@@ -130,6 +135,48 @@ func installMacOSLaunchAgent(home, binPath, listenAddr string) error {
 	if err := os.WriteFile(plistPath, []byte(plist), 0o644); err != nil {
 		return fmt.Errorf("write LaunchAgent plist: %w", err)
 	}
+
+	// Also create a minimal macOS .app bundle in ~/Applications so `cep-dlp://start`
+	// URL scheme clicks in Chrome are handled natively by macOS LaunchServices.
+	appDir := filepath.Join(home, "Applications", "CEP Local DLP Agent.app", "Contents")
+	macOSBinDir := filepath.Join(appDir, "MacOS")
+	if err := os.MkdirAll(macOSBinDir, 0o755); err == nil {
+		appInfoPlist := `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleExecutable</key>
+    <string>cep-dlp-launcher</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.google.cep.local-dlp-agent.launcher</string>
+    <key>CFBundleName</key>
+    <string>CEP Local DLP Agent</string>
+    <key>CFBundleVersion</key>
+    <string>1.1.0</string>
+    <key>LSUIElement</key>
+    <true/>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>CEP Local DLP Agent Protocol</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>cep-dlp</string>
+            </array>
+        </dict>
+    </array>
+</dict>
+</plist>
+`
+		_ = os.WriteFile(filepath.Join(appDir, "Info.plist"), []byte(appInfoPlist), 0o644)
+		launcherScript := fmt.Sprintf("#!/bin/sh\n\"%s\" \"cep-dlp://start\" >/dev/null 2>&1 &\n", binPath)
+		launcherPath := filepath.Join(macOSBinDir, "cep-dlp-launcher")
+		_ = os.WriteFile(launcherPath, []byte(launcherScript), 0o755)
+		lsregister := "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+		_ = exec.Command(lsregister, "-f", filepath.Join(home, "Applications", "CEP Local DLP Agent.app")).Run()
+	}
+
 	_ = exec.Command("launchctl", "unload", plistPath).Run()
 	if err := exec.Command("launchctl", "load", "-w", plistPath).Run(); err != nil {
 		log.Printf("[installer] launchctl load note: %v", err)
@@ -139,6 +186,7 @@ func installMacOSLaunchAgent(home, binPath, listenAddr string) error {
 
 func installWindowsAutoStartAndProtocol(binPath, listenAddr string) error {
 	daemonCmd := fmt.Sprintf(`"%s" daemon --listen %s --system-proxy`, binPath, listenAddr)
+	urlSchemeCmd := fmt.Sprintf(`"%s" "%%1"`, binPath)
 
 	// 1. Register user login auto-start under HKCU\Software\Microsoft\Windows\CurrentVersion\Run (no admin required)
 	if err := exec.Command("reg", "add", `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`,
@@ -149,7 +197,7 @@ func installWindowsAutoStartAndProtocol(binPath, listenAddr string) error {
 	// 2. Register cep-dlp:// custom URL scheme under HKCU\Software\Classes\cep-dlp so Chrome extension can launch it
 	_ = exec.Command("reg", "add", `HKCU\Software\Classes\cep-dlp`, "/ve", "/t", "REG_SZ", "/d", "URL:CEP Local DLP Agent Protocol", "/f").Run()
 	_ = exec.Command("reg", "add", `HKCU\Software\Classes\cep-dlp`, "/v", "URL Protocol", "/t", "REG_SZ", "/d", "", "/f").Run()
-	_ = exec.Command("reg", "add", `HKCU\Software\Classes\cep-dlp\shell\open\command`, "/ve", "/t", "REG_SZ", "/d", daemonCmd, "/f").Run()
+	_ = exec.Command("reg", "add", `HKCU\Software\Classes\cep-dlp\shell\open\command`, "/ve", "/t", "REG_SZ", "/d", urlSchemeCmd, "/f").Run()
 	return nil
 }
 
@@ -174,19 +222,38 @@ WantedBy=default.target
 	if err := os.WriteFile(unitPath, []byte(unit), 0o644); err != nil {
 		return err
 	}
+	_ = exec.Command("systemctl", "--user", "daemon-reload").Run()
+	_ = exec.Command("systemctl", "--user", "enable", "--now", "cep-local-dlp-agent.service").Run()
 
 	appsDir := filepath.Join(home, ".local/share/applications")
 	_ = os.MkdirAll(appsDir, 0o755)
 	desktopPath := filepath.Join(appsDir, "cep-dlp-handler.desktop")
 	desktop := fmt.Sprintf(`[Desktop Entry]
 Name=CEP Local DLP Agent
-Exec=%s daemon --listen %s
+Exec=%s %%u
 Type=Application
 NoDisplay=true
 MimeType=x-scheme-handler/cep-dlp;
-`, binPath, listenAddr)
+`, binPath)
 	_ = os.WriteFile(desktopPath, []byte(desktop), 0o644)
+	_ = exec.Command("xdg-mime", "default", "cep-dlp-handler.desktop", "x-scheme-handler/cep-dlp").Run()
 	return nil
+}
+
+func ensureDaemonRunningNow(binPath, listenAddr string) {
+	home, _ := os.UserHomeDir()
+	logPath := filepath.Join(home, ".cep-local-dlp-agent", "agent.log")
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	args := []string{"daemon", "--listen", listenAddr}
+	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
+		args = append(args, "--system-proxy")
+	}
+	cmd := exec.Command(binPath, args...)
+	if err == nil {
+		cmd.Stdout = logFile
+		cmd.Stderr = logFile
+	}
+	_ = cmd.Start()
 }
 
 // SaveBootstrapToken persists a BYOD DM Token and user email pushed by the Chrome Extension

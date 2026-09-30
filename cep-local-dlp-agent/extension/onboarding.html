@@ -14,64 +14,102 @@
           <span class="badge badge-security">Chrome Enterprise Premium</span>
           <span id="status-pill" class="status-pill status-offline">エージェント未接続</span>
         </div>
-        <h1>ローカル DLP エージェントの起動が必要です</h1>
+        <h1>ローカル DLP エージェントのセットアップ・起動</h1>
         <p class="subtitle">
           社内データおよび生成 AI サービスの安全な利用のため、この PC で
-          <strong>CEP Local DLP Agent</strong> が稼働している必要があります。
+          <strong>CEP Local DLP Agent</strong>（待受: <code>127.0.0.1:8843</code>）が稼働している必要があります。
         </p>
       </div>
 
       <div id="target-banner" class="target-banner" hidden>
-        <span>アクセス先:</span>
+        <span>ブロック中のアクセス先:</span>
         <code id="target-url-display"></code>
         <span class="hint">（エージェントの起動を検知すると自動的に元のページへ移動します）</span>
       </div>
 
+      <!-- Real-time feedback banner when user clicks buttons -->
+      <div id="feedback-box" class="feedback-box" hidden></div>
+
       <div class="steps-grid">
-        <!-- Step 1: Already installed -> Launch via custom URL scheme -->
+        <!-- Step 1: First-time BYOD setup (1-line automatic download + install + start) -->
         <div class="step-box">
           <div class="step-num">1</div>
           <div class="step-content">
-            <h2>すでにインストール済みの場合（ワンクリック起動）</h2>
+            <h2>初回セットアップ（まだインストールしていない場合・1回のみ）</h2>
             <p>
-              エージェントをインストール済みの場合は、下のボタンをクリックしてバックグラウンド起動してください。
+              お使いの OS（<strong id="detected-os-label">自動判定中</strong>）に合わせて、以下の<strong>1行コマンドをコピーしてターミナル（Windows は PowerShell）に貼り付けて Enter を押すだけ</strong>で、バイナリ取得・自動起動登録・バックグラウンド起動まで全自動で完了します（管理者権限不要）。
             </p>
-            <div class="action-row">
-              <a id="btn-launch-scheme" href="cep-dlp://start" class="btn btn-primary">
-                CEP Local DLP Agent を起動する
+
+            <div class="code-tabs">
+              <div class="code-header">
+                <span id="cmd-title">① ワンライナー自動インストール（ファイルの手動DL不要）</span>
+                <button id="btn-copy-cmd" class="btn-copy" type="button">📋 コマンドをコピー</button>
+              </div>
+              <pre id="install-cmd-box"><code>読み込み中...</code></pre>
+            </div>
+
+            <div class="code-tabs secondary-code">
+              <div class="code-header">
+                <span>② すでに git pull 済みのローカルフォルダ（cep-local-dlp-agent）にいる場合</span>
+                <button id="btn-copy-local-cmd" class="btn-copy" type="button">📋 コマンドをコピー</button>
+              </div>
+              <pre id="local-install-cmd-box"><code>読み込み中...</code></pre>
+            </div>
+
+            <div class="action-row sub-actions">
+              <a id="btn-download-binary" href="#" class="btn btn-outline" target="_blank" rel="noopener noreferrer">
+                ⬇️ バイナリ単体を直接ダウンロード (<span id="download-filename">cep-dlp-agent</span>)
               </a>
-              <button id="btn-recheck" class="btn btn-secondary" type="button">
-                今すぐ再確認
-              </button>
             </div>
           </div>
         </div>
 
-        <!-- Step 2: First-time BYOD setup (No Admin Required) -->
+        <!-- Step 2: Already installed -> Launch or Recheck -->
         <div class="step-box">
           <div class="step-num">2</div>
           <div class="step-content">
-            <h2>初回セットアップ（管理者権限不要・BYOD 対応）</h2>
+            <h2>エージェントの起動・接続確認</h2>
             <p>
-              まだインストールしていない場合は、お使いの OS（<strong id="detected-os-label">自動判定中</strong>）向けの軽量シングルバイナリをダウンロードし、ユーザー領域への自動起動登録を実行してください。
+              上のステップ 1 を実行すると自動的にエージェントが起動します。すでにインストール済みで停止している場合は「エージェントを起動」を押してください。
             </p>
             <div class="action-row">
-              <a id="btn-download-binary" href="#" class="btn btn-outline" target="_blank" rel="noopener noreferrer">
-                バイナリをダウンロード (<span id="download-filename">cep-dlp-agent</span>)
-              </a>
-            </div>
-
-            <div class="code-tabs">
-              <div class="code-header">
-                <span id="cmd-title">ターミナル / PowerShell で初回登録を実行（1回のみ）</span>
-                <button id="btn-copy-cmd" class="btn-copy" type="button">コマンドをコピー</button>
-              </div>
-              <pre id="install-cmd-box"><code>chmod +x ~/Downloads/cep-dlp-agent-* && ~/Downloads/cep-dlp-agent-* install</code></pre>
+              <button id="btn-recheck" class="btn btn-primary" type="button">
+                🔄 今すぐ再確認 (127.0.0.1:8843)
+              </button>
+              <button id="btn-launch-scheme" class="btn btn-secondary" type="button">
+                🚀 エージェントを起動 (cep-dlp://start)
+              </button>
             </div>
             <p class="micro-note">
-              ※ <code>install</code> コマンドはユーザー権限のみで動作し、OS ログイン時の自動起動登録と
-              <code>cep-dlp://</code> ワンクリック起動スキームを設定します。ブラウザから DM トークンが自動連携されるため、手動でのトークン設定は不要です。
+              ※ 「エージェントを起動」ボタンは、ステップ 1 の初回インストールによって OS に <code>cep-dlp://</code> スキームが登録された後に機能します。
             </p>
+          </div>
+        </div>
+
+        <!-- Step 3: Optional BYOD PoC Settings (Manual DM Token / Gatekeeper Toggle) -->
+        <div class="step-box">
+          <div class="step-num">⚙</div>
+          <div class="step-content">
+            <h2>BYOD テスト・検証用オプション設定</h2>
+            <p>
+              Google 管理コンソールからポリシー配信していない検証環境でも、ここに CBCM の <strong>DM トークン</strong>を入力して保存すると、ローカルエージェントへ即時自動連携されます。
+            </p>
+            <div class="token-form">
+              <input
+                id="input-dm-token"
+                type="password"
+                class="input-text"
+                placeholder="DM Token を貼り付け（任意・管理コンソール未配信の BYOD テスト用）"
+                autocomplete="off"
+              />
+              <button id="btn-save-token" class="btn btn-secondary" type="button">
+                トークンを保存・連携
+              </button>
+            </div>
+            <label class="toggle-row">
+              <input id="chk-enforce-gate" type="checkbox" checked />
+              <span>エージェント未起動時に対象サイト（ChatGPT / Claude / Slack 等）へのアクセスをブロックする (Gatekeeper)</span>
+            </label>
           </div>
         </div>
       </div>

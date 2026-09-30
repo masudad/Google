@@ -5,7 +5,7 @@
   <title>CEP Local DLP Status</title>
   <style>
     body {
-      width: 320px;
+      width: 350px;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       margin: 0;
       padding: 16px;
@@ -42,7 +42,7 @@
       border-radius: 8px;
       padding: 10px 12px;
       font-size: 12px;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
     }
     .meta-row {
       display: flex;
@@ -59,9 +59,32 @@
       font-weight: 600;
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     }
+    .toast {
+      font-size: 11.5px;
+      line-height: 1.45;
+      padding: 8px 10px;
+      border-radius: 6px;
+      margin-bottom: 10px;
+    }
+    .toast-info {
+      background: #eff6ff;
+      color: #1d4ed8;
+      border: 1px solid #bfdbfe;
+    }
+    .toast-warn {
+      background: #fffbeb;
+      color: #b45309;
+      border: 1px solid #fde68a;
+    }
+    .toast-success {
+      background: #f0fdf4;
+      color: #15803d;
+      border: 1px solid #bbf7d0;
+    }
     .actions {
       display: flex;
-      gap: 8px;
+      gap: 6px;
+      margin-bottom: 8px;
     }
     .btn {
       flex: 1;
@@ -76,10 +99,24 @@
       text-align: center;
       text-decoration: none;
     }
+    .btn:hover {
+      background: #f1f5f9;
+    }
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: wait;
+    }
     .btn-primary {
       background: #1a73e8;
       color: #ffffff;
       border-color: #1a73e8;
+    }
+    .btn-primary:hover {
+      background: #1557b0;
+    }
+    .btn-full {
+      width: 100%;
+      display: block;
     }
   </style>
 </head>
@@ -99,15 +136,20 @@
       <span id="token-status" class="value">確認中...</span>
     </div>
     <div class="meta-row">
-      <span class="label">PID / バージョン</span>
+      <span class="label">ホスト / バージョン</span>
       <span id="pid-status" class="value">-</span>
     </div>
   </div>
 
+  <div id="popup-toast" class="toast toast-info" hidden></div>
+
   <div class="actions">
-    <a id="btn-start" href="cep-dlp://start" class="btn btn-primary">エージェント起動</a>
-    <button id="btn-setup" class="btn" type="button">セットアップ画面</button>
+    <button id="btn-recheck" class="btn" type="button">🔄 再確認</button>
+    <button id="btn-start" class="btn btn-primary" type="button">🚀 エージェント起動</button>
   </div>
+  <button id="btn-setup" class="btn btn-full" type="button">
+    ⚙️ 初回セットアップ・設定画面を開く
+  </button>
 
   <script src="popup.js"></script>
 </body>

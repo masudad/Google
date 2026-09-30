@@ -1,9 +1,12 @@
 const AGENT_BASE_URL = "http://127.0.0.1:8843";
+const GITHUB_DIST_BASE_URL =
+  "https://raw.githubusercontent.com/masudad/Google/main/cep-local-dlp-agent/dist";
+
 const DEFAULT_PROTECTED_DOMAINS = [
   "chatgpt.com",
   "claude.ai",
   "gemini.google.com",
-  " vertexaisearch.cloud.google.com",
+  "vertexaisearch.cloud.google.com",
   "console.cloud.google.com",
   "drive.google.com",
   "mail.google.com",
@@ -39,6 +42,13 @@ async function getConfiguration() {
     "downloadBaseUrl"
   ]);
 
+  // Ignore legacy placeholder storage.googleapis.com URL if cached
+  let downloadBaseUrl =
+    managed.downloadBaseUrl || local.downloadBaseUrl || GITHUB_DIST_BASE_URL;
+  if (downloadBaseUrl.includes("storage.googleapis.com/cep-local-dlp-agent")) {
+    downloadBaseUrl = GITHUB_DIST_BASE_URL;
+  }
+
   return {
     dmToken: managed.dmToken || local.dmToken || "",
     enforceGate:
@@ -51,10 +61,7 @@ async function getConfiguration() {
       managed.protectedDomains ||
       local.protectedDomains ||
       DEFAULT_PROTECTED_DOMAINS.map((d) => d.trim()),
-    downloadBaseUrl:
-      managed.downloadBaseUrl ||
-      local.downloadBaseUrl ||
-      "https://storage.googleapis.com/cep-local-dlp-agent-dist"
+    downloadBaseUrl
   };
 }
 
@@ -131,7 +138,8 @@ async function checkAgentHealth() {
       userEmail: profileEmail,
       deviceName: "",
       osPlatform: "",
-      lastChecked: new Date().toISOString()
+      lastChecked: new Date().toISOString(),
+      error: err && err.message ? err.message : "connection_refused"
     };
   }
 
@@ -164,7 +172,6 @@ async function syncGatekeeperRules(agentHealthy, cfg) {
     return;
   }
 
-  const onboardingUrl = chrome.runtime.getURL("onboarding.html");
   const addRules = cfg.protectedDomains
     .map((domain, idx) => {
       const clean = domain.trim().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
@@ -242,6 +249,35 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     );
     return true;
   }
+  if (msg && msg.type === "SAVE_LOCAL_CONFIG") {
+    const updates = {};
+    if (typeof msg.dmToken === "string") {
+      updates.dmToken = msg.dmToken.trim();
+    }
+    if (typeof msg.enforceGate === "boolean") {
+      updates.enforceGate = msg.enforceGate;
+    }
+    chrome.storage.local.set(updates).then(async () => {
+      if (updates.dmToken) {
+        try {
+          const email = await getProfileEmail();
+          await fetch(`${AGENT_BASE_URL}/__cep_agent/v1/bootstrap-token`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              dm_token: updates.dmToken,
+              user_email: email
+            })
+          });
+        } catch (_) {
+          // Agent may not be running yet; will push on next health check
+        }
+      }
+      const state = await checkAgentHealth();
+      const config = await getConfiguration();
+      sendResponse({ ok: true, config, state, online: state.healthy });
+    });
+    return true;
+  }
   return false;
 });
-
