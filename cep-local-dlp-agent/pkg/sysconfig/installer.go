@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"time"
 )
 
 const (
@@ -15,10 +16,10 @@ const (
 	winRunValueName     = "CEPLocalDLPAgent"
 )
 
-// InstallUserSpaceAgent installs the current binary into ~/.cep-local-dlp-agent/bin/,
-// installs the local Root CA into the user trust store, registers OS login auto-start
-// (macOS LaunchAgents / Windows HKCU Run / Linux systemd user), and registers the
-// custom `cep-dlp://` URL protocol handler so the Chrome extension can launch the agent.
+// InstallUserSpaceAgent stops any running background agent instance, installs the current
+// binary into ~/.cep-local-dlp-agent/bin/, installs the local Root CA into the user trust store,
+// registers OS login auto-start (macOS LaunchAgents / Windows HKCU Run / Linux systemd user),
+// and starts the new background daemon.
 func InstallUserSpaceAgent(certPath string, listenAddr string, dmToken string) (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -35,6 +36,9 @@ func InstallUserSpaceAgent(certPath string, listenAddr string, dmToken string) (
 		exeName = "cep-dlp-agent.exe"
 	}
 	targetBin := filepath.Join(binDir, exeName)
+
+	// Terminate any already-running installed daemon before overwriting targetBin and binding port 8843.
+	stopInstalledDaemon(exeName)
 
 	selfPath, err := os.Executable()
 	if err == nil && selfPath != targetBin {
@@ -78,6 +82,18 @@ func InstallUserSpaceAgent(certPath string, listenAddr string, dmToken string) (
 	return targetBin, nil
 }
 
+func stopInstalledDaemon(exeName string) {
+	myPid := os.Getpid()
+	switch runtime.GOOS {
+	case "windows":
+		filter := fmt.Sprintf("PID ne %d", myPid)
+		_ = exec.Command("taskkill", "/F", "/FI", filter, "/IM", exeName).Run()
+		_ = exec.Command("taskkill", "/F", "/FI", filter, "/IM", "cep-dlp-agent-windows-amd64.exe").Run()
+		_ = exec.Command("taskkill", "/F", "/FI", filter, "/IM", "cep-dlp-agent-windows-arm64.exe").Run()
+		time.Sleep(250 * time.Millisecond)
+	}
+}
+
 // UninstallUserSpaceAgent removes the user-space auto-start registration and restores system proxy state.
 func UninstallUserSpaceAgent() error {
 	home, _ := os.UserHomeDir()
@@ -88,8 +104,10 @@ func UninstallUserSpaceAgent() error {
 		_ = os.Remove(plistPath)
 		_ = os.RemoveAll(filepath.Join(home, "Applications", "CEP Local DLP Agent.app"))
 	case "windows":
+		stopInstalledDaemon("cep-dlp-agent.exe")
 		_ = exec.Command("reg", "delete", `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, "/v", winRunValueName, "/f").Run()
 		_ = exec.Command("reg", "delete", `HKCU\Software\Classes\cep-dlp`, "/f").Run()
+		_ = exec.Command("reg", "add", `HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings`, "/v", "ProxyEnable", "/t", "REG_DWORD", "/d", "0", "/f").Run()
 	default:
 		unitPath := filepath.Join(home, ".config/systemd/user/cep-local-dlp-agent.service")
 		_ = exec.Command("systemctl", "--user", "disable", "--now", "cep-local-dlp-agent.service").Run()
@@ -152,7 +170,7 @@ func installMacOSLaunchAgentAndApp(home, binPath, listenAddr string) error {
     <key>CFBundleName</key>
     <string>CEP Local DLP Agent</string>
     <key>CFBundleVersion</key>
-    <string>1.1.0</string>
+    <string>1.2.1</string>
     <key>LSUIElement</key>
     <true/>
     <key>CFBundleURLTypes</key>

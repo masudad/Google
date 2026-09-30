@@ -1,6 +1,6 @@
 // Package oshook implements the Layer-1 OS Clipboard and Active Application Hook,
 // inspecting sensitive clipboard data against CEP WebProtect across native desktop apps
-// (Cursor, Claude Desktop, Slack, Outlook, Teams, etc.) without requiring TLS decryption.
+// (Cursor, Claude Desktop, Slack, Outlook, Teams, Notepad, etc.) without requiring TLS decryption.
 package oshook
 
 import (
@@ -18,23 +18,46 @@ import (
 	"cep-local-dlp-agent/pkg/webprotect"
 )
 
-// DefaultAppURLMap maps common native desktop application process/bundle names to canonical URLs
-// so Google Admin Console DLP URL rules apply seamlessly across both browser and desktop apps.
-var DefaultAppURLMap = map[string]string{
-	"cursor":          "https://cursor.com/local-app/cursor",
-	"claude":          "https://claude.ai/local-app/claude-desktop",
-	"chatgpt":         "https://chatgpt.com/local-app/chatgpt-desktop",
-	"slack":           "https://slack.com/local-app/slack-desktop",
-	"microsoft teams": "https://teams.microsoft.com/local-app/teams",
-	"teams":           "https://teams.microsoft.com/local-app/teams",
-	"outlook":         "https://outlook.office.com/local-app/outlook",
-	"thunderbird":     "https://local-app.internal/thunderbird",
-	"mail":            "https://local-app.internal/apple-mail",
-	"line":            "https://line.me/local-app/line-desktop",
-	"discord":         "https://discord.com/local-app/discord",
-	"notion":          "https://www.notion.so/local-app/notion",
-	"code":            "https://vscode.dev/local-app/vscode",
-	"windsurf":        "https://codeium.com/local-app/windsurf",
+// bypassedForegroundApps are standalone web browsers (Managed Chrome is already protected by
+// Chrome's built-in CEP engine; Personal Chrome / personal browsers are personal space on BYOD),
+// OS shell/window-manager processes, and the agent's own process (when showing a MessageBoxW alert).
+var bypassedForegroundApps = []string{
+	// Standalone Web Browsers
+	"google chrome",
+	"chrome",
+	"chrome.exe",
+	"msedge",
+	"msedge.exe",
+	"microsoft edge",
+	"brave",
+	"brave.exe",
+	"brave browser",
+	"firefox",
+	"firefox.exe",
+	"vivaldi",
+	"vivaldi.exe",
+	"opera",
+	"opera.exe",
+	"arc",
+	"arc.exe",
+	"safari",
+	// Agent's own process (prevent MessageBoxW popup from triggering a clipboard scan)
+	"cep-dlp-agent",
+	// Windows / macOS OS Shell & Window Manager processes
+	"explorer",
+	"explorer.exe",
+	"searchhost",
+	"searchhost.exe",
+	"shellexperiencehost",
+	"startmenuexperiencehost",
+	"applicationframehost",
+	"lockapp",
+	"dwm",
+	"taskmgr",
+	"finder",
+	"dock",
+	"systemuiserver",
+	"loginwindow",
 }
 
 // ClipboardGuard monitors the OS clipboard and active foreground application, evaluating
@@ -71,19 +94,16 @@ func NewClipboardGuard(wp *webprotect.Client, token *dmtoken.TokenInfo, notif no
 	}
 }
 
-// ResolveAppURL converts an OS foreground application name into a canonical URL for CEP rule matching.
+// ResolveAppURL converts an OS foreground application name into a canonical `https://local-app.internal/<app>`
+// URL for CEP content-detector rule matching, or returns bypass=true for standalone browsers and OS shell processes.
 func ResolveAppURL(appName string) (string, bool) {
 	lower := strings.ToLower(strings.TrimSpace(appName))
-	if lower == "" {
-		return "https://local-app.internal/unknown", false
-	}
-	// Bypass Google Chrome itself (already protected by Chrome's built-in CEP engine)
-	if strings.Contains(lower, "google chrome") || lower == "chrome" || lower == "chrome.exe" {
+	if lower == "" || lower == "local-app" {
 		return "", true
 	}
-	for key, targetURL := range DefaultAppURLMap {
-		if strings.Contains(lower, key) {
-			return targetURL, false
+	for _, b := range bypassedForegroundApps {
+		if lower == b || strings.HasPrefix(lower, b) {
+			return "", true
 		}
 	}
 	sanitized := strings.Map(func(r rune) rune {
@@ -92,17 +112,14 @@ func ResolveAppURL(appName string) (string, bool) {
 		}
 		return '-'
 	}, lower)
-	return fmt.Sprintf("https://local-app.internal/%s", strings.Trim(sanitized, "-")), false
+	trimmed := strings.Trim(sanitized, "-")
+	if trimmed == "" {
+		return "", true
+	}
+	return fmt.Sprintf("https://local-app.internal/%s", trimmed), false
 }
 
 // hashClipboardContent computes the SHA-256 hex digest of clipboard text alone.
-// Deduplicating by clipboard content (rather than activeApp + clipboardText) ensures that:
-//  1. Copying text in a native app scans it once (when allowed); Alt-Tabbing across windows never re-scans.
-//  2. Copying text inside Chrome is bypassed while in Chrome, and scanned once the first time
-//     the user switches to any native app (before they can paste), without re-scanning on
-//     subsequent native-to-native window switches.
-//  3. Blocked content is cleared from the clipboard and never cached in LastEvaluatedHash, so
-//     re-copying the same secret is always scanned and blocked again.
 func hashClipboardContent(clipboardText string) string {
 	sum := sha256.Sum256([]byte(clipboardText))
 	return hex.EncodeToString(sum[:])
@@ -135,7 +152,7 @@ func (g *ClipboardGuard) EvaluateClipboardOnce(ctx context.Context, activeApp st
 	if bypass {
 		if debugEnabled() && hashHex != g.lastBypassLogHash {
 			g.lastBypassLogHash = hashHex
-			log.Printf("[oshook] clipboard change (%d bytes) in browser app=%q -> bypassed (will scan if switched to native app)",
+			log.Printf("[oshook] clipboard change (%d bytes) in bypassed app=%q -> skipped",
 				len(clipboardText), activeApp)
 		}
 		return true, nil, nil

@@ -28,9 +28,9 @@ const (
 )
 
 // SmartFilter implements the 3-tier local pre-filter:
-//  1. Host / Process Bypass (never intercept WebProtect itself, Chrome native traffic, or OS update hosts)
+//  1. Host / Process / Browser Bypass (never intercept WebProtect itself, web browsers, or OS update hosts)
 //  2. HTTP Method & Payload Size Pre-filter (only inspect POST/PUT/PATCH >= MinPayloadBytes),
-//     plus a telemetry/analytics deny-list (hosts & paths that never carry user data)
+//     plus a telemetry/analytics/control-plane deny-list (hosts & paths that never carry user data)
 //  3. Auto-Bypass Cache for TLS Certificate Pinning hosts + Token Bucket Rate Limiter for Quota protection
 //     + short-lived dedupe cache of already-allowed payloads.
 type SmartFilter struct {
@@ -53,7 +53,6 @@ type SmartFilter struct {
 // chromeInfraSuffixes are Chrome-browser / Google-infrastructure hosts that only ever carry
 // browser telemetry, policy, sync, update, or auth traffic. Chrome's own CEP engine already
 // governs anything a user types in Chrome, so these are tunnelled untouched (no TLS MITM).
-// This is defence-in-depth for the case where process attribution (chrome.exe) fails.
 var chromeInfraSuffixes = []string{
 	// CEP WebProtect itself (prevent recursion)
 	"safebrowsing.google.com",
@@ -159,8 +158,8 @@ var telemetryHostSuffixes = []string{
 	"api.github.com/_private/browser", // path-style entries are ignored by host match; see paths
 }
 
-// telemetryPathPatterns are per-host path prefixes/substrings that are pure telemetry or
-// metadata even though the host itself also serves real user-content APIs.
+// telemetryPathPatterns are per-host path prefixes/substrings that are pure telemetry,
+// pubsub/MCP status polling, or metadata even though the host itself also serves user-content APIs.
 var telemetryPathPatterns = []struct {
 	hostSuffix string
 	pathPrefix string
@@ -174,10 +173,21 @@ var telemetryPathPatterns = []struct {
 	{"claude.ai", "/api/v2/rum"},
 	{"claude.ai", "/api/event_logging"},
 	{"claude.ai", "/api/eval"},
+	{"claude.ai", "/api/organizations"},
+	{"claude.ai", "/api/bootstrap"},
 	{"ab.chatgpt.com", "/v1/initialize"},
 	{"ab.chatgpt.com", "/v1/rgstr"},
 	{"chatgpt.com", "/ces/"},
-	{"chatgpt.com", "/backend-api/lat/r"},
+	{"chatgpt.com", "/backend-api/lat/"},
+	{"chatgpt.com", "/backend-api/ps/"}, // ChatGPT / Codex pubsub & MCP status polling (/backend-api/ps/mcp)
+	{"chatgpt.com", "/backend-api/sentinel/"},
+	{"chatgpt.com", "/backend-api/accounts/"},
+	{"chatgpt.com", "/backend-api/settings/"},
+	{"chatgpt.com", "/backend-api/me"},
+	{"chatgpt.com", "/backend-api/models"},
+	{"chatgpt.com", "/backend-api/aip/"},
+	{"chatgpt.com", "/backend-api/gizmos/"},
+	{"chatgpt.com", "/backend-api/conversations"},
 	{"api.openai.com", "/v1/rgstr"},
 	{"cursor.sh", "/telemetry"},
 	{"api2.cursor.sh", "/aiserver.v1.AiService/ReportEvent"},
@@ -270,6 +280,58 @@ func (f *SmartFilter) IsPinnedHost(hostPort string) bool {
 	return ok && time.Now().Before(exp)
 }
 
+// IsBrowserRequest returns true if the HTTP request (either outer CONNECT or inner HTTPS request)
+// originates from a standalone web browser (Google Chrome, Microsoft Edge, Brave, Firefox, Safari).
+//
+// Why this is critical:
+//  1. Managed Chrome Profiles are already protected natively by Chrome's built-in CEP engine.
+//  2. Personal Chrome Profiles (and other personal browsers on BYOD machines) are the user's
+//     personal space and must NEVER be intercepted by the corporate local proxy.
+//  3. Native Electron apps (Cursor, Claude Desktop, Slack, VS Code) include "Electron/" in User-Agent
+//     and never include "Google Chrome" in Sec-Ch-Ua, so they remain inspected.
+func IsBrowserRequest(r *http.Request) bool {
+	if r == nil {
+		return false
+	}
+	if r.Header.Get("X-CEP-Browser-Native") == "1" {
+		return true
+	}
+
+	secUA := strings.ToLower(r.Header.Get("Sec-Ch-Ua"))
+	if strings.Contains(secUA, `"google chrome"`) ||
+		strings.Contains(secUA, `"microsoft edge"`) ||
+		strings.Contains(secUA, `"brave"`) ||
+		strings.Contains(secUA, `"opera"`) ||
+		strings.Contains(secUA, `"vivaldi"`) {
+		return true
+	}
+
+	ua := strings.ToLower(r.Header.Get("User-Agent"))
+	if ua == "" {
+		return false
+	}
+	// Native desktop apps (Electron / IDE / CLI) must NOT be treated as standalone web browsers.
+	for _, nativeMarker := range []string{
+		"electron/",
+		"cursor/",
+		"claude",
+		"slack",
+		"vscode",
+		"code/",
+		"windsurf",
+		"cep-local-dlp-agent",
+	} {
+		if strings.Contains(ua, nativeMarker) {
+			return false
+		}
+	}
+	if strings.HasPrefix(ua, "mozilla/5.0") &&
+		(strings.Contains(ua, "chrome/") || strings.Contains(ua, "firefox/") || strings.Contains(ua, "edg/") || strings.Contains(ua, "safari/")) {
+		return true
+	}
+	return false
+}
+
 // ShouldInspectRequest evaluates whether an HTTP request carries outbound user/application data
 // that warrants a CEP WebProtect DLP scan.
 func (f *SmartFilter) ShouldInspectRequest(r *http.Request, body []byte) bool {
@@ -280,8 +342,9 @@ func (f *SmartFilter) ShouldInspectRequest(r *http.Request, body []byte) bool {
 		return false
 	}
 
-	// 2. Skip requests originating from Chrome browser itself (already protected by native CEP)
-	if r.Header.Get("X-CEP-Browser-Native") == "1" {
+	// 2. Never inspect requests originating from standalone web browsers (Managed Chrome has
+	// native CEP; Personal Chrome / personal browsers are personal space on BYOD).
+	if IsBrowserRequest(r) {
 		return false
 	}
 
@@ -290,7 +353,7 @@ func (f *SmartFilter) ShouldInspectRequest(r *http.Request, body []byte) bool {
 		return false
 	}
 
-	// 4. Skip analytics / crash-report / RUM / feature-flag traffic (never user-authored content)
+	// 4. Skip analytics / crash-report / RUM / feature-flag / background status polling traffic
 	host := ""
 	path := ""
 	if r.URL != nil {

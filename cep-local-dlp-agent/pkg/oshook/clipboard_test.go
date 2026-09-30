@@ -16,22 +16,21 @@ import (
 )
 
 func TestClipboardGuardAndAppURLResolution(t *testing.T) {
-	// 1. Verify Chrome itself is bypassed
-	if _, bypass := ResolveAppURL("Google Chrome"); !bypass {
-		t.Errorf("expected Google Chrome to be bypassed")
-	}
-	if _, bypass := ResolveAppURL("chrome.exe"); !bypass {
-		t.Errorf("expected chrome.exe to be bypassed")
+	// 1. Verify browsers, OS shell, and the agent itself are bypassed
+	for _, app := range []string{"Google Chrome", "chrome.exe", "msedge.exe", "firefox.exe", "cep-dlp-agent-windows-amd64", "explorer"} {
+		if _, bypass := ResolveAppURL(app); !bypass {
+			t.Errorf("expected %q to be bypassed", app)
+		}
 	}
 
-	// 2. Verify Cursor and Slack map to canonical URLs
+	// 2. Verify native apps map to local-app.internal URLs (so content-detector DLP rules run without false-positive URL blocks)
 	cursorURL, bypass := ResolveAppURL("Cursor")
-	if bypass || cursorURL != "https://cursor.com/local-app/cursor" {
+	if bypass || cursorURL != "https://local-app.internal/cursor" {
 		t.Errorf("unexpected Cursor URL: %q (bypass=%v)", cursorURL, bypass)
 	}
-	slackURL, bypass := ResolveAppURL("Slack.exe")
-	if bypass || slackURL != "https://slack.com/local-app/slack-desktop" {
-		t.Errorf("unexpected Slack URL: %q (bypass=%v)", slackURL, bypass)
+	notepadURL, bypass := ResolveAppURL("Notepad")
+	if bypass || notepadURL != "https://local-app.internal/notepad" {
+		t.Errorf("unexpected Notepad URL: %q (bypass=%v)", notepadURL, bypass)
 	}
 
 	// 3. Verify ClipboardGuard blocks sensitive paste in native apps AND re-blocks if the user

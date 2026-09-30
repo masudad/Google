@@ -54,6 +54,8 @@ func TestTelemetryRequestsAreNotScanned(t *testing.T) {
 		"https://api.anthropic.com/v1/messages/count_tokens",
 		"https://claude.ai/api/v2/rum",
 		"https://ab.chatgpt.com/v1/initialize",
+		"https://chatgpt.com:443/backend-api/ps/mcp",
+		"https://chatgpt.com/backend-api/sentinel/chat-requirements",
 		"https://chat.google.com/punctual/prod-04-us/v1/chooseServer?key=abc",
 		"https://api.github.com/graphql",
 		"https://o123.ingest.sentry.io/api/1/envelope/",
@@ -69,6 +71,7 @@ func TestTelemetryRequestsAreNotScanned(t *testing.T) {
 	inspect := []string{
 		"https://api.anthropic.com/v1/messages",
 		"https://api.openai.com/v1/chat/completions",
+		"https://chatgpt.com/backend-api/conversation",
 		"https://api2.cursor.sh/aiserver.v1.AiService/StreamChat",
 		"https://slack.com/api/chat.postMessage",
 		"https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
@@ -86,6 +89,23 @@ func TestTelemetryRequestsAreNotScanned(t *testing.T) {
 	r.Header.Set("Content-Type", "application/x-protobuf")
 	if f.ShouldInspectRequest(r, body) {
 		t.Errorf("protobuf body must be skipped")
+	}
+
+	// Browser requests (Personal Chrome Profile or Managed Chrome Profile) must NEVER be inspected by proxy
+	chromeReq := httptest.NewRequest(http.MethodPost, "https://chatgpt.com/backend-api/conversation", bytes.NewReader(body))
+	chromeReq.Header.Set("Content-Type", "application/json")
+	chromeReq.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36")
+	chromeReq.Header.Set("Sec-Ch-Ua", `"Google Chrome";v="146", "Chromium";v="146", "Not_A Brand";v="24"`)
+	if f.ShouldInspectRequest(chromeReq, body) {
+		t.Errorf("Chrome browser request must be bypassed by proxy")
+	}
+
+	// Electron apps (Cursor / Claude Desktop / Slack) MUST still be inspected
+	electronReq := httptest.NewRequest(http.MethodPost, "https://api.anthropic.com/v1/messages", bytes.NewReader(body))
+	electronReq.Header.Set("Content-Type", "application/json")
+	electronReq.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Cursor/0.48.0 Chrome/132.0.0.0 Electron/34.0.0 Safari/537.36")
+	if !f.ShouldInspectRequest(electronReq, body) {
+		t.Errorf("Cursor Electron app request must be inspected by proxy")
 	}
 }
 
@@ -164,12 +184,12 @@ func TestDedupeCacheSuppressesIdenticalPayloads(t *testing.T) {
 }
 
 func TestIsBypassedProcessRecognisesChromeVariants(t *testing.T) {
-	for _, p := range []string{"chrome.exe", "CHROME.EXE", "Google Chrome", "Google Chrome Helper (Renderer)", "google chrome canary"} {
+	for _, p := range []string{"chrome.exe", "CHROME.EXE", "Google Chrome", "Google Chrome Helper (Renderer)", "google chrome canary", "msedge.exe", "firefox.exe", "brave.exe"} {
 		if !IsBypassedProcess(p) {
 			t.Errorf("%q should be bypassed", p)
 		}
 	}
-	for _, p := range []string{"", "Cursor.exe", "Claude.exe", "slack.exe", "msedge.exe", "Code.exe"} {
+	for _, p := range []string{"", "Cursor.exe", "Claude.exe", "slack.exe", "Code.exe"} {
 		if IsBypassedProcess(p) {
 			t.Errorf("%q must not be bypassed", p)
 		}

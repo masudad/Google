@@ -16,10 +16,6 @@ import (
 // iphlpapi!GetExtendedTcpTable (TCP_TABLE_OWNER_PID_ALL) and the process image name via
 // kernel32!QueryFullProcessImageNameW. Both are in-process Win32 calls (no PowerShell spawn),
 // which finish in well under 1 ms even with thousands of sockets.
-//
-// The previous implementation spawned `powershell Get-NetTCPConnection` per CONNECT with a
-// 250 ms deadline; PowerShell cold-start alone takes 300–1500 ms so the lookup always timed out,
-// Chrome was never recognised, and all Chrome traffic was MITM-inspected twice.
 
 var (
 	modIphlpapi                 = syscall.NewLazyDLL("iphlpapi.dll")
@@ -34,6 +30,7 @@ const (
 	tcpTableOwnerPidAll            = 5
 	afInet                         = 2
 	afInet6                        = 23
+	errorInsufficientBuffer        = 122
 	processQueryLimitedInformation = 0x1000
 )
 
@@ -90,22 +87,31 @@ func netPort(v uint32) uint16 {
 
 func findOwningPid(localPort uint16, family uint32) uint32 {
 	var size uint32
-	// First call obtains required buffer size.
 	procGetExtendedTcpTable.Call(0, uintptr(unsafe.Pointer(&size)), 0, uintptr(family), tcpTableOwnerPidAll, 0)
 	if size == 0 {
-		return 0
+		size = 64 * 1024
 	}
-	buf := make([]byte, size+1024)
-	size = uint32(len(buf))
-	ret, _, _ := procGetExtendedTcpTable.Call(
-		uintptr(unsafe.Pointer(&buf[0])),
-		uintptr(unsafe.Pointer(&size)),
-		0,
-		uintptr(family),
-		tcpTableOwnerPidAll,
-		0,
-	)
-	if ret != 0 { // NO_ERROR == 0
+
+	var buf []byte
+	for attempt := 0; attempt < 3; attempt++ {
+		buf = make([]byte, size+4096)
+		size = uint32(len(buf))
+		ret, _, _ := procGetExtendedTcpTable.Call(
+			uintptr(unsafe.Pointer(&buf[0])),
+			uintptr(unsafe.Pointer(&size)),
+			0,
+			uintptr(family),
+			tcpTableOwnerPidAll,
+			0,
+		)
+		if ret == 0 {
+			break
+		}
+		if ret != errorInsufficientBuffer {
+			return 0
+		}
+	}
+	if len(buf) < 4 {
 		return 0
 	}
 	numEntries := *(*uint32)(unsafe.Pointer(&buf[0]))
@@ -119,7 +125,7 @@ func findOwningPid(localPort uint16, family uint32) uint32 {
 				break
 			}
 			row := (*mibTCPRowOwnerPid)(unsafe.Pointer(&buf[off]))
-			if netPort(row.LocalPort) == localPort && row.LocalAddr == 0x0100007f { // 127.0.0.1 LE
+			if netPort(row.LocalPort) == localPort && row.OwningPid != 0 {
 				return row.OwningPid
 			}
 		}
@@ -131,7 +137,7 @@ func findOwningPid(localPort uint16, family uint32) uint32 {
 				break
 			}
 			row := (*mibTCP6RowOwnerPid)(unsafe.Pointer(&buf[off]))
-			if netPort(row.LocalPort) == localPort {
+			if netPort(row.LocalPort) == localPort && row.OwningPid != 0 {
 				return row.OwningPid
 			}
 		}
@@ -149,6 +155,9 @@ func processNameByPid(pid uint32) string {
 	pidNameMu.Unlock()
 
 	name := queryProcessImageName(pid)
+	if name == "" {
+		return ""
+	}
 
 	pidNameMu.Lock()
 	if len(pidNameCache) > 4096 {

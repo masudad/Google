@@ -22,8 +22,9 @@ func IdentifyLocalProcess(remoteAddr string) string {
 	return identifyProcessNative(port)
 }
 
-// IsBypassedProcess returns true if the identified local process is Google Chrome itself
-// (already protected by Chrome's built-in CEP engine) or an OS system updater/service.
+// IsBypassedProcess returns true if the identified local process is a standalone web browser
+// (Google Chrome is already protected by its built-in CEP engine, and Personal Browser profiles
+// are personal space that must not be intercepted) or an OS system updater/service.
 func IsBypassedProcess(procName string) bool {
 	p := strings.ToLower(strings.TrimSpace(procName))
 	if p == "" {
@@ -32,9 +33,16 @@ func IsBypassedProcess(procName string) bool {
 	switch p {
 	case "google chrome", "google chrome helper", "chrome", "chrome.exe",
 		"google chrome beta", "google chrome dev", "google chrome canary",
+		"msedge", "msedge.exe", "microsoft edge",
+		"brave", "brave.exe", "brave browser",
+		"firefox", "firefox.exe",
+		"vivaldi", "vivaldi.exe",
+		"opera", "opera.exe",
+		"arc", "arc.exe",
+		"safari",
 		"googleupdate", "googleupdate.exe", "googleupdater", "googleupdater.exe",
 		"softwareupdated", "trustd", "nsurlsessiond", "svchost.exe":
 		return true
 	}
-	return strings.HasPrefix(p, "google chrome")
+	return strings.HasPrefix(p, "google chrome") || strings.HasPrefix(p, "microsoft edge")
 }

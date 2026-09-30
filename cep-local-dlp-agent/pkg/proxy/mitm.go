@@ -104,7 +104,7 @@ func (s *Server) handleControlPlane(w http.ResponseWriter, r *http.Request) {
 			"ok":               true,
 			"status":           status,
 			"agent":            "cep-local-dlp-agent",
-			"version":          "1.2.0",
+			"version":          "1.2.1",
 			"dm_token_present": hasToken,
 			"has_token":        hasToken,
 			"token_source":     s.TokenInfo.TokenSource,
@@ -187,13 +187,16 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	_, _ = clientConn.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n"))
 
 	// Fast-path: If host is on the bypass list, learned as Certificate Pinning, or originates
-	// from Google Chrome itself (already protected by native CEP), tunnel raw TCP
+	// from a standalone web browser (Managed Chrome is already protected by native CEP; Personal
+	// Chrome / personal browsers are personal space on BYOD), tunnel raw TCP untouched.
 	clientProc := IdentifyLocalProcess(r.RemoteAddr)
-	if s.Filter.ShouldBypassTLS(targetHostPort) || IsBypassedProcess(clientProc) || s.CA == nil {
+	if s.Filter.ShouldBypassTLS(targetHostPort) || IsBypassedProcess(clientProc) || IsBrowserRequest(r) || s.CA == nil {
 		if debugEnabled() {
 			reason := "host-bypass"
 			if IsBypassedProcess(clientProc) {
 				reason = "process-bypass:" + clientProc
+			} else if IsBrowserRequest(r) {
+				reason = "browser-ua-bypass"
 			}
 			log.Printf("[proxy] passthrough %s (%s)", targetHostPort, reason)
 		}

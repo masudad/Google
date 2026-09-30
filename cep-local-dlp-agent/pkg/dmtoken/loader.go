@@ -69,6 +69,21 @@ func Discover(explicitToken string) (*TokenInfo, error) {
 		return info, nil
 	}
 
+	// If the user/extension pinned a specific Chrome profile account (exact email or "@domain") and
+	// it resolved, that profile token ALWAYS wins over machine-level CBCM registry tokens so a
+	// multi-tenant BYOD machine never reports to the wrong tenant.
+	if pref := preferredProfileEmail(); pref != "" && info.ProfileDMToken != "" &&
+		matchesPreferredEmail(info.UserEmail, pref) {
+		info.DMToken = info.ProfileDMToken
+		info.TokenSource = "chrome_profile:pinned"
+		for _, c := range info.AvailableProfiles {
+			if c.Selected {
+				info.TokenSource = "chrome_profile:pinned:" + filepath.Base(c.ProfileDir)
+			}
+		}
+		return info, nil
+	}
+
 	var token, source string
 	switch runtime.GOOS {
 	case "darwin":
@@ -77,15 +92,6 @@ func Discover(explicitToken string) (*TokenInfo, error) {
 		token, source = discoverWindowsDMToken()
 	default:
 		token, source = discoverLinuxDMToken()
-	}
-
-	// If the user/extension pinned a specific Chrome profile account and it resolved, that
-	// profile token wins over a machine-level CBCM token (multi-tenant BYOD determinism).
-	if pref := preferredProfileEmail(); pref != "" && info.ProfileDMToken != "" &&
-		strings.EqualFold(info.UserEmail, pref) {
-		info.DMToken = info.ProfileDMToken
-		info.TokenSource = "chrome_profile:pinned"
-		return info, nil
 	}
 
 	if token != "" {
@@ -116,6 +122,15 @@ func Discover(explicitToken string) (*TokenInfo, error) {
 	}
 
 	return info, fmt.Errorf("no Chrome Enterprise DM Token found on %s (enroll Chrome via CBCM, push via Companion Extension, or set CEP_DM_TOKEN)", runtime.GOOS)
+}
+
+func matchesPreferredEmail(email, preferred string) bool {
+	em := strings.ToLower(strings.TrimSpace(email))
+	pref := strings.ToLower(strings.TrimSpace(preferred))
+	if em == "" || pref == "" {
+		return false
+	}
+	return em == pref || (strings.HasPrefix(pref, "@") && strings.HasSuffix(em, pref))
 }
 
 func discoverBYODBootstrapToken() (token, email, path string) {
@@ -477,8 +492,9 @@ func preferredProfileEmail() string {
 	return ""
 }
 
-// SavePreferredProfileEmail pins the Chrome profile (by signed-in email) whose Profile DM Token
+// SavePreferredProfileEmail pins the Chrome profile (by signed-in email or "@domain") whose Profile DM Token
 // the agent must use, so multi-tenant BYOD machines select a deterministic profile.
+// Also removes any stale byod_token.json belonging to a different account/tenant.
 func SavePreferredProfileEmail(email string) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -488,7 +504,11 @@ func SavePreferredProfileEmail(email string) error {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
 	}
-	payload, _ := json.MarshalIndent(map[string]string{"preferred_email": strings.TrimSpace(email)}, "", "  ")
+	trimmed := strings.TrimSpace(email)
+	if _, byodEmail, byodPath := discoverBYODBootstrapToken(); byodPath != "" && !matchesPreferredEmail(byodEmail, trimmed) {
+		_ = os.Remove(byodPath)
+	}
+	payload, _ := json.MarshalIndent(map[string]string{"preferred_email": trimmed}, "", "  ")
 	return os.WriteFile(filepath.Join(dir, "config.json"), payload, 0600)
 }
 
@@ -503,8 +523,7 @@ func SelectProfileCandidate(cands []ProfileCandidate, preferredEmail string) (Pr
 	pref := strings.ToLower(strings.TrimSpace(preferredEmail))
 	if pref != "" {
 		for _, c := range cands {
-			em := strings.ToLower(c.UserEmail)
-			if em == pref || (strings.HasPrefix(pref, "@") && strings.HasSuffix(em, pref)) {
+			if matchesPreferredEmail(c.UserEmail, pref) {
 				return c, true
 			}
 		}
@@ -526,9 +545,8 @@ func SelectProfileCandidate(cands []ProfileCandidate, preferredEmail string) (Pr
 // FindProfileTokenByEmail returns the Profile DM Token for the Chrome profile signed in as email.
 func FindProfileTokenByEmail(email string) (ProfileCandidate, bool) {
 	cands := ListChromeProfileCandidates()
-	e := strings.ToLower(strings.TrimSpace(email))
 	for _, c := range cands {
-		if strings.ToLower(c.UserEmail) == e {
+		if matchesPreferredEmail(c.UserEmail, email) {
 			return c, true
 		}
 	}
