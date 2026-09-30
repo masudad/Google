@@ -5,16 +5,19 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"cep-local-dlp-agent/pkg/dmtoken"
 	"cep-local-dlp-agent/pkg/notifier"
@@ -31,9 +34,11 @@ func main() {
 	}
 
 	subcmd := os.Args[1]
-	// Support invocation via cep-dlp:// custom URL protocol on Windows/Linux (e.g. cep-dlp-agent "cep-dlp://start")
+	// Support invocation via cep-dlp:// custom URL protocol on Windows/Linux (e.g. cep-dlp-agent "cep-dlp://start").
+	// Launches the background daemon hidden (CREATE_NO_WINDOW on Windows) and returns immediately
+	// so no console window stays open.
 	if strings.HasPrefix(subcmd, "cep-dlp://") {
-		runProxyCmd([]string{"--system-proxy"}, true)
+		sysconfig.EnsureDaemonRunning("127.0.0.1:8843")
 		return
 	}
 
@@ -92,6 +97,19 @@ func runTokenCmd(args []string) {
 	}
 
 	info, err := dmtoken.Discover(*dmTokenFlag)
+	if (*profileEmail != "" || *dmTokenFlag != "") && info != nil {
+		// Also push the updated profile/token to any currently running local daemon so it switches immediately.
+		body, _ := json.Marshal(map[string]string{
+			"dm_token":         info.DMToken,
+			"profile_dm_token": info.ProfileDMToken,
+			"user_email":       info.UserEmail,
+		})
+		client := &http.Client{Timeout: 800 * time.Millisecond}
+		if resp, postErr := client.Post("http://127.0.0.1:8843/__cep_agent/v1/bootstrap-token", "application/json", bytes.NewReader(body)); postErr == nil {
+			_ = resp.Body.Close()
+		}
+	}
+
 	out, _ := json.MarshalIndent(info, "", "  ")
 	fmt.Println(string(out))
 	if len(info.AvailableProfiles) > 1 {
@@ -239,10 +257,17 @@ func runProxyCmd(args []string, enableClipboardGuard bool) {
 	headlessFlag := fs.Bool("headless", false, "Disable native OS GUI modal alerts")
 	_ = fs.Parse(args)
 
+	// Bind the TCP listener FIRST before touching the OS system proxy. If another daemon instance
+	// is already listening on 127.0.0.1:8843, exit cleanly without clobbering the running daemon's OS proxy.
+	ln, err := net.Listen("tcp", *listenAddr)
+	if err != nil {
+		log.Printf("[agent] Another instance is already listening on %s (%v) — exiting cleanly.", *listenAddr, err)
+		return
+	}
+	defer ln.Close()
+
 	info, err := dmtoken.Discover(*dmTokenFlag)
 	if err != nil {
-		// On unmanaged BYOD PCs, allow daemon to start in awaiting-bootstrap state so the
-		// Companion Chrome Extension can push the BYOD DM token via POST /__cep_agent/v1/bootstrap-token.
 		log.Printf("[agent] Starting in BYOD awaiting-token mode (%v) — Companion Chrome Extension can push token to http://%s/__cep_agent/v1/bootstrap-token", err, *listenAddr)
 	} else {
 		log.Printf("[agent] Using DM Token from %s (device=%s, os=%s, user=%s)",
@@ -279,8 +304,8 @@ func runProxyCmd(args []string, enableClipboardGuard bool) {
 	}
 
 	proxySrv := proxy.NewServer(ca, filter, wpClient, info, notif)
+	proxySrv.ShutdownFunc = stop
 	httpSrv := &http.Server{
-		Addr:    *listenAddr,
 		Handler: proxySrv,
 	}
 
@@ -290,7 +315,7 @@ func runProxyCmd(args []string, enableClipboardGuard bool) {
 	}()
 
 	log.Printf("[agent] Layer-2 Smart HTTPS Proxy + Control Plane (/healthz) listening on http://%s", *listenAddr)
-	if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+	if err := httpSrv.Serve(ln); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("Proxy server error: %v", err)
 	}
 }

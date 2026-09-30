@@ -7,6 +7,7 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/url"
+	"sort"
 	"strings"
 	"unicode/utf8"
 
@@ -19,6 +20,44 @@ type ExtractedItem struct {
 	Filename    string
 	ContentType string
 	Payload     []byte
+}
+
+// jsonMetadataKeys are JSON field names that carry protocol identifiers, UUIDs, model names,
+// or telemetry metadata rather than user-authored prompts or documents.
+var jsonMetadataKeys = map[string]bool{
+	"id":                true,
+	"uuid":              true,
+	"conversation_id":   true,
+	"conversation_uuid": true,
+	"parent_message_id": true,
+	"message_id":        true,
+	"organization_uuid": true,
+	"project_uuid":      true,
+	"workspace_id":      true,
+	"session_id":        true,
+	"request_id":        true,
+	"trace_id":          true,
+	"span_id":           true,
+	"client_id":         true,
+	"device_id":         true,
+	"user_id":           true,
+	"account_id":        true,
+	"model":             true,
+	"role":              true,
+	"type":              true,
+	"object":            true,
+	"stream":            true,
+	"timezone":          true,
+	"locale":            true,
+	"event":             true,
+	"event_name":        true,
+	"status":            true,
+	"version":           true,
+	"platform":          true,
+	"os":                true,
+	"arch":              true,
+	"cursor":            true,
+	"next_cursor":       true,
 }
 
 // ExtractInspectableItems parses an HTTP request body according to its Content-Type:
@@ -43,21 +82,23 @@ func ExtractInspectableItems(contentTypeHeader string, body []byte, minBytes int
 
 	// 2. JSON API payloads (Cursor, Claude Desktop, OpenAI, Gemini, Slack chat.postMessage, Graph API mail)
 	if strings.Contains(mediaType, "json") || (len(body) > 0 && (body[0] == '{' || body[0] == '[')) {
-		if text := extractJSONTextStrings(body); len(text) >= minBytes {
-			return []ExtractedItem{
-				{
-					Connector:   webprotect.BulkDataEntry,
-					ContentType: "text/plain",
-					Payload:     []byte(text),
-				},
+		if text, validJSON := extractJSONTextStrings(body); validJSON {
+			if len(text) >= minBytes {
+				return []ExtractedItem{
+					{
+						Connector:   webprotect.BulkDataEntry,
+						ContentType: "text/plain",
+						Payload:     []byte(text),
+					},
+				}
 			}
+			// Valid JSON whose non-metadata human/code text is shorter than minBytes
+			// (e.g. UUID/state-sync/settings JSON) must NOT fall back to scanning raw JSON framing.
+			return nil
 		}
 	}
 
 	// 3. Fallback: classify the raw body.
-	//    - Recognised document/archive/image formats (by MIME type or magic bytes) => FILE_ATTACHED
-	//    - Text-like bodies (form-urlencoded, XML, plain, or mostly printable octet-stream) => BULK_DATA_ENTRY
-	//    - Opaque binary framing (protobuf, gRPC, unknown binary blobs) => not inspectable, skip
 	if mediaType == "" {
 		mediaType = "text/plain"
 	}
@@ -148,8 +189,7 @@ func sniffDocumentType(mediaType string, body []byte) (string, bool) {
 	return "", false
 }
 
-// looksLikeText samples the body and reports true when it is overwhelmingly printable UTF-8
-// (so an octet-stream body that is really JSON/CSV/source code is still scanned as text).
+// looksLikeText samples the body and reports true when it is overwhelmingly printable UTF-8.
 func looksLikeText(body []byte) bool {
 	if len(body) == 0 {
 		return false
@@ -170,15 +210,21 @@ func looksLikeText(body []byte) bool {
 	return printable*100 >= len(sample)*95
 }
 
-// decodeFormURLEncoded turns key=value&key2=value2 bodies into newline-separated plain text.
+// decodeFormURLEncoded turns key=value&key2=value2 bodies into newline-separated plain text,
+// ordered deterministically by key.
 func decodeFormURLEncoded(body []byte) []byte {
 	vals, err := url.ParseQuery(string(body))
 	if err != nil || len(vals) == 0 {
 		return body
 	}
+	keys := make([]string, 0, len(vals))
+	for k := range vals {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
 	var sb strings.Builder
-	for _, list := range vals {
-		for _, v := range list {
+	for _, k := range keys {
+		for _, v := range vals[k] {
 			if strings.TrimSpace(v) != "" {
 				sb.WriteString(v)
 				sb.WriteString("\n")
@@ -239,46 +285,69 @@ func extractMultipartItems(boundary string, body []byte, minBytes int) []Extract
 	return items
 }
 
-// extractJSONTextStrings recursively walks a JSON structure and concatenates human/code text values
-// (such as "content", "prompt", "text", "body", "message", "input", "code") so CEP DLP detectors
-// evaluate clean text without JSON escaping noise.
-func extractJSONTextStrings(body []byte) string {
+// extractJSONTextStrings recursively walks a JSON structure in deterministic key order and
+// concatenates human/code text values (such as "content", "prompt", "text", "body", "message", "input", "code")
+// so CEP DLP detectors evaluate clean text without JSON escaping or UUID metadata noise.
+func extractJSONTextStrings(body []byte) (string, bool) {
 	var root any
 	if err := json.Unmarshal(body, &root); err != nil {
-		return string(body)
+		return "", false
 	}
 	var sb strings.Builder
 	collectJSONStrings(root, "", &sb)
-	out := strings.TrimSpace(sb.String())
-	if out == "" {
-		return string(body)
-	}
-	return out
+	return strings.TrimSpace(sb.String()), true
 }
 
 func collectJSONStrings(v any, key string, sb *strings.Builder) {
 	switch val := v.(type) {
 	case map[string]any:
-		for k, child := range val {
-			collectJSONStrings(child, strings.ToLower(k), sb)
+		keys := make([]string, 0, len(val))
+		for k := range val {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			collectJSONStrings(val[k], strings.ToLower(k), sb)
 		}
 	case []any:
 		for _, item := range val {
 			collectJSONStrings(item, key, sb)
 		}
 	case string:
-		// Skip metadata keys like model IDs, roles, or UUIDs unless the value itself is long
-		switch key {
-		case "role", "model", "id", "type", "object", "stream":
-			if len(val) < 32 {
+		trimmed := strings.TrimSpace(val)
+		if len(trimmed) == 0 {
+			return
+		}
+		if jsonMetadataKeys[key] || strings.HasSuffix(key, "_id") || strings.HasSuffix(key, "_uuid") {
+			if len(trimmed) < 64 {
 				return
 			}
 		}
-		if len(strings.TrimSpace(val)) > 0 {
-			sb.WriteString(val)
-			sb.WriteString("\n")
+		if isUUIDString(trimmed) {
+			return
+		}
+		sb.WriteString(val)
+		sb.WriteString("\n")
+	}
+}
+
+func isUUIDString(s string) bool {
+	if len(s) != 36 {
+		return false
+	}
+	for i := 0; i < 36; i++ {
+		c := s[i]
+		if i == 8 || i == 13 || i == 18 || i == 23 {
+			if c != '-' {
+				return false
+			}
+			continue
+		}
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+			return false
 		}
 	}
+	return true
 }
 
 func isBinaryMediaType(mediaType string) bool {

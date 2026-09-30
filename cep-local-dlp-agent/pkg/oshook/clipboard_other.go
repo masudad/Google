@@ -3,10 +3,21 @@
 package oshook
 
 import (
+	"context"
 	"os/exec"
 	"runtime"
 	"strings"
+	"time"
 )
+
+func defaultPollInterval() time.Duration {
+	return 200 * time.Millisecond
+}
+
+func startPasteKeystrokeHook(_ context.Context, _ *ClipboardGuard) {
+	// On macOS/Linux, silent clipboard quarantine in PrewarmClipboardOnce empties the OS
+	// clipboard when a blocked native app is active and restores it when returning to a browser.
+}
 
 // clipboardSequenceNumber returns 0 on non-Windows platforms so currentClipboardText()
 // falls back to reading the clipboard and hashing its text content.
@@ -30,17 +41,21 @@ func readOSClipboard() string {
 	return ""
 }
 
-func clearOSClipboard() error {
+func writeOSClipboard(text string) error {
 	switch runtime.GOOS {
 	case "darwin":
 		cmd := exec.Command("pbcopy")
-		cmd.Stdin = strings.NewReader("")
+		cmd.Stdin = strings.NewReader(text)
 		return cmd.Run()
 	default:
 		cmd := exec.Command("xclip", "-i", "-selection", "clipboard")
-		cmd.Stdin = strings.NewReader("")
+		cmd.Stdin = strings.NewReader(text)
 		return cmd.Run()
 	}
+}
+
+func clearOSClipboard() error {
+	return writeOSClipboard("")
 }
 
 func detectForegroundApp() string {

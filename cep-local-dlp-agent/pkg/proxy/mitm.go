@@ -12,7 +12,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -35,6 +34,7 @@ type Server struct {
 	TokenInfo         *dmtoken.TokenInfo
 	Notifier          notifier.Notifier
 	UpstreamTransport http.RoundTripper
+	ShutdownFunc      func()
 }
 
 // NewServer constructs a new Smart Proxy Server.
@@ -76,7 +76,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) isLocalControlRequest(r *http.Request) bool {
 	if r.URL.Path == "/healthz" || strings.HasPrefix(r.URL.Path, "/__cep_agent/") {
-		// Direct request to 127.0.0.1:8843 or localhost:8843 (not a proxy request to an external host)
 		host := strings.ToLower(r.Host)
 		return strings.HasPrefix(host, "127.0.0.1") || strings.HasPrefix(host, "localhost") || r.URL.Host == ""
 	}
@@ -94,23 +93,32 @@ func (s *Server) handleControlPlane(w http.ResponseWriter, r *http.Request) {
 
 	switch r.URL.Path {
 	case "/healthz", "/__cep_agent/v1/status":
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		hasToken := s.TokenInfo != nil && s.TokenInfo.DMToken != ""
+		if s.TokenInfo != nil {
+			s.TokenInfo.RefreshIfNeeded()
+		}
+		dmTok, tokSource, userEmail := s.TokenInfo.Snapshot()
+		hasToken := dmTok != ""
 		status := "ok"
 		if !hasToken {
 			status = "awaiting_dm_token"
 		}
+		var devName, osPlat string
+		if s.TokenInfo != nil {
+			devName = s.TokenInfo.DeviceName
+			osPlat = s.TokenInfo.OSPlatform
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"ok":               true,
 			"status":           status,
 			"agent":            "cep-local-dlp-agent",
-			"version":          "1.2.1",
+			"version":          "1.3.0",
 			"dm_token_present": hasToken,
 			"has_token":        hasToken,
-			"token_source":     s.TokenInfo.TokenSource,
-			"user_email":       s.TokenInfo.UserEmail,
-			"device_name":      s.TokenInfo.DeviceName,
-			"os_platform":      s.TokenInfo.OSPlatform,
+			"token_source":     tokSource,
+			"user_email":       userEmail,
+			"device_name":      devName,
+			"os_platform":      osPlat,
 			"timestamp":        time.Now().UTC().Format(time.RFC3339),
 		})
 	case "/__cep_agent/v1/bootstrap-token":
@@ -127,41 +135,32 @@ func (s *Server) handleControlPlane(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "invalid json", http.StatusBadRequest)
 			return
 		}
-		if strings.TrimSpace(payload.DMToken) != "" {
-			s.TokenInfo.DMToken = strings.TrimSpace(payload.DMToken)
-			s.TokenInfo.TokenSource = "companion_extension"
+		if s.TokenInfo != nil {
+			s.TokenInfo.UpdateFromBootstrap(payload.DMToken, payload.ProfileDMToken, payload.UserEmail)
 		}
-		if strings.TrimSpace(payload.ProfileDMToken) != "" {
-			s.TokenInfo.ProfileDMToken = strings.TrimSpace(payload.ProfileDMToken)
-		}
-		if strings.TrimSpace(payload.UserEmail) != "" {
-			s.TokenInfo.UserEmail = strings.TrimSpace(payload.UserEmail)
-			// The Companion Extension runs inside one specific Chrome profile. Pin that account and,
-			// when no explicit dm_token was pushed, switch to that profile's cached Profile DM Token so a
-			// multi-tenant BYOD machine never reports to the wrong tenant.
-			_ = dmtoken.SavePreferredProfileEmail(s.TokenInfo.UserEmail)
-			if strings.TrimSpace(payload.DMToken) == "" {
-				if cand, ok := dmtoken.FindProfileTokenByEmail(s.TokenInfo.UserEmail); ok {
-					s.TokenInfo.DMToken = cand.DMToken
-					s.TokenInfo.ProfileDMToken = cand.DMToken
-					if cand.ClientID != "" {
-						s.TokenInfo.ClientID = cand.ClientID
-					}
-					s.TokenInfo.TokenSource = "chrome_profile:" + filepath.Base(cand.ProfileDir)
-					log.Printf("[control] Switched to Chrome profile %s (%s) requested by Companion Extension",
-						filepath.Base(cand.ProfileDir), s.TokenInfo.UserEmail)
-				}
-			}
-		}
-		_ = dmtoken.SaveBYODBootstrapToken(s.TokenInfo.DMToken, s.TokenInfo.UserEmail)
-		log.Printf("[control] Updated BYOD credentials from Companion Chrome Extension (user=%s, dm_token_present=%v)",
-			s.TokenInfo.UserEmail, s.TokenInfo.DMToken != "")
+		dmTok, tokSource, userEmail := s.TokenInfo.Snapshot()
+		log.Printf("[control] Updated credentials (source=%s, user=%s, dm_token_present=%v)",
+			tokSource, userEmail, dmTok != "")
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"ok":               true,
-			"dm_token_present": s.TokenInfo.DMToken != "",
-			"user_email":       s.TokenInfo.UserEmail,
+			"dm_token_present": dmTok != "",
+			"token_source":     tokSource,
+			"user_email":       userEmail,
 		})
+	case "/__cep_agent/v1/shutdown":
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "shutting_down": true})
+		if s.ShutdownFunc != nil {
+			go func() {
+				time.Sleep(50 * time.Millisecond)
+				s.ShutdownFunc()
+			}()
+		}
 	default:
 		http.NotFound(w, r)
 	}
@@ -315,9 +314,11 @@ func (s *Server) handleHTTPRequest(w http.ResponseWriter, r *http.Request, defau
 		}
 	}
 
-	// Restore body and forward to upstream destination
+	// Restore body and normalize framing before forwarding to upstream destination
 	r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 	r.ContentLength = int64(len(bodyBytes))
+	r.TransferEncoding = nil
+	r.Header.Del("Transfer-Encoding")
 
 	resp, err := s.UpstreamTransport.RoundTrip(r)
 	if err != nil {
@@ -337,12 +338,34 @@ func (s *Server) handleHTTPRequest(w http.ResponseWriter, r *http.Request, defau
 
 func (s *Server) inspectOutboundPayload(ctx context.Context, targetURL, contentType, clientProc string, body []byte) (bool, *webprotect.ScanVerdict) {
 	items := ExtractInspectableItems(contentType, body, s.Filter.MinPayloadBytes)
+	if len(items) == 0 {
+		return false, nil
+	}
 	logURL := RedactURL(targetURL)
 	sourceApp := clientProc
 	if sourceApp == "" {
 		sourceApp = "LOCAL_HTTPS_PROXY"
 	}
+
+	if s.TokenInfo != nil {
+		s.TokenInfo.RefreshIfNeeded()
+	}
+	var dmToken, profileDMToken, userEmail, clientID, deviceName, osPlatform, osVersion, machineUser string
+	if s.TokenInfo != nil {
+		dmToken, profileDMToken, userEmail, clientID = s.TokenInfo.Credentials()
+		deviceName = s.TokenInfo.DeviceName
+		osPlatform = s.TokenInfo.OSPlatform
+		osVersion = s.TokenInfo.OSVersion
+		machineUser = s.TokenInfo.MachineUser
+	}
+
 	for _, item := range items {
+		if cachedBlock, ok := s.Filter.WasRecentlyBlocked(targetURL, item.Payload); ok {
+			log.Printf("[proxy] identical blocked payload for %s retried <60s ago -> enforcing cached BLOCK (rule=%q)",
+				logURL, cachedBlock.RuleName)
+			s.Notifier.NotifyBlock(logURL, cachedBlock.RuleName, cachedBlock.CustomMessage)
+			return true, cachedBlock
+		}
 		if s.Filter.WasRecentlyAllowed(targetURL, item.Payload) {
 			if debugEnabled() {
 				log.Printf("[proxy] identical allowed payload for %s scanned <30s ago, reusing ALLOW verdict (quota saved)", logURL)
@@ -355,10 +378,10 @@ func (s *Server) inspectOutboundPayload(ctx context.Context, targetURL, contentT
 		}
 
 		verdict, err := s.WebProtect.Scan(ctx, webprotect.ScanInput{
-			DMToken:        s.TokenInfo.DMToken,
-			ProfileDMToken: s.TokenInfo.ProfileDMToken,
-			UserEmail:      s.TokenInfo.UserEmail,
-			ClientID:       s.TokenInfo.ClientID,
+			DMToken:        dmToken,
+			ProfileDMToken: profileDMToken,
+			UserEmail:      userEmail,
+			ClientID:       clientID,
 			URL:            targetURL,
 			Filename:       item.Filename,
 			Source:         sourceApp,
@@ -366,10 +389,10 @@ func (s *Server) inspectOutboundPayload(ctx context.Context, targetURL, contentT
 			ContentType:    item.ContentType,
 			Connector:      item.Connector,
 			Payload:        item.Payload,
-			DeviceName:     s.TokenInfo.DeviceName,
-			OSPlatform:     s.TokenInfo.OSPlatform,
-			OSVersion:      s.TokenInfo.OSVersion,
-			MachineUser:    s.TokenInfo.MachineUser,
+			DeviceName:     deviceName,
+			OSPlatform:     osPlatform,
+			OSVersion:      osVersion,
+			MachineUser:    machineUser,
 		})
 		if err != nil {
 			log.Printf("[proxy] WebProtect scan error for %s: %v (failing open)", logURL, err)
@@ -380,6 +403,7 @@ func (s *Server) inspectOutboundPayload(ctx context.Context, targetURL, contentT
 			logURL, item.Connector, len(item.Payload), verdict.ActionName, verdict.RuleName, verdict.LatencyMs)
 
 		if !verdict.Allowed {
+			s.Filter.RecordBlockedScan(targetURL, item.Payload, verdict)
 			s.Notifier.NotifyBlock(logURL, verdict.RuleName, verdict.CustomMessage)
 			return true, verdict
 		}

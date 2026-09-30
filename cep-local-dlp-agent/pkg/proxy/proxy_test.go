@@ -110,6 +110,28 @@ func TestSmartProxyE2E(t *testing.T) {
 		t.Errorf("expected 0 WebProtect calls on tiny heartbeat POST, got %d", got)
 	}
 
+	// Case B2: Large JSON metadata/UUID-only POST (>100 bytes of UUIDs, 0 bytes of user prompt) -> must NOT call WebProtect
+	uuidOnlyJSON := `{"id":"550e8400-e29b-41d4-a716-446655440000","conversation_id":"6ba7b810-9dad-11d1-80b4-00c04fd430c8","organization_uuid":"6ba7b811-9dad-11d1-80b4-00c04fd430c8","model":"claude-3-7-sonnet","stream":true}`
+	resp, err = client.Post(mockUpstream.URL+"/v1/metadata", "application/json", strings.NewReader(uuidOnlyJSON))
+	if err != nil {
+		t.Fatalf("UUID metadata POST failed: %v", err)
+	}
+	_ = resp.Body.Close()
+	if got := atomic.LoadInt32(&webProtectCalls); got != 0 {
+		t.Errorf("expected 0 WebProtect calls on UUID/metadata-only JSON POST, got %d", got)
+	}
+
+	// Case B3: Cloudflare /cdn-cgi/rum or /cdn-cgi/challenge-platform POST on window focus -> must NOT call WebProtect
+	cfPayload := strings.Repeat("cloudflare-fingerprint-telemetry-", 6)
+	resp, err = client.Post(mockUpstream.URL+"/cdn-cgi/challenge-platform/h/b/flow/ov1", "text/plain", strings.NewReader(cfPayload))
+	if err != nil {
+		t.Fatalf("Cloudflare POST failed: %v", err)
+	}
+	_ = resp.Body.Close()
+	if got := atomic.LoadInt32(&webProtectCalls); got != 0 {
+		t.Errorf("expected 0 WebProtect calls on /cdn-cgi/ POST, got %d", got)
+	}
+
 	// Case C: Cursor / Claude Desktop JSON POST containing clean prompt (>=50 bytes) -> Allowed
 	cleanJSON := `{"model":"claude-3-7-sonnet","messages":[{"role":"user","content":"Please refactor this sorting function to use quicksort in Go."}]}`
 	resp, err = client.Post(mockUpstream.URL+"/v1/messages", "application/json", strings.NewReader(cleanJSON))
@@ -139,14 +161,14 @@ func TestSmartProxyE2E(t *testing.T) {
 		t.Errorf("expected X-CEP-DLP-Verdict: BLOCK header")
 	}
 
-	// Case D2 (Edge Case): Retrying the exact same blocked POST within 30s must NOT be bypassed by dedupe cache!
+	// Case D2 (Edge Case): Retrying the exact same blocked POST within 60s must still be blocked with HTTP 403!
 	respRetry, err := client.Post(mockUpstream.URL+"/v1/messages", "application/json", strings.NewReader(secretJSON))
 	if err != nil {
 		t.Fatalf("secret retry POST failed: %v", err)
 	}
 	_ = respRetry.Body.Close()
 	if respRetry.StatusCode != http.StatusForbidden {
-		t.Fatalf("retried blocked POST within 30s must still return HTTP 403 Forbidden, got %d", respRetry.StatusCode)
+		t.Fatalf("retried blocked POST within 60s must still return HTTP 403 Forbidden, got %d", respRetry.StatusCode)
 	}
 
 	// Case E: Slack / Native App Multipart File Upload with sensitive content -> Blocked with HTTP 403
@@ -195,7 +217,8 @@ func TestSmartProxyE2E(t *testing.T) {
 	if bootResp.StatusCode != http.StatusOK {
 		t.Errorf("expected HTTP 200 from bootstrap-token, got %d", bootResp.StatusCode)
 	}
-	if got := proxySrv.TokenInfo.DMToken; got != "byod-ext-pushed-token-777" {
-		t.Errorf("expected live DMToken to update to byod-ext-pushed-token-777, got %q", got)
+	dmTok, _, _ := proxySrv.TokenInfo.Snapshot()
+	if dmTok != "byod-ext-pushed-token-777" {
+		t.Errorf("expected live DMToken to update to byod-ext-pushed-token-777, got %q", dmTok)
 	}
 }

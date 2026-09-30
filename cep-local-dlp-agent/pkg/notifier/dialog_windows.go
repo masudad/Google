@@ -8,17 +8,22 @@ import (
 	"unsafe"
 )
 
-// Windows native modal dialogs via user32.dll!MessageBoxW.
-// Calling MessageBoxW directly avoids spawning powershell.exe + .NET PresentationFramework,
-// renders CRLF (\r\n) line breaks properly (preventing literal "¥n" from Go's %q formatting),
-// and forces the dialog to the foreground (MB_TOPMOST | MB_SETFOREGROUND).
+// Windows native modal dialogs via user32.dll!MessageBoxW, plus focus restoration
+// (FindWindowW + ShowWindow + SetForegroundWindow + MessageBeep) when the user leaves
+// a block dialog open in the background and tries to paste again.
 
 var (
-	modUser32       = syscall.NewLazyDLL("user32.dll")
-	procMessageBoxW = modUser32.NewProc("MessageBoxW")
+	modUser32               = syscall.NewLazyDLL("user32.dll")
+	procMessageBoxW         = modUser32.NewProc("MessageBoxW")
+	procFindWindowW         = modUser32.NewProc("FindWindowW")
+	procShowWindow          = modUser32.NewProc("ShowWindow")
+	procSetForegroundWindow = modUser32.NewProc("SetForegroundWindow")
+	procMessageBeep         = modUser32.NewProc("MessageBeep")
 )
 
 const (
+	blockDialogTitle = "Chrome Enterprise Premium DLP"
+
 	mbOK            = 0x00000000
 	mbYesNo         = 0x00000004
 	mbIconError     = 0x00000010
@@ -27,6 +32,7 @@ const (
 	mbSetForeground = 0x00010000
 	mbTopMost       = 0x00040000
 	idYes           = 6
+	swRestore       = 9
 )
 
 func showNativeBlockDialog(msg string) {
@@ -35,7 +41,7 @@ func showNativeBlockDialog(msg string) {
 	if err != nil {
 		return
 	}
-	titlePtr, err := syscall.UTF16PtrFromString("Chrome Enterprise Premium DLP")
+	titlePtr, err := syscall.UTF16PtrFromString(blockDialogTitle)
 	if err != nil {
 		return
 	}
@@ -46,6 +52,19 @@ func showNativeBlockDialog(msg string) {
 		uintptr(unsafe.Pointer(titlePtr)),
 		flags,
 	)
+}
+
+func focusExistingBlockDialog() {
+	procMessageBeep.Call(mbIconError)
+	titlePtr, err := syscall.UTF16PtrFromString(blockDialogTitle)
+	if err != nil {
+		return
+	}
+	hwnd, _, _ := procFindWindowW.Call(0, uintptr(unsafe.Pointer(titlePtr)))
+	if hwnd != 0 {
+		procShowWindow.Call(hwnd, swRestore)
+		procSetForegroundWindow.Call(hwnd)
+	}
 }
 
 func showNativeWarnDialog(msg string) bool {

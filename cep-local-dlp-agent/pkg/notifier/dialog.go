@@ -5,12 +5,9 @@ package notifier
 import (
 	"log"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 )
-
-const alertCooldown = 5 * time.Second
 
 // Notifier displays DLP block alerts and interactive warning prompts to the local user.
 type Notifier interface {
@@ -19,26 +16,24 @@ type Notifier interface {
 }
 
 // OSNotifier uses native OS dialogs (Win32 MessageBoxW on Windows, osascript on macOS,
-// notify-send/zenity on Linux) with single-instance deduplication so multiple background
-// requests never stack modal dialogs on top of each other.
+// notify-send/zenity on Linux) with single-instance focus management:
+//   - If a modal block dialog is already open on screen, NotifyBlock brings that existing
+//     dialog back to the foreground and beeps instead of stacking duplicate dialogs.
+//   - Once the user closes the modal dialog, any subsequent blocked action (such as a 2nd
+//     Ctrl+V press) immediately opens a new block dialog without a multi-second blind spot.
 type OSNotifier struct {
 	Headless   bool
 	dialogOpen atomic.Bool
-	mu         sync.Mutex
-	recent     map[string]time.Time
 }
 
 // NewOSNotifier creates a new OSNotifier.
 func NewOSNotifier(headless bool) *OSNotifier {
 	return &OSNotifier{
 		Headless: headless,
-		recent:   make(map[string]time.Time),
 	}
 }
 
 // NotifyBlock alerts the user that an outbound request or paste was blocked by CEP DLP.
-// Suppresses duplicate stacked popups if a modal dialog is already open or if the same
-// rule+target was shown within alertCooldown.
 func (n *OSNotifier) NotifyBlock(targetURL, ruleName, customMessage string) {
 	msg := formatAlertBody("ブロックされました (Blocked by CEP DLP)", targetURL, ruleName, customMessage)
 	log.Printf("[CEP-DLP BLOCK] %s", strings.ReplaceAll(msg, "\n", " | "))
@@ -46,26 +41,21 @@ func (n *OSNotifier) NotifyBlock(targetURL, ruleName, customMessage string) {
 		return
 	}
 
-	key := targetURL + "\x00" + ruleName
-	now := time.Now()
-	n.mu.Lock()
-	if exp, ok := n.recent[key]; ok && now.Before(exp) {
-		n.mu.Unlock()
-		return
-	}
-	if len(n.recent) > 256 {
-		n.recent = make(map[string]time.Time)
-	}
-	n.recent[key] = now.Add(alertCooldown)
-	n.mu.Unlock()
-
 	if !n.dialogOpen.CompareAndSwap(false, true) {
-		// Another modal block dialog is currently on screen; avoid stacking popups.
+		// A modal block dialog is already open on screen: bring it back to the foreground
+		// and play an alert sound so the user cannot ignore it in the background, without
+		// stacking duplicate windows.
+		focusExistingBlockDialog()
 		return
 	}
 
 	go func() {
-		defer n.dialogOpen.Store(false)
+		defer func() {
+			// Short 150ms post-close debounce to avoid key-up bounce when dismissing with Enter/Space,
+			// while ensuring a 2nd Ctrl+V press immediately shows the block dialog again.
+			time.Sleep(150 * time.Millisecond)
+			n.dialogOpen.Store(false)
+		}()
 		showNativeBlockDialog(msg)
 	}()
 }

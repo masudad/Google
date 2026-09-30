@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -38,7 +40,7 @@ func InstallUserSpaceAgent(certPath string, listenAddr string, dmToken string) (
 	targetBin := filepath.Join(binDir, exeName)
 
 	// Terminate any already-running installed daemon before overwriting targetBin and binding port 8843.
-	stopInstalledDaemon(exeName)
+	stopInstalledDaemon(exeName, listenAddr)
 
 	selfPath, err := os.Executable()
 	if err == nil && selfPath != targetBin {
@@ -82,7 +84,44 @@ func InstallUserSpaceAgent(certPath string, listenAddr string, dmToken string) (
 	return targetBin, nil
 }
 
-func stopInstalledDaemon(exeName string) {
+// EnsureDaemonRunning checks if the local daemon is already listening on listenAddr,
+// and if not, launches it in the background without opening a visible console window.
+func EnsureDaemonRunning(listenAddr string) {
+	if listenAddr == "" {
+		listenAddr = "127.0.0.1:8843"
+	}
+	client := &http.Client{Timeout: 600 * time.Millisecond}
+	if resp, err := client.Get("http://" + listenAddr + "/healthz"); err == nil {
+		_ = resp.Body.Close()
+		if resp.StatusCode == http.StatusOK {
+			return
+		}
+	}
+
+	selfPath, err := os.Executable()
+	if err != nil || selfPath == "" {
+		home, _ := os.UserHomeDir()
+		exeName := "cep-dlp-agent"
+		if runtime.GOOS == "windows" {
+			exeName = "cep-dlp-agent.exe"
+		}
+		selfPath = filepath.Join(home, ".cep-local-dlp-agent", "bin", exeName)
+	}
+	ensureDaemonRunningNow(selfPath, listenAddr)
+}
+
+func stopInstalledDaemon(exeName, listenAddr string) {
+	if listenAddr == "" {
+		listenAddr = "127.0.0.1:8843"
+	}
+	// 1. Request a graceful shutdown first so `defer restore()` cleanly resets the OS system proxy.
+	client := &http.Client{Timeout: 600 * time.Millisecond}
+	if resp, err := client.Post("http://"+listenAddr+"/__cep_agent/v1/shutdown", "application/json", strings.NewReader(`{}`)); err == nil {
+		_ = resp.Body.Close()
+		time.Sleep(250 * time.Millisecond)
+	}
+
+	// 2. Force-terminate any remaining background processes and reset Windows ProxyEnable=0.
 	myPid := os.Getpid()
 	switch runtime.GOOS {
 	case "windows":
@@ -90,6 +129,8 @@ func stopInstalledDaemon(exeName string) {
 		_ = exec.Command("taskkill", "/F", "/FI", filter, "/IM", exeName).Run()
 		_ = exec.Command("taskkill", "/F", "/FI", filter, "/IM", "cep-dlp-agent-windows-amd64.exe").Run()
 		_ = exec.Command("taskkill", "/F", "/FI", filter, "/IM", "cep-dlp-agent-windows-arm64.exe").Run()
+		_ = exec.Command("reg", "add", `HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings`,
+			"/v", "ProxyEnable", "/t", "REG_DWORD", "/d", "0", "/f").Run()
 		time.Sleep(250 * time.Millisecond)
 	}
 }
@@ -99,16 +140,18 @@ func UninstallUserSpaceAgent() error {
 	home, _ := os.UserHomeDir()
 	switch runtime.GOOS {
 	case "darwin":
+		stopInstalledDaemon("cep-dlp-agent", "127.0.0.1:8843")
 		plistPath := filepath.Join(home, "Library/LaunchAgents", macLaunchAgentLabel+".plist")
 		_ = exec.Command("launchctl", "unload", "-w", plistPath).Run()
 		_ = os.Remove(plistPath)
 		_ = os.RemoveAll(filepath.Join(home, "Applications", "CEP Local DLP Agent.app"))
 	case "windows":
-		stopInstalledDaemon("cep-dlp-agent.exe")
+		stopInstalledDaemon("cep-dlp-agent.exe", "127.0.0.1:8843")
 		_ = exec.Command("reg", "delete", `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, "/v", winRunValueName, "/f").Run()
 		_ = exec.Command("reg", "delete", `HKCU\Software\Classes\cep-dlp`, "/f").Run()
 		_ = exec.Command("reg", "add", `HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings`, "/v", "ProxyEnable", "/t", "REG_DWORD", "/d", "0", "/f").Run()
 	default:
+		stopInstalledDaemon("cep-dlp-agent", "127.0.0.1:8843")
 		unitPath := filepath.Join(home, ".config/systemd/user/cep-local-dlp-agent.service")
 		_ = exec.Command("systemctl", "--user", "disable", "--now", "cep-local-dlp-agent.service").Run()
 		_ = os.Remove(unitPath)
@@ -154,8 +197,6 @@ func installMacOSLaunchAgentAndApp(home, binPath, listenAddr string) error {
 		return fmt.Errorf("write LaunchAgent plist: %w", err)
 	}
 
-	// Also create a minimal macOS .app bundle in ~/Applications so `cep-dlp://start`
-	// URL scheme clicks in Chrome are handled natively by macOS LaunchServices.
 	appDir := filepath.Join(home, "Applications", "CEP Local DLP Agent.app", "Contents")
 	macOSBinDir := filepath.Join(appDir, "MacOS")
 	if err := os.MkdirAll(macOSBinDir, 0o755); err == nil {
@@ -170,7 +211,7 @@ func installMacOSLaunchAgentAndApp(home, binPath, listenAddr string) error {
     <key>CFBundleName</key>
     <string>CEP Local DLP Agent</string>
     <key>CFBundleVersion</key>
-    <string>1.2.1</string>
+    <string>1.3.0</string>
     <key>LSUIElement</key>
     <true/>
     <key>CFBundleURLTypes</key>
@@ -206,13 +247,11 @@ func installWindowsAutoStartAndProtocol(binPath, listenAddr string) error {
 	daemonCmd := fmt.Sprintf(`"%s" daemon --listen %s --system-proxy`, binPath, listenAddr)
 	urlSchemeCmd := fmt.Sprintf(`"%s" "%%1"`, binPath)
 
-	// 1. Register user login auto-start under HKCU\Software\Microsoft\Windows\CurrentVersion\Run (no admin required)
 	if err := exec.Command("reg", "add", `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`,
 		"/v", winRunValueName, "/t", "REG_SZ", "/d", daemonCmd, "/f").Run(); err != nil {
 		return fmt.Errorf("register Windows HKCU Run auto-start: %w", err)
 	}
 
-	// 2. Register cep-dlp:// custom URL scheme under HKCU\Software\Classes\cep-dlp so Chrome extension can launch it
 	_ = exec.Command("reg", "add", `HKCU\Software\Classes\cep-dlp`, "/ve", "/t", "REG_SZ", "/d", "URL:CEP Local DLP Agent Protocol", "/f").Run()
 	_ = exec.Command("reg", "add", `HKCU\Software\Classes\cep-dlp`, "/v", "URL Protocol", "/t", "REG_SZ", "/d", "", "/f").Run()
 	_ = exec.Command("reg", "add", `HKCU\Software\Classes\cep-dlp\shell\open\command`, "/ve", "/t", "REG_SZ", "/d", urlSchemeCmd, "/f").Run()
@@ -260,13 +299,16 @@ MimeType=x-scheme-handler/cep-dlp;
 
 func ensureDaemonRunningNow(binPath, listenAddr string) {
 	home, _ := os.UserHomeDir()
-	logPath := filepath.Join(home, ".cep-local-dlp-agent", "agent.log")
+	baseDir := filepath.Join(home, ".cep-local-dlp-agent")
+	_ = os.MkdirAll(baseDir, 0o755)
+	logPath := filepath.Join(baseDir, "agent.log")
 	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	args := []string{"daemon", "--listen", listenAddr}
 	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
 		args = append(args, "--system-proxy")
 	}
 	cmd := exec.Command(binPath, args...)
+	configureBackgroundCommand(cmd)
 	if err == nil {
 		cmd.Stdout = logFile
 		cmd.Stderr = logFile

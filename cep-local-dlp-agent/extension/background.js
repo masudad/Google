@@ -96,11 +96,13 @@ async function checkAgentHealth() {
     }
     const data = await resp.json();
 
-    // If BYOD agent needs a DM token or user email and we have one from managed policy / profile, push it automatically!
-    if (
-      (!data.dm_token_present && cfg.dmToken) ||
-      (!data.user_email && profileEmail)
-    ) {
+    // Automatically push the active Chrome profile email or managed DM token whenever
+    // the agent is missing a token OR is currently bound to a different Chrome profile.
+    const emailChanged =
+      profileEmail &&
+      (!data.user_email ||
+        data.user_email.toLowerCase() !== profileEmail.toLowerCase());
+    if ((!data.dm_token_present && cfg.dmToken) || emailChanged) {
       const bootResp = await fetch(
         `${AGENT_BASE_URL}/__cep_agent/v1/bootstrap-token`,
         {
@@ -116,13 +118,16 @@ async function checkAgentHealth() {
         const bootData = await bootResp.json();
         data.dm_token_present = bootData.dm_token_present;
         data.user_email = bootData.user_email;
+        if (bootData.token_source) {
+          data.token_source = bootData.token_source;
+        }
       }
     }
 
     lastAgentState = {
       healthy: true,
       status: data.status || "ok",
-      version: data.version || "1.1.0",
+      version: data.version || "1.3.0",
       dmTokenPresent: Boolean(data.dm_token_present),
       tokenSource: data.token_source || "",
       userEmail: data.user_email || profileEmail,

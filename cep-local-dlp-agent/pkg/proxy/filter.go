@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"cep-local-dlp-agent/pkg/webprotect"
 )
 
 const (
@@ -23,16 +25,24 @@ const (
 
 	// dedupeTTL is how long an identical ALLOWED (URL, payload) pair is remembered so that retries,
 	// duplicate token-count calls, and reconnect replays don't consume WebProtect quota twice.
-	// BLOCK and WARN verdicts are never stored here so retried sensitive requests are always blocked.
 	dedupeTTL = 30 * time.Second
+
+	// blockedDedupeTTL is how long an identical BLOCKED (URL, payload) pair is remembered so that
+	// rapid client retries of a blocked HTTP POST are rejected deterministically in 0ms.
+	blockedDedupeTTL = 60 * time.Second
 )
+
+type cachedBlockedVerdict struct {
+	verdict *webprotect.ScanVerdict
+	expiry  time.Time
+}
 
 // SmartFilter implements the 3-tier local pre-filter:
 //  1. Host / Process / Browser Bypass (never intercept WebProtect itself, web browsers, or OS update hosts)
 //  2. HTTP Method & Payload Size Pre-filter (only inspect POST/PUT/PATCH >= MinPayloadBytes),
 //     plus a telemetry/analytics/control-plane deny-list (hosts & paths that never carry user data)
 //  3. Auto-Bypass Cache for TLS Certificate Pinning hosts + Token Bucket Rate Limiter for Quota protection
-//     + short-lived dedupe cache of already-allowed payloads.
+//     + short-lived dedupe caches of already-allowed and already-blocked payloads.
 type SmartFilter struct {
 	MinPayloadBytes int
 
@@ -46,8 +56,9 @@ type SmartFilter struct {
 	refillRate float64 // tokens per second
 	lastRefill time.Time
 
-	dedupeMu sync.Mutex
-	recent   map[string]time.Time
+	dedupeMu      sync.Mutex
+	recent        map[string]time.Time
+	recentBlocked map[string]cachedBlockedVerdict
 }
 
 // chromeInfraSuffixes are Chrome-browser / Google-infrastructure hosts that only ever carry
@@ -121,6 +132,8 @@ var telemetryHostSuffixes = []string{
 	// Datadog / Sentry / NewRelic / Bugsnag / Segment / Amplitude / Mixpanel / PostHog / Statsig / LaunchDarkly
 	"datadoghq.com",
 	"datadoghq.eu",
+	".datadoghq.com",
+	".datadoghq.eu",
 	"browser-intake-datadoghq.com",
 	"browser-intake-datadoghq.eu",
 	"logs.browser-intake-datadoghq.com",
@@ -135,11 +148,14 @@ var telemetryHostSuffixes = []string{
 	".mixpanel.com",
 	".posthog.com",
 	".statsig.com",
+	"statsig.anthropic.com",
+	"a-api.anthropic.com",
 	".launchdarkly.com",
 	".intercom.io",
 	".hotjar.com",
 	".appsflyer.com",
 	".braze.com",
+	".honeycomb.io",
 	// Cloudflare NEL / browser reporting
 	"a.nel.cloudflare.com",
 	"report-uri.com",
@@ -173,8 +189,13 @@ var telemetryPathPatterns = []struct {
 	{"claude.ai", "/api/v2/rum"},
 	{"claude.ai", "/api/event_logging"},
 	{"claude.ai", "/api/eval"},
-	{"claude.ai", "/api/organizations"},
 	{"claude.ai", "/api/bootstrap"},
+	{"claude.ai", "/api/auth"},
+	{"claude.ai", "/api/account"},
+	{"claude.ai", "/api/settings"},
+	{"claude.ai", "/api/telemetry"},
+	{"claude.ai", "/api/flags"},
+	{"claude.ai", "/api/experiments"},
 	{"ab.chatgpt.com", "/v1/initialize"},
 	{"ab.chatgpt.com", "/v1/rgstr"},
 	{"chatgpt.com", "/ces/"},
@@ -199,6 +220,7 @@ var telemetryPathPatterns = []struct {
 	{"slack.com", "/api/experiments."},
 	{"slack.com", "/api/client.boot"},
 	{"slack.com", "/api/api.telemetry"},
+	{"", "/cdn-cgi/"}, // Cloudflare RUM, Turnstile, challenge-platform fingerprints on window focus
 	{"", "/jserror"},
 	{"", "/punctual/"}, // Google punctual (real-time signaller) channels
 	{"", "/_/scs/"},
@@ -230,6 +252,7 @@ func NewSmartFilter(minBytes int, qps float64) *SmartFilter {
 		refillRate:      qps,
 		lastRefill:      time.Now(),
 		recent:          make(map[string]time.Time),
+		recentBlocked:   make(map[string]cachedBlockedVerdict),
 	}
 }
 
@@ -282,13 +305,6 @@ func (f *SmartFilter) IsPinnedHost(hostPort string) bool {
 
 // IsBrowserRequest returns true if the HTTP request (either outer CONNECT or inner HTTPS request)
 // originates from a standalone web browser (Google Chrome, Microsoft Edge, Brave, Firefox, Safari).
-//
-// Why this is critical:
-//  1. Managed Chrome Profiles are already protected natively by Chrome's built-in CEP engine.
-//  2. Personal Chrome Profiles (and other personal browsers on BYOD machines) are the user's
-//     personal space and must NEVER be intercepted by the corporate local proxy.
-//  3. Native Electron apps (Cursor, Claude Desktop, Slack, VS Code) include "Electron/" in User-Agent
-//     and never include "Google Chrome" in Sec-Ch-Ua, so they remain inspected.
 func IsBrowserRequest(r *http.Request) bool {
 	if r == nil {
 		return false
@@ -429,8 +445,7 @@ func dedupeKey(targetURL string, payload []byte) string {
 }
 
 // WasRecentlyAllowed reports whether the identical (URL, payload) pair was already scanned
-// and ALLOWED within dedupeTTL. Blocked or warned payloads are never recorded in this cache,
-// ensuring retried sensitive requests are always re-evaluated and blocked.
+// and ALLOWED within dedupeTTL.
 func (f *SmartFilter) WasRecentlyAllowed(targetURL string, payload []byte) bool {
 	key := dedupeKey(targetURL, payload)
 	now := time.Now()
@@ -460,9 +475,47 @@ func (f *SmartFilter) RecordAllowedScan(targetURL string, payload []byte) {
 	f.recent[key] = now.Add(dedupeTTL)
 }
 
+// WasRecentlyBlocked reports whether the identical (URL, payload) pair was already scanned
+// and BLOCKED within blockedDedupeTTL, returning the cached ScanVerdict so rapid retries
+// are blocked deterministically even if a retry hits a rate limit or transient network blip.
+func (f *SmartFilter) WasRecentlyBlocked(targetURL string, payload []byte) (*webprotect.ScanVerdict, bool) {
+	key := dedupeKey(targetURL, payload)
+	now := time.Now()
+	f.dedupeMu.Lock()
+	defer f.dedupeMu.Unlock()
+	entry, ok := f.recentBlocked[key]
+	if ok && now.Before(entry.expiry) && entry.verdict != nil {
+		return entry.verdict, true
+	}
+	return nil, false
+}
+
+// RecordBlockedScan caches a BLOCK verdict for (targetURL, payload) for blockedDedupeTTL.
+func (f *SmartFilter) RecordBlockedScan(targetURL string, payload []byte, verdict *webprotect.ScanVerdict) {
+	if verdict == nil {
+		return
+	}
+	key := dedupeKey(targetURL, payload)
+	now := time.Now()
+	f.dedupeMu.Lock()
+	defer f.dedupeMu.Unlock()
+	if len(f.recentBlocked) > 1024 {
+		for k, entry := range f.recentBlocked {
+			if now.After(entry.expiry) {
+				delete(f.recentBlocked, k)
+			}
+		}
+		if len(f.recentBlocked) > 1024 {
+			f.recentBlocked = make(map[string]cachedBlockedVerdict)
+		}
+	}
+	f.recentBlocked[key] = cachedBlockedVerdict{
+		verdict: verdict,
+		expiry:  now.Add(blockedDedupeTTL),
+	}
+}
+
 // MarkRecentlyScanned checks WasRecentlyAllowed and, if not present, records the payload.
-// Prefer WasRecentlyAllowed + RecordAllowedScan in request inspection paths so blocked payloads
-// are never cached as allowed.
 func (f *SmartFilter) MarkRecentlyScanned(targetURL string, payload []byte) bool {
 	if f.WasRecentlyAllowed(targetURL, payload) {
 		return true

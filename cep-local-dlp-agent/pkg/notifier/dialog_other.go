@@ -19,6 +19,12 @@ func showNativeBlockDialog(msg string) {
 	}
 }
 
+func focusExistingBlockDialog() {
+	if runtime.GOOS == "darwin" {
+		_ = exec.Command("osascript", "-e", `beep`).Run()
+	}
+}
+
 func showNativeWarnDialog(msg string) bool {
 	switch runtime.GOOS {
 	case "darwin":

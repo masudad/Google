@@ -12,12 +12,19 @@ import (
 	"os/user"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
 // TokenInfo holds the discovered DM Token(s) and host metadata used in ContentAnalysisRequest.
 type TokenInfo struct {
+	mu             sync.RWMutex
+	lastConfigCheck time.Time
+	lastConfigMtime time.Time
+	lastBYODMtime   time.Time
+
 	DMToken        string `json:"dm_token"`
 	TokenSource    string `json:"token_source"`
 	ProfileDMToken string `json:"profile_dm_token,omitempty"`
@@ -31,6 +38,124 @@ type TokenInfo struct {
 	// AvailableProfiles lists every managed Chrome profile found on disk (token redacted),
 	// with Selected=true on the one whose Profile DM Token is in use.
 	AvailableProfiles []ProfileCandidate `json:"available_profiles,omitempty"`
+}
+
+// Credentials returns a thread-safe snapshot of the active DM token, profile DM token,
+// user email, and client ID.
+func (t *TokenInfo) Credentials() (dmToken, profileDMToken, userEmail, clientID string) {
+	if t == nil {
+		return "", "", "", ""
+	}
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.DMToken, t.ProfileDMToken, t.UserEmail, t.ClientID
+}
+
+// Snapshot returns a thread-safe copy of the current token status fields for /healthz.
+func (t *TokenInfo) Snapshot() (dmToken, tokenSource, userEmail string) {
+	if t == nil {
+		return "", "", ""
+	}
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.DMToken, t.TokenSource, t.UserEmail
+}
+
+// UpdateFromBootstrap updates the active credentials in-memory (thread-safe) when pushed
+// via POST /__cep_agent/v1/bootstrap-token.
+func (t *TokenInfo) UpdateFromBootstrap(dmToken, profileDMToken, userEmail string) {
+	if t == nil {
+		return
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if strings.TrimSpace(dmToken) != "" {
+		t.DMToken = strings.TrimSpace(dmToken)
+		t.TokenSource = "companion_extension"
+	}
+	if strings.TrimSpace(profileDMToken) != "" {
+		t.ProfileDMToken = strings.TrimSpace(profileDMToken)
+	}
+	if strings.TrimSpace(userEmail) != "" {
+		t.UserEmail = strings.TrimSpace(userEmail)
+		_ = SavePreferredProfileEmail(t.UserEmail)
+		if strings.TrimSpace(dmToken) == "" {
+			if cand, ok := FindProfileTokenByEmail(t.UserEmail); ok {
+				t.DMToken = cand.DMToken
+				t.ProfileDMToken = cand.DMToken
+				if cand.ClientID != "" {
+					t.ClientID = cand.ClientID
+				}
+				t.TokenSource = "chrome_profile:" + filepath.Base(cand.ProfileDir)
+			}
+		}
+	}
+	_ = SaveBYODBootstrapToken(t.DMToken, t.UserEmail)
+	t.recordConfigMtimesLocked()
+}
+
+// RefreshIfNeeded checks (at most once every 2 seconds) whether ~/.cep-local-dlp-agent/config.json
+// or byod_token.json was updated on disk (for example via `cep-dlp-agent token --profile-email ...`)
+// and hot-reloads the active Chrome profile DM Token without requiring a daemon restart.
+func (t *TokenInfo) RefreshIfNeeded() {
+	if t == nil {
+		return
+	}
+	now := time.Now()
+	t.mu.RLock()
+	if !t.lastConfigCheck.IsZero() && now.Sub(t.lastConfigCheck) < 2*time.Second {
+		t.mu.RUnlock()
+		return
+	}
+	prevCfgMtime := t.lastConfigMtime
+	prevBYODMtime := t.lastBYODMtime
+	t.mu.RUnlock()
+
+	cfgMtime, byodMtime := currentConfigMtimes()
+	if cfgMtime.Equal(prevCfgMtime) && byodMtime.Equal(prevBYODMtime) {
+		t.mu.Lock()
+		t.lastConfigCheck = now
+		t.mu.Unlock()
+		return
+	}
+
+	fresh, err := Discover("")
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.lastConfigCheck = now
+	t.lastConfigMtime = cfgMtime
+	t.lastBYODMtime = byodMtime
+	if err == nil && fresh != nil && fresh.DMToken != "" {
+		t.DMToken = fresh.DMToken
+		t.TokenSource = fresh.TokenSource
+		t.ProfileDMToken = fresh.ProfileDMToken
+		t.UserEmail = fresh.UserEmail
+		if fresh.ClientID != "" {
+			t.ClientID = fresh.ClientID
+		}
+		t.AvailableProfiles = fresh.AvailableProfiles
+	}
+}
+
+func (t *TokenInfo) recordConfigMtimesLocked() {
+	t.lastConfigCheck = time.Now()
+	t.lastConfigMtime, t.lastBYODMtime = currentConfigMtimes()
+}
+
+func currentConfigMtimes() (cfgMtime, byodMtime time.Time) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return time.Time{}, time.Time{}
+	}
+	dir := filepath.Join(home, ".cep-local-dlp-agent")
+	if st, err := os.Stat(filepath.Join(dir, "config.json")); err == nil {
+		cfgMtime = st.ModTime()
+	}
+	if st, err := os.Stat(filepath.Join(dir, "byod_token.json")); err == nil {
+		byodMtime = st.ModTime()
+	}
+	return cfgMtime, byodMtime
 }
 
 // Discover automatically locates the Chrome Enterprise DM Token and profile metadata
@@ -49,6 +174,7 @@ func Discover(explicitToken string) (*TokenInfo, error) {
 		OSVersion:   runtime.GOARCH,
 		MachineUser: username,
 	}
+	info.recordConfigMtimesLocked()
 
 	// Discover signed-in user email, profile DM token, and profile client_id from Chrome Policy cache if available.
 	var profileClientID string
@@ -187,9 +313,6 @@ func platformDisplayName(goos string) string {
 	}
 }
 
-// discoverMacOSDMToken reads the CBCM DM Token from:
-// - /Library/Application Support/Google/Chrome Cloud Enrollment/<SerialNumber>
-// - ~/Library/Application Support/Google/Chrome Cloud Enrollment/<SerialNumber>
 func discoverMacOSDMToken() (string, string) {
 	home, _ := os.UserHomeDir()
 	dirs := []string{
@@ -217,9 +340,6 @@ func discoverMacOSDMToken() (string, string) {
 	return "", ""
 }
 
-// discoverLinuxDMToken reads the CBCM DM Token from:
-// - ~/.config/google-chrome/Policy/Enrollment/*
-// - /etc/opt/chrome/policies/enrollment/*
 func discoverLinuxDMToken() (string, string) {
 	home, _ := os.UserHomeDir()
 	var dirs []string
@@ -249,9 +369,6 @@ func discoverLinuxDMToken() (string, string) {
 	return "", ""
 }
 
-// discoverWindowsDMToken queries Windows Registry keys used by BrowserDMTokenStorageWin:
-// 1. HKLM\SOFTWARE\Google\Chrome\Enrollment -> dmtoken (REG_BINARY or REG_SZ)
-// 2. HKLM\SOFTWARE\WOW6432Node\Google\Update\ClientState\{430FD4D0-B729-4F61-AA34-91526481799D} -> CloudManagementDMToken
 func discoverWindowsDMToken() (string, string) {
 	queries := []struct {
 		key   string
@@ -286,7 +403,6 @@ func parseRegQueryOutput(output, valueName string) string {
 		if len(fields) >= 3 {
 			rawVal := fields[len(fields)-1]
 			if strings.Contains(line, "REG_BINARY") {
-				// Decode hex string into raw bytes and base64-encode if binary
 				if decoded, err := decodeHexBytes(rawVal); err == nil && len(decoded) > 0 {
 					return base64.StdEncoding.EncodeToString(decoded)
 				}
@@ -319,11 +435,9 @@ func readCleanTokenFile(path string) string {
 		return ""
 	}
 	trimmed := bytes.TrimSpace(b)
-	// Ignore invalidated tokens
 	if string(trimmed) == "INVALID" || len(trimmed) < 8 {
 		return ""
 	}
-	// If it's already printable ASCII (Base64/WebSafeBase64), return directly; otherwise base64-encode.
 	isASCII := true
 	for _, c := range trimmed {
 		if c < 0x20 || c > 0x7e {
@@ -378,26 +492,36 @@ func chromeUserDataDirs() []string {
 	}
 }
 
-// readChromeLastUsedProfile returns the profile directory name Chrome recorded as most
-// recently active (`profile.last_used` in `<User Data>/Local State`).
-func readChromeLastUsedProfile(userDataDir string) string {
+// readChromeActiveProfiles returns the profile directory names Chrome recorded as most
+// recently active (`profile.last_used` and `profile.last_active_profiles` in `<User Data>/Local State`).
+func readChromeActiveProfiles(userDataDir string) map[string]bool {
+	active := make(map[string]bool)
 	b, err := os.ReadFile(filepath.Join(userDataDir, "Local State"))
 	if err != nil {
-		return ""
+		return active
 	}
 	var state struct {
 		Profile struct {
-			LastUsed string `json:"last_used"`
+			LastUsed           string   `json:"last_used"`
+			LastActiveProfiles []string `json:"last_active_profiles"`
 		} `json:"profile"`
 	}
 	if json.Unmarshal(b, &state) != nil {
-		return ""
+		return active
 	}
-	return state.Profile.LastUsed
+	if state.Profile.LastUsed != "" {
+		active[state.Profile.LastUsed] = true
+	}
+	for _, p := range state.Profile.LastActiveProfiles {
+		if p != "" {
+			active[p] = true
+		}
+	}
+	return active
 }
 
 // ListChromeProfileCandidates scans every Chrome profile (Default, Profile 1, ...) and returns
-// all managed profiles that carry a cached Profile DM Token, in no particular order.
+// all managed profiles that carry a cached Profile DM Token, sorted deterministically.
 func ListChromeProfileCandidates() []ProfileCandidate {
 	policyCacheFilenames := []string{"User Policy", "Profile Cloud Policy"}
 	var out []ProfileCandidate
@@ -407,7 +531,7 @@ func ListChromeProfileCandidates() []ProfileCandidate {
 		if err != nil {
 			continue
 		}
-		lastUsed := readChromeLastUsedProfile(base)
+		activeSet := readChromeActiveProfiles(base)
 
 		for _, e := range entries {
 			if !e.IsDir() {
@@ -442,12 +566,19 @@ func ListChromeProfileCandidates() []ProfileCandidate {
 					DMToken:     tok,
 					CacheFile:   cacheName,
 					LastUpdated: mtime,
-					IsLastUsed:  name == lastUsed,
+					IsLastUsed:  activeSet[name],
 				})
 				break
 			}
 		}
 	}
+
+	sort.Slice(out, func(i, j int) bool {
+		if !out[i].LastUpdated.Equal(out[j].LastUpdated) {
+			return out[i].LastUpdated.After(out[j].LastUpdated)
+		}
+		return out[i].ProfileDir < out[j].ProfileDir
+	})
 	return out
 }
 
@@ -514,7 +645,8 @@ func SavePreferredProfileEmail(email string) error {
 
 // SelectProfileCandidate picks one managed profile deterministically:
 //  1. exact match on preferredEmail (or its @domain when preferredEmail starts with "@")
-//  2. the profile Chrome recorded as last used (`Local State` -> profile.last_used)
+//  2. the profile Chrome recorded as last used (`Local State` -> profile.last_used / last_active_profiles),
+//     breaking ties by most recent policy cache timestamp
 //  3. the profile whose policy cache was refreshed most recently
 func SelectProfileCandidate(cands []ProfileCandidate, preferredEmail string) (ProfileCandidate, bool) {
 	if len(cands) == 0 {
@@ -528,10 +660,16 @@ func SelectProfileCandidate(cands []ProfileCandidate, preferredEmail string) (Pr
 			}
 		}
 	}
-	for _, c := range cands {
-		if c.IsLastUsed {
-			return c, true
+	var bestLastUsed *ProfileCandidate
+	for i := range cands {
+		if cands[i].IsLastUsed {
+			if bestLastUsed == nil || cands[i].LastUpdated.After(bestLastUsed.LastUpdated) {
+				bestLastUsed = &cands[i]
+			}
 		}
+	}
+	if bestLastUsed != nil {
+		return *bestLastUsed, true
 	}
 	best := cands[0]
 	for _, c := range cands[1:] {
@@ -580,7 +718,6 @@ func ExtractDMTokenFromPolicyFetchResponse(buf []byte) (requestToken string, use
 //   - PolicyData.username      (field 7) -> the signed-in Workspace user email
 //   - PolicyData.device_id     (field 8) -> the profile/device client_id registered with DMServer
 func ExtractMetadataFromPolicyFetchResponse(buf []byte) (requestToken string, username string, deviceID string) {
-	// PolicyFetchResponse field 3 (wire type 2) is `bytes policy_data`
 	policyDataBytes := extractProtoLengthDelimitedField(buf, 3)
 	if len(policyDataBytes) == 0 {
 		return "", "", ""

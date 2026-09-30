@@ -146,7 +146,7 @@ func BuildContentAnalysisRequest(in ScanInput) *ContentAnalysisRequest {
 		clientMeta = &ClientMetadata{
 			Browser: &BrowserMetadata{
 				BrowserID:     in.DeviceName,
-				UserAgent:     "Mozilla/5.0 (CEP-Local-DLP-Agent/1.2) Chrome/" + DefaultChromeVersion,
+				UserAgent:     "Mozilla/5.0 (CEP-Local-DLP-Agent/1.3) Chrome/" + DefaultChromeVersion,
 				ChromeVersion: DefaultChromeVersion,
 				MachineUser:   in.MachineUser,
 			},
@@ -212,6 +212,8 @@ func EncodeScottyMultipart(req *ContentAnalysisRequest, payload []byte, boundary
 }
 
 // Scan sends the payload and metadata to the CEP WebProtect server and returns the evaluated ScanVerdict.
+// Includes a fast 1x retry (150ms backoff) on transient network/5xx errors so momentary network blips
+// do not cause missed DLP evaluations.
 func (c *Client) Scan(ctx context.Context, in ScanInput) (*ScanVerdict, error) {
 	if len(in.Payload) > MaxPayloadBytes {
 		return &ScanVerdict{
@@ -230,27 +232,49 @@ func (c *Client) Scan(ctx context.Context, in ScanInput) (*ScanVerdict, error) {
 	const boundary = "cep_dlp_boundary"
 	body := EncodeScottyMultipart(protoReq, in.Payload, boundary)
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.Endpoint, bytes.NewReader(body))
-	if err != nil {
-		return nil, fmt.Errorf("create webprotect request: %w", err)
-	}
-	httpReq.Header.Set("X-Goog-Upload-Protocol", "multipart")
-	httpReq.Header.Set("Content-Type", fmt.Sprintf("multipart/related; boundary=%s", boundary))
-	httpReq.Header.Set("User-Agent", "Mozilla/5.0 Chrome/146.0.7680.0 CEP-Local-DLP-Agent/1.2")
+	var respBytes []byte
+	var lastErr error
+	for attempt := 0; attempt < 2; attempt++ {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(150 * time.Millisecond):
+			}
+		}
 
-	resp, err := c.HTTPClient.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("send webprotect request: %w", err)
-	}
-	defer resp.Body.Close()
+		httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.Endpoint, bytes.NewReader(body))
+		if err != nil {
+			return nil, fmt.Errorf("create webprotect request: %w", err)
+		}
+		httpReq.Header.Set("X-Goog-Upload-Protocol", "multipart")
+		httpReq.Header.Set("Content-Type", fmt.Sprintf("multipart/related; boundary=%s", boundary))
+		httpReq.Header.Set("User-Agent", "Mozilla/5.0 Chrome/"+DefaultChromeVersion+" CEP-Local-DLP-Agent/1.3")
 
-	respBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read webprotect response: %w", err)
+		resp, err := c.HTTPClient.Do(httpReq)
+		if err != nil {
+			lastErr = fmt.Errorf("send webprotect request: %w", err)
+			continue
+		}
+		rb, readErr := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if readErr != nil {
+			lastErr = fmt.Errorf("read webprotect response: %w", readErr)
+			continue
+		}
+		if resp.StatusCode == http.StatusBadGateway || resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusGatewayTimeout {
+			lastErr = fmt.Errorf("webprotect server returned HTTP %d: %s", resp.StatusCode, string(rb))
+			continue
+		}
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("webprotect server returned HTTP %d: %s", resp.StatusCode, string(rb))
+		}
+		respBytes = rb
+		lastErr = nil
+		break
 	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("webprotect server returned HTTP %d: %s", resp.StatusCode, string(respBytes))
+	if lastErr != nil {
+		return nil, lastErr
 	}
 
 	caResp, err := UnmarshalContentAnalysisResponse(respBytes)
