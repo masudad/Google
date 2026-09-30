@@ -11,12 +11,29 @@ import (
 	"strings"
 )
 
+// defaultBypassHosts are written to the OS proxy bypass list (macOS -setproxybypassdomains /
+// Windows WinInet ProxyOverride) so that WebProtect itself and Chrome-browser infrastructure
+// (sync, policy, update, OAuth, telemetry) never even reach the local agent. Chrome's built-in
+// CEP engine already governs Chrome; routing its infra through the agent only doubles quota use.
 var defaultBypassHosts = []string{
 	"localhost",
 	"127.0.0.1",
 	"safebrowsing.google.com",
 	"*.webprotect-us.goog",
 	"*.webprotect-eu.goog",
+	"clients1.google.com",
+	"clients2.google.com",
+	"clients4.google.com",
+	"*.clients6.google.com",
+	"accounts.google.com",
+	"oauthaccountmanager.googleapis.com",
+	"update.googleapis.com",
+	"chromepolicy.googleapis.com",
+	"chromereporting-pa.googleapis.com",
+	"optimizationguide-pa.googleapis.com",
+	"chromewebstore.google.com",
+	"*.gvt1.com",
+	"dl.google.com",
 }
 
 // InstallRootCA installs the generated Root CA certificate into the local OS trust store

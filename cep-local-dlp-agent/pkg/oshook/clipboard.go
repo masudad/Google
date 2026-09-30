@@ -22,31 +22,31 @@ import (
 // AppURLMap maps common native desktop application process/bundle names to canonical URLs
 // so Google Admin Console DLP URL rules apply seamlessly across both browser and desktop apps.
 var DefaultAppURLMap = map[string]string{
-	"cursor":         "https://cursor.com/local-app/cursor",
-	"claude":         "https://claude.ai/local-app/claude-desktop",
-	"chatgpt":        "https://chatgpt.com/local-app/chatgpt-desktop",
-	"slack":          "https://slack.com/local-app/slack-desktop",
+	"cursor":          "https://cursor.com/local-app/cursor",
+	"claude":          "https://claude.ai/local-app/claude-desktop",
+	"chatgpt":         "https://chatgpt.com/local-app/chatgpt-desktop",
+	"slack":           "https://slack.com/local-app/slack-desktop",
 	"microsoft teams": "https://teams.microsoft.com/local-app/teams",
-	"teams":          "https://teams.microsoft.com/local-app/teams",
-	"outlook":        "https://outlook.office.com/local-app/outlook",
-	"thunderbird":    "https://local-app.internal/thunderbird",
-	"mail":           "https://local-app.internal/apple-mail",
-	"line":           "https://line.me/local-app/line-desktop",
-	"discord":        "https://discord.com/local-app/discord",
-	"notion":         "https://www.notion.so/local-app/notion",
-	"code":           "https://vscode.dev/local-app/vscode",
-	"windsurf":       "https://codeium.com/local-app/windsurf",
+	"teams":           "https://teams.microsoft.com/local-app/teams",
+	"outlook":         "https://outlook.office.com/local-app/outlook",
+	"thunderbird":     "https://local-app.internal/thunderbird",
+	"mail":            "https://local-app.internal/apple-mail",
+	"line":            "https://line.me/local-app/line-desktop",
+	"discord":         "https://discord.com/local-app/discord",
+	"notion":          "https://www.notion.so/local-app/notion",
+	"code":            "https://vscode.dev/local-app/vscode",
+	"windsurf":        "https://codeium.com/local-app/windsurf",
 }
 
 // ClipboardGuard monitors the OS clipboard and active foreground application, evaluating
 // copied/pasted text against CEP WebProtect (BULK_DATA_ENTRY) and clearing the clipboard
 // if a BLOCK rule is triggered for the active native app.
 type ClipboardGuard struct {
-	WebProtect      *webprotect.Client
-	TokenInfo       *dmtoken.TokenInfo
-	Notifier        notifier.Notifier
-	MinChars        int
-	PollInterval    time.Duration
+	WebProtect        *webprotect.Client
+	TokenInfo         *dmtoken.TokenInfo
+	Notifier          notifier.Notifier
+	MinChars          int
+	PollInterval      time.Duration
 	LastEvaluatedHash string
 }
 

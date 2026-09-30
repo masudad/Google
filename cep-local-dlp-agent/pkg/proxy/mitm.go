@@ -11,6 +11,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -19,6 +20,12 @@ import (
 	"cep-local-dlp-agent/pkg/notifier"
 	"cep-local-dlp-agent/pkg/webprotect"
 )
+
+// debugEnabled reports whether verbose passthrough/inspection tracing is on (CEP_AGENT_DEBUG=1).
+func debugEnabled() bool {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv("CEP_AGENT_DEBUG")))
+	return v == "1" || v == "true" || v == "yes"
+}
 
 // Server implements the Layer-2 Smart HTTPS MITM & Transparent Pass-through Proxy.
 type Server struct {
@@ -180,8 +187,18 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	// from Google Chrome itself (already protected by native CEP), tunnel raw TCP
 	clientProc := IdentifyLocalProcess(r.RemoteAddr)
 	if s.Filter.ShouldBypassTLS(targetHostPort) || IsBypassedProcess(clientProc) || s.CA == nil {
+		if debugEnabled() {
+			reason := "host-bypass"
+			if IsBypassedProcess(clientProc) {
+				reason = "process-bypass:" + clientProc
+			}
+			log.Printf("[proxy] passthrough %s (%s)", targetHostPort, reason)
+		}
 		s.tunnelRawTCP(clientConn, clientBuf, targetHostPort)
 		return
+	}
+	if debugEnabled() {
+		log.Printf("[proxy] inspecting %s (client=%q)", targetHostPort, clientProc)
 	}
 
 	leafCert, err := s.CA.GetCertificateForHost(targetHostPort)
@@ -314,9 +331,16 @@ func (s *Server) handleHTTPRequest(w http.ResponseWriter, r *http.Request, defau
 
 func (s *Server) inspectOutboundPayload(ctx context.Context, targetURL, contentType string, body []byte) (bool, *webprotect.ScanVerdict) {
 	items := ExtractInspectableItems(contentType, body, s.Filter.MinPayloadBytes)
+	logURL := RedactURL(targetURL)
 	for _, item := range items {
+		if s.Filter.MarkRecentlyScanned(targetURL, item.Payload) {
+			if debugEnabled() {
+				log.Printf("[proxy] identical payload for %s scanned <30s ago, reusing verdict (quota saved)", logURL)
+			}
+			continue
+		}
 		if !s.Filter.AllowQuota() {
-			log.Printf("[proxy] local rate limiter active (protecting 50 QPS device / 100 QPS enterprise quota), skipping scan for %s", targetURL)
+			log.Printf("[proxy] local rate limiter active (protecting 50 QPS device / 100 QPS enterprise quota), skipping scan for %s", logURL)
 			break
 		}
 
@@ -335,12 +359,12 @@ func (s *Server) inspectOutboundPayload(ctx context.Context, targetURL, contentT
 			MachineUser:    s.TokenInfo.MachineUser,
 		})
 		if err != nil {
-			log.Printf("[proxy] WebProtect scan error for %s: %v (failing open)", targetURL, err)
+			log.Printf("[proxy] WebProtect scan error for %s: %v (failing open)", logURL, err)
 			continue
 		}
 
 		log.Printf("[proxy] CEP DLP Verdict for %s (%s, %d bytes): %s (rule=%q, %dms)",
-			targetURL, item.Connector, len(item.Payload), verdict.ActionName, verdict.RuleName, verdict.LatencyMs)
+			logURL, item.Connector, len(item.Payload), verdict.ActionName, verdict.RuleName, verdict.LatencyMs)
 
 		if !verdict.Allowed {
 			s.Notifier.NotifyBlock(targetURL, verdict.RuleName, verdict.CustomMessage)

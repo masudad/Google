@@ -10,8 +10,13 @@ Chrome Enterprise Premium (CEP) の DLP 検証サーバー（**WebProtect**: `ht
    - **【第1層】OS クリップボード ＆ アクティブアプリ監視 (`pkg/oshook`)**: TLS 復号不要で、ネイティブアプリへの機密テキスト貼り付けを検知・遮断（`BLOCK` 時はクリップボードを即座にクリアし OS ネイティブ警告を表示）。
    - **【第2層】スマート HTTPS プロキシ (`pkg/proxy`)**: Cursor 等のバックグラウンドでのソースコード自動送信や、ネイティブアプリからのファイルアップロード（`multipart/form-data`）・API 送信（`POST` / `PUT` / `PATCH`）を捕捉・遮断。
 3. **Smart Bypass（Quota 保護・Chrome 二重検査回避・証明書ピニング自動回避）**:
-   - **ローカルプロセス識別 (`pkg/proxy/proc_inspector.go`)**: ループバック接続元のプロセス名を特定し、`Google Chrome` / `chrome.exe`（ブラウザ内蔵 CEP で保護済み）や OS 更新プロセスの通信は自動的に TCP パススルーへバイパス。
+   - **ローカルプロセス識別 (`pkg/proxy/proc_inspector*.go`)**: ループバック接続元のプロセス名を特定し、`Google Chrome` / `chrome.exe`（ブラウザ内蔵 CEP で保護済み）や OS 更新プロセスの通信は自動的に TCP パススルーへバイパス。Windows は Win32 API（`GetExtendedTcpTable` / `QueryFullProcessImageNameW`）を直接呼び出すため 1ms 未満で判定（PowerShell 起動なし）。macOS / Linux は `lsof`。
+   - **Chrome / Google インフラ ホストの TLS 非復号 (`chromeInfraSuffixes`)**: `clients4.google.com`（Chrome Sync）、`*.clients6.google.com`、`optimizationguide-pa` / `chromereporting-pa` / `oauthaccountmanager.googleapis.com`、`accounts.google.com`、`*.gvt1.com` などブラウザ内部通信はプロセス判定に失敗しても復号しない（多層防御）。OS プロキシのバイパスリスト（WinInet `ProxyOverride` / macOS `-setproxybypassdomains`）にも同じホストを登録し、そもそもエージェントへ届かないようにする。
+   - **テレメトリ除外 (`telemetryHostSuffixes` / `telemetryPathPatterns`)**: `play.google.com/log`（Clearcut）、Datadog / Sentry / NewRelic / Segment、`a.nel.cloudflare.com`、`csp.withgoogle.com`、Microsoft/VS Code テレメトリ、`discord.com/api/v9/science`、`api.anthropic.com/api/event_logging`、`claude.ai/api/v2/rum`、`/v1/messages/count_tokens`（本文と重複）などユーザー入力を含まない通信は CEP に送らない。`application/x-protobuf` / gRPC も除外。
    - **ペイロード選別 (`pkg/proxy/filter.go`)**: `GET` / `HEAD` / `OPTIONS` および 100 Bytes 未満のハートビート通信はローカルで即スルーし、実質的なデータ送信のみを CEP へ送信。
+   - **重複スキャン抑止**: 同一パス・同一ペイロードは 30 秒間キャッシュし、再送・リトライで Quota を二重消費しない。
+   - **Connector 判定**: `FILE_ATTACHED` は multipart のファイルパート、または PDF / Office / ZIP / 画像などマジックバイトで実ファイルと判定できる場合のみ。JSON・フォーム・テキスト系は `BULK_DATA_ENTRY`、判別不能なバイナリはスキップ。
+   - **ログのマスキング**: `agent.log` に書き出す URL はクエリ文字列（`SAPISIDHASH`、`key=`、`dd-api-key` 等）を除去（`?<auth,key=redacted>` 形式）。
    - **Quota 保護**: ローカル Token Bucket レートリミッタにより、CEP サーバーの Quota（デバイス単位 50 QPS / テナント全体 100 QPS）枯渇を防止。
    - **TLS Pinning 自動回避**: クライアントアプリが TLS 証明書ピニングによりハンドシェイクを拒否した場合、該当ホストを自動的に検出し、次回以降の接続を TCP パススルーへ自動切り替え。
 
@@ -89,4 +94,21 @@ Google 管理コンソールの「ユーザーとブラウザの設定」から 
 # 特定アカウント（またはドメイン）をピン留め
 ./cep-dlp-agent token --profile-email admin@example.com
 ./cep-dlp-agent token --profile-email @example.com
+```
+
+### 4. ログの読み方とトラブルシューティング
+| ログの状態 | 意味 / 対処 |
+|---|---|
+| `Using DM Token from chrome_profile:pinned (... user=admin@example.com)` | 拡張機能または `--profile-email` で固定されたプロファイルのトークンを使用中（正常）。 |
+| `Using DM Token from chrome_profile (... user=<別テナント>)` | 旧バージョン（辞書順で最初のプロファイルを採用）。最新版へ更新し、`token --profile-email` でピン留め。 |
+| `CEP DLP Verdict for https://play.google.com/log ...` / `clients4.google.com` / `*.clients6.google.com` が大量に出る | Chrome 内部通信が復号されている（旧バージョンの Windows プロセス判定不具合）。最新版では Win32 API 判定 + ホスト除外で出なくなる。 |
+| `FILE_ATTACHED` が JSON / protobuf の POST に付く | 旧バージョンの Connector 判定。最新版では実ファイルのみ `FILE_ATTACHED`。 |
+| `local rate limiter active ...` | 端末側 40 QPS のトークンバケットが枯渇。テレメトリ除外が効いていれば通常発生しない。 |
+| `ACTION_UNSPECIFIED (rule="")` | どの DLP ルールにも一致せず許可。ルールに一致すると `BLOCK` / `WARN` とルール名が出力され、管理コンソールの監査ログにも記録される。 |
+
+```bash
+# 何がパススルー / 検査対象になったかを 1 接続ごとに表示（調査時のみ）
+CEP_AGENT_DEBUG=1 ./cep-dlp-agent run
+# Windows (PowerShell)
+$env:CEP_AGENT_DEBUG = "1"; .\cep-dlp-agent.exe run
 ```

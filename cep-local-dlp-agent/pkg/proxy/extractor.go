@@ -6,7 +6,9 @@ import (
 	"io"
 	"mime"
 	"mime/multipart"
+	"net/url"
 	"strings"
+	"unicode/utf8"
 
 	"cep-local-dlp-agent/pkg/webprotect"
 )
@@ -52,21 +54,141 @@ func ExtractInspectableItems(contentTypeHeader string, body []byte, minBytes int
 		}
 	}
 
-	// 3. Fallback: inspect raw body as text or binary attachment
-	connector := webprotect.BulkDataEntry
-	if isBinaryMediaType(mediaType) {
-		connector = webprotect.FileAttached
-	}
+	// 3. Fallback: classify the raw body.
+	//    - Recognised document/archive/image formats (by MIME type or magic bytes) => FILE_ATTACHED
+	//    - Text-like bodies (form-urlencoded, XML, plain, or mostly printable octet-stream) => BULK_DATA_ENTRY
+	//    - Opaque binary framing (protobuf, gRPC, unknown binary blobs) => not inspectable, skip
 	if mediaType == "" {
 		mediaType = "text/plain"
 	}
-	return []ExtractedItem{
-		{
-			Connector:   connector,
-			ContentType: mediaType,
-			Payload:     body,
-		},
+	if isOpaqueRPCMediaType(mediaType) {
+		return nil
 	}
+	if name, ok := sniffDocumentType(mediaType, body); ok {
+		return []ExtractedItem{
+			{
+				Connector:   webprotect.FileAttached,
+				Filename:    name,
+				ContentType: mediaType,
+				Payload:     body,
+			},
+		}
+	}
+	if !isBinaryMediaType(mediaType) || looksLikeText(body) {
+		if strings.Contains(mediaType, "urlencoded") {
+			if decoded := decodeFormURLEncoded(body); len(decoded) >= minBytes {
+				body = decoded
+			}
+		}
+		return []ExtractedItem{
+			{
+				Connector:   webprotect.BulkDataEntry,
+				ContentType: "text/plain",
+				Payload:     body,
+			},
+		}
+	}
+	return nil
+}
+
+// isOpaqueRPCMediaType reports binary RPC framings that CEP text/file detectors cannot parse.
+func isOpaqueRPCMediaType(mediaType string) bool {
+	return strings.Contains(mediaType, "protobuf") ||
+		strings.Contains(mediaType, "grpc") ||
+		strings.Contains(mediaType, "x-gwt-rpc") ||
+		strings.Contains(mediaType, "msgpack") ||
+		strings.Contains(mediaType, "x-thrift")
+}
+
+// sniffDocumentType returns a synthetic filename and true if the media type or leading magic bytes
+// identify a real document/archive/image that CEP file-type detectors understand.
+func sniffDocumentType(mediaType string, body []byte) (string, bool) {
+	switch {
+	case mediaType == "application/pdf":
+		return "upload.pdf", true
+	case strings.HasPrefix(mediaType, "image/"):
+		return "upload." + strings.TrimPrefix(mediaType, "image/"), true
+	case strings.HasPrefix(mediaType, "application/vnd.openxmlformats-officedocument."):
+		return "upload.office", true
+	case strings.HasPrefix(mediaType, "application/vnd.ms-"),
+		mediaType == "application/msword",
+		mediaType == "application/zip",
+		mediaType == "application/x-zip-compressed",
+		mediaType == "application/x-7z-compressed",
+		mediaType == "application/x-rar-compressed",
+		mediaType == "application/vnd.rar",
+		mediaType == "application/gzip",
+		mediaType == "application/x-tar",
+		mediaType == "application/x-bzip2":
+		return "upload.bin", true
+	}
+	if len(body) < 4 {
+		return "", false
+	}
+	switch {
+	case bytes.HasPrefix(body, []byte("%PDF")):
+		return "upload.pdf", true
+	case bytes.HasPrefix(body, []byte{0x50, 0x4B, 0x03, 0x04}):
+		return "upload.zip", true
+	case bytes.HasPrefix(body, []byte{0xD0, 0xCF, 0x11, 0xE0}):
+		return "upload.doc", true
+	case bytes.HasPrefix(body, []byte{0x89, 'P', 'N', 'G'}):
+		return "upload.png", true
+	case bytes.HasPrefix(body, []byte{0xFF, 0xD8, 0xFF}):
+		return "upload.jpg", true
+	case bytes.HasPrefix(body, []byte("GIF8")):
+		return "upload.gif", true
+	case bytes.HasPrefix(body, []byte{0x37, 0x7A, 0xBC, 0xAF}):
+		return "upload.7z", true
+	case bytes.HasPrefix(body, []byte("Rar!")):
+		return "upload.rar", true
+	case bytes.HasPrefix(body, []byte{0x1F, 0x8B}):
+		return "upload.gz", true
+	}
+	return "", false
+}
+
+// looksLikeText samples the body and reports true when it is overwhelmingly printable UTF-8
+// (so an octet-stream body that is really JSON/CSV/source code is still scanned as text).
+func looksLikeText(body []byte) bool {
+	if len(body) == 0 {
+		return false
+	}
+	sample := body
+	if len(sample) > 4096 {
+		sample = sample[:4096]
+	}
+	if !utf8.Valid(sample) && len(sample) == len(body) {
+		return false
+	}
+	printable := 0
+	for _, b := range sample {
+		if b == '\n' || b == '\r' || b == '\t' || (b >= 0x20 && b != 0x7F) {
+			printable++
+		}
+	}
+	return printable*100 >= len(sample)*95
+}
+
+// decodeFormURLEncoded turns key=value&key2=value2 bodies into newline-separated plain text.
+func decodeFormURLEncoded(body []byte) []byte {
+	vals, err := url.ParseQuery(string(body))
+	if err != nil || len(vals) == 0 {
+		return body
+	}
+	var sb strings.Builder
+	for _, list := range vals {
+		for _, v := range list {
+			if strings.TrimSpace(v) != "" {
+				sb.WriteString(v)
+				sb.WriteString("\n")
+			}
+		}
+	}
+	if sb.Len() == 0 {
+		return body
+	}
+	return []byte(sb.String())
 }
 
 func extractMultipartItems(boundary string, body []byte, minBytes int) []ExtractedItem {

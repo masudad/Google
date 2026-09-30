@@ -189,5 +189,3 @@ func TestSmartProxyE2E(t *testing.T) {
 		t.Errorf("expected live DMToken to update to byod-ext-pushed-token-777, got %q", got)
 	}
 }
-
-
