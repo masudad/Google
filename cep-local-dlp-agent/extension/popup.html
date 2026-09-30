@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>CEP Local DLP Status</title>
+  <style>
+    body {
+      width: 320px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 16px;
+      background: #ffffff;
+      color: #0f172a;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .title {
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 999px;
+    }
+    .online {
+      background: #dcfce7;
+      color: #15803d;
+    }
+    .offline {
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+    .meta {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 12px;
+      margin-bottom: 12px;
+    }
+    .meta-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .meta-row:last-child {
+      margin-bottom: 0;
+    }
+    .label {
+      color: #64748b;
+    }
+    .value {
+      font-weight: 600;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .actions {
+      display: flex;
+      gap: 8px;
+    }
+    .btn {
+      flex: 1;
+      padding: 8px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      border: 1px solid #cbd5e1;
+      background: #ffffff;
+      color: #0f172a;
+      text-align: center;
+      text-decoration: none;
+    }
+    .btn-primary {
+      background: #1a73e8;
+      color: #ffffff;
+      border-color: #1a73e8;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <span class="title">CEP Local DLP Companion</span>
+    <span id="status-badge" class="badge offline">未接続</span>
+  </div>
+
+  <div class="meta">
+    <div class="meta-row">
+      <span class="label">ローカル待受</span>
+      <span class="value">127.0.0.1:8843</span>
+    </div>
+    <div class="meta-row">
+      <span class="label">DM トークン</span>
+      <span id="token-status" class="value">確認中...</span>
+    </div>
+    <div class="meta-row">
+      <span class="label">PID / バージョン</span>
+      <span id="pid-status" class="value">-</span>
+    </div>
+  </div>
+
+  <div class="actions">
+    <a id="btn-start" href="cep-dlp://start" class="btn btn-primary">エージェント起動</a>
+    <button id="btn-setup" class="btn" type="button">セットアップ画面</button>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

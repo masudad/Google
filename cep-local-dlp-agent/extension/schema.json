@@ -1,0 +1,28 @@
+{
+  "type": "object",
+  "properties": {
+    "dmToken": {
+      "title": "BYOD / Profile DM Token",
+      "description": "Optional Chrome Enterprise DM Token automatically pushed to the local CEP DLP Agent on BYOD devices.",
+      "type": "string"
+    },
+    "enforceGate": {
+      "title": "Enforce Local Agent Gatekeeper",
+      "description": "When true, blocks navigation to protected corporate/GenAI domains unless the local cep-dlp-agent is active.",
+      "type": "boolean"
+    },
+    "protectedDomains": {
+      "title": "Protected Corporate & GenAI Domains",
+      "description": "List of domains that require cep-dlp-agent to be running locally.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "downloadBaseUrl": {
+      "title": "Agent Binary Download Base URL",
+      "description": "Base URL hosting cep-dlp-agent-darwin-arm64, cep-dlp-agent-windows-amd64.exe, etc. for 1-click BYOD onboarding.",
+      "type": "string"
+    }
+  }
+}

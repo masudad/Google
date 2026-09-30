@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CEP Local DLP Companion — BYOD セキュリティ要件の確認</title>
+  <link rel="stylesheet" href="onboarding.css">
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <div class="header">
+        <div class="badge-row">
+          <span class="badge badge-security">Chrome Enterprise Premium</span>
+          <span id="status-pill" class="status-pill status-offline">エージェント未接続</span>
+        </div>
+        <h1>ローカル DLP エージェントの起動が必要です</h1>
+        <p class="subtitle">
+          社内データおよび生成 AI サービスの安全な利用のため、この PC で
+          <strong>CEP Local DLP Agent</strong> が稼働している必要があります。
+        </p>
+      </div>
+
+      <div id="target-banner" class="target-banner" hidden>
+        <span>アクセス先:</span>
+        <code id="target-url-display"></code>
+        <span class="hint">（エージェントの起動を検知すると自動的に元のページへ移動します）</span>
+      </div>
+
+      <div class="steps-grid">
+        <!-- Step 1: Already installed -> Launch via custom URL scheme -->
+        <div class="step-box">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <h2>すでにインストール済みの場合（ワンクリック起動）</h2>
+            <p>
+              エージェントをインストール済みの場合は、下のボタンをクリックしてバックグラウンド起動してください。
+            </p>
+            <div class="action-row">
+              <a id="btn-launch-scheme" href="cep-dlp://start" class="btn btn-primary">
+                CEP Local DLP Agent を起動する
+              </a>
+              <button id="btn-recheck" class="btn btn-secondary" type="button">
+                今すぐ再確認
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2: First-time BYOD setup (No Admin Required) -->
+        <div class="step-box">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <h2>初回セットアップ（管理者権限不要・BYOD 対応）</h2>
+            <p>
+              まだインストールしていない場合は、お使いの OS（<strong id="detected-os-label">自動判定中</strong>）向けの軽量シングルバイナリをダウンロードし、ユーザー領域への自動起動登録を実行してください。
+            </p>
+            <div class="action-row">
+              <a id="btn-download-binary" href="#" class="btn btn-outline" target="_blank" rel="noopener noreferrer">
+                バイナリをダウンロード (<span id="download-filename">cep-dlp-agent</span>)
+              </a>
+            </div>
+
+            <div class="code-tabs">
+              <div class="code-header">
+                <span id="cmd-title">ターミナル / PowerShell で初回登録を実行（1回のみ）</span>
+                <button id="btn-copy-cmd" class="btn-copy" type="button">コマンドをコピー</button>
+              </div>
+              <pre id="install-cmd-box"><code>chmod +x ~/Downloads/cep-dlp-agent-* && ~/Downloads/cep-dlp-agent-* install</code></pre>
+            </div>
+            <p class="micro-note">
+              ※ <code>install</code> コマンドはユーザー権限のみで動作し、OS ログイン時の自動起動登録と
+              <code>cep-dlp://</code> ワンクリック起動スキームを設定します。ブラウザから DM トークンが自動連携されるため、手動でのトークン設定は不要です。
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div class="diag-info">
+          <span>ローカルヘルスチェック: <code>http://127.0.0.1:8843/healthz</code></span>
+          <span id="last-checked-label">確認中...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="onboarding.js"></script>
+</body>
+</html>

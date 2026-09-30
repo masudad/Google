@@ -1,0 +1,76 @@
+# CEP Local DLP Agent (`cep-dlp-agent`)
+
+Chrome Enterprise Premium (CEP) の DLP 検証サーバー（**WebProtect**: `https://safebrowsing.google.com/safebrowsing/uploads/scan`）をバックエンドの検査エンジンとして利用し、**デスクトップ版 AI アプリ / IDE（Cursor, Claude Desktop, VS Code 等）** および **一般ネイティブアプリ全般（Slack, Outlook, Teams 等）** に対して Chrome ブラウザと同一の DLP ルール・OCR・監査ログを適用する軽量ハイブリッドエージェントです。
+
+## アーキテクチャの特徴
+
+1. **Chrome 拡張機能不要・シングルバイナリ完結（macOS / Windows / Linux 対応）**:
+   OS 上の Chrome Enterprise Core (CBCM) DM Token（Windows レジストリ、macOS `Chrome Cloud Enrollment`、Linux Enrollment ディレクトリ）および Chrome Profile メタデータを自動検出し、エージェントから直接 Scotty Multipart プロトコル（`ContentAnalysisRequest` / `ContentAnalysisResponse` Protobuf）で CEP サーバーへ問い合わせます。
+2. **2層ハイブリッドフック**:
+   - **【第1層】OS クリップボード ＆ アクティブアプリ監視 (`pkg/oshook`)**: TLS 復号不要で、ネイティブアプリへの機密テキスト貼り付けを検知・遮断（`BLOCK` 時はクリップボードを即座にクリアし OS ネイティブ警告を表示）。
+   - **【第2層】スマート HTTPS プロキシ (`pkg/proxy`)**: Cursor 等のバックグラウンドでのソースコード自動送信や、ネイティブアプリからのファイルアップロード（`multipart/form-data`）・API 送信（`POST` / `PUT` / `PATCH`）を捕捉・遮断。
+3. **Smart Bypass（Quota 保護・Chrome 二重検査回避・証明書ピニング自動回避）**:
+   - **ローカルプロセス識別 (`pkg/proxy/proc_inspector.go`)**: ループバック接続元のプロセス名を特定し、`Google Chrome` / `chrome.exe`（ブラウザ内蔵 CEP で保護済み）や OS 更新プロセスの通信は自動的に TCP パススルーへバイパス。
+   - **ペイロード選別 (`pkg/proxy/filter.go`)**: `GET` / `HEAD` / `OPTIONS` および 100 Bytes 未満のハートビート通信はローカルで即スルーし、実質的なデータ送信のみを CEP へ送信。
+   - **Quota 保護**: ローカル Token Bucket レートリミッタにより、CEP サーバーの Quota（デバイス単位 50 QPS / テナント全体 100 QPS）枯渇を防止。
+   - **TLS Pinning 自動回避**: クライアントアプリが TLS 証明書ピニングによりハンドシェイクを拒否した場合、該当ホストを自動的に検出し、次回以降の接続を TCP パススルーへ自動切り替え。
+
+## ビルド済みバイナリ (`dist/`)
+
+外部ライブラリ依存ゼロ（Go 標準ライブラリのみ）でクロスビルドされた各 OS 向けシングルバイナリが `dist/` 配下に出力されています：
+
+- `dist/cep-dlp-agent-darwin-arm64` (macOS Apple Silicon)
+- `dist/cep-dlp-agent-darwin-amd64` (macOS Intel)
+- `dist/cep-dlp-agent-windows-amd64.exe` (Windows x64)
+- `dist/cep-dlp-agent-windows-arm64.exe` (Windows ARM64)
+- `dist/cep-dlp-agent-linux-amd64` (Linux x64)
+
+## クイックスタート（macOS / Windows）
+
+### 1. ローカル DM Token の自動検出確認
+```bash
+./cep-dlp-agent token
+```
+
+### 2. 単体スキャン検証（Phase 1 CLI）
+```bash
+# テキスト（プロンプト・ペースト）の DLP 判定確認
+./cep-dlp-agent scan --url "https://chatgpt.com" --text "マイナンバー: 1234-5678-9012"
+
+# ファイル添付の DLP 判定確認（PDF / Office / 画像 OCR 対応）
+./cep-dlp-agent scan --url "https://slack.com/api/files.upload" --file ./secret.pdf
+```
+
+### 3. ローカル Root CA 証明書の生成と OS 信頼ストアへのワンコマンド登録
+```bash
+./cep-dlp-agent ca-install
+```
+
+### 4. ハイブリッドデーモン起動（OS システムプロキシ自動設定つき）
+`--system-proxy` を付与すると、起動時に macOS (`networksetup`) または Windows (`WinInet` レジストリ) のシステムプロキシを自動で有効化し、停止時（`Ctrl+C`）に自動で元の設定へ復元します。
+```bash
+./cep-dlp-agent daemon --listen 127.0.0.1:8843 --system-proxy
+```
+
+## BYOD（非管理端末・MDM なし）向け展開モード
+
+MDM でバイナリやマシンレベル DM トークンを配布できない BYOD PC 向けに、**① 管理者権限不要のユーザー領域自動起動インストーラー** と **② Chrome プロファイル強制配布用の Companion 拡張機能 (`extension/`)** を備えています。
+
+### 1. ユーザー領域への自動起動登録 & `cep-dlp://` スキーム登録（管理者権限不要）
+```bash
+# 初回1回のみ実行（macOS LaunchAgents / Windows HKCU Run / Linux systemd --user へ登録）
+./cep-dlp-agent install
+
+# アンインストール（自動起動解除 & プロキシ復元）
+./cep-dlp-agent uninstall
+```
+- **macOS**: `~/Library/LaunchAgents/com.google.cep.local-dlp-agent.plist` および `~/Applications/CEP Local DLP Agent.app`（`cep-dlp://start` カスタム URL スキーム）を自動生成・起動します。
+- **Windows**: `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` および `HKCU\Software\Classes\cep-dlp` をユーザー権限のみで登録・バックグラウンド起動します。
+
+### 2. BYOD Companion Chrome 拡張機能 (`extension/`)
+Google 管理コンソールの「ユーザーとブラウザの設定」から BYOD の業務 Chrome プロファイルへ強制インストール（`ExtensionInstallForcelist`）することで、以下の 2 つの機能を自動化します：
+1. **DM Token のゼロタッチ自動ブートストラップ**:
+   `chrome.storage.managed` で配信された `dmToken` とログイン中のユーザーメール（`chrome.identity`）を `POST http://127.0.0.1:8843/__cep_agent/v1/bootstrap-token` へ自動プッシュし、BYOD 端末でもローカル設定作業なしで CEP サーバー連携を有効化します。
+2. **ブラウザ Gatekeeper（未起動時の業務 Web / 生成 AI アクセス遮断）**:
+   `http://127.0.0.1:8843/healthz` の死活監視を常時行い、`cep-dlp-agent` が停止している場合は `chrome.declarativeNetRequest` の動的ルールによって対象ドメイン（社内 SaaS / 生成 AI 等）へのアクセスを `onboarding.html` へ自動リダイレクトします。ユーザーは画面上の **`cep-dlp://start` ボタンを 1 クリック**するだけでエージェントを起動でき、稼働検知と同時に元のページへ自動復帰します。
+
