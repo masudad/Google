@@ -2761,10 +2761,13 @@ export class CepProvider {
       }
     }
 
-    for (const rule of this.dlpRules(context)) {
+    const rules = this.dlpRules(context);
+    for (const rule of rules) {
       if (rule.requires === "internalUrls" && context.internalUrls.length === 0) {
         skipped.push(`Rule "${rule.displayName}": needs at least one internal URL prefix`);
-        failed = true;
+        if (rules.length === 1) {
+          failed = true;
+        }
         continue;
       }
       // Only the fields the Rule proto declares as admin input. Alert severity
@@ -3095,6 +3098,18 @@ export class CepProvider {
       if (resolvedCount !== requestedCount) failedModules.add(module);
     }
     if (resolved.length === 0 && created.length === 0) {
+      if (
+        failedModules.size === 0 &&
+        skipped.some((item) => item.includes("already exists and was reused"))
+      ) {
+        return {
+          success: true,
+          message: "All selected CEP settings are already active on the target OU.",
+          created_items: created,
+          skipped_items: skipped,
+          debug_trace: trace,
+        };
+      }
       return {
         success: false,
         message:

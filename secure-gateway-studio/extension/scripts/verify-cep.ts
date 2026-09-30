@@ -4949,6 +4949,28 @@ for (const mode of ["412-commit", "503-commit", "response-loss-commit"] as const
     ),
     JSON.stringify(invalidRes.skipped_items),
   );
+
+  // Watermark skipped with empty internal_urls does not fail multi-rule DLP provision
+  const { transport: noInternalUrlTransport } = stubTransport();
+  const noInternalUrlRes = (await route(
+    context(noInternalUrlTransport),
+    "POST",
+    "/api/v1/cep/provision",
+    {
+      ...DLP_CONFIG,
+      internal_urls: [],
+    },
+  )) as ProvisionResult;
+  check(
+    "Multi-rule DLP provision with empty internal_urls succeeds while recording watermark skip in skipped_items",
+    noInternalUrlRes.success === true &&
+      noInternalUrlRes.created_items.length > 0 &&
+      noInternalUrlRes.skipped_items.some((s) =>
+        s.includes("Watermark internal pages") &&
+        s.includes("needs at least one internal URL prefix"),
+      ),
+    JSON.stringify(noInternalUrlRes),
+  );
 }
 
 // -- Report -------------------------------------------------------------------
