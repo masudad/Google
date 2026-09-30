@@ -6,15 +6,23 @@ const DEFAULT_PROTECTED_DOMAINS = [
   "chatgpt.com",
   "claude.ai",
   "gemini.google.com",
+  "notebooklm.google.com",
+  "aistudio.google.com",
   "vertexaisearch.cloud.google.com",
   "console.cloud.google.com",
   "drive.google.com",
+  "docs.google.com",
   "mail.google.com",
-  "slack.com"
+  "slack.com",
+  "perplexity.ai",
+  "copilot.microsoft.com",
+  "github.com",
+  "notion.so"
 ];
 
 let lastAgentState = {
   healthy: false,
+  protectionActive: false,
   status: "unreachable",
   dmTokenPresent: false,
   userEmail: "",
@@ -124,11 +132,13 @@ async function checkAgentHealth() {
       }
     }
 
+    const dmTokenPresent = Boolean(data.dm_token_present);
     lastAgentState = {
       healthy: true,
-      status: data.status || "ok",
-      version: data.version || "1.3.0",
-      dmTokenPresent: Boolean(data.dm_token_present),
+      protectionActive: dmTokenPresent,
+      status: data.status || (dmTokenPresent ? "ok" : "awaiting_dm_token"),
+      version: data.version || "1.4.0",
+      dmTokenPresent,
       tokenSource: data.token_source || "",
       userEmail: data.user_email || profileEmail,
       deviceName: data.device_name || "",
@@ -138,6 +148,7 @@ async function checkAgentHealth() {
   } catch (err) {
     lastAgentState = {
       healthy: false,
+      protectionActive: false,
       status: "offline",
       dmTokenPresent: false,
       userEmail: profileEmail,
@@ -149,26 +160,53 @@ async function checkAgentHealth() {
   }
 
   await chrome.storage.local.set({ agentState: lastAgentState });
-  await syncGatekeeperRules(lastAgentState.healthy, cfg);
-  await updateActionBadge(lastAgentState.healthy);
+  await syncGatekeeperRules(lastAgentState.protectionActive, cfg);
+  await updateActionBadge(lastAgentState);
   return lastAgentState;
 }
 
-async function updateActionBadge(healthy) {
-  if (healthy) {
+async function updateActionBadge(state) {
+  if (state && state.healthy && state.dmTokenPresent) {
     await chrome.action.setBadgeText({ text: "ON" });
     await chrome.action.setBadgeBackgroundColor({ color: "#188038" });
+  } else if (state && state.healthy && !state.dmTokenPresent) {
+    await chrome.action.setBadgeText({ text: "WAIT" });
+    await chrome.action.setBadgeBackgroundColor({ color: "#f29900" });
   } else {
     await chrome.action.setBadgeText({ text: "OFF" });
     await chrome.action.setBadgeBackgroundColor({ color: "#d93025" });
   }
 }
 
-async function syncGatekeeperRules(agentHealthy, cfg) {
+function matchProtectedDomain(urlStr, protectedDomains) {
+  try {
+    const u = new URL(urlStr);
+    if (u.protocol !== "http:" && u.protocol !== "https:") {
+      return "";
+    }
+    const host = u.hostname.toLowerCase();
+    for (const raw of protectedDomains) {
+      const clean = raw
+        .trim()
+        .toLowerCase()
+        .replace(/^https?:\/\//, "")
+        .replace(/\/.*$/, "");
+      if (!clean) continue;
+      if (host === clean || host.endsWith(`.${clean}`)) {
+        return clean;
+      }
+    }
+  } catch (_) {
+    // Ignore invalid URLs
+  }
+  return "";
+}
+
+async function syncGatekeeperRules(protectionActive, cfg) {
   const existing = await chrome.declarativeNetRequest.getDynamicRules();
   const removeRuleIds = existing.map((r) => r.id);
 
-  if (agentHealthy || !cfg.enforceGate) {
+  if (protectionActive || !cfg.enforceGate) {
     if (removeRuleIds.length > 0) {
       await chrome.declarativeNetRequest.updateDynamicRules({
         removeRuleIds
@@ -202,6 +240,23 @@ async function syncGatekeeperRules(agentHealthy, cfg) {
     removeRuleIds,
     addRules
   });
+
+  // Also gate any already-open SPA tabs on protected domains when protection goes offline
+  try {
+    const tabs = await chrome.tabs.query({});
+    for (const tab of tabs) {
+      if (!tab || !tab.id || !tab.url) continue;
+      const matched = matchProtectedDomain(tab.url, cfg.protectedDomains);
+      if (matched) {
+        const redirectUrl = chrome.runtime.getURL(
+          `/onboarding.html?domain=${encodeURIComponent(matched)}&target=${encodeURIComponent(tab.url)}`
+        );
+        chrome.tabs.update(tab.id, { url: redirectUrl }).catch(() => {});
+      }
+    }
+  } catch (_) {
+    // Ignore tab query errors
+  }
 }
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -232,6 +287,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       sendResponse({
         ...state,
         online: state.healthy,
+        protectionActive: state.protectionActive,
         agentInfo: {
           has_token: state.dmTokenPresent,
           token_source: state.tokenSource,
@@ -249,7 +305,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         sendResponse({
           config,
           state,
-          online: state.healthy
+          online: state.healthy,
+          protectionActive: state.protectionActive
         })
     );
     return true;
@@ -280,7 +337,13 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       }
       const state = await checkAgentHealth();
       const config = await getConfiguration();
-      sendResponse({ ok: true, config, state, online: state.healthy });
+      sendResponse({
+        ok: true,
+        config,
+        state,
+        online: state.healthy,
+        protectionActive: state.protectionActive
+      });
     });
     return true;
   }

@@ -1,18 +1,21 @@
 // Package oshook implements the Layer-1 OS Clipboard and Active Application Hook,
-// inspecting sensitive clipboard data against CEP WebProtect across native desktop apps
-// (Cursor, Claude Desktop, Slack, Outlook, Teams, Notepad, etc.) without requiring TLS decryption.
+// inspecting sensitive clipboard data (both text and copied files) against CEP WebProtect
+// across native desktop apps (Cursor, Claude Desktop, Slack, Outlook, Teams, Notepad, etc.)
+// without requiring TLS decryption.
 //
 // Architecture (Enterprise-Ready Synchronous Paste Interception):
 //  1. Silent Background Pre-Warm & Quarantine:
-//     When the user copies text or switches to a native desktop application, ClipboardGuard
+//     When the user copies text/files or switches to a native desktop application, ClipboardGuard
 //     silently evaluates the clipboard content against CEP WebProtect (https://local-app.internal/<app>)
-//     WITHOUT showing any popup dialog on window switch. If a BLOCK rule matches, the clipboard text
+//     WITHOUT showing any popup dialog on window switch. If a BLOCK rule matches, the clipboard content
 //     is silently quarantined in memory and the OS clipboard is emptied (preventing mouse Right-Click -> Paste).
 //     If the user switches back to a standalone web browser without pasting, the quarantined clipboard text is
 //     seamlessly restored.
 //  2. Synchronous OS Paste Shortcut Hook (WH_KEYBOARD_LL on Windows):
-//     When the user physically presses Ctrl+V, Ctrl+Shift+V, or Shift+Insert in a monitored native app,
-//     the low-level keyboard hook intercepts the keystroke BEFORE the target application receives it.
+//     When the user physically presses Ctrl+V, Ctrl+Shift+V, Ctrl+Alt+V, Win+V, or Shift+Insert in a
+//     monitored native app, the low-level keyboard hook intercepts the keystroke BEFORE the target
+//     application receives it. If an evaluation is already in flight from PrewarmClipboardOnce,
+//     HandlePasteAttempt coalesces with that in-flight scan and upgrades it to alert on block.
 //     If the verdict is BLOCK, the keystroke is dropped at the OS level (return 1) so zero characters
 //     are pasted — whether on the 1st press, 2nd press, rapid Ctrl+V spam, or while the block dialog
 //     is left open on screen — and the block alert dialog is displayed (or brought back to the front).
@@ -24,7 +27,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -37,7 +42,7 @@ import (
 const (
 	allowedVerdictTTL = 5 * time.Minute
 	blockedVerdictTTL = 10 * time.Minute
-	syncPasteWaitMax  = 250 * time.Millisecond
+	syncPasteWaitMax  = 800 * time.Millisecond
 )
 
 // standaloneBrowserApps are web browsers whose clipboard actions are governed by Chrome's native
@@ -74,7 +79,6 @@ var osSystemBypassApps = map[string]bool{
 	"searchhost":              true,
 	"shellexperiencehost":     true,
 	"startmenuexperiencehost": true,
-	"applicationframehost":    true,
 	"lockapp":                 true,
 	"dwm":                     true,
 	"taskmgr":                 true,
@@ -89,6 +93,15 @@ type cachedVerdictEntry struct {
 	expiry  time.Time
 }
 
+type inflightScan struct {
+	done          chan struct{}
+	allowed       bool
+	verdict       *webprotect.ScanVerdict
+	err           error
+	notifyOnBlock bool
+	destLabel     string
+}
+
 // ClipboardGuard monitors OS paste shortcuts and clipboard state across native applications.
 type ClipboardGuard struct {
 	WebProtect        *webprotect.Client
@@ -99,12 +112,14 @@ type ClipboardGuard struct {
 	LastEvaluatedHash string
 
 	// Optional test hooks (nil in production -> uses OS functions)
-	readClipboardFn  func() string
-	writeClipboardFn func(string) error
-	clearClipboardFn func() error
-	detectAppFn      func() string
+	readClipboardFn      func() string
+	readClipboardFilesFn func() []string
+	writeClipboardFn     func(string) error
+	clearClipboardFn     func() error
+	detectAppFn          func() string
 
 	mu                  sync.Mutex
+	inflight            map[string]*inflightScan
 	allowedVerdicts     map[string]time.Time
 	blockedVerdicts     map[string]cachedVerdictEntry
 	lastBlockedHash     string
@@ -134,6 +149,7 @@ func NewClipboardGuard(wp *webprotect.Client, token *dmtoken.TokenInfo, notif no
 		Notifier:        notif,
 		MinChars:        minChars,
 		PollInterval:    defaultPollInterval(),
+		inflight:        make(map[string]*inflightScan),
 		allowedVerdicts: make(map[string]time.Time),
 		blockedVerdicts: make(map[string]cachedVerdictEntry),
 	}
@@ -195,6 +211,13 @@ func (g *ClipboardGuard) readClip() string {
 		return g.readClipboardFn()
 	}
 	return readOSClipboard()
+}
+
+func (g *ClipboardGuard) readClipFiles() []string {
+	if g.readClipboardFilesFn != nil {
+		return g.readClipboardFilesFn()
+	}
+	return readOSClipboardFiles()
 }
 
 func (g *ClipboardGuard) writeClip(text string) error {
@@ -278,6 +301,12 @@ func (g *ClipboardGuard) evaluateClipboardInternal(ctx context.Context, activeAp
 
 	trimmed := strings.TrimSpace(clipboardText)
 	if len(trimmed) == 0 {
+		// Check if files (CF_HDROP) are on the clipboard instead of text!
+		g.mu.Unlock()
+		if files := g.readClipFiles(); len(files) > 0 {
+			return g.evaluateClipboardFiles(ctx, activeApp, targetURL, files, notifyImmediately)
+		}
+		g.mu.Lock()
 		// If clipboard is empty because we quarantined it, keep the quarantine active for Ctrl+V interception.
 		if g.quarantinedVerdict == nil {
 			g.LastEvaluatedHash = ""
@@ -337,11 +366,41 @@ func (g *ClipboardGuard) evaluateClipboardInternal(ctx context.Context, activeAp
 		return true, nil, nil
 	}
 
+	// 3. Coalesce with any already in-flight scan for this cacheKey (so Ctrl+V pressed while
+	//    PrewarmClipboardOnce is mid-flight shares the scan and upgrades notifyOnBlock=true).
+	if inflight, ok := g.inflight[cacheKey]; ok {
+		if notifyImmediately {
+			inflight.notifyOnBlock = true
+			inflight.destLabel = destLabel
+		}
+		g.mu.Unlock()
+		select {
+		case <-inflight.done:
+			return inflight.allowed, inflight.verdict, inflight.err
+		case <-ctx.Done():
+			return false, nil, ctx.Err()
+		}
+	}
+
+	inflight := &inflightScan{
+		done:          make(chan struct{}),
+		notifyOnBlock: notifyImmediately,
+		destLabel:     destLabel,
+	}
+	g.inflight[cacheKey] = inflight
+
 	sourceLabel := g.lastSourceApp
 	if sourceLabel == "" {
 		sourceLabel = "OS_CLIPBOARD"
 	}
 	g.mu.Unlock()
+
+	defer func() {
+		g.mu.Lock()
+		delete(g.inflight, cacheKey)
+		close(inflight.done)
+		g.mu.Unlock()
+	}()
 
 	if g.TokenInfo != nil {
 		g.TokenInfo.RefreshIfNeeded()
@@ -377,6 +436,8 @@ func (g *ClipboardGuard) evaluateClipboardInternal(ctx context.Context, activeAp
 	})
 	if err != nil {
 		log.Printf("[oshook] WebProtect clipboard scan error for app=%s (%s): %v (failing open)", activeApp, targetURL, err)
+		inflight.allowed = true
+		inflight.err = err
 		return true, nil, err
 	}
 
@@ -386,6 +447,8 @@ func (g *ClipboardGuard) evaluateClipboardInternal(ctx context.Context, activeAp
 	if !verdict.Allowed {
 		_ = g.clearClip()
 		g.mu.Lock()
+		shouldNotify := inflight.notifyOnBlock
+		notifyTarget := inflight.destLabel
 		if len(g.blockedVerdicts) > 512 {
 			g.blockedVerdicts = make(map[string]cachedVerdictEntry)
 		}
@@ -401,34 +464,43 @@ func (g *ClipboardGuard) evaluateClipboardInternal(ctx context.Context, activeAp
 		g.quarantinedHash = hashHex
 		g.quarantinedVerdict = verdict
 		g.quarantinedApp = activeApp
-		g.quarantinedTarget = destLabel
-		g.quarantinedNotified = notifyImmediately
+		g.quarantinedTarget = notifyTarget
+		g.quarantinedNotified = shouldNotify
 		g.resetSeqCacheLocked()
 		g.mu.Unlock()
 
-		if notifyImmediately {
+		if shouldNotify {
 			log.Printf("[oshook] BLOCKED clipboard paste in app=%q (%s) rule=%q -> clipboard cleared", activeApp, targetURL, verdict.RuleName)
 			if g.Notifier != nil {
-				g.Notifier.NotifyBlock(destLabel, verdict.RuleName, verdict.CustomMessage)
+				g.Notifier.NotifyBlock(notifyTarget, verdict.RuleName, verdict.CustomMessage)
 			}
 		} else {
 			log.Printf("[oshook] Quarantined sensitive clipboard in app=%q (%s) rule=%q (awaiting paste attempt before alerting)", activeApp, targetURL, verdict.RuleName)
 		}
+		inflight.allowed = false
+		inflight.verdict = verdict
 		return false, verdict, nil
 	}
 
 	if verdict.Action == webprotect.ActionWarn && g.Notifier != nil {
-		if notifyImmediately {
-			if !g.Notifier.PromptWarn(destLabel, verdict.RuleName, verdict.CustomMessage) {
+		g.mu.Lock()
+		shouldNotify := inflight.notifyOnBlock
+		notifyTarget := inflight.destLabel
+		g.mu.Unlock()
+		if shouldNotify {
+			if !g.Notifier.PromptWarn(notifyTarget, verdict.RuleName, verdict.CustomMessage) {
 				_ = g.clearClip()
 				g.mu.Lock()
 				g.resetSeqCacheLocked()
 				g.mu.Unlock()
 				log.Printf("[oshook] WARN declined by user in app=%q (%s) rule=%q -> clipboard cleared", activeApp, targetURL, verdict.RuleName)
+				inflight.allowed = false
+				inflight.verdict = verdict
 				return false, verdict, nil
 			}
 		} else {
-			// Do not prompt on window switch; wait for actual Ctrl+V paste attempt.
+			inflight.allowed = true
+			inflight.verdict = verdict
 			return true, verdict, nil
 		}
 	}
@@ -441,11 +513,119 @@ func (g *ClipboardGuard) evaluateClipboardInternal(ctx context.Context, activeAp
 	g.LastEvaluatedHash = hashHex
 	g.clearQuarantineLocked()
 	g.mu.Unlock()
+	inflight.allowed = true
+	inflight.verdict = verdict
 	return true, verdict, nil
 }
 
+// evaluateClipboardFiles scans files copied to the OS clipboard (CF_HDROP on Windows) using
+// Connector: FILE_ATTACHED when a native application is active.
+func (g *ClipboardGuard) evaluateClipboardFiles(ctx context.Context, activeApp, targetURL string, files []string, notifyImmediately bool) (bool, *webprotect.ScanVerdict, error) {
+	destLabel := fmt.Sprintf("%s (%s)", activeApp, targetURL)
+	for _, filePath := range files {
+		st, err := os.Stat(filePath)
+		if err != nil || st.IsDir() || st.Size() == 0 || st.Size() > webprotect.MaxPayloadBytes {
+			continue
+		}
+		data, err := os.ReadFile(filePath)
+		if err != nil || len(data) == 0 {
+			continue
+		}
+		sum := sha256.Sum256(data)
+		hashHex := "file:" + hex.EncodeToString(sum[:])
+		cacheKey := hashHex + "\x00" + targetURL
+		now := time.Now()
+
+		g.mu.Lock()
+		if entry, ok := g.blockedVerdicts[cacheKey]; ok && now.Before(entry.expiry) {
+			verdict := entry.verdict
+			g.quarantinedText = ""
+			g.quarantinedHash = hashHex
+			g.quarantinedVerdict = verdict
+			g.quarantinedApp = activeApp
+			g.quarantinedTarget = destLabel
+			g.quarantinedNotified = notifyImmediately
+			g.resetSeqCacheLocked()
+			g.mu.Unlock()
+			_ = g.clearClip()
+			if notifyImmediately && g.Notifier != nil {
+				g.Notifier.NotifyBlock(destLabel, verdict.RuleName, verdict.CustomMessage)
+			}
+			return false, verdict, nil
+		}
+		if exp, ok := g.allowedVerdicts[hashHex]; ok && now.Before(exp) {
+			g.mu.Unlock()
+			continue
+		}
+		g.mu.Unlock()
+
+		if g.TokenInfo != nil {
+			g.TokenInfo.RefreshIfNeeded()
+		}
+		var dmToken, profileDMToken, userEmail, clientID, deviceName, osPlatform, osVersion, machineUser string
+		if g.TokenInfo != nil {
+			dmToken, profileDMToken, userEmail, clientID = g.TokenInfo.Credentials()
+			deviceName = g.TokenInfo.DeviceName
+			osPlatform = g.TokenInfo.OSPlatform
+			osVersion = g.TokenInfo.OSVersion
+			machineUser = g.TokenInfo.MachineUser
+		}
+
+		verdict, err := g.WebProtect.Scan(ctx, webprotect.ScanInput{
+			DMToken:        dmToken,
+			ProfileDMToken: profileDMToken,
+			UserEmail:      userEmail,
+			ClientID:       clientID,
+			URL:            targetURL,
+			TabURL:         targetURL,
+			Filename:       filepath.Base(filePath),
+			Source:         "OS_CLIPBOARD_FILE",
+			Destination:    destLabel,
+			ContentType:    http.DetectContentType(data),
+			Connector:      webprotect.FileAttached,
+			Reason:         webprotect.ReasonClipboardPaste,
+			Payload:        data,
+			DeviceName:     deviceName,
+			OSPlatform:     osPlatform,
+			OSVersion:      osVersion,
+			MachineUser:    machineUser,
+		})
+		if err != nil {
+			continue
+		}
+		log.Printf("[oshook] CEP DLP Clipboard File Verdict for app=%s file=%s (%d bytes): %s (rule=%q, %dms)",
+			activeApp, filepath.Base(filePath), len(data), verdict.ActionName, verdict.RuleName, verdict.LatencyMs)
+
+		if !verdict.Allowed {
+			_ = g.clearClip()
+			g.mu.Lock()
+			exp := time.Now().Add(blockedVerdictTTL)
+			g.blockedVerdicts[cacheKey] = cachedVerdictEntry{verdict: verdict, expiry: exp}
+			g.lastBlockedHash = hashHex
+			g.lastBlockedVerdict = verdict
+			g.lastBlockedExpiry = exp
+			g.quarantinedText = ""
+			g.quarantinedHash = hashHex
+			g.quarantinedVerdict = verdict
+			g.quarantinedApp = activeApp
+			g.quarantinedTarget = destLabel
+			g.quarantinedNotified = notifyImmediately
+			g.resetSeqCacheLocked()
+			g.mu.Unlock()
+			if notifyImmediately && g.Notifier != nil {
+				g.Notifier.NotifyBlock(destLabel, verdict.RuleName, verdict.CustomMessage)
+			}
+			return false, verdict, nil
+		}
+		g.mu.Lock()
+		g.allowedVerdicts[hashHex] = time.Now().Add(allowedVerdictTTL)
+		g.mu.Unlock()
+	}
+	return true, nil, nil
+}
+
 // HandlePasteAttempt is invoked synchronously by the OS low-level keyboard hook (WH_KEYBOARD_LL)
-// when the user presses Ctrl+V, Ctrl+Shift+V, or Shift+Insert.
+// when the user presses Ctrl+V, Ctrl+Shift+V, Ctrl+Alt+V, Win+V, or Shift+Insert.
 // Returns true if the paste keystroke should be allowed through to the target application,
 // or false if the keystroke must be dropped at the OS boundary.
 func (g *ClipboardGuard) HandlePasteAttempt(ctx context.Context) bool {
@@ -483,24 +663,35 @@ func (g *ClipboardGuard) HandlePasteAttempt(ctx context.Context) bool {
 	liveClip := g.readClip()
 	trimmedLive := strings.TrimSpace(liveClip)
 
-	g.mu.Lock()
-	// Case 1: The OS clipboard is currently empty because prewarm (or an earlier Ctrl+V press)
-	// already quarantined a blocked string for the user's current clipboard session.
-	// Every subsequent Ctrl+V press (1st, 2nd, 3rd, Nth — whether the dialog is open or closed)
-	// MUST be dropped and MUST trigger NotifyBlock!
-	if trimmedLive == "" && g.quarantinedVerdict != nil {
-		verdict := g.quarantinedVerdict
-		destLabel := fmt.Sprintf("%s (%s)", activeApp, targetURL)
-		g.quarantinedTarget = destLabel
-		g.quarantinedNotified = true
-		g.mu.Unlock()
-
-		log.Printf("[oshook] BLOCKED paste shortcut (Ctrl+V) in app=%q (%s) rule=%q", activeApp, targetURL, verdict.RuleName)
-		if g.Notifier != nil {
-			g.Notifier.NotifyBlock(destLabel, verdict.RuleName, verdict.CustomMessage)
+	if trimmedLive == "" {
+		files := g.readClipFiles()
+		if len(files) > 0 {
+			allowed, _, _ := g.evaluateClipboardFiles(ctx, activeApp, targetURL, files, true)
+			return allowed
 		}
-		return false
+		// Case 1: Both text and file clipboards are empty because prewarm (or an earlier Ctrl+V press)
+		// already quarantined a blocked string/file for the user's current clipboard session.
+		// Every subsequent Ctrl+V press (1st, 2nd, 3rd, Nth — whether the dialog is open or closed)
+		// MUST be dropped and MUST trigger NotifyBlock!
+		g.mu.Lock()
+		if g.quarantinedVerdict != nil {
+			verdict := g.quarantinedVerdict
+			destLabel := fmt.Sprintf("%s (%s)", activeApp, targetURL)
+			g.quarantinedTarget = destLabel
+			g.quarantinedNotified = true
+			g.mu.Unlock()
+
+			log.Printf("[oshook] BLOCKED paste shortcut (Ctrl+V) in app=%q (%s) rule=%q", activeApp, targetURL, verdict.RuleName)
+			if g.Notifier != nil {
+				g.Notifier.NotifyBlock(destLabel, verdict.RuleName, verdict.CustomMessage)
+			}
+			return false
+		}
+		g.mu.Unlock()
+		return true
 	}
+
+	g.mu.Lock()
 
 	if len(trimmedLive) < g.MinChars {
 		g.mu.Unlock()
@@ -518,8 +709,8 @@ func (g *ClipboardGuard) HandlePasteAttempt(ctx context.Context) bool {
 		return true
 	}
 
-	// Case 3: Already known to be BLOCKED in cache (either for this app or any local-app.internal app) ->
-	// drop keystroke in <5 microseconds, clear clipboard, and trigger block dialog!
+	// Case 3: Already known to be BLOCKED in cache -> drop keystroke in <5 microseconds,
+	// clear clipboard, and trigger block dialog!
 	var cachedBlocked *webprotect.ScanVerdict
 	if entry, ok := g.blockedVerdicts[cacheKey]; ok && now.Before(entry.expiry) {
 		cachedBlocked = entry.verdict
@@ -546,9 +737,10 @@ func (g *ClipboardGuard) HandlePasteAttempt(ctx context.Context) bool {
 	}
 	g.mu.Unlock()
 
-	// Case 4: Uncached clipboard text (user pressed Ctrl+C and Ctrl+V within <25ms before background prewarm finished).
-	// Evaluate synchronously within syncPasteWaitMax (250ms). If scan takes longer than 250ms, drop the
-	// unverified keystroke so sensitive data can never leak before WebProtect responds.
+	// Case 4: Uncached clipboard text (or scan currently in flight from PrewarmClipboardOnce).
+	// Coalesce with any in-flight scan and wait up to syncPasteWaitMax (800ms). If still in flight
+	// after 800ms, drop the unverified keystroke so sensitive data can never leak before WebProtect responds;
+	// because notifyOnBlock=true was set on the in-flight scan, the block popup will still appear when it finishes.
 	type scanOutcome struct {
 		allowed bool
 	}

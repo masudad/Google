@@ -1,9 +1,12 @@
 package proxy
 
 import (
+	"bufio"
 	"bytes"
+	"compress/gzip"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -12,6 +15,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"cep-local-dlp-agent/pkg/dmtoken"
 	"cep-local-dlp-agent/pkg/notifier"
@@ -28,7 +32,9 @@ func TestSmartProxyE2E(t *testing.T) {
 		bodyStr := string(bodyBytes)
 
 		action := webprotect.ActionUnspecified
-		if strings.Contains(bodyStr, "CONFIDENTIAL_MY_NUMBER_9999") {
+		if strings.Contains(bodyStr, "CONFIDENTIAL_MY_NUMBER_9999") ||
+			strings.Contains(bodyStr, "1234-5678-9012") ||
+			strings.Contains(bodyStr, "%PDF-1.7 SECRET_PDF_CONTENT") {
 			action = webprotect.ActionBlock
 		}
 
@@ -55,6 +61,21 @@ func TestSmartProxyE2E(t *testing.T) {
 
 	// 2. Mock Upstream AI / Native App Backend (e.g., Cursor / Claude / Slack API)
 	mockUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/stream" {
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.WriteHeader(http.StatusOK)
+			flusher, _ := w.(http.Flusher)
+			_, _ = w.Write([]byte("data: token-1\n\n"))
+			if flusher != nil {
+				flusher.Flush()
+			}
+			time.Sleep(30 * time.Millisecond)
+			_, _ = w.Write([]byte("data: token-2\n\n"))
+			if flusher != nil {
+				flusher.Flush()
+			}
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"ok":true}`))
@@ -111,7 +132,7 @@ func TestSmartProxyE2E(t *testing.T) {
 	}
 
 	// Case B2: Large JSON metadata/UUID-only POST (>100 bytes of UUIDs, 0 bytes of user prompt) -> must NOT call WebProtect
-	uuidOnlyJSON := `{"id":"550e8400-e29b-41d4-a716-446655440000","conversation_id":"6ba7b810-9dad-11d1-80b4-00c04fd430c8","organization_uuid":"6ba7b811-9dad-11d1-80b4-00c04fd430c8","model":"claude-3-7-sonnet","stream":true}`
+	uuidOnlyJSON := `{"id":"550e8400-e29b-41d4-a716-446655440000","conversation_id":"6ba7b810-9dad-11d1-80b4-00c04fd430c8","organization_uuid":"6ba7b811-9dad-11d1-80b4-00c04fd430c8","model":"claude-3-7-sonnet","created_at":"2026-09-30T15:12:38Z","stream":true}`
 	resp, err = client.Post(mockUpstream.URL+"/v1/metadata", "application/json", strings.NewReader(uuidOnlyJSON))
 	if err != nil {
 		t.Fatalf("UUID metadata POST failed: %v", err)
@@ -171,6 +192,46 @@ func TestSmartProxyE2E(t *testing.T) {
 		t.Fatalf("retried blocked POST within 60s must still return HTTP 403 Forbidden, got %d", respRetry.StatusCode)
 	}
 
+	// Case D3 (Edge Case): Short typed 14-byte My Number ("1234-5678-9012") inside a JSON POST -> Blocked with HTTP 403!
+	shortTypedSecretJSON := `{"model":"claude-3-7-sonnet","conversation_id":"6ba7b810-9dad-11d1-80b4-00c04fd430c8","organization_uuid":"6ba7b811-9dad-11d1-80b4-00c04fd430c8","messages":[{"role":"user","content":"1234-5678-9012"}]}`
+	respShort, err := client.Post(mockUpstream.URL+"/v1/messages", "application/json", strings.NewReader(shortTypedSecretJSON))
+	if err != nil {
+		t.Fatalf("short typed secret POST failed: %v", err)
+	}
+	_ = respShort.Body.Close()
+	if respShort.StatusCode != http.StatusForbidden {
+		t.Fatalf("short typed 14-byte My Number inside JSON POST must return HTTP 403 Forbidden, got %d", respShort.StatusCode)
+	}
+
+	// Case D4 (Edge Case): Gzip-compressed JSON POST (Content-Encoding: gzip) containing sensitive data -> Blocked with HTTP 403!
+	var gzBuf bytes.Buffer
+	gzw := gzip.NewWriter(&gzBuf)
+	_, _ = gzw.Write([]byte(`{"model":"gpt-4o","messages":[{"role":"user","content":" compressed leak CONFIDENTIAL_MY_NUMBER_9999 inside gzip request body "}]}`))
+	_ = gzw.Close()
+	gzReq, _ := http.NewRequest(http.MethodPost, mockUpstream.URL+"/v1/chat/completions", &gzBuf)
+	gzReq.Header.Set("Content-Type", "application/json")
+	gzReq.Header.Set("Content-Encoding", "gzip")
+	respGz, err := client.Do(gzReq)
+	if err != nil {
+		t.Fatalf("gzip POST failed: %v", err)
+	}
+	_ = respGz.Body.Close()
+	if respGz.StatusCode != http.StatusForbidden {
+		t.Fatalf("gzip-compressed sensitive JSON POST must return HTTP 403 Forbidden, got %d", respGz.StatusCode)
+	}
+
+	// Case D5 (Edge Case): Base64-embedded PDF document inside multimodal JSON POST -> Scanned as FILE_ATTACHED & Blocked with HTTP 403!
+	pdfB64 := base64.StdEncoding.EncodeToString([]byte("%PDF-1.7 SECRET_PDF_CONTENT_CONFIDENTIAL_DOCUMENT"))
+	b64JSON := `{"model":"claude-3-7-sonnet","messages":[{"role":"user","content":[{"type":"document","source":{"type":"base64","media_type":"application/pdf","data":"` + pdfB64 + `"}}]}]}`
+	respB64, err := client.Post(mockUpstream.URL+"/v1/messages", "application/json", strings.NewReader(b64JSON))
+	if err != nil {
+		t.Fatalf("base64 PDF JSON POST failed: %v", err)
+	}
+	_ = respB64.Body.Close()
+	if respB64.StatusCode != http.StatusForbidden {
+		t.Fatalf("base64-embedded PDF inside JSON POST must return HTTP 403 Forbidden, got %d", respB64.StatusCode)
+	}
+
 	// Case E: Slack / Native App Multipart File Upload with sensitive content -> Blocked with HTTP 403
 	var mpBuf bytes.Buffer
 	mw := multipart.NewWriter(&mpBuf)
@@ -185,6 +246,23 @@ func TestSmartProxyE2E(t *testing.T) {
 	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusForbidden {
 		t.Errorf("expected HTTP 403 Forbidden for blocked file attachment, got %d", resp.StatusCode)
+	}
+
+	// Case E2: Real-Time SSE Streaming verification
+	sseResp, err := client.Get(mockUpstream.URL + "/v1/stream")
+	if err != nil {
+		t.Fatalf("SSE GET failed: %v", err)
+	}
+	sc := bufio.NewScanner(sseResp.Body)
+	var sseLines []string
+	for sc.Scan() {
+		if line := sc.Text(); strings.HasPrefix(line, "data:") {
+			sseLines = append(sseLines, line)
+		}
+	}
+	_ = sseResp.Body.Close()
+	if len(sseLines) != 2 || sseLines[0] != "data: token-1" || sseLines[1] != "data: token-2" {
+		t.Fatalf("unexpected SSE stream lines: %+v", sseLines)
 	}
 
 	// Case F: TLS Pinning Auto-Bypass verification

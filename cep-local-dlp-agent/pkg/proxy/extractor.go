@@ -2,7 +2,11 @@ package proxy
 
 import (
 	"bytes"
+	"compress/flate"
+	"compress/gzip"
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -58,11 +62,61 @@ var jsonMetadataKeys = map[string]bool{
 	"arch":              true,
 	"cursor":            true,
 	"next_cursor":       true,
+	"finish_reason":     true,
+	"stop_reason":       true,
+	"encoding":          true,
+	"media_type":        true,
+	"mime_type":         true,
+	"content_type":      true,
+	"created_at":        true,
+	"updated_at":        true,
+	"timestamp":         true,
+	"access_token":      true,
+	"refresh_token":     true,
+	"session_token":     true,
+	"csrf_token":        true,
+	"auth_token":        true,
+	"client_msg_id":     true,
+	"thread_ts":         true,
+	"ts":                true,
+}
+
+// DecompressBodyIfNeeded transparently decompresses HTTP request bodies that use
+// Content-Encoding: gzip or deflate (common in AI CLI tools, SDKs, and Electron apps)
+// capped at webprotect.MaxPayloadBytes to prevent zip-bomb memory exhaustion.
+func DecompressBodyIfNeeded(contentEncoding string, body []byte) []byte {
+	if len(body) == 0 {
+		return body
+	}
+	enc := strings.ToLower(strings.TrimSpace(contentEncoding))
+	switch enc {
+	case "gzip", "x-gzip":
+		gr, err := gzip.NewReader(bytes.NewReader(body))
+		if err != nil {
+			return body
+		}
+		defer gr.Close()
+		out, err := io.ReadAll(io.LimitReader(gr, webprotect.MaxPayloadBytes))
+		if err != nil || len(out) == 0 {
+			return body
+		}
+		return out
+	case "deflate":
+		fr := flate.NewReader(bytes.NewReader(body))
+		defer fr.Close()
+		out, err := io.ReadAll(io.LimitReader(fr, webprotect.MaxPayloadBytes))
+		if err != nil || len(out) == 0 {
+			return body
+		}
+		return out
+	default:
+		return body
+	}
 }
 
 // ExtractInspectableItems parses an HTTP request body according to its Content-Type:
 // - multipart/form-data: extracts uploaded files (FILE_ATTACHED) and text fields (BULK_DATA_ENTRY)
-// - application/json: extracts AI/IDE prompts & code context (OpenAI, Anthropic, Cursor, Gemini, Slack, etc.)
+// - application/json: extracts AI/IDE prompts, short typed secrets, and base64-embedded files/images
 // - other text/binary types: inspects the body directly
 func ExtractInspectableItems(contentTypeHeader string, body []byte, minBytes int) []ExtractedItem {
 	if len(body) == 0 {
@@ -80,21 +134,10 @@ func ExtractInspectableItems(contentTypeHeader string, body []byte, minBytes int
 		}
 	}
 
-	// 2. JSON API payloads (Cursor, Claude Desktop, OpenAI, Gemini, Slack chat.postMessage, Graph API mail)
+	// 2. JSON API payloads (Cursor, Claude Desktop, Codex, OpenAI, Gemini, Slack chat.postMessage, Graph API mail)
 	if strings.Contains(mediaType, "json") || (len(body) > 0 && (body[0] == '{' || body[0] == '[')) {
-		if text, validJSON := extractJSONTextStrings(body); validJSON {
-			if len(text) >= minBytes {
-				return []ExtractedItem{
-					{
-						Connector:   webprotect.BulkDataEntry,
-						ContentType: "text/plain",
-						Payload:     []byte(text),
-					},
-				}
-			}
-			// Valid JSON whose non-metadata human/code text is shorter than minBytes
-			// (e.g. UUID/state-sync/settings JSON) must NOT fall back to scanning raw JSON framing.
-			return nil
+		if items, validJSON := extractJSONItems(body); validJSON {
+			return items
 		}
 	}
 
@@ -117,7 +160,7 @@ func ExtractInspectableItems(contentTypeHeader string, body []byte, minBytes int
 	}
 	if !isBinaryMediaType(mediaType) || looksLikeText(body) {
 		if strings.Contains(mediaType, "urlencoded") {
-			if decoded := decodeFormURLEncoded(body); len(decoded) >= minBytes {
+			if decoded := decodeFormURLEncoded(body); len(decoded) >= 4 {
 				body = decoded
 			}
 		}
@@ -148,7 +191,11 @@ func sniffDocumentType(mediaType string, body []byte) (string, bool) {
 	case mediaType == "application/pdf":
 		return "upload.pdf", true
 	case strings.HasPrefix(mediaType, "image/"):
-		return "upload." + strings.TrimPrefix(mediaType, "image/"), true
+		ext := strings.TrimPrefix(mediaType, "image/")
+		if idx := strings.IndexByte(ext, '+'); idx > 0 {
+			ext = ext[:idx]
+		}
+		return "upload." + ext, true
 	case strings.HasPrefix(mediaType, "application/vnd.openxmlformats-officedocument."):
 		return "upload.office", true
 	case strings.HasPrefix(mediaType, "application/vnd.ms-"),
@@ -275,30 +322,46 @@ func extractMultipartItems(boundary string, body []byte, minBytes int) []Extract
 		}
 	}
 
-	if textAccum.Len() >= minBytes {
+	trimmed := strings.TrimSpace(textAccum.String())
+	if len(trimmed) >= 4 && (len(trimmed) >= minBytes || len(items) > 0) {
 		items = append(items, ExtractedItem{
 			Connector:   webprotect.BulkDataEntry,
 			ContentType: "text/plain",
-			Payload:     []byte(textAccum.String()),
+			Payload:     []byte(trimmed),
 		})
 	}
 	return items
 }
 
-// extractJSONTextStrings recursively walks a JSON structure in deterministic key order and
-// concatenates human/code text values (such as "content", "prompt", "text", "body", "message", "input", "code")
-// so CEP DLP detectors evaluate clean text without JSON escaping or UUID metadata noise.
-func extractJSONTextStrings(body []byte) (string, bool) {
+// extractJSONItems recursively walks a JSON structure in deterministic key order and extracts:
+// 1. Base64-encoded files/images (data:...;base64,... or raw base64 PDF/PNG/JPEG/Office payloads) as FILE_ATTACHED.
+// 2. Non-metadata human/code text (including short typed secrets like 14-byte My Number or 16-byte Credit Card) as BULK_DATA_ENTRY.
+func extractJSONItems(body []byte) ([]ExtractedItem, bool) {
 	var root any
 	if err := json.Unmarshal(body, &root); err != nil {
-		return "", false
+		return nil, false
 	}
 	var sb strings.Builder
-	collectJSONStrings(root, "", &sb)
-	return strings.TrimSpace(sb.String()), true
+	var attachments []ExtractedItem
+	collectJSONValues(root, "", &sb, &attachments)
+
+	var items []ExtractedItem
+	items = append(items, attachments...)
+
+	text := strings.TrimSpace(sb.String())
+	// Emit any non-metadata human/code text >= 4 bytes (covers typed 12-digit My Number,
+	// 16-digit credit card, or short sensitive code tokens) while still ignoring empty/UUID-only JSON.
+	if len(text) >= 4 {
+		items = append(items, ExtractedItem{
+			Connector:   webprotect.BulkDataEntry,
+			ContentType: "text/plain",
+			Payload:     []byte(text),
+		})
+	}
+	return items, true
 }
 
-func collectJSONStrings(v any, key string, sb *strings.Builder) {
+func collectJSONValues(v any, key string, sb *strings.Builder, attachments *[]ExtractedItem) {
 	switch val := v.(type) {
 	case map[string]any:
 		keys := make([]string, 0, len(val))
@@ -307,27 +370,154 @@ func collectJSONStrings(v any, key string, sb *strings.Builder) {
 		}
 		sort.Strings(keys)
 		for _, k := range keys {
-			collectJSONStrings(val[k], strings.ToLower(k), sb)
+			collectJSONValues(val[k], strings.ToLower(k), sb, attachments)
 		}
 	case []any:
 		for _, item := range val {
-			collectJSONStrings(item, key, sb)
+			collectJSONValues(item, key, sb, attachments)
 		}
 	case string:
 		trimmed := strings.TrimSpace(val)
 		if len(trimmed) == 0 {
 			return
 		}
-		if jsonMetadataKeys[key] || strings.HasSuffix(key, "_id") || strings.HasSuffix(key, "_uuid") {
-			if len(trimmed) < 64 {
-				return
-			}
+		// Check if this string is a data:...;base64,... URI or raw base64 document/image
+		if att, ok := tryDecodeBase64Attachment(trimmed, len(*attachments)+1); ok {
+			*attachments = append(*attachments, att)
+			return
 		}
-		if isUUIDString(trimmed) {
+		if isMetadataJSONKey(key) && len(trimmed) < 64 {
+			return
+		}
+		if isUUIDString(trimmed) || isISOTimestamp(trimmed) {
 			return
 		}
 		sb.WriteString(val)
 		sb.WriteString("\n")
+	}
+}
+
+func isMetadataJSONKey(key string) bool {
+	if jsonMetadataKeys[key] {
+		return true
+	}
+	return strings.HasSuffix(key, "_id") ||
+		strings.HasSuffix(key, "_uuid") ||
+		strings.HasSuffix(key, "_at") ||
+		strings.HasSuffix(key, "_time") ||
+		strings.HasSuffix(key, "_token") ||
+		strings.HasSuffix(key, "_version")
+}
+
+// tryDecodeBase64Attachment detects base64-encoded files and images embedded inside JSON requests
+// (such as Anthropic/OpenAI/Gemini/Cursor multimodal attachments) and returns a FILE_ATTACHED item.
+func tryDecodeBase64Attachment(s string, index int) (ExtractedItem, bool) {
+	var mimeHint string
+	b64Payload := s
+
+	if strings.HasPrefix(s, "data:") {
+		comma := strings.IndexByte(s, ',')
+		if comma <= 5 {
+			return ExtractedItem{}, false
+		}
+		header := s[5:comma]
+		if !strings.Contains(header, ";base64") {
+			return ExtractedItem{}, false
+		}
+		mimeHint = strings.TrimSuffix(header, ";base64")
+		if semi := strings.IndexByte(mimeHint, ';'); semi >= 0 {
+			mimeHint = mimeHint[:semi]
+		}
+		b64Payload = strings.TrimSpace(s[comma+1:])
+	} else {
+		// Fast prefix check for raw base64 strings representing known document/image magic bytes:
+		// - "JVBERi0"     -> "%PDF-" (PDF document)
+		// - "iVBORw0KGgo" -> "\x89PNG\r\n\x1a\n" (PNG image)
+		// - "/9j/"        -> "\xFF\xD8\xFF" (JPEG image)
+		// - "R0lGOD"      -> "GIF8" (GIF image)
+		// - "UEsDB"       -> "PK\x03\x04" (ZIP / DOCX / XLSX / PPTX Office document)
+		// - "0M8R4KGx"    -> "\xD0\xCF\x11\xE0" (Legacy DOC / XLS / PPT Office document)
+		if len(s) < 24 || !hasKnownBase64MagicPrefix(s) {
+			return ExtractedItem{}, false
+		}
+	}
+
+	if len(b64Payload) == 0 || len(b64Payload) > (webprotect.MaxPayloadBytes*4/3)+4096 {
+		return ExtractedItem{}, false
+	}
+
+	decoded, err := decodeBase64Flexible(b64Payload)
+	if err != nil || len(decoded) < 4 {
+		return ExtractedItem{}, false
+	}
+
+	filename, ok := sniffDocumentType(mimeHint, decoded)
+	if !ok {
+		if mimeHint != "" {
+			filename = fmt.Sprintf("embedded_%d.bin", index)
+		} else {
+			return ExtractedItem{}, false
+		}
+	} else if index > 1 {
+		filename = fmt.Sprintf("%d_%s", index, filename)
+	}
+
+	contentType := mimeHint
+	if contentType == "" {
+		contentType = inferMimeFromFilename(filename)
+	}
+
+	return ExtractedItem{
+		Connector:   webprotect.FileAttached,
+		Filename:    filename,
+		ContentType: contentType,
+		Payload:     decoded,
+	}, true
+}
+
+func hasKnownBase64MagicPrefix(s string) bool {
+	return strings.HasPrefix(s, "JVBERi0") ||
+		strings.HasPrefix(s, "iVBORw0KGgo") ||
+		strings.HasPrefix(s, "/9j/") ||
+		strings.HasPrefix(s, "R0lGOD") ||
+		strings.HasPrefix(s, "UEsDB") ||
+		strings.HasPrefix(s, "0M8R4KGx")
+}
+
+func decodeBase64Flexible(s string) ([]byte, error) {
+	// Strip optional whitespace/newlines inside base64 strings
+	clean := strings.Map(func(r rune) rune {
+		if r == '\n' || r == '\r' || r == ' ' || r == '\t' {
+			return -1
+		}
+		return r
+	}, s)
+	if out, err := base64.StdEncoding.DecodeString(clean); err == nil {
+		return out, nil
+	}
+	if out, err := base64.RawStdEncoding.DecodeString(clean); err == nil {
+		return out, nil
+	}
+	if out, err := base64.URLEncoding.DecodeString(clean); err == nil {
+		return out, nil
+	}
+	return base64.RawURLEncoding.DecodeString(clean)
+}
+
+func inferMimeFromFilename(filename string) string {
+	switch {
+	case strings.HasSuffix(filename, ".pdf"):
+		return "application/pdf"
+	case strings.HasSuffix(filename, ".png"):
+		return "image/png"
+	case strings.HasSuffix(filename, ".jpg"):
+		return "image/jpeg"
+	case strings.HasSuffix(filename, ".gif"):
+		return "image/gif"
+	case strings.HasSuffix(filename, ".zip"), strings.HasSuffix(filename, ".office"):
+		return "application/zip"
+	default:
+		return "application/octet-stream"
 	}
 }
 
@@ -348,6 +538,14 @@ func isUUIDString(s string) bool {
 		}
 	}
 	return true
+}
+
+func isISOTimestamp(s string) bool {
+	// Match RFC3339 / ISO-8601 timestamps such as "2026-09-30T15:12:38Z" or "2026-09-30T15:12:38.123+09:00"
+	if len(s) < 20 || len(s) > 35 {
+		return false
+	}
+	return s[4] == '-' && s[7] == '-' && (s[10] == 'T' || s[10] == ' ') && s[13] == ':' && s[16] == ':'
 }
 
 func isBinaryMediaType(mediaType string) bool {

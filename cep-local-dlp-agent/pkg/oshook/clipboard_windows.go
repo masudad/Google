@@ -17,10 +17,12 @@ import (
 
 // Windows implementation of:
 //  1. Synchronous Low-Level Keyboard Hook (WH_KEYBOARD_LL via user32.dll!SetWindowsHookExW)
-//     that intercepts Ctrl+V, Ctrl+Shift+V, and Shift+Insert BEFORE the target application
-//     receives the keystroke, returning 1 to drop the paste keystroke when CEP DLP blocks it.
-//  2. Thread-locked Win32 clipboard access (readOSClipboard, clearOSClipboard, writeOSClipboard)
-//     with runtime.LockOSThread() so OpenClipboard and CloseClipboard always run on the same OS thread.
+//     that intercepts Ctrl+V, Ctrl+Shift+V, Ctrl+Alt+V, Win+V, and Shift+Insert BEFORE the
+//     target application receives the keystroke, returning 1 to drop the paste keystroke when
+//     CEP DLP blocks it.
+//  2. Thread-locked Win32 clipboard access (readOSClipboard, readOSClipboardFiles via CF_HDROP,
+//     clearOSClipboard, writeOSClipboard) with runtime.LockOSThread() so OpenClipboard and
+//     CloseClipboard always run on the same OS thread.
 //  3. Fast foreground application resolution via GetForegroundWindow + QueryFullProcessImageNameW.
 
 var (
@@ -55,10 +57,14 @@ var (
 	procQueryFullProcessImageNameW = modKernel32.NewProc("QueryFullProcessImageNameW")
 	procCloseHandle                = modKernel32.NewProc("CloseHandle")
 	procGetCurrentThreadId         = modKernel32.NewProc("GetCurrentThreadId")
+
+	modShell32         = syscall.NewLazyDLL("shell32.dll")
+	procDragQueryFileW = modShell32.NewProc("DragQueryFileW")
 )
 
 const (
 	cfUnicodeText                  = 13
+	cfHDrop                        = 15
 	gmemMoveable                   = 0x0002
 	gmemZeroInit                   = 0x0040
 	processQueryLimitedInformation = 0x1000
@@ -71,9 +77,10 @@ const (
 
 	vkShift    = 0x10
 	vkControl  = 0x11
-	vkMenu     = 0x12 // Alt key
 	vkInsert   = 0x2D
 	vkV        = 0x56
+	vkLWin     = 0x5B
+	vkRWin     = 0x5C
 	vkLShift   = 0xA0
 	vkRShift   = 0xA1
 	vkLControl = 0xA2
@@ -132,6 +139,10 @@ func isShiftDown() bool {
 	return isVirtualKeyDown(vkShift) || isVirtualKeyDown(vkLShift) || isVirtualKeyDown(vkRShift)
 }
 
+func isWinDown() bool {
+	return isVirtualKeyDown(vkLWin) || isVirtualKeyDown(vkRWin)
+}
+
 func lowLevelKeyboardProc(nCode int, wParam uintptr, lParam uintptr) uintptr {
 	if nCode >= 0 && (wParam == wmKeyDown || wParam == wmSysKeyDown) && lParam != 0 {
 		var kbd kbdLLHookStruct
@@ -141,8 +152,8 @@ func lowLevelKeyboardProc(nCode int, wParam uintptr, lParam uintptr) uintptr {
 			unsafe.Sizeof(kbd),
 		)
 		isPaste := false
-		// Match Ctrl+V, Ctrl+Shift+V (Paste as plain text), and Shift+Insert
-		if kbd.VKCode == vkV && isCtrlDown() && !isVirtualKeyDown(vkMenu) {
+		// Match Ctrl+V, Ctrl+Shift+V, Ctrl+Alt+V (Paste Special), Win+V (Clipboard History), and Shift+Insert
+		if kbd.VKCode == vkV && (isCtrlDown() || isWinDown()) {
 			isPaste = true
 		} else if kbd.VKCode == vkInsert && isShiftDown() && !isCtrlDown() {
 			isPaste = true
@@ -186,7 +197,7 @@ func startPasteKeystrokeHook(ctx context.Context, g *ClipboardGuard) {
 		log.Printf("[oshook] Warning: SetWindowsHookExW(WH_KEYBOARD_LL) failed: %v", err)
 		return
 	}
-	log.Printf("[oshook] Installed Win32 WH_KEYBOARD_LL synchronous paste interceptor (Ctrl+V / Shift+Insert)")
+	log.Printf("[oshook] Installed Win32 WH_KEYBOARD_LL synchronous paste interceptor (Ctrl+V / Ctrl+Shift+V / Win+V / Shift+Insert)")
 	defer procUnhookWindowsHookEx.Call(hHook)
 
 	go func() {
@@ -273,6 +284,45 @@ func readOSClipboard() string {
 	return syscall.UTF16ToString(buf)
 }
 
+// readOSClipboardFiles returns file paths copied to the Windows clipboard via CF_HDROP (e.g.
+// when the user presses Ctrl+C on a PDF/CSV/Office/image file in Windows Explorer).
+func readOSClipboardFiles() []string {
+	avail, _, _ := procIsClipboardFormatAvailable.Call(cfHDrop)
+	if avail == 0 {
+		return nil
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	if !openClipboardLocked(10) {
+		return nil
+	}
+	defer procCloseClipboard.Call()
+
+	hDrop, _, _ := procGetClipboardData.Call(cfHDrop)
+	if hDrop == 0 {
+		return nil
+	}
+	count, _, _ := procDragQueryFileW.Call(hDrop, 0xFFFFFFFF, 0, 0)
+	if count == 0 || count > 64 {
+		return nil
+	}
+
+	var files []string
+	buf := make([]uint16, 1024)
+	for i := uintptr(0); i < count; i++ {
+		n, _, _ := procDragQueryFileW.Call(hDrop, i, uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)))
+		if n > 0 && int(n) < len(buf) {
+			p := strings.TrimSpace(syscall.UTF16ToString(buf[:n]))
+			if p != "" {
+				files = append(files, p)
+			}
+		}
+	}
+	return files
+}
+
 // writeOSClipboard writes UTF-16 text back to the Windows clipboard on a locked OS thread
 // (used to restore quarantined clipboard content when the user returns to a browser without pasting).
 func writeOSClipboard(text string) error {
@@ -311,17 +361,15 @@ func writeOSClipboard(text string) error {
 	return nil
 }
 
-// clearOSClipboard forcibly wipes the Windows clipboard on a locked OS thread, waiting up to
-// ~200ms if the target application is mid-paste (WM_PASTE) during rapid Ctrl+V spam, overwriting
-// CF_UNICODETEXT with an empty NUL string as well as calling EmptyClipboard, and verifying
-// that the clipboard no longer contains text.
+// clearOSClipboard forcibly wipes the Windows clipboard (both CF_UNICODETEXT and CF_HDROP) on a
+// locked OS thread, waiting up to ~200ms if another process briefly holds the clipboard.
 func clearOSClipboard() error {
 	for attempt := 0; attempt < 3; attempt++ {
 		if err := clearOSClipboardOnce(); err != nil {
 			time.Sleep(10 * time.Millisecond)
 			continue
 		}
-		if strings.TrimSpace(readOSClipboard()) == "" {
+		if strings.TrimSpace(readOSClipboard()) == "" && len(readOSClipboardFiles()) == 0 {
 			return nil
 		}
 		time.Sleep(10 * time.Millisecond)

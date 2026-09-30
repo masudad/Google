@@ -20,7 +20,7 @@ import (
 
 // TokenInfo holds the discovered DM Token(s) and host metadata used in ContentAnalysisRequest.
 type TokenInfo struct {
-	mu             sync.RWMutex
+	mu              sync.RWMutex
 	lastConfigCheck time.Time
 	lastConfigMtime time.Time
 	lastBYODMtime   time.Time
@@ -96,8 +96,9 @@ func (t *TokenInfo) UpdateFromBootstrap(dmToken, profileDMToken, userEmail strin
 }
 
 // RefreshIfNeeded checks (at most once every 2 seconds) whether ~/.cep-local-dlp-agent/config.json
-// or byod_token.json was updated on disk (for example via `cep-dlp-agent token --profile-email ...`)
-// and hot-reloads the active Chrome profile DM Token without requiring a daemon restart.
+// or byod_token.json was updated on disk (for example via `cep-dlp-agent token --profile-email ...`),
+// or whether the daemon is still awaiting its initial DM Token, and hot-reloads the active Chrome
+// profile DM Token without requiring a daemon restart.
 func (t *TokenInfo) RefreshIfNeeded() {
 	if t == nil {
 		return
@@ -110,10 +111,11 @@ func (t *TokenInfo) RefreshIfNeeded() {
 	}
 	prevCfgMtime := t.lastConfigMtime
 	prevBYODMtime := t.lastBYODMtime
+	missingToken := strings.TrimSpace(t.DMToken) == ""
 	t.mu.RUnlock()
 
 	cfgMtime, byodMtime := currentConfigMtimes()
-	if cfgMtime.Equal(prevCfgMtime) && byodMtime.Equal(prevBYODMtime) {
+	if !missingToken && cfgMtime.Equal(prevCfgMtime) && byodMtime.Equal(prevBYODMtime) {
 		t.mu.Lock()
 		t.lastConfigCheck = now
 		t.mu.Unlock()

@@ -6,10 +6,13 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"cep-local-dlp-agent/pkg/dmtoken"
 	"cep-local-dlp-agent/pkg/notifier"
@@ -59,8 +62,8 @@ func TestClipboardGuardAndAppURLResolution(t *testing.T) {
 		}
 	}
 
-	// Verify prefix-like native app names ("docker", "architect") are NOT falsely bypassed as "dock" or "arc"
-	for _, app := range []string{"docker", "architect", "Claude", "Cursor", "Notepad"} {
+	// Verify prefix-like native app names and UWP host ("docker", "architect", "ApplicationFrameHost") are NOT falsely bypassed
+	for _, app := range []string{"docker", "architect", "Claude", "Cursor", "Notepad", "ApplicationFrameHost"} {
 		if _, bypass := ResolveAppURL(app); bypass {
 			t.Errorf("expected native app %q NOT to be bypassed", app)
 		}
@@ -248,6 +251,7 @@ func TestWindowSwitchNeverPopupsAndCtrlVSpamAlwaysBlocks(t *testing.T) {
 		defer clipMu.Unlock()
 		return simClipboard
 	}
+	guard.readClipboardFilesFn = func() []string { return nil }
 	guard.writeClipboardFn = func(s string) error {
 		clipMu.Lock()
 		defer clipMu.Unlock()
@@ -325,5 +329,100 @@ func TestWindowSwitchNeverPopupsAndCtrlVSpamAlwaysBlocks(t *testing.T) {
 	}
 	if got := notif.BlockCount(); got != 6 {
 		t.Fatalf("expected 6 NotifyBlock calls, got %d", got)
+	}
+}
+
+func TestInflightCoalescingAndClipboardFileCopyBlock(t *testing.T) {
+	var wpCalls int32
+	mockWP := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&wpCalls, 1)
+		time.Sleep(80 * time.Millisecond)
+		resp := &webprotect.ContentAnalysisResponse{
+			RequestToken: "clip-coalesce",
+			Results: []webprotect.Result{
+				{
+					Tag:    "dlp",
+					Status: webprotect.StatusSuccess,
+					TriggeredRules: []webprotect.TriggeredRule{
+						{
+							Action:   webprotect.ActionBlock,
+							RuleName: "Block Sensitive File or Text Paste",
+							RuleID:   "rule-file-01",
+						},
+					},
+				},
+			},
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(resp.MarshalProto())
+	}))
+	defer mockWP.Close()
+
+	notif := &countingNotifier{}
+	guard := NewClipboardGuard(
+		webprotect.NewClient(mockWP.URL),
+		&dmtoken.TokenInfo{DMToken: "test-token", DeviceName: "win-pc", OSPlatform: "Windows"},
+		notif,
+		1,
+	)
+
+	var clipMu sync.Mutex
+	simClipboard := "CONFIDENTIAL-SECRET-9876"
+	var simFiles []string
+	guard.readClipboardFn = func() string {
+		clipMu.Lock()
+		defer clipMu.Unlock()
+		return simClipboard
+	}
+	guard.readClipboardFilesFn = func() []string {
+		clipMu.Lock()
+		defer clipMu.Unlock()
+		return append([]string(nil), simFiles...)
+	}
+	guard.clearClipboardFn = func() error {
+		clipMu.Lock()
+		defer clipMu.Unlock()
+		simClipboard = ""
+		simFiles = nil
+		return nil
+	}
+	guard.detectAppFn = func() string { return "Claude" }
+
+	// Part A: Start background PrewarmClipboardOnce and concurrently trigger HandlePasteAttempt (Ctrl+V).
+	// They must coalesce into 1 WebProtect HTTP call, block the paste, and trigger NotifyBlock!
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_, _, _ = guard.PrewarmClipboardOnce(context.Background(), "Claude", "CONFIDENTIAL-SECRET-9876")
+	}()
+	time.Sleep(15 * time.Millisecond)
+	if guard.HandlePasteAttempt(context.Background()) {
+		t.Fatalf("expected concurrent HandlePasteAttempt to block")
+	}
+	wg.Wait()
+
+	if got := atomic.LoadInt32(&wpCalls); got != 1 {
+		t.Fatalf("expected in-flight scan coalescing to make exactly 1 WebProtect HTTP call, got %d", got)
+	}
+	if got := notif.BlockCount(); got < 1 {
+		t.Fatalf("expected NotifyBlock to be called when HandlePasteAttempt joined in-flight prewarm scan")
+	}
+
+	// Part B: Verify CF_HDROP copied file (Ctrl+C on sensitive file in Explorer -> Ctrl+V in Claude) is scanned & blocked!
+	tmpFile := filepath.Join(t.TempDir(), "confidential_customers.csv")
+	if err := os.WriteFile(tmpFile, []byte("name,my_number\nYamada,1234-5678-9012\n"), 0600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	clipMu.Lock()
+	simClipboard = ""
+	simFiles = []string{tmpFile}
+	clipMu.Unlock()
+
+	if guard.HandlePasteAttempt(context.Background()) {
+		t.Fatalf("expected CF_HDROP file paste into Claude to be blocked")
+	}
+	if got := len(guard.readClipFiles()); got != 0 {
+		t.Fatalf("expected blocked CF_HDROP file clipboard to be cleared")
 	}
 }

@@ -112,7 +112,7 @@ func (s *Server) handleControlPlane(w http.ResponseWriter, r *http.Request) {
 			"ok":               true,
 			"status":           status,
 			"agent":            "cep-local-dlp-agent",
-			"version":          "1.3.0",
+			"version":          "1.4.0",
 			"dm_token_present": hasToken,
 			"has_token":        hasToken,
 			"token_source":     tokSource,
@@ -235,12 +235,8 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 		req.URL.Host = r.Host
 		req.RequestURI = ""
 
-		respWriter := newBufferedResponseWriter()
-		s.handleHTTPRequest(respWriter, req, "https", clientProc)
-		if err := respWriter.writeResponse(tlsConn); err != nil {
-			return
-		}
-		if req.Close || respWriter.header.Get("Connection") == "close" {
+		closeConn, err := s.handleHTTPSConnRequest(tlsConn, req, clientProc)
+		if err != nil || closeConn || req.Close {
 			return
 		}
 	}
@@ -272,6 +268,77 @@ func (s *Server) tunnelRawTCP(clientConn net.Conn, clientBuf *bufio.ReadWriter, 
 	<-done
 }
 
+// handleHTTPSConnRequest inspects a decrypted HTTPS request inside a CONNECT tunnel and
+// streams the upstream HTTP/SSE response directly to tlsConn in real time without buffering.
+func (s *Server) handleHTTPSConnRequest(tlsConn net.Conn, r *http.Request, clientProc string) (bool, error) {
+	var bodyBytes []byte
+	if r.Body != nil {
+		var err error
+		bodyBytes, err = io.ReadAll(io.LimitReader(r.Body, webprotect.MaxPayloadBytes+1024))
+		_ = r.Body.Close()
+		if err != nil {
+			return true, writeSyntheticResponse(tlsConn, http.StatusBadGateway, nil, []byte(fmt.Sprintf("read request body: %v", err)))
+		}
+	}
+
+	inspectBytes := DecompressBodyIfNeeded(r.Header.Get("Content-Encoding"), bodyBytes)
+	if s.Filter.ShouldInspectRequest(r, inspectBytes) {
+		blocked, blockVerdict := s.inspectOutboundPayload(r.Context(), r.URL.String(), r.Header.Get("Content-Type"), clientProc, inspectBytes)
+		if blocked {
+			hdr := make(http.Header)
+			hdr.Set("Content-Type", "application/json; charset=utf-8")
+			hdr.Set("X-CEP-DLP-Verdict", "BLOCK")
+			payload, _ := json.Marshal(map[string]any{
+				"error": map[string]any{
+					"code":           "CEP_DLP_POLICY_BLOCKED",
+					"message":        "Chrome Enterprise Premium DLP ポリシーにより送信がブロックされました。",
+					"rule_name":      blockVerdict.RuleName,
+					"rule_id":        blockVerdict.RuleID,
+					"custom_message": blockVerdict.CustomMessage,
+					"request_token":  blockVerdict.RequestToken,
+				},
+			})
+			return false, writeSyntheticResponse(tlsConn, http.StatusForbidden, hdr, payload)
+		}
+	}
+
+	// Restore original wire body (preserving any gzip/deflate encoding) before forwarding to upstream
+	r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+	r.ContentLength = int64(len(bodyBytes))
+	r.TransferEncoding = nil
+	r.Header.Del("Transfer-Encoding")
+
+	resp, err := s.UpstreamTransport.RoundTrip(r)
+	if err != nil {
+		return true, writeSyntheticResponse(tlsConn, http.StatusBadGateway, nil, []byte(fmt.Sprintf("upstream error: %v", err)))
+	}
+	defer resp.Body.Close()
+
+	// If upstream response has unknown length (e.g. SSE text/event-stream or chunked stream),
+	// preserve HTTP/1.1 chunked framing so resp.Write streams chunks immediately in real time.
+	if resp.ContentLength < 0 && resp.StatusCode >= 200 && resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusNotModified {
+		resp.TransferEncoding = []string{"chunked"}
+	}
+	err = resp.Write(tlsConn)
+	return resp.Close || strings.EqualFold(resp.Header.Get("Connection"), "close"), err
+}
+
+func writeSyntheticResponse(w io.Writer, status int, hdr http.Header, body []byte) error {
+	if hdr == nil {
+		hdr = make(http.Header)
+		hdr.Set("Content-Type", "text/plain; charset=utf-8")
+	}
+	resp := &http.Response{
+		StatusCode:    status,
+		ProtoMajor:    1,
+		ProtoMinor:    1,
+		Header:        hdr,
+		Body:          io.NopCloser(bytes.NewReader(body)),
+		ContentLength: int64(len(body)),
+	}
+	return resp.Write(w)
+}
+
 func (s *Server) handleHTTPRequest(w http.ResponseWriter, r *http.Request, defaultScheme, clientProc string) {
 	if r.URL.Scheme == "" {
 		r.URL.Scheme = defaultScheme
@@ -292,9 +359,11 @@ func (s *Server) handleHTTPRequest(w http.ResponseWriter, r *http.Request, defau
 		}
 	}
 
+	inspectBytes := DecompressBodyIfNeeded(r.Header.Get("Content-Encoding"), bodyBytes)
+
 	// Evaluate Smart Pre-filter (Method POST/PUT/PATCH and Payload >= MinPayloadBytes)
-	if s.Filter.ShouldInspectRequest(r, bodyBytes) {
-		blocked, blockVerdict := s.inspectOutboundPayload(r.Context(), r.URL.String(), r.Header.Get("Content-Type"), clientProc, bodyBytes)
+	if s.Filter.ShouldInspectRequest(r, inspectBytes) {
+		blocked, blockVerdict := s.inspectOutboundPayload(r.Context(), r.URL.String(), r.Header.Get("Content-Type"), clientProc, inspectBytes)
 		if blocked {
 			w.Header().Set("Content-Type", "application/json; charset=utf-8")
 			w.Header().Set("X-CEP-DLP-Verdict", "BLOCK")
@@ -333,6 +402,20 @@ func (s *Server) handleHTTPRequest(w http.ResponseWriter, r *http.Request, defau
 		}
 	}
 	w.WriteHeader(resp.StatusCode)
+	if flusher, ok := w.(http.Flusher); ok {
+		buf := make([]byte, 4096)
+		for {
+			n, readErr := resp.Body.Read(buf)
+			if n > 0 {
+				_, _ = w.Write(buf[:n])
+				flusher.Flush()
+			}
+			if readErr != nil {
+				break
+			}
+		}
+		return
+	}
 	_, _ = io.Copy(w, resp.Body)
 }
 
@@ -418,35 +501,4 @@ func (s *Server) inspectOutboundPayload(ctx context.Context, targetURL, contentT
 		s.Filter.RecordAllowedScan(targetURL, item.Payload)
 	}
 	return false, nil
-}
-
-type bufferedResponseWriter struct {
-	header http.Header
-	status int
-	body   bytes.Buffer
-}
-
-func newBufferedResponseWriter() *bufferedResponseWriter {
-	return &bufferedResponseWriter{
-		header: make(http.Header),
-		status: http.StatusOK,
-	}
-}
-
-func (w *bufferedResponseWriter) Header() http.Header  { return w.header }
-func (w *bufferedResponseWriter) WriteHeader(code int) { w.status = code }
-func (w *bufferedResponseWriter) Write(b []byte) (int, error) {
-	return w.body.Write(b)
-}
-
-func (w *bufferedResponseWriter) writeResponse(conn io.Writer) error {
-	resp := &http.Response{
-		StatusCode:    w.status,
-		ProtoMajor:    1,
-		ProtoMinor:    1,
-		Header:        w.header,
-		Body:          io.NopCloser(bytes.NewReader(w.body.Bytes())),
-		ContentLength: int64(w.body.Len()),
-	}
-	return resp.Write(conn)
 }

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "CEP Local DLP Companion (BYOD Gatekeeper & Bootstrapper)",
-  "version": "1.1.0",
+  "version": "1.4.0",
   "description": "Provisions and enforces the Chrome Enterprise Premium (CEP) Local DLP Agent on BYOD and managed endpoints.",
   "permissions": [
     "declarativeNetRequest",

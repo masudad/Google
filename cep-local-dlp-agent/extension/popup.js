@@ -14,16 +14,27 @@ function showToast(msg, level = "info") {
 
 function render(state, isManualRecheck = false) {
   if (state && state.online) {
-    statusBadge.textContent = "保護有効 (ON)";
-    statusBadge.className = "badge online";
     const info = state.agentInfo || {};
-    tokenStatus.textContent = info.has_token
-      ? `連携済 (${info.token_source || "OK"})`
-      : "未設定 (セットアップ画面で設定可)";
-    pidStatus.textContent = `${info.pid || "-"} / v${info.version || "1.1.0"}`;
-    if (isManualRecheck) {
-      showToast("✅ ローカルエージェント (127.0.0.1:8843) は正常に稼働しています。", "success");
+    const hasTok = Boolean(info.has_token);
+    if (hasTok) {
+      statusBadge.textContent = "保護有効 (ON)";
+      statusBadge.className = "badge online";
+      tokenStatus.textContent = `連携済 (${info.token_source || "OK"})`;
+      if (isManualRecheck) {
+        showToast("✅ ローカルエージェント (127.0.0.1:8843) は正常に稼働しています。", "success");
+      }
+    } else {
+      statusBadge.textContent = "トークン待機 (WAIT)";
+      statusBadge.className = "badge offline";
+      tokenStatus.textContent = "未設定 (セットアップ画面で設定してください)";
+      if (isManualRecheck) {
+        showToast(
+          "⚠️ エージェントは稼働中ですが DM トークンが未設定です。下の「初回セットアップ・設定画面を開く」から DM トークンを連携してください。",
+          "warn"
+        );
+      }
     }
+    pidStatus.textContent = `${info.pid || "-"} / v${info.version || "1.4.0"}`;
   } else {
     statusBadge.textContent = "停止中 (BLOCK)";
     statusBadge.className = "badge offline";

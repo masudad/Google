@@ -41,6 +41,10 @@ func readOSClipboard() string {
 	return ""
 }
 
+func readOSClipboardFiles() []string {
+	return nil
+}
+
 func writeOSClipboard(text string) error {
 	switch runtime.GOOS {
 	case "darwin":

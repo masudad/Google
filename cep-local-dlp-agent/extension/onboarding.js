@@ -141,11 +141,19 @@ function checkNow(isManualClick = false) {
 }
 
 function onAgentOnline(state) {
-  const tokLabel =
-    state && state.dmTokenPresent ? "DMトークン連携済" : "DMトークン未設定";
+  const hasTok = Boolean(state && state.dmTokenPresent);
+  const tokLabel = hasTok ? "DMトークン連携済" : "DMトークン未設定";
   statusPill.textContent = `エージェント稼働中 (${tokLabel})`;
   statusPill.classList.remove("status-offline");
   statusPill.classList.add("status-online");
+
+  if (!hasTok) {
+    showFeedback(
+      "⚠️ エージェントは起動していますが、Chrome Enterprise DM トークンが検出されていません。管理対象プロファイルで Chrome にサインインするか、下の欄から DM トークンを保存してください。",
+      "warn"
+    );
+    return;
+  }
 
   showFeedback(
     `✅ CEP Local DLP Agent の稼働を確認しました！（${tokLabel}）`,
