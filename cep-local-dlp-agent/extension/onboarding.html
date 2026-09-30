@@ -86,30 +86,34 @@
           </div>
         </div>
 
-        <!-- Step 3: Optional BYOD PoC Settings (Manual DM Token / Gatekeeper Toggle) -->
+        <!-- Step 3: Optional BYOD PoC Settings (Gatekeeper Toggle / Manual Override) -->
         <div class="step-box">
           <div class="step-num">⚙</div>
           <div class="step-content">
-            <h2>BYOD テスト・検証用オプション設定</h2>
+            <h2>BYOD 動作設定（管理対象プロファイル自動連携）</h2>
             <p>
-              Google 管理コンソールからポリシー配信していない検証環境でも、ここに CBCM の <strong>DM トークン</strong>を入力して保存すると、ローカルエージェントへ即時自動連携されます。
+              <strong>管理対象プロファイル（Google Workspace ログイン）でご利用の場合、手動でのトークン設定は不要です。</strong>
+              エージェントが Chrome プロファイル内のローカルポリシーキャッシュ（<code>Policy/User Policy</code>）からプロファイル用トークンとユーザー情報を自動検出します。
             </p>
-            <div class="token-form">
-              <input
-                id="input-dm-token"
-                type="password"
-                class="input-text"
-                placeholder="DM Token を貼り付け（任意・管理コンソール未配信の BYOD テスト用）"
-                autocomplete="off"
-              />
-              <button id="btn-save-token" class="btn btn-secondary" type="button">
-                トークンを保存・連携
-              </button>
-            </div>
             <label class="toggle-row">
               <input id="chk-enforce-gate" type="checkbox" checked />
               <span>エージェント未起動時に対象サイト（ChatGPT / Claude / Slack 等）へのアクセスをブロックする (Gatekeeper)</span>
             </label>
+            <details style="margin-top: 10px; font-size: 12.5px; color: #475569;">
+              <summary style="cursor: pointer; font-weight: 600;">手動で特定のトークンを上書き指定する場合（詳細オプション）</summary>
+              <div class="token-form" style="margin-top: 8px;">
+                <input
+                  id="input-dm-token"
+                  type="password"
+                  class="input-text"
+                  placeholder="上書き用 DM Token（通常は空欄のままで自動検出されます）"
+                  autocomplete="off"
+                />
+                <button id="btn-save-token" class="btn btn-secondary" type="button">
+                  上書き保存
+                </button>
+              </div>
+            </details>
           </div>
         </div>
       </div>

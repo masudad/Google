@@ -306,31 +306,165 @@ func discoverChromeProfileMetadata() (email string, profileToken string) {
 	var userDataDirs []string
 	switch runtime.GOOS {
 	case "darwin":
-		userDataDirs = []string{filepath.Join(home, "Library/Application Support/Google/Chrome")}
+		userDataDirs = []string{
+			filepath.Join(home, "Library/Application Support/Google/Chrome"),
+			filepath.Join(home, "Library/Application Support/Google/Chrome Beta"),
+			filepath.Join(home, "Library/Application Support/Google/Chrome Canary"),
+		}
 	case "windows":
 		localAppData := os.Getenv("LOCALAPPDATA")
 		if localAppData != "" {
-			userDataDirs = []string{filepath.Join(localAppData, `Google\Chrome\User Data`)}
+			userDataDirs = []string{
+				filepath.Join(localAppData, `Google\Chrome\User Data`),
+				filepath.Join(localAppData, `Google\Chrome Beta\User Data`),
+			}
 		}
 	default:
-		userDataDirs = []string{filepath.Join(home, ".config/google-chrome")}
+		userDataDirs = []string{
+			filepath.Join(home, ".config/google-chrome"),
+			filepath.Join(home, ".config/google-chrome-beta"),
+		}
+	}
+
+	policyCacheFilenames := []string{
+		"User Policy",
+		"Profile Cloud Policy",
+		"Machine Level User Cloud Policy",
 	}
 
 	for _, base := range userDataDirs {
-		prefsPath := filepath.Join(base, "Default", "Preferences")
-		b, err := os.ReadFile(prefsPath)
+		entries, err := os.ReadDir(base)
 		if err != nil {
 			continue
 		}
-		var prefs struct {
-			AccountInfo []struct {
-				Email string `json:"email"`
-			} `json:"account_info"`
+
+		// Candidate profile directories: Default, Profile 1, Profile 2, etc.
+		var profileDirs []string
+		for _, e := range entries {
+			if !e.IsDir() {
+				continue
+			}
+			name := e.Name()
+			if name == "Default" || strings.HasPrefix(name, "Profile ") {
+				profileDirs = append(profileDirs, filepath.Join(base, name))
+			}
 		}
-		if json.Unmarshal(b, &prefs) == nil && len(prefs.AccountInfo) > 0 {
-			email = prefs.AccountInfo[0].Email
-			break
+
+		for _, profDir := range profileDirs {
+			// 1. Check cached Cloud Policy protobuf (<Profile>/Policy/User Policy or Profile Cloud Policy)
+			// for Managed Profile (BYOD user sign-in) DM Token and username.
+			for _, cacheName := range policyCacheFilenames {
+				cachePath := filepath.Join(profDir, "Policy", cacheName)
+				raw, err := os.ReadFile(cachePath)
+				if err != nil || len(raw) == 0 {
+					continue
+				}
+				tok, user := ExtractDMTokenFromPolicyFetchResponse(raw)
+				if tok != "" {
+					profileToken = tok
+					if user != "" {
+						email = user
+					}
+					return email, profileToken
+				}
+			}
+
+			// 2. Fallback: read signed-in email from Preferences if not yet found
+			if email == "" {
+				prefsPath := filepath.Join(profDir, "Preferences")
+				if b, err := os.ReadFile(prefsPath); err == nil {
+					var prefs struct {
+						AccountInfo []struct {
+							Email string `json:"email"`
+						} `json:"account_info"`
+					}
+					if json.Unmarshal(b, &prefs) == nil && len(prefs.AccountInfo) > 0 {
+						email = prefs.AccountInfo[0].Email
+					}
+				}
+			}
 		}
 	}
 	return email, profileToken
 }
+
+// ExtractDMTokenFromPolicyFetchResponse parses a raw serialized Chromium
+// enterprise_management.PolicyFetchResponse protobuf (stored in `<Profile>/Policy/User Policy`
+// or `Profile Cloud Policy`) and extracts:
+//   - PolicyData.request_token (field 3) -> the Managed Profile DM Token
+//   - PolicyData.username      (field 7) -> the signed-in Workspace user email
+func ExtractDMTokenFromPolicyFetchResponse(buf []byte) (requestToken string, username string) {
+	// PolicyFetchResponse field 3 (wire type 2) is `bytes policy_data`
+	policyDataBytes := extractProtoLengthDelimitedField(buf, 3)
+	if len(policyDataBytes) == 0 {
+		return "", ""
+	}
+	// PolicyData field 3 is `string request_token`, field 7 is `string username`
+	reqTokBytes := extractProtoLengthDelimitedField(policyDataBytes, 3)
+	userBytes := extractProtoLengthDelimitedField(policyDataBytes, 7)
+	return strings.TrimSpace(string(reqTokBytes)), strings.TrimSpace(string(userBytes))
+}
+
+func extractProtoLengthDelimitedField(buf []byte, targetFieldNum uint64) []byte {
+	i := 0
+	n := len(buf)
+	for i < n {
+		tag, nextI, ok := readProtoVarint(buf, i)
+		if !ok {
+			return nil
+		}
+		i = nextI
+		fieldNum := tag >> 3
+		wireType := tag & 0x7
+
+		switch wireType {
+		case 0: // varint
+			_, nextI, ok = readProtoVarint(buf, i)
+			if !ok {
+				return nil
+			}
+			i = nextI
+		case 1: // fixed64
+			if i+8 > n {
+				return nil
+			}
+			i += 8
+		case 2: // length-delimited
+			length, nextLenI, ok := readProtoVarint(buf, i)
+			if !ok || int(length) < 0 || nextLenI+int(length) > n {
+				return nil
+			}
+			val := buf[nextLenI : nextLenI+int(length)]
+			i = nextLenI + int(length)
+			if fieldNum == targetFieldNum {
+				return val
+			}
+		case 5: // fixed32
+			if i+4 > n {
+				return nil
+			}
+			i += 4
+		default:
+			return nil
+		}
+	}
+	return nil
+}
+
+func readProtoVarint(buf []byte, i int) (uint64, int, bool) {
+	var result uint64
+	var shift uint
+	for {
+		if i >= len(buf) || shift >= 64 {
+			return 0, i, false
+		}
+		b := buf[i]
+		i++
+		result |= uint64(b&0x7F) << shift
+		if b&0x80 == 0 {
+			return result, i, true
+		}
+		shift += 7
+	}
+}
+

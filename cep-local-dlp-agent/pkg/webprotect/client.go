@@ -21,10 +21,10 @@ const (
 	// EndpointProdEU is the regional EU data residency CEP WebProtect endpoint.
 	EndpointProdEU = "https://scan.webprotect-eu.goog/uploads"
 
-	// DefaultDeadlineSeconds matches kDefaultDeadlineMs (115s) in webprotect/service/handler.cc.
+	// DefaultDeadlineSeconds matches Chrome's default content analysis timeout (115s).
 	DefaultDeadlineSeconds = 115
 
-	// MaxPayloadBytes is the 50 MB threshold enforced by webprotect/service/handler.cc.
+	// MaxPayloadBytes is the 50 MB threshold for multipart content inspection.
 	MaxPayloadBytes = 50 * 1024 * 1024
 )
 
@@ -110,15 +110,22 @@ func BuildContentAnalysisRequest(in ScanInput) *ContentAnalysisRequest {
 		tabURL = in.URL
 	}
 
+	// If DMToken is a Managed Profile token (equal to ProfileDMToken), only set DeviceMetadata.DMToken
+	// when a separate CBCM browser/device DM token exists.
+	deviceDMToken := in.DMToken
+	if in.ProfileDMToken != "" && in.DMToken == in.ProfileDMToken {
+		deviceDMToken = ""
+	}
+
 	var clientMeta *ClientMetadata
 	if in.DeviceName != "" || in.OSPlatform != "" || in.ProfileDMToken != "" || in.UserEmail != "" {
 		clientMeta = &ClientMetadata{
 			Browser: &BrowserMetadata{
-				UserAgent:   "Mozilla/5.0 (CEP-Local-DLP-Agent/1.0)",
+				UserAgent:   "Mozilla/5.0 (CEP-Local-DLP-Agent/1.1)",
 				MachineUser: in.MachineUser,
 			},
 			Device: &DeviceMetadata{
-				DMToken:    in.DMToken,
+				DMToken:    deviceDMToken,
 				OSPlatform: in.OSPlatform,
 				OSVersion:  in.OSVersion,
 				Name:       in.DeviceName,
