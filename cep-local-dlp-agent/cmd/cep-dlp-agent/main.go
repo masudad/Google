@@ -81,11 +81,24 @@ Commands:
 func runTokenCmd(args []string) {
 	fs := flag.NewFlagSet("token", flag.ExitOnError)
 	dmTokenFlag := fs.String("dm-token", "", "Explicit DM token override (or set CEP_DM_TOKEN)")
+	profileEmail := fs.String("profile-email", "", "Pin the Chrome profile account (e.g. admin@example.com or @example.com) whose Profile DM Token to use; persisted to ~/.cep-local-dlp-agent/config.json")
 	_ = fs.Parse(args)
+
+	if *profileEmail != "" {
+		if err := dmtoken.SavePreferredProfileEmail(*profileEmail); err != nil {
+			log.Fatalf("Failed to save preferred profile: %v", err)
+		}
+		fmt.Printf("Pinned Chrome profile account: %s\n", *profileEmail)
+	}
 
 	info, err := dmtoken.Discover(*dmTokenFlag)
 	out, _ := json.MarshalIndent(info, "", "  ")
 	fmt.Println(string(out))
+	if len(info.AvailableProfiles) > 1 {
+		fmt.Fprintf(os.Stderr, "\nNOTE: %d managed Chrome profiles found. Selected the one marked \"selected\": true.\n"+
+			"      To pin a different account: cep-dlp-agent token --profile-email you@example.com  (or CEP_PROFILE_EMAIL)\n",
+			len(info.AvailableProfiles))
+	}
 	if err != nil {
 		log.Fatalf("DM Token discovery note: %v", err)
 	}

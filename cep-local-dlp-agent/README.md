@@ -74,3 +74,19 @@ Google 管理コンソールの「ユーザーとブラウザの設定」から 
 2. **ブラウザ Gatekeeper（未起動時の業務 Web / 生成 AI アクセス遮断）**:
    `http://127.0.0.1:8843/healthz` の死活監視を常時行い、`cep-dlp-agent` が停止している場合は `chrome.declarativeNetRequest` の動的ルールによって対象ドメイン（社内 SaaS / 生成 AI 等）へのアクセスを `onboarding.html` へ自動リダイレクトします。ユーザーは画面上の **`cep-dlp://start` ボタンを 1 クリック**するだけでエージェントを起動でき、稼働検知と同時に元のページへ自動復帰します。
 
+
+### 3. 複数 Chrome プロファイル（複数テナント）環境でのトークン選択ルール
+同一 PC に複数の Workspace アカウント（例: `Profile 8 = user@tenant-a`, `Profile 11 = user@tenant-b`）がある場合、エージェントは**フォルダ名の辞書順ではなく**以下の優先順位で使用するプロファイルを決定します：
+
+1. **明示的なピン留め**（`CEP_PROFILE_EMAIL` 環境変数 / `~/.cep-local-dlp-agent/config.json` の `preferred_email` / Companion 拡張機能が動作しているプロファイルのアカウント）
+2. Chrome が最後に使用したプロファイル（`Local State` → `profile.last_used`）
+3. ポリシーキャッシュ（`Policy/User Policy`）の更新日時が最新のプロファイル
+
+```bash
+# 検出された全プロファイルと選択結果を確認（"selected": true が使用中）
+./cep-dlp-agent token
+
+# 特定アカウント（またはドメイン）をピン留め
+./cep-dlp-agent token --profile-email admin@example.com
+./cep-dlp-agent token --profile-email @example.com
+```

@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 )
 
 // TokenInfo holds the discovered DM Token(s) and host metadata used in ContentAnalysisRequest.
@@ -25,6 +26,10 @@ type TokenInfo struct {
 	OSPlatform     string `json:"os_platform"`
 	OSVersion      string `json:"os_version"`
 	MachineUser    string `json:"machine_user"`
+
+	// AvailableProfiles lists every managed Chrome profile found on disk (token redacted),
+	// with Selected=true on the one whose Profile DM Token is in use.
+	AvailableProfiles []ProfileCandidate `json:"available_profiles,omitempty"`
 }
 
 // Discover automatically locates the Chrome Enterprise DM Token and profile metadata
@@ -44,7 +49,7 @@ func Discover(explicitToken string) (*TokenInfo, error) {
 	}
 
 	// Discover signed-in user email and profile info from Chrome Preferences if available.
-	info.UserEmail, info.ProfileDMToken = discoverChromeProfileMetadata()
+	info.UserEmail, info.ProfileDMToken, info.AvailableProfiles = discoverChromeProfileMetadata()
 
 	if explicitToken != "" {
 		info.DMToken = strings.TrimSpace(explicitToken)
@@ -68,6 +73,15 @@ func Discover(explicitToken string) (*TokenInfo, error) {
 		token, source = discoverLinuxDMToken()
 	}
 
+	// If the user/extension pinned a specific Chrome profile account and it resolved, that
+	// profile token wins over a machine-level CBCM token (multi-tenant BYOD determinism).
+	if pref := preferredProfileEmail(); pref != "" && info.ProfileDMToken != "" &&
+		strings.EqualFold(info.UserEmail, pref) {
+		info.DMToken = info.ProfileDMToken
+		info.TokenSource = "chrome_profile:pinned"
+		return info, nil
+	}
+
 	if token != "" {
 		info.DMToken = token
 		info.TokenSource = source
@@ -77,6 +91,11 @@ func Discover(explicitToken string) (*TokenInfo, error) {
 	if info.ProfileDMToken != "" {
 		info.DMToken = info.ProfileDMToken
 		info.TokenSource = "chrome_profile"
+		for _, c := range info.AvailableProfiles {
+			if c.Selected {
+				info.TokenSource = "chrome_profile:" + filepath.Base(c.ProfileDir)
+			}
+		}
 		return info, nil
 	}
 
@@ -133,7 +152,6 @@ func SaveBYODBootstrapToken(dmToken, userEmail string) error {
 	}
 	return os.WriteFile(filepath.Join(dir, "byod_token.json"), payload, 0600)
 }
-
 
 func platformDisplayName(goos string) string {
 	switch goos {
@@ -298,61 +316,86 @@ func readCleanTokenFile(path string) string {
 	return base64.StdEncoding.EncodeToString(b)
 }
 
-func discoverChromeProfileMetadata() (email string, profileToken string) {
+// ProfileCandidate describes one managed Chrome profile discovered on disk.
+type ProfileCandidate struct {
+	ProfileDir  string    `json:"profile_dir"`
+	UserEmail   string    `json:"user_email"`
+	DMToken     string    `json:"-"`
+	CacheFile   string    `json:"cache_file"`
+	LastUpdated time.Time `json:"last_updated"`
+	IsLastUsed  bool      `json:"is_last_used"`
+	Selected    bool      `json:"selected"`
+}
+
+func chromeUserDataDirs() []string {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return "", ""
+		return nil
 	}
-	var userDataDirs []string
 	switch runtime.GOOS {
 	case "darwin":
-		userDataDirs = []string{
+		return []string{
 			filepath.Join(home, "Library/Application Support/Google/Chrome"),
 			filepath.Join(home, "Library/Application Support/Google/Chrome Beta"),
 			filepath.Join(home, "Library/Application Support/Google/Chrome Canary"),
 		}
 	case "windows":
 		localAppData := os.Getenv("LOCALAPPDATA")
-		if localAppData != "" {
-			userDataDirs = []string{
-				filepath.Join(localAppData, `Google\Chrome\User Data`),
-				filepath.Join(localAppData, `Google\Chrome Beta\User Data`),
-			}
+		if localAppData == "" {
+			return nil
+		}
+		return []string{
+			filepath.Join(localAppData, `Google\Chrome\User Data`),
+			filepath.Join(localAppData, `Google\Chrome Beta\User Data`),
 		}
 	default:
-		userDataDirs = []string{
+		return []string{
 			filepath.Join(home, ".config/google-chrome"),
 			filepath.Join(home, ".config/google-chrome-beta"),
 		}
 	}
+}
 
-	policyCacheFilenames := []string{
-		"User Policy",
-		"Profile Cloud Policy",
-		"Machine Level User Cloud Policy",
+// readChromeLastUsedProfile returns the profile directory name Chrome recorded as most
+// recently active (`profile.last_used` in `<User Data>/Local State`).
+func readChromeLastUsedProfile(userDataDir string) string {
+	b, err := os.ReadFile(filepath.Join(userDataDir, "Local State"))
+	if err != nil {
+		return ""
 	}
+	var state struct {
+		Profile struct {
+			LastUsed string `json:"last_used"`
+		} `json:"profile"`
+	}
+	if json.Unmarshal(b, &state) != nil {
+		return ""
+	}
+	return state.Profile.LastUsed
+}
 
-	for _, base := range userDataDirs {
+// ListChromeProfileCandidates scans every Chrome profile (Default, Profile 1, ...) and returns
+// all managed profiles that carry a cached Profile DM Token, in no particular order.
+func ListChromeProfileCandidates() []ProfileCandidate {
+	policyCacheFilenames := []string{"User Policy", "Profile Cloud Policy"}
+	var out []ProfileCandidate
+
+	for _, base := range chromeUserDataDirs() {
 		entries, err := os.ReadDir(base)
 		if err != nil {
 			continue
 		}
+		lastUsed := readChromeLastUsedProfile(base)
 
-		// Candidate profile directories: Default, Profile 1, Profile 2, etc.
-		var profileDirs []string
 		for _, e := range entries {
 			if !e.IsDir() {
 				continue
 			}
 			name := e.Name()
-			if name == "Default" || strings.HasPrefix(name, "Profile ") {
-				profileDirs = append(profileDirs, filepath.Join(base, name))
+			if name != "Default" && !strings.HasPrefix(name, "Profile ") {
+				continue
 			}
-		}
-
-		for _, profDir := range profileDirs {
-			// 1. Check cached Cloud Policy protobuf (<Profile>/Policy/User Policy or Profile Cloud Policy)
-			// for Managed Profile (BYOD user sign-in) DM Token and username.
+			profDir := filepath.Join(base, name)
 			for _, cacheName := range policyCacheFilenames {
 				cachePath := filepath.Join(profDir, "Policy", cacheName)
 				raw, err := os.ReadFile(cachePath)
@@ -360,32 +403,140 @@ func discoverChromeProfileMetadata() (email string, profileToken string) {
 					continue
 				}
 				tok, user := ExtractDMTokenFromPolicyFetchResponse(raw)
-				if tok != "" {
-					profileToken = tok
-					if user != "" {
-						email = user
-					}
-					return email, profileToken
+				if tok == "" {
+					continue
 				}
-			}
-
-			// 2. Fallback: read signed-in email from Preferences if not yet found
-			if email == "" {
-				prefsPath := filepath.Join(profDir, "Preferences")
-				if b, err := os.ReadFile(prefsPath); err == nil {
-					var prefs struct {
-						AccountInfo []struct {
-							Email string `json:"email"`
-						} `json:"account_info"`
-					}
-					if json.Unmarshal(b, &prefs) == nil && len(prefs.AccountInfo) > 0 {
-						email = prefs.AccountInfo[0].Email
-					}
+				if user == "" {
+					user = readPreferencesEmail(profDir)
 				}
+				var mtime time.Time
+				if st, err := os.Stat(cachePath); err == nil {
+					mtime = st.ModTime()
+				}
+				out = append(out, ProfileCandidate{
+					ProfileDir:  profDir,
+					UserEmail:   user,
+					DMToken:     tok,
+					CacheFile:   cacheName,
+					LastUpdated: mtime,
+					IsLastUsed:  name == lastUsed,
+				})
+				break
 			}
 		}
 	}
-	return email, profileToken
+	return out
+}
+
+func readPreferencesEmail(profDir string) string {
+	b, err := os.ReadFile(filepath.Join(profDir, "Preferences"))
+	if err != nil {
+		return ""
+	}
+	var prefs struct {
+		AccountInfo []struct {
+			Email string `json:"email"`
+		} `json:"account_info"`
+	}
+	if json.Unmarshal(b, &prefs) == nil && len(prefs.AccountInfo) > 0 {
+		return prefs.AccountInfo[0].Email
+	}
+	return ""
+}
+
+// preferredProfileEmail returns the user-pinned account for profile selection, from
+// CEP_PROFILE_EMAIL, then ~/.cep-local-dlp-agent/config.json ("preferred_email"), then the
+// user_email pushed by the Companion Chrome Extension (byod_token.json).
+func preferredProfileEmail() string {
+	if v := strings.TrimSpace(os.Getenv("CEP_PROFILE_EMAIL")); v != "" {
+		return v
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	if b, err := os.ReadFile(filepath.Join(home, ".cep-local-dlp-agent", "config.json")); err == nil {
+		var cfg struct {
+			PreferredEmail string `json:"preferred_email"`
+		}
+		if json.Unmarshal(b, &cfg) == nil && strings.TrimSpace(cfg.PreferredEmail) != "" {
+			return strings.TrimSpace(cfg.PreferredEmail)
+		}
+	}
+	if _, byodEmail, _ := discoverBYODBootstrapToken(); byodEmail != "" {
+		return byodEmail
+	}
+	return ""
+}
+
+// SavePreferredProfileEmail pins the Chrome profile (by signed-in email) whose Profile DM Token
+// the agent must use, so multi-tenant BYOD machines select a deterministic profile.
+func SavePreferredProfileEmail(email string) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	dir := filepath.Join(home, ".cep-local-dlp-agent")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return err
+	}
+	payload, _ := json.MarshalIndent(map[string]string{"preferred_email": strings.TrimSpace(email)}, "", "  ")
+	return os.WriteFile(filepath.Join(dir, "config.json"), payload, 0600)
+}
+
+// SelectProfileCandidate picks one managed profile deterministically:
+//  1. exact match on preferredEmail (or its @domain when preferredEmail starts with "@")
+//  2. the profile Chrome recorded as last used (`Local State` -> profile.last_used)
+//  3. the profile whose policy cache was refreshed most recently
+func SelectProfileCandidate(cands []ProfileCandidate, preferredEmail string) (ProfileCandidate, bool) {
+	if len(cands) == 0 {
+		return ProfileCandidate{}, false
+	}
+	pref := strings.ToLower(strings.TrimSpace(preferredEmail))
+	if pref != "" {
+		for _, c := range cands {
+			em := strings.ToLower(c.UserEmail)
+			if em == pref || (strings.HasPrefix(pref, "@") && strings.HasSuffix(em, pref)) {
+				return c, true
+			}
+		}
+	}
+	for _, c := range cands {
+		if c.IsLastUsed {
+			return c, true
+		}
+	}
+	best := cands[0]
+	for _, c := range cands[1:] {
+		if c.LastUpdated.After(best.LastUpdated) {
+			best = c
+		}
+	}
+	return best, true
+}
+
+// FindProfileTokenByEmail returns the Profile DM Token for the Chrome profile signed in as email.
+func FindProfileTokenByEmail(email string) (ProfileCandidate, bool) {
+	cands := ListChromeProfileCandidates()
+	e := strings.ToLower(strings.TrimSpace(email))
+	for _, c := range cands {
+		if strings.ToLower(c.UserEmail) == e {
+			return c, true
+		}
+	}
+	return ProfileCandidate{}, false
+}
+
+func discoverChromeProfileMetadata() (email string, profileToken string, candidates []ProfileCandidate) {
+	candidates = ListChromeProfileCandidates()
+	sel, ok := SelectProfileCandidate(candidates, preferredProfileEmail())
+	if !ok {
+		return "", "", candidates
+	}
+	for i := range candidates {
+		candidates[i].Selected = candidates[i].ProfileDir == sel.ProfileDir
+	}
+	return sel.UserEmail, sel.DMToken, candidates
 }
 
 // ExtractDMTokenFromPolicyFetchResponse parses a raw serialized Chromium
@@ -467,4 +618,3 @@ func readProtoVarint(buf []byte, i int) (uint64, int, bool) {
 		shift += 7
 	}
 }
-

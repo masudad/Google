@@ -93,7 +93,7 @@
             <h2>BYOD 動作設定（管理対象プロファイル自動連携）</h2>
             <p>
               <strong>管理対象プロファイル（Google Workspace ログイン）でご利用の場合、手動でのトークン設定は不要です。</strong>
-              エージェントが Chrome プロファイル内のローカルポリシーキャッシュ（<code>Policy/User Policy</code>）からプロファイル用トークンとユーザー情報を自動検出します。
+              エージェントが Chrome プロファイル内のローカルポリシーキャッシュ（<code>Policy/User Policy</code>）からプロファイル用トークンとユーザー情報を自動検出します。<br>複数の Workspace アカウント（複数プロファイル）がある PC では、<strong>この拡張機能が動作している Chrome プロファイルのアカウント</strong>を最優先で自動選択し、未連携時は Chrome が最後に使用したプロファイル → 最新のポリシー更新日時の順で選びます。
             </p>
             <label class="toggle-row">
               <input id="chk-enforce-gate" type="checkbox" checked />

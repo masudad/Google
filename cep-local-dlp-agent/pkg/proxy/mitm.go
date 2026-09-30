@@ -11,6 +11,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -128,6 +129,19 @@ func (s *Server) handleControlPlane(w http.ResponseWriter, r *http.Request) {
 		}
 		if strings.TrimSpace(payload.UserEmail) != "" {
 			s.TokenInfo.UserEmail = strings.TrimSpace(payload.UserEmail)
+			// The Companion Extension runs inside one specific Chrome profile. Pin that account and,
+			// when no explicit dm_token was pushed, switch to that profile's cached Profile DM Token so a
+			// multi-tenant BYOD machine never reports to the wrong tenant.
+			_ = dmtoken.SavePreferredProfileEmail(s.TokenInfo.UserEmail)
+			if strings.TrimSpace(payload.DMToken) == "" {
+				if cand, ok := dmtoken.FindProfileTokenByEmail(s.TokenInfo.UserEmail); ok {
+					s.TokenInfo.DMToken = cand.DMToken
+					s.TokenInfo.ProfileDMToken = cand.DMToken
+					s.TokenInfo.TokenSource = "chrome_profile:" + filepath.Base(cand.ProfileDir)
+					log.Printf("[control] Switched to Chrome profile %s (%s) requested by Companion Extension",
+						filepath.Base(cand.ProfileDir), s.TokenInfo.UserEmail)
+				}
+			}
 		}
 		_ = dmtoken.SaveBYODBootstrapToken(s.TokenInfo.DMToken, s.TokenInfo.UserEmail)
 		log.Printf("[control] Updated BYOD credentials from Companion Chrome Extension (user=%s, dm_token_present=%v)",

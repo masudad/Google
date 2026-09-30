@@ -2,6 +2,7 @@ package dmtoken
 
 import (
 	"testing"
+	"time"
 )
 
 func encodeTestLengthDelimitedField(fieldNum byte, payload []byte) []byte {
@@ -30,5 +31,34 @@ func TestExtractDMTokenFromPolicyFetchResponse(t *testing.T) {
 	}
 	if gotEmail != "user@workspace.example.com" {
 		t.Fatalf("expected username %q, got %q", "user@workspace.example.com", gotEmail)
+	}
+}
+
+func TestSelectProfileCandidateIsDeterministic(t *testing.T) {
+	base := time.Date(2026, 9, 30, 0, 0, 0, 0, time.UTC)
+	cands := []ProfileCandidate{
+		{ProfileDir: "Profile 11", UserEmail: "masudad@cbcmdev.com", DMToken: "tok-cbcmdev", LastUpdated: base.Add(-2 * time.Hour)},
+		{ProfileDir: "Profile 16", UserEmail: "admin@test-domain.dev", DMToken: "tok-admin", LastUpdated: base.Add(-1 * time.Hour)},
+		{ProfileDir: "Profile 8", UserEmail: "stela@test-domain.dev", DMToken: "tok-stela", LastUpdated: base, IsLastUsed: true},
+	}
+
+	// 1. Pinned exact email wins over everything.
+	if c, _ := SelectProfileCandidate(cands, "admin@test-domain.dev"); c.DMToken != "tok-admin" {
+		t.Fatalf("pinned email: got %s", c.ProfileDir)
+	}
+	// 2. Pinned "@domain" picks the first profile in that tenant.
+	if c, _ := SelectProfileCandidate(cands, "@test-domain.dev"); c.UserEmail == "masudad@cbcmdev.com" {
+		t.Fatalf("pinned domain must not select cbcmdev.com")
+	}
+	// 3. No pin -> Chrome's last-used profile, NOT lexicographic "Profile 11".
+	if c, _ := SelectProfileCandidate(cands, ""); c.DMToken != "tok-stela" {
+		t.Fatalf("last_used: got %s", c.ProfileDir)
+	}
+	// 4. No pin, no last_used -> most recently refreshed policy cache.
+	for i := range cands {
+		cands[i].IsLastUsed = false
+	}
+	if c, _ := SelectProfileCandidate(cands, ""); c.DMToken != "tok-stela" {
+		t.Fatalf("newest mtime: got %s", c.ProfileDir)
 	}
 }
