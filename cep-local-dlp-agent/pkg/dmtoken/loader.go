@@ -22,6 +22,7 @@ type TokenInfo struct {
 	TokenSource    string `json:"token_source"`
 	ProfileDMToken string `json:"profile_dm_token,omitempty"`
 	UserEmail      string `json:"user_email,omitempty"`
+	ClientID       string `json:"client_id,omitempty"`
 	DeviceName     string `json:"device_name"`
 	OSPlatform     string `json:"os_platform"`
 	OSVersion      string `json:"os_version"`
@@ -43,13 +44,18 @@ func Discover(explicitToken string) (*TokenInfo, error) {
 
 	info := &TokenInfo{
 		DeviceName:  hostname,
+		ClientID:    hostname,
 		OSPlatform:  platformDisplayName(runtime.GOOS),
 		OSVersion:   runtime.GOARCH,
 		MachineUser: username,
 	}
 
-	// Discover signed-in user email and profile info from Chrome Preferences if available.
-	info.UserEmail, info.ProfileDMToken, info.AvailableProfiles = discoverChromeProfileMetadata()
+	// Discover signed-in user email, profile DM token, and profile client_id from Chrome Policy cache if available.
+	var profileClientID string
+	info.UserEmail, info.ProfileDMToken, profileClientID, info.AvailableProfiles = discoverChromeProfileMetadata()
+	if profileClientID != "" {
+		info.ClientID = profileClientID
+	}
 
 	if explicitToken != "" {
 		info.DMToken = strings.TrimSpace(explicitToken)
@@ -320,6 +326,7 @@ func readCleanTokenFile(path string) string {
 type ProfileCandidate struct {
 	ProfileDir  string    `json:"profile_dir"`
 	UserEmail   string    `json:"user_email"`
+	ClientID    string    `json:"client_id,omitempty"`
 	DMToken     string    `json:"-"`
 	CacheFile   string    `json:"cache_file"`
 	LastUpdated time.Time `json:"last_updated"`
@@ -402,7 +409,7 @@ func ListChromeProfileCandidates() []ProfileCandidate {
 				if err != nil || len(raw) == 0 {
 					continue
 				}
-				tok, user := ExtractDMTokenFromPolicyFetchResponse(raw)
+				tok, user, clientID := ExtractMetadataFromPolicyFetchResponse(raw)
 				if tok == "" {
 					continue
 				}
@@ -416,6 +423,7 @@ func ListChromeProfileCandidates() []ProfileCandidate {
 				out = append(out, ProfileCandidate{
 					ProfileDir:  profDir,
 					UserEmail:   user,
+					ClientID:    clientID,
 					DMToken:     tok,
 					CacheFile:   cacheName,
 					LastUpdated: mtime,
@@ -527,33 +535,42 @@ func FindProfileTokenByEmail(email string) (ProfileCandidate, bool) {
 	return ProfileCandidate{}, false
 }
 
-func discoverChromeProfileMetadata() (email string, profileToken string, candidates []ProfileCandidate) {
+func discoverChromeProfileMetadata() (email string, profileToken string, clientID string, candidates []ProfileCandidate) {
 	candidates = ListChromeProfileCandidates()
 	sel, ok := SelectProfileCandidate(candidates, preferredProfileEmail())
 	if !ok {
-		return "", "", candidates
+		return "", "", "", candidates
 	}
 	for i := range candidates {
 		candidates[i].Selected = candidates[i].ProfileDir == sel.ProfileDir
 	}
-	return sel.UserEmail, sel.DMToken, candidates
+	return sel.UserEmail, sel.DMToken, sel.ClientID, candidates
 }
 
 // ExtractDMTokenFromPolicyFetchResponse parses a raw serialized Chromium
+// enterprise_management.PolicyFetchResponse protobuf and extracts the Managed Profile DM Token
+// and signed-in Workspace user email.
+func ExtractDMTokenFromPolicyFetchResponse(buf []byte) (requestToken string, username string) {
+	tok, user, _ := ExtractMetadataFromPolicyFetchResponse(buf)
+	return tok, user
+}
+
+// ExtractMetadataFromPolicyFetchResponse parses a raw serialized Chromium
 // enterprise_management.PolicyFetchResponse protobuf (stored in `<Profile>/Policy/User Policy`
 // or `Profile Cloud Policy`) and extracts:
 //   - PolicyData.request_token (field 3) -> the Managed Profile DM Token
 //   - PolicyData.username      (field 7) -> the signed-in Workspace user email
-func ExtractDMTokenFromPolicyFetchResponse(buf []byte) (requestToken string, username string) {
+//   - PolicyData.device_id     (field 8) -> the profile/device client_id registered with DMServer
+func ExtractMetadataFromPolicyFetchResponse(buf []byte) (requestToken string, username string, deviceID string) {
 	// PolicyFetchResponse field 3 (wire type 2) is `bytes policy_data`
 	policyDataBytes := extractProtoLengthDelimitedField(buf, 3)
 	if len(policyDataBytes) == 0 {
-		return "", ""
+		return "", "", ""
 	}
-	// PolicyData field 3 is `string request_token`, field 7 is `string username`
 	reqTokBytes := extractProtoLengthDelimitedField(policyDataBytes, 3)
 	userBytes := extractProtoLengthDelimitedField(policyDataBytes, 7)
-	return strings.TrimSpace(string(reqTokBytes)), strings.TrimSpace(string(userBytes))
+	devIDBytes := extractProtoLengthDelimitedField(policyDataBytes, 8)
+	return strings.TrimSpace(string(reqTokBytes)), strings.TrimSpace(string(userBytes)), strings.TrimSpace(string(devIDBytes))
 }
 
 func extractProtoLengthDelimitedField(buf []byte, targetFieldNum uint64) []byte {

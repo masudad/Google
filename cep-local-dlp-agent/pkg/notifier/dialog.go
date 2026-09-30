@@ -3,10 +3,7 @@
 package notifier
 
 import (
-	"fmt"
 	"log"
-	"os/exec"
-	"runtime"
 	"strings"
 )
 
@@ -16,7 +13,7 @@ type Notifier interface {
 	PromptWarn(targetURL, ruleName, customMessage string) bool
 }
 
-// OSNotifier uses native OS utilities (osascript on macOS, PowerShell MessageBox on Windows,
+// OSNotifier uses native OS dialogs (Win32 MessageBoxW on Windows, osascript on macOS,
 // notify-send/zenity on Linux) with safe non-blocking fallback to stderr logging.
 type OSNotifier struct {
 	Headless bool
@@ -34,19 +31,7 @@ func (n *OSNotifier) NotifyBlock(targetURL, ruleName, customMessage string) {
 	if n.Headless {
 		return
 	}
-
-	go func() {
-		switch runtime.GOOS {
-		case "darwin":
-			script := fmt.Sprintf(`display alert "Chrome Enterprise Premium DLP" message %q as critical buttons {"OK"} default button "OK"`, msg)
-			_ = exec.Command("osascript", "-e", script).Run()
-		case "windows":
-			ps := fmt.Sprintf(`Add-Type -AssemblyName PresentationFramework; [System.Windows.MessageBox]::Show(%q, 'Chrome Enterprise Premium DLP', 'OK', 'Error')`, msg)
-			_ = exec.Command("powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps).Run()
-		default:
-			_ = exec.Command("notify-send", "-u", "critical", "Chrome Enterprise Premium DLP", msg).Run()
-		}
-	}()
+	go showNativeBlockDialog(msg)
 }
 
 // PromptWarn asks the user whether to proceed when a WARN rule is triggered.
@@ -58,26 +43,7 @@ func (n *OSNotifier) PromptWarn(targetURL, ruleName, customMessage string) bool 
 		// In headless/non-interactive mode, allow WARN verdicts after logging.
 		return true
 	}
-
-	switch runtime.GOOS {
-	case "darwin":
-		script := fmt.Sprintf(` button returned of (display alert "Chrome Enterprise Premium DLP" message %q as warning buttons {"キャンセル (Block)", "送信を続行 (Proceed)"} default button "キャンセル (Block)")`, msg)
-		out, err := exec.Command("osascript", "-e", script).Output()
-		if err != nil {
-			return false
-		}
-		return strings.Contains(string(out), "Proceed")
-	case "windows":
-		ps := fmt.Sprintf(`Add-Type -AssemblyName PresentationFramework; [System.Windows.MessageBox]::Show(%q, 'Chrome Enterprise Premium DLP Warning', 'YesNo', 'Warning')`, msg+"\n\n送信を続行しますか？ (Yes = 続行 / No = 遮断)")
-		out, err := exec.Command("powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps).Output()
-		if err != nil {
-			return false
-		}
-		return strings.TrimSpace(string(out)) == "Yes"
-	default:
-		err := exec.Command("zenity", "--question", "--title=Chrome Enterprise Premium DLP", "--text="+msg).Run()
-		return err == nil
-	}
+	return showNativeWarnDialog(msg)
 }
 
 func formatAlertBody(headline, targetURL, ruleName, customMessage string) string {

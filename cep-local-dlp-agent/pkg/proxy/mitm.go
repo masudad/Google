@@ -71,7 +71,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.handleConnect(w, r)
 		return
 	}
-	s.handleHTTPRequest(w, r, "http")
+	s.handleHTTPRequest(w, r, "http", IdentifyLocalProcess(r.RemoteAddr))
 }
 
 func (s *Server) isLocalControlRequest(r *http.Request) bool {
@@ -104,7 +104,7 @@ func (s *Server) handleControlPlane(w http.ResponseWriter, r *http.Request) {
 			"ok":               true,
 			"status":           status,
 			"agent":            "cep-local-dlp-agent",
-			"version":          "1.1.0",
+			"version":          "1.2.0",
 			"dm_token_present": hasToken,
 			"has_token":        hasToken,
 			"token_source":     s.TokenInfo.TokenSource,
@@ -144,6 +144,9 @@ func (s *Server) handleControlPlane(w http.ResponseWriter, r *http.Request) {
 				if cand, ok := dmtoken.FindProfileTokenByEmail(s.TokenInfo.UserEmail); ok {
 					s.TokenInfo.DMToken = cand.DMToken
 					s.TokenInfo.ProfileDMToken = cand.DMToken
+					if cand.ClientID != "" {
+						s.TokenInfo.ClientID = cand.ClientID
+					}
 					s.TokenInfo.TokenSource = "chrome_profile:" + filepath.Base(cand.ProfileDir)
 					log.Printf("[control] Switched to Chrome profile %s (%s) requested by Companion Extension",
 						filepath.Base(cand.ProfileDir), s.TokenInfo.UserEmail)
@@ -231,8 +234,8 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 		req.RequestURI = ""
 
 		respWriter := newBufferedResponseWriter()
-		s.handleHTTPRequest(respWriter, req, "https")
-		if err := respWriter.WriteTo(tlsConn); err != nil {
+		s.handleHTTPRequest(respWriter, req, "https", clientProc)
+		if err := respWriter.writeResponse(tlsConn); err != nil {
 			return
 		}
 		if req.Close || respWriter.header.Get("Connection") == "close" {
@@ -267,7 +270,7 @@ func (s *Server) tunnelRawTCP(clientConn net.Conn, clientBuf *bufio.ReadWriter, 
 	<-done
 }
 
-func (s *Server) handleHTTPRequest(w http.ResponseWriter, r *http.Request, defaultScheme string) {
+func (s *Server) handleHTTPRequest(w http.ResponseWriter, r *http.Request, defaultScheme, clientProc string) {
 	if r.URL.Scheme == "" {
 		r.URL.Scheme = defaultScheme
 	}
@@ -289,7 +292,7 @@ func (s *Server) handleHTTPRequest(w http.ResponseWriter, r *http.Request, defau
 
 	// Evaluate Smart Pre-filter (Method POST/PUT/PATCH and Payload >= MinPayloadBytes)
 	if s.Filter.ShouldInspectRequest(r, bodyBytes) {
-		blocked, blockVerdict := s.inspectOutboundPayload(r.Context(), r.URL.String(), r.Header.Get("Content-Type"), bodyBytes)
+		blocked, blockVerdict := s.inspectOutboundPayload(r.Context(), r.URL.String(), r.Header.Get("Content-Type"), clientProc, bodyBytes)
 		if blocked {
 			w.Header().Set("Content-Type", "application/json; charset=utf-8")
 			w.Header().Set("X-CEP-DLP-Verdict", "BLOCK")
@@ -329,13 +332,17 @@ func (s *Server) handleHTTPRequest(w http.ResponseWriter, r *http.Request, defau
 	_, _ = io.Copy(w, resp.Body)
 }
 
-func (s *Server) inspectOutboundPayload(ctx context.Context, targetURL, contentType string, body []byte) (bool, *webprotect.ScanVerdict) {
+func (s *Server) inspectOutboundPayload(ctx context.Context, targetURL, contentType, clientProc string, body []byte) (bool, *webprotect.ScanVerdict) {
 	items := ExtractInspectableItems(contentType, body, s.Filter.MinPayloadBytes)
 	logURL := RedactURL(targetURL)
+	sourceApp := clientProc
+	if sourceApp == "" {
+		sourceApp = "LOCAL_HTTPS_PROXY"
+	}
 	for _, item := range items {
-		if s.Filter.MarkRecentlyScanned(targetURL, item.Payload) {
+		if s.Filter.WasRecentlyAllowed(targetURL, item.Payload) {
 			if debugEnabled() {
-				log.Printf("[proxy] identical payload for %s scanned <30s ago, reusing verdict (quota saved)", logURL)
+				log.Printf("[proxy] identical allowed payload for %s scanned <30s ago, reusing ALLOW verdict (quota saved)", logURL)
 			}
 			continue
 		}
@@ -348,8 +355,11 @@ func (s *Server) inspectOutboundPayload(ctx context.Context, targetURL, contentT
 			DMToken:        s.TokenInfo.DMToken,
 			ProfileDMToken: s.TokenInfo.ProfileDMToken,
 			UserEmail:      s.TokenInfo.UserEmail,
+			ClientID:       s.TokenInfo.ClientID,
 			URL:            targetURL,
 			Filename:       item.Filename,
+			Source:         sourceApp,
+			Destination:    logURL,
 			ContentType:    item.ContentType,
 			Connector:      item.Connector,
 			Payload:        item.Payload,
@@ -367,14 +377,18 @@ func (s *Server) inspectOutboundPayload(ctx context.Context, targetURL, contentT
 			logURL, item.Connector, len(item.Payload), verdict.ActionName, verdict.RuleName, verdict.LatencyMs)
 
 		if !verdict.Allowed {
-			s.Notifier.NotifyBlock(targetURL, verdict.RuleName, verdict.CustomMessage)
+			s.Notifier.NotifyBlock(logURL, verdict.RuleName, verdict.CustomMessage)
 			return true, verdict
 		}
 		if verdict.Action == webprotect.ActionWarn {
-			if !s.Notifier.PromptWarn(targetURL, verdict.RuleName, verdict.CustomMessage) {
+			if !s.Notifier.PromptWarn(logURL, verdict.RuleName, verdict.CustomMessage) {
 				return true, verdict
 			}
+			continue
 		}
+
+		// Cache only clean ALLOWED verdicts so retried BLOCK/WARN payloads are never bypassed.
+		s.Filter.RecordAllowedScan(targetURL, item.Payload)
 	}
 	return false, nil
 }
@@ -398,7 +412,7 @@ func (w *bufferedResponseWriter) Write(b []byte) (int, error) {
 	return w.body.Write(b)
 }
 
-func (w *bufferedResponseWriter) WriteTo(conn io.Writer) error {
+func (w *bufferedResponseWriter) writeResponse(conn io.Writer) error {
 	resp := &http.Response{
 		StatusCode:    w.status,
 		ProtoMajor:    1,

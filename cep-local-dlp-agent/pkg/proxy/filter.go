@@ -21,8 +21,9 @@ const (
 	// DefaultDeviceBurst allows short bursts of concurrent file/text scans on a single device.
 	DefaultDeviceBurst = 80.0
 
-	// dedupeTTL is how long an identical (URL, payload) pair is remembered so that retries,
+	// dedupeTTL is how long an identical ALLOWED (URL, payload) pair is remembered so that retries,
 	// duplicate token-count calls, and reconnect replays don't consume WebProtect quota twice.
+	// BLOCK and WARN verdicts are never stored here so retried sensitive requests are always blocked.
 	dedupeTTL = 30 * time.Second
 )
 
@@ -31,7 +32,7 @@ const (
 //  2. HTTP Method & Payload Size Pre-filter (only inspect POST/PUT/PATCH >= MinPayloadBytes),
 //     plus a telemetry/analytics deny-list (hosts & paths that never carry user data)
 //  3. Auto-Bypass Cache for TLS Certificate Pinning hosts + Token Bucket Rate Limiter for Quota protection
-//     + short-lived dedupe cache of already-scanned payloads.
+//     + short-lived dedupe cache of already-allowed payloads.
 type SmartFilter struct {
 	MinPayloadBytes int
 
@@ -356,22 +357,33 @@ func (f *SmartFilter) AllowQuota() bool {
 	return true
 }
 
-// MarkRecentlyScanned records a (URL, payload) fingerprint and reports whether the identical
-// payload was already scanned within dedupeTTL. Callers should skip the WebProtect call when
-// this returns true (the earlier verdict still stands for identical content).
-func (f *SmartFilter) MarkRecentlyScanned(targetURL string, payload []byte) bool {
+func dedupeKey(targetURL string, payload []byte) string {
 	h := sha256.New()
 	h.Write([]byte(stripQuery(targetURL)))
 	h.Write([]byte{0})
 	h.Write(payload)
-	key := hex.EncodeToString(h.Sum(nil))
+	return hex.EncodeToString(h.Sum(nil))
+}
 
+// WasRecentlyAllowed reports whether the identical (URL, payload) pair was already scanned
+// and ALLOWED within dedupeTTL. Blocked or warned payloads are never recorded in this cache,
+// ensuring retried sensitive requests are always re-evaluated and blocked.
+func (f *SmartFilter) WasRecentlyAllowed(targetURL string, payload []byte) bool {
+	key := dedupeKey(targetURL, payload)
 	now := time.Now()
 	f.dedupeMu.Lock()
 	defer f.dedupeMu.Unlock()
-	if exp, ok := f.recent[key]; ok && now.Before(exp) {
-		return true
-	}
+	exp, ok := f.recent[key]
+	return ok && now.Before(exp)
+}
+
+// RecordAllowedScan records that (targetURL, payload) was evaluated by WebProtect and ALLOWED
+// without warnings, so identical retries within dedupeTTL can skip redundant scans.
+func (f *SmartFilter) RecordAllowedScan(targetURL string, payload []byte) {
+	key := dedupeKey(targetURL, payload)
+	now := time.Now()
+	f.dedupeMu.Lock()
+	defer f.dedupeMu.Unlock()
 	if len(f.recent) > 2048 {
 		for k, exp := range f.recent {
 			if now.After(exp) {
@@ -383,6 +395,16 @@ func (f *SmartFilter) MarkRecentlyScanned(targetURL string, payload []byte) bool
 		}
 	}
 	f.recent[key] = now.Add(dedupeTTL)
+}
+
+// MarkRecentlyScanned checks WasRecentlyAllowed and, if not present, records the payload.
+// Prefer WasRecentlyAllowed + RecordAllowedScan in request inspection paths so blocked payloads
+// are never cached as allowed.
+func (f *SmartFilter) MarkRecentlyScanned(targetURL string, payload []byte) bool {
+	if f.WasRecentlyAllowed(targetURL, payload) {
+		return true
+	}
+	f.RecordAllowedScan(targetURL, payload)
 	return false
 }
 

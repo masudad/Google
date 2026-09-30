@@ -77,7 +77,11 @@ func TestProtoRoundTripAndMultipartScan(t *testing.T) {
 	// 1. Test BLOCK verdict
 	verdict, err := client.Scan(context.Background(), ScanInput{
 		DMToken:     "test-dm-token-xyz",
+		UserEmail:   "user@example.com",
+		ClientID:    "client-uuid-123",
 		URL:         "https://api.anthropic.com/v1/messages",
+		Source:      "chrome.exe",
+		Destination: "Cursor (https://cursor.com/local-app/cursor)",
 		ContentType: "application/json",
 		Connector:   BulkDataEntry,
 		Reason:      ReasonClipboardPaste,
@@ -101,13 +105,25 @@ func TestProtoRoundTripAndMultipartScan(t *testing.T) {
 		t.Errorf("unexpected CustomMessage: %q", verdict.CustomMessage)
 	}
 
-	// Verify metadata part was valid base64 proto containing our DM token and URL
+	// Verify metadata part was valid base64 proto containing our DM token, URL, ChromeVersion, Source, Destination, and ClientID
 	rawMeta, err := base64.StdEncoding.DecodeString(receivedMetaB64)
 	if err != nil {
 		t.Fatalf("metadata is not valid base64: %v", err)
 	}
-	if !strings.Contains(string(rawMeta), "test-dm-token-xyz") || !strings.Contains(string(rawMeta), "https://api.anthropic.com/v1/messages") {
-		t.Errorf("serialized ContentAnalysisRequest missing expected strings")
+	metaStr := string(rawMeta)
+	for _, want := range []string{
+		"test-dm-token-xyz",
+		"https://api.anthropic.com/v1/messages",
+		DefaultChromeVersion,
+		"Clipboard text",
+		"chrome.exe",
+		"Cursor (https://cursor.com/local-app/cursor)",
+		"client-uuid-123",
+		"user@example.com",
+	} {
+		if !strings.Contains(metaStr, want) {
+			t.Errorf("serialized ContentAnalysisRequest missing %q", want)
+		}
 	}
 
 	// 2. Test ALLOW verdict

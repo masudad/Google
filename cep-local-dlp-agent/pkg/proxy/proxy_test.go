@@ -139,6 +139,16 @@ func TestSmartProxyE2E(t *testing.T) {
 		t.Errorf("expected X-CEP-DLP-Verdict: BLOCK header")
 	}
 
+	// Case D2 (Edge Case): Retrying the exact same blocked POST within 30s must NOT be bypassed by dedupe cache!
+	respRetry, err := client.Post(mockUpstream.URL+"/v1/messages", "application/json", strings.NewReader(secretJSON))
+	if err != nil {
+		t.Fatalf("secret retry POST failed: %v", err)
+	}
+	_ = respRetry.Body.Close()
+	if respRetry.StatusCode != http.StatusForbidden {
+		t.Fatalf("retried blocked POST within 30s must still return HTTP 403 Forbidden, got %d", respRetry.StatusCode)
+	}
+
 	// Case E: Slack / Native App Multipart File Upload with sensitive content -> Blocked with HTTP 403
 	var mpBuf bytes.Buffer
 	mw := multipart.NewWriter(&mpBuf)

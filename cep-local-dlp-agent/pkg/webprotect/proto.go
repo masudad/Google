@@ -62,16 +62,17 @@ const (
 
 // ContentMetaData mirrors enterprise_connectors.ContentMetaData (connectors.proto).
 type ContentMetaData struct {
-	URL         string // field 1
-	Filename    string // field 2
-	Digest      string // field 3 (SHA-256 hex digest)
-	Email       string // field 5
-	ContentType string // field 6
-	Source      string // field 7
-	Destination string // field 8
-	TabTitle    string // field 9
-	TabURL      string // field 10
-	FileSize    uint64 // field 18
+	URL                     string // field 1
+	Filename                string // field 2
+	Digest                  string // field 3 (SHA-256 hex digest)
+	Email                   string // field 5
+	ContentType             string // field 6
+	Source                  string // field 7
+	Destination             string // field 8
+	TabTitle                string // field 9
+	TabURL                  string // field 10
+	ContentAreaAccountEmail string // field 15
+	FileSize                uint64 // field 18
 }
 
 // BrowserMetadata mirrors enterprise_connectors.ClientMetadata.Browser.
@@ -288,6 +289,7 @@ func (m *ContentMetaData) MarshalProto() []byte {
 	buf = appendStringField(buf, 8, m.Destination)
 	buf = appendStringField(buf, 9, m.TabTitle)
 	buf = appendStringField(buf, 10, m.TabURL)
+	buf = appendStringField(buf, 15, m.ContentAreaAccountEmail)
 	buf = appendVarintField(buf, 18, m.FileSize)
 	return buf
 }

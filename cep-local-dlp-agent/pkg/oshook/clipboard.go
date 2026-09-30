@@ -50,6 +50,8 @@ type ClipboardGuard struct {
 	MinChars            int
 	PollInterval        time.Duration
 	LastEvaluatedHash   string
+	lastSeenHash        string
+	lastSourceApp       string
 	lastBypassLogHash   string
 	lastSeqNum          uint32
 	lastCachedClipboard string
@@ -95,10 +97,12 @@ func ResolveAppURL(appName string) (string, bool) {
 
 // hashClipboardContent computes the SHA-256 hex digest of clipboard text alone.
 // Deduplicating by clipboard content (rather than activeApp + clipboardText) ensures that:
-//  1. Copying text in a native app scans it once; Alt-Tabbing across windows never re-scans.
+//  1. Copying text in a native app scans it once (when allowed); Alt-Tabbing across windows never re-scans.
 //  2. Copying text inside Chrome is bypassed while in Chrome, and scanned once the first time
 //     the user switches to any native app (before they can paste), without re-scanning on
 //     subsequent native-to-native window switches.
+//  3. Blocked content is cleared from the clipboard and never cached in LastEvaluatedHash, so
+//     re-copying the same secret is always scanned and blocked again.
 func hashClipboardContent(clipboardText string) string {
 	sum := sha256.Sum256([]byte(clipboardText))
 	return hex.EncodeToString(sum[:])
@@ -107,11 +111,22 @@ func hashClipboardContent(clipboardText string) string {
 // EvaluateClipboardOnce inspects the given clipboard text in the context of activeApp.
 // Returns (allowed, verdict, error).
 func (g *ClipboardGuard) EvaluateClipboardOnce(ctx context.Context, activeApp string, clipboardText string) (bool, *webprotect.ScanVerdict, error) {
-	if len(strings.TrimSpace(clipboardText)) < g.MinChars {
+	trimmed := strings.TrimSpace(clipboardText)
+	if len(trimmed) == 0 {
+		g.LastEvaluatedHash = ""
+		g.lastSeenHash = ""
+		g.lastSourceApp = ""
+		return true, nil, nil
+	}
+	if len(trimmed) < g.MinChars {
 		return true, nil, nil
 	}
 
 	hashHex := hashClipboardContent(clipboardText)
+	if hashHex != g.lastSeenHash {
+		g.lastSeenHash = hashHex
+		g.lastSourceApp = activeApp
+	}
 	if hashHex == g.LastEvaluatedHash {
 		return true, nil, nil
 	}
@@ -126,14 +141,22 @@ func (g *ClipboardGuard) EvaluateClipboardOnce(ctx context.Context, activeApp st
 		return true, nil, nil
 	}
 
-	g.LastEvaluatedHash = hashHex
+	sourceLabel := g.lastSourceApp
+	if sourceLabel == "" {
+		sourceLabel = "OS_CLIPBOARD"
+	}
+	destLabel := fmt.Sprintf("%s (%s)", activeApp, targetURL)
 
 	verdict, err := g.WebProtect.Scan(ctx, webprotect.ScanInput{
 		DMToken:        g.TokenInfo.DMToken,
 		ProfileDMToken: g.TokenInfo.ProfileDMToken,
 		UserEmail:      g.TokenInfo.UserEmail,
+		ClientID:       g.TokenInfo.ClientID,
 		URL:            targetURL,
 		TabURL:         targetURL,
+		Filename:       "Clipboard text",
+		Source:         sourceLabel,
+		Destination:    destLabel,
 		ContentType:    "text/plain",
 		Connector:      webprotect.BulkDataEntry,
 		Reason:         webprotect.ReasonClipboardPaste,
@@ -153,19 +176,29 @@ func (g *ClipboardGuard) EvaluateClipboardOnce(ctx context.Context, activeApp st
 
 	if !verdict.Allowed {
 		_ = clearOSClipboard()
+		// Reset dedupe state so if the user copies the exact same secret again, it is re-scanned and blocked.
+		g.LastEvaluatedHash = ""
+		g.lastSeenHash = ""
+		g.lastCachedClipboard = ""
 		log.Printf("[oshook] BLOCKED clipboard content in app=%q (%s) rule=%q -> clipboard cleared", activeApp, targetURL, verdict.RuleName)
 		if g.Notifier != nil {
-			g.Notifier.NotifyBlock(fmt.Sprintf("%s (%s)", activeApp, targetURL), verdict.RuleName, verdict.CustomMessage)
+			g.Notifier.NotifyBlock(destLabel, verdict.RuleName, verdict.CustomMessage)
 		}
 		return false, verdict, nil
 	}
 	if verdict.Action == webprotect.ActionWarn && g.Notifier != nil {
-		if !g.Notifier.PromptWarn(fmt.Sprintf("%s (%s)", activeApp, targetURL), verdict.RuleName, verdict.CustomMessage) {
+		if !g.Notifier.PromptWarn(destLabel, verdict.RuleName, verdict.CustomMessage) {
 			_ = clearOSClipboard()
+			g.LastEvaluatedHash = ""
+			g.lastSeenHash = ""
+			g.lastCachedClipboard = ""
 			log.Printf("[oshook] WARN declined by user in app=%q (%s) rule=%q -> clipboard cleared", activeApp, targetURL, verdict.RuleName)
 			return false, verdict, nil
 		}
 	}
+
+	// Only cache the hash once the content has been evaluated and allowed in a native app.
+	g.LastEvaluatedHash = hashHex
 	return true, verdict, nil
 }
 
@@ -181,10 +214,16 @@ func (g *ClipboardGuard) Run(ctx context.Context) error {
 			return ctx.Err()
 		case <-ticker.C:
 			clipText := g.currentClipboardText()
-			if len(strings.TrimSpace(clipText)) < g.MinChars {
+			trimmed := strings.TrimSpace(clipText)
+			if len(trimmed) == 0 {
+				g.LastEvaluatedHash = ""
+				g.lastSeenHash = ""
 				continue
 			}
-			// Fast path: if this exact clipboard content was already evaluated in a native app,
+			if len(trimmed) < g.MinChars {
+				continue
+			}
+			// Fast path: if this exact clipboard content was already evaluated and allowed in a native app,
 			// skip foreground-window detection and WebProtect scanning entirely.
 			if hashClipboardContent(clipText) == g.LastEvaluatedHash {
 				continue

@@ -26,6 +26,10 @@ const (
 
 	// MaxPayloadBytes is the 50 MB threshold for multipart content inspection.
 	MaxPayloadBytes = 50 * 1024 * 1024
+
+	// DefaultChromeVersion is a 4-part Chrome version string required by WebProtect's
+	// Chrome version parser when evaluating management state and audit reporting.
+	DefaultChromeVersion = "146.0.7680.0"
 )
 
 // ScanInput represents a single content analysis request from the local agent.
@@ -33,9 +37,12 @@ type ScanInput struct {
 	DMToken        string
 	ProfileDMToken string
 	UserEmail      string
+	ClientID       string
 	URL            string
 	TabURL         string
 	Filename       string
+	Source         string
+	Destination    string
 	ContentType    string
 	Connector      AnalysisConnector
 	Reason         Reason
@@ -105,9 +112,26 @@ func BuildContentAnalysisRequest(in ScanInput) *ContentAnalysisRequest {
 			connector = BulkDataEntry
 		}
 	}
+	filename := in.Filename
+	if filename == "" && connector == BulkDataEntry {
+		if in.Reason == ReasonClipboardPaste {
+			filename = "Clipboard text"
+		} else {
+			filename = "Text input"
+		}
+	}
+
 	tabURL := in.TabURL
 	if tabURL == "" {
 		tabURL = in.URL
+	}
+	destination := in.Destination
+	if destination == "" {
+		destination = in.URL
+	}
+	clientID := in.ClientID
+	if clientID == "" {
+		clientID = in.DeviceName
 	}
 
 	// If DMToken is a Managed Profile token (equal to ProfileDMToken), only set DeviceMetadata.DMToken
@@ -118,14 +142,17 @@ func BuildContentAnalysisRequest(in ScanInput) *ContentAnalysisRequest {
 	}
 
 	var clientMeta *ClientMetadata
-	if in.DeviceName != "" || in.OSPlatform != "" || in.ProfileDMToken != "" || in.UserEmail != "" {
+	if in.DeviceName != "" || in.OSPlatform != "" || in.ProfileDMToken != "" || in.UserEmail != "" || clientID != "" {
 		clientMeta = &ClientMetadata{
 			Browser: &BrowserMetadata{
-				UserAgent:   "Mozilla/5.0 (CEP-Local-DLP-Agent/1.1)",
-				MachineUser: in.MachineUser,
+				BrowserID:     in.DeviceName,
+				UserAgent:     "Mozilla/5.0 (CEP-Local-DLP-Agent/1.2) Chrome/" + DefaultChromeVersion,
+				ChromeVersion: DefaultChromeVersion,
+				MachineUser:   in.MachineUser,
 			},
 			Device: &DeviceMetadata{
 				DMToken:    deviceDMToken,
+				ClientID:   clientID,
 				OSPlatform: in.OSPlatform,
 				OSVersion:  in.OSVersion,
 				Name:       in.DeviceName,
@@ -135,6 +162,7 @@ func BuildContentAnalysisRequest(in ScanInput) *ContentAnalysisRequest {
 			clientMeta.Profile = &ProfileMetadata{
 				DMToken:   in.ProfileDMToken,
 				GaiaEmail: in.UserEmail,
+				ClientID:  clientID,
 			}
 		}
 	}
@@ -148,13 +176,16 @@ func BuildContentAnalysisRequest(in ScanInput) *ContentAnalysisRequest {
 		Reason:            in.Reason,
 		ExpiresAt:         time.Now().Add(DefaultDeadlineSeconds * time.Second).Unix(),
 		RequestData: ContentMetaData{
-			URL:         in.URL,
-			TabURL:      tabURL,
-			Filename:    in.Filename,
-			Digest:      digest,
-			Email:       in.UserEmail,
-			ContentType: contentType,
-			FileSize:    uint64(len(in.Payload)),
+			URL:                     in.URL,
+			TabURL:                  tabURL,
+			Filename:                filename,
+			Digest:                  digest,
+			Email:                   in.UserEmail,
+			ContentType:             contentType,
+			Source:                  in.Source,
+			Destination:             destination,
+			ContentAreaAccountEmail: in.UserEmail,
+			FileSize:                uint64(len(in.Payload)),
 		},
 		ClientMetadata: clientMeta,
 	}
@@ -205,7 +236,7 @@ func (c *Client) Scan(ctx context.Context, in ScanInput) (*ScanVerdict, error) {
 	}
 	httpReq.Header.Set("X-Goog-Upload-Protocol", "multipart")
 	httpReq.Header.Set("Content-Type", fmt.Sprintf("multipart/related; boundary=%s", boundary))
-	httpReq.Header.Set("User-Agent", "Mozilla/5.0 Chrome/146.0.0.0 CEP-Local-DLP-Agent/1.0")
+	httpReq.Header.Set("User-Agent", "Mozilla/5.0 Chrome/146.0.7680.0 CEP-Local-DLP-Agent/1.2")
 
 	resp, err := c.HTTPClient.Do(httpReq)
 	if err != nil {

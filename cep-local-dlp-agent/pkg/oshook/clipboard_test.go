@@ -34,8 +34,11 @@ func TestClipboardGuardAndAppURLResolution(t *testing.T) {
 		t.Errorf("unexpected Slack URL: %q (bypass=%v)", slackURL, bypass)
 	}
 
-	// 3. Verify ClipboardGuard blocks sensitive paste in native apps
+	// 3. Verify ClipboardGuard blocks sensitive paste in native apps AND re-blocks if the user
+	// immediately re-copies the exact same secret after the clipboard was cleared.
+	var blockScans int32
 	mockWP := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&blockScans, 1)
 		resp := &webprotect.ContentAnalysisResponse{
 			RequestToken: "clip-1",
 			Results: []webprotect.Result{
@@ -64,7 +67,8 @@ func TestClipboardGuardAndAppURLResolution(t *testing.T) {
 		1,
 	)
 
-	allowed, verdict, err := guard.EvaluateClipboardOnce(context.Background(), "Cursor", "マイナンバー: 1234-5678-9012")
+	secret := "マイナンバー: 1234-5678-9012"
+	allowed, verdict, err := guard.EvaluateClipboardOnce(context.Background(), "Cursor", secret)
 	if err != nil {
 		t.Fatalf("EvaluateClipboardOnce failed: %v", err)
 	}
@@ -73,6 +77,18 @@ func TestClipboardGuardAndAppURLResolution(t *testing.T) {
 	}
 	if verdict == nil || !strings.Contains(verdict.RuleName, "Block My Number") {
 		t.Errorf("unexpected verdict: %+v", verdict)
+	}
+
+	// Edge case: User immediately presses Ctrl+C on the exact same secret a second time -> must NOT be bypassed!
+	allowed2, _, err := guard.EvaluateClipboardOnce(context.Background(), "Notepad", secret)
+	if err != nil {
+		t.Fatalf("second EvaluateClipboardOnce failed: %v", err)
+	}
+	if allowed2 {
+		t.Fatalf("re-copied blocked secret must be scanned and blocked again, not bypassed by LastEvaluatedHash")
+	}
+	if got := atomic.LoadInt32(&blockScans); got != 2 {
+		t.Fatalf("expected 2 scans for 2 copies of blocked secret, got %d", got)
 	}
 }
 

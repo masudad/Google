@@ -16,21 +16,26 @@ func TestExtractDMTokenFromPolicyFetchResponse(t *testing.T) {
 	//   field 1 (policy_type)   = "google/chrome/user"
 	//   field 3 (request_token) = "AGYD5WM_managed_profile_dm_token_12345"
 	//   field 7 (username)      = "user@workspace.example.com"
+	//   field 8 (device_id)     = "client-uuid-9876"
 	var policyData []byte
 	policyData = append(policyData, encodeTestLengthDelimitedField(1, []byte("google/chrome/user"))...)
 	policyData = append(policyData, encodeTestLengthDelimitedField(3, []byte("AGYD5WM_managed_profile_dm_token_12345"))...)
 	policyData = append(policyData, encodeTestLengthDelimitedField(7, []byte("user@workspace.example.com"))...)
+	policyData = append(policyData, encodeTestLengthDelimitedField(8, []byte("client-uuid-9876"))...)
 
 	// Wrap inside enterprise_management.PolicyFetchResponse proto:
 	//   field 3 (policy_data) = policyData
 	policyFetchResponse := encodeTestLengthDelimitedField(3, policyData)
 
-	gotToken, gotEmail := ExtractDMTokenFromPolicyFetchResponse(policyFetchResponse)
+	gotToken, gotEmail, gotClientID := ExtractMetadataFromPolicyFetchResponse(policyFetchResponse)
 	if gotToken != "AGYD5WM_managed_profile_dm_token_12345" {
 		t.Fatalf("expected request_token %q, got %q", "AGYD5WM_managed_profile_dm_token_12345", gotToken)
 	}
 	if gotEmail != "user@workspace.example.com" {
 		t.Fatalf("expected username %q, got %q", "user@workspace.example.com", gotEmail)
+	}
+	if gotClientID != "client-uuid-9876" {
+		t.Fatalf("expected device_id %q, got %q", "client-uuid-9876", gotClientID)
 	}
 }
 
