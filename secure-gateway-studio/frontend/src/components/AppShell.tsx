@@ -1,16 +1,19 @@
-import { useState, type ReactNode } from "react";
-import type { Locale } from "../lib/setup-state";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import type { ConnectionStatus, Locale } from "../lib/setup-state";
 import type { Messages } from "../i18n/messages";
 import type { OperationsView } from "../features/operations/OperationsPage";
 import {
   BookIcon,
+  CheckCircleIcon,
   ChevronDownIcon,
   ChevronUpIcon,
   CubeIcon,
   DocumentIcon,
   HelpIcon,
+  KeyIcon,
   LockIcon,
   PlusCircleIcon,
+  ShieldIcon,
   ShieldNetworkIcon,
   SignOutIcon,
 } from "./Icons";
@@ -25,6 +28,17 @@ interface AppShellProps {
   activeView: AppView;
   cloudProject: string;
   workspaceAdmin: string;
+  cloudStatus?: ConnectionStatus;
+  cloudIdentityDetail?: string;
+  cloudError?: string;
+  workspaceStatus?: ConnectionStatus;
+  customerId?: string;
+  workspaceError?: string;
+  onProjectIdChange?: (projectId: string) => void;
+  onCustomerIdChange?: (customerId: string) => void;
+  onValidateCloud?: () => Promise<void>;
+  onBootstrapCloud?: () => Promise<void>;
+  onSignInWorkspace?: () => Promise<void>;
   onLocaleChange: (locale: Locale) => void;
   onNavigate: (view: AppView) => void;
   onSignOut: () => void;
@@ -38,6 +52,17 @@ export function AppShell({
   activeView,
   cloudProject,
   workspaceAdmin,
+  cloudStatus = "not_connected",
+  cloudIdentityDetail = "",
+  cloudError = "",
+  workspaceStatus = "not_connected",
+  customerId = "",
+  workspaceError = "",
+  onProjectIdChange,
+  onCustomerIdChange,
+  onValidateCloud,
+  onBootstrapCloud,
+  onSignInWorkspace,
   onLocaleChange,
   onNavigate,
   onSignOut,
@@ -51,6 +76,32 @@ export function AppShell({
 
   const [sgwMenuOpen, setSgwMenuOpen] = useState(true);
   const showSgwSubmenu = isSgwActive || sgwMenuOpen;
+
+  const [openPopover, setOpenPopover] = useState<"cloud" | "workspace" | null>(null);
+  const [cloudBootstrapBusy, setCloudBootstrapBusy] = useState(false);
+  const [workspaceAuthBusy, setWorkspaceAuthBusy] = useState(false);
+  const cloudMenuRef = useRef<HTMLDivElement>(null);
+  const workspaceMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target as Node;
+      if (
+        openPopover === "cloud" &&
+        !cloudMenuRef.current?.contains(target)
+      ) {
+        setOpenPopover(null);
+      } else if (
+        openPopover === "workspace" &&
+        !workspaceMenuRef.current?.contains(target)
+      ) {
+        setOpenPopover(null);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [openPopover]);
 
   const sgwSubItems: Array<{
     label: string;
@@ -71,6 +122,35 @@ export function AppShell({
       setSgwMenuOpen((open) => !open);
     }
   };
+
+  const canonicalCustomerId = /^C[A-Za-z0-9]+$/.test(customerId.trim())
+    ? customerId.trim()
+    : "";
+  const isWorkspaceConnected =
+    workspaceStatus === "connected" || canonicalCustomerId !== "" || Boolean(workspaceAdmin);
+  const isCloudConnected = cloudStatus === "connected";
+
+  const handleTopbarWorkspaceSignIn = async () => {
+    if (!onSignInWorkspace || workspaceAuthBusy) return;
+    setWorkspaceAuthBusy(true);
+    try {
+      await onSignInWorkspace();
+    } finally {
+      setWorkspaceAuthBusy(false);
+    }
+  };
+
+  const handleTopbarCloudBootstrap = async () => {
+    if (!onBootstrapCloud || cloudBootstrapBusy) return;
+    setCloudBootstrapBusy(true);
+    try {
+      await onBootstrapCloud();
+    } finally {
+      setCloudBootstrapBusy(false);
+    }
+  };
+
+  const t = messages.topbarAuth;
 
   return (
     <div className="app-shell">
@@ -161,24 +241,203 @@ export function AppShell({
             </span>
           </div>
           <div className="header-actions">
-            <div className="identity-control">
-              <span aria-hidden="true" className="google-cloud-symbol">
-                G
-              </span>
-              <span className="identity-copy">
-                <span>{messages.cloudIdentity}</span>
-                <strong>{cloudProject || messages.cloudProject}</strong>
-              </span>
+            {/* Google Cloud Trigger & Popover */}
+            <div className="identity-menu" ref={cloudMenuRef}>
+              <button
+                aria-expanded={openPopover === "cloud"}
+                aria-haspopup="dialog"
+                className={`identity-control identity-control-btn ${isCloudConnected ? "connected" : ""} ${openPopover === "cloud" ? "open" : ""}`}
+                onClick={() => setOpenPopover((curr) => (curr === "cloud" ? null : "cloud"))}
+                type="button"
+              >
+                <span aria-hidden="true" className="google-cloud-symbol">
+                  G
+                </span>
+                <span className="identity-copy">
+                  <span className="identity-copy-label">
+                    <span
+                      className={`identity-status-dot ${isCloudConnected ? "connected" : cloudProject.trim() ? "configured" : "idle"}`}
+                    />
+                    {messages.cloudIdentity}
+                  </span>
+                  <strong>{cloudProject || messages.cloudProject}</strong>
+                </span>
+                <ChevronDownIcon className={openPopover === "cloud" ? "rotated" : ""} size={16} />
+              </button>
+
+              {openPopover === "cloud" && (
+                <div
+                  aria-label={t.cloudPopoverTitle}
+                  className="identity-popover"
+                  role="dialog"
+                >
+                  <div className="identity-popover-header">
+                    <strong>{t.cloudPopoverTitle}</strong>
+                    <p>{t.cloudPopoverDesc}</p>
+                  </div>
+
+                  <div className="identity-popover-field">
+                    <label htmlFor="topbar-cloud-project-id">{t.cloudProjectIdLabel}</label>
+                    <input
+                      autoComplete="off"
+                      disabled={cloudBootstrapBusy}
+                      id="topbar-cloud-project-id"
+                      onChange={(e) => onProjectIdChange?.(e.target.value)}
+                      placeholder={t.cloudProjectIdPlaceholder}
+                      spellCheck={false}
+                      type="text"
+                      value={cloudProject}
+                    />
+                  </div>
+
+                  {cloudIdentityDetail && (
+                    <div className="identity-popover-status">
+                      <CheckCircleIcon size={15} />
+                      <div>
+                        <small>{t.cloudOperatorLabel}</small>
+                        <code>{cloudIdentityDetail}</code>
+                      </div>
+                    </div>
+                  )}
+
+                  {cloudError && (
+                    <p className="identity-popover-error" role="alert">
+                      {cloudError}
+                    </p>
+                  )}
+
+                  <div className="identity-popover-actions">
+                    <button
+                      className="btn btn-primary btn-block"
+                      disabled={!cloudProject.trim() || cloudStatus === "checking" || cloudBootstrapBusy}
+                      onClick={() => void onValidateCloud?.()}
+                      type="button"
+                    >
+                      {cloudStatus === "checking" ? t.cloudVerifyingBtn : t.cloudVerifyBtn}
+                    </button>
+                    <button
+                      className="btn btn-secondary btn-block"
+                      disabled={!cloudProject.trim() || cloudBootstrapBusy || cloudStatus === "checking"}
+                      onClick={() => void handleTopbarCloudBootstrap()}
+                      type="button"
+                    >
+                      <ShieldIcon size={15} />
+                      <span>
+                        {cloudBootstrapBusy ? t.cloudBootstrappingBtn : t.cloudBootstrapBtn}
+                      </span>
+                    </button>
+                  </div>
+
+                  <p className="identity-popover-note">{t.cloudSharedNote}</p>
+                </div>
+              )}
             </div>
-            <div className="identity-control">
-              <span aria-hidden="true" className="workspace-symbol">
-                A
-              </span>
-              <span className="identity-copy">
-                <span>{messages.workspaceIdentity}</span>
-                <strong>{workspaceAdmin || messages.adminEmail}</strong>
-              </span>
+
+            {/* Google Workspace Trigger & Popover */}
+            <div className="identity-menu" ref={workspaceMenuRef}>
+              <button
+                aria-expanded={openPopover === "workspace"}
+                aria-haspopup="dialog"
+                className={`identity-control identity-control-btn ${isWorkspaceConnected ? "connected" : ""} ${openPopover === "workspace" ? "open" : ""}`}
+                onClick={() =>
+                  setOpenPopover((curr) => (curr === "workspace" ? null : "workspace"))
+                }
+                type="button"
+              >
+                <span aria-hidden="true" className="workspace-symbol">
+                  A
+                </span>
+                <span className="identity-copy">
+                  <span className="identity-copy-label">
+                    <span
+                      className={`identity-status-dot ${isWorkspaceConnected ? "connected" : "idle"}`}
+                    />
+                    {messages.workspaceIdentity}
+                  </span>
+                  <strong>
+                    {workspaceAdmin || canonicalCustomerId || messages.adminEmail}
+                  </strong>
+                </span>
+                <ChevronDownIcon
+                  className={openPopover === "workspace" ? "rotated" : ""}
+                  size={16}
+                />
+              </button>
+
+              {openPopover === "workspace" && (
+                <div
+                  aria-label={t.workspacePopoverTitle}
+                  className="identity-popover"
+                  role="dialog"
+                >
+                  <div className="identity-popover-header">
+                    <strong>{t.workspacePopoverTitle}</strong>
+                    <p>{t.workspacePopoverDesc}</p>
+                  </div>
+
+                  {isWorkspaceConnected && (
+                    <div className="identity-popover-status">
+                      <CheckCircleIcon size={15} />
+                      <div>
+                        {workspaceAdmin && (
+                          <>
+                            <small>{t.workspaceAdminLabel}</small>
+                            <strong>{workspaceAdmin}</strong>
+                          </>
+                        )}
+                        {canonicalCustomerId && (
+                          <code>
+                            {t.workspaceCustomerIdLabel}: {canonicalCustomerId}
+                          </code>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="identity-popover-actions">
+                    <button
+                      className="btn btn-primary btn-block"
+                      disabled={workspaceAuthBusy || workspaceStatus === "checking"}
+                      onClick={() => void handleTopbarWorkspaceSignIn()}
+                      type="button"
+                    >
+                      <KeyIcon size={15} />
+                      <span>
+                        {workspaceAuthBusy || workspaceStatus === "checking"
+                          ? t.workspaceSigningInBtn
+                          : isWorkspaceConnected
+                            ? t.workspaceReverifyBtn
+                            : t.workspaceSignInBtn}
+                      </span>
+                    </button>
+                  </div>
+
+                  <div className="identity-popover-field">
+                    <label htmlFor="topbar-workspace-customer-id">
+                      {t.workspaceCustomerIdLabel}
+                    </label>
+                    <input
+                      autoComplete="off"
+                      id="topbar-workspace-customer-id"
+                      onChange={(e) => onCustomerIdChange?.(e.target.value)}
+                      placeholder="C012abcde / my_customer"
+                      spellCheck={false}
+                      type="text"
+                      value={customerId}
+                    />
+                  </div>
+
+                  {workspaceError && (
+                    <p className="identity-popover-error" role="alert">
+                      {workspaceError}
+                    </p>
+                  )}
+
+                  <p className="identity-popover-note">{t.workspaceSharedNote}</p>
+                </div>
+              )}
             </div>
+
             <LanguageMenu
               locale={locale}
               messages={messages}

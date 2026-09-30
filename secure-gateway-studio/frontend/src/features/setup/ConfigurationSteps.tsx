@@ -338,6 +338,9 @@ export function IdentitiesStep({
   return (
     <section className="workflow-step">
       <StepHeading description={copy.identitiesIntro} title={copy.identitiesTitle} />
+      {(state.cloudConnection === "connected" || state.workspaceConnection === "connected") && (
+        <Notice tone="info">{messages.topbarAuth.sharedHeaderConnectedBanner}</Notice>
+      )}
       <div className="connection-grid">
         <article className="connection-card">
           <div className="connection-card-heading">

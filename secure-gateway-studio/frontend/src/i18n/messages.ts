@@ -526,6 +526,27 @@ export interface Messages {
     english: string;
     japanese: string;
   };
+  topbarAuth: {
+    cloudPopoverTitle: string;
+    cloudPopoverDesc: string;
+    cloudProjectIdLabel: string;
+    cloudProjectIdPlaceholder: string;
+    cloudOperatorLabel: string;
+    cloudVerifyBtn: string;
+    cloudVerifyingBtn: string;
+    cloudBootstrapBtn: string;
+    cloudBootstrappingBtn: string;
+    cloudSharedNote: string;
+    workspacePopoverTitle: string;
+    workspacePopoverDesc: string;
+    workspaceSignInBtn: string;
+    workspaceSigningInBtn: string;
+    workspaceReverifyBtn: string;
+    workspaceCustomerIdLabel: string;
+    workspaceAdminLabel: string;
+    workspaceSharedNote: string;
+    sharedHeaderConnectedBanner: string;
+  };
   mainTitle: string;
   workflow: WorkflowMessages;
   operations: OperationsMessages;
@@ -1263,6 +1284,27 @@ const en: Messages = {
   lastSaved: "Last saved",
   justNow: "just now",
   languages: { english: "English", japanese: "日本語" },
+  topbarAuth: {
+    cloudPopoverTitle: "Google Cloud Configuration",
+    cloudPopoverDesc: "Shared across Easy PoC (CAA / VPC-SC) and Secure Gateway Deployer.",
+    cloudProjectIdLabel: "Google Cloud Project ID",
+    cloudProjectIdPlaceholder: "e.g. enterprise-secgw-01",
+    cloudOperatorLabel: "Active Credential",
+    cloudVerifyBtn: "Verify Connection",
+    cloudVerifyingBtn: "Verifying…",
+    cloudBootstrapBtn: "Create & Connect SGW Deployer SA",
+    cloudBootstrappingBtn: "Preparing Deployer SA…",
+    cloudSharedNote: "Easy PoC uses your signed-in OAuth session with this Project ID. Secure Gateway Deployer uses the dedicated keyless deployer SA.",
+    workspacePopoverTitle: "Google Workspace Authentication",
+    workspacePopoverDesc: "Sign in once to share your Workspace administrator session, Customer ID, OUs, and Groups across Easy PoC and Secure Gateway Deployer.",
+    workspaceSignInBtn: "Sign in with Google (Auto-Detect)",
+    workspaceSigningInBtn: "Signing in & detecting…",
+    workspaceReverifyBtn: "Re-verify Workspace Connection",
+    workspaceCustomerIdLabel: "Customer ID (C...)",
+    workspaceAdminLabel: "Signed-in Administrator",
+    workspaceSharedNote: "Organizational Units (OUs) and Groups are loaded automatically when needed.",
+    sharedHeaderConnectedBanner: "Connected via top-right header — shared across Easy PoC and SGW Deployer.",
+  },
   workflow: {
     identitiesTitle: "Connect administrator identities",
     identitiesIntro:
@@ -3079,6 +3121,27 @@ const ja: Messages = {
   lastSaved: "最終保存",
   justNow: "数秒前",
   languages: { english: "English", japanese: "日本語" },
+  topbarAuth: {
+    cloudPopoverTitle: "Google Cloud 接続・プロジェクト設定",
+    cloudPopoverDesc: "Easy PoC（Context-Aware Access / VPC-SC）と Secure Gateway Deployer で共通利用されます。",
+    cloudProjectIdLabel: "Google Cloud プロジェクトID",
+    cloudProjectIdPlaceholder: "例: enterprise-secgw-01",
+    cloudOperatorLabel: "検証済みクレデンシャル",
+    cloudVerifyBtn: "接続を確認",
+    cloudVerifyingBtn: "確認中…",
+    cloudBootstrapBtn: "SGWデプロイ用サービスアカウントを作成して接続",
+    cloudBootstrappingBtn: "サービスアカウントを準備中…",
+    cloudSharedNote: "Easy PoC はログイン中の管理者OAuthとこのプロジェクトIDを使用します。Secure Gateway Deployer は専用のデプロイヤーSAを使用します。",
+    workspacePopoverTitle: "Google Workspace 管理者ログイン",
+    workspacePopoverDesc: "ここで一度ログインすると、Easy PoC と Secure Gateway Deployer の両方で管理者セッション・顧客ID・OU・グループが共有されます。",
+    workspaceSignInBtn: "Googleでログインして自動設定",
+    workspaceSigningInBtn: "ログイン・顧客IDを取得中…",
+    workspaceReverifyBtn: "Workspace接続を再確認",
+    workspaceCustomerIdLabel: "顧客ID (C...)",
+    workspaceAdminLabel: "ログイン中の管理者",
+    workspaceSharedNote: "組織部門（OU）とグループ一覧は必要な画面で自動的に読み込まれます。",
+    sharedHeaderConnectedBanner: "右上のヘッダーから接続済み（Easy PoC・SGW Deployer 共通）",
+  },
   workflow: {
     identitiesTitle: "Google Cloud と Workspace の接続設定",
     identitiesIntro:

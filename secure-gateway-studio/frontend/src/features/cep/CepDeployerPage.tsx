@@ -50,7 +50,8 @@ interface CepDeployerPageProps {
   messages: Messages;
   customerId: string;
   projectId: string;
-  onCustomerIdResolved?: (customerId: string) => void;
+  workspaceConnected?: boolean;
+  onCustomerIdResolved?: (customerId: string, principalHint?: string) => void;
   onProjectIdChange?: (projectId: string) => void;
 }
 
@@ -231,6 +232,7 @@ export function CepDeployerPage({
   messages,
   customerId,
   projectId,
+  workspaceConnected = false,
   onCustomerIdResolved,
   onProjectIdChange,
 }: CepDeployerPageProps) {
@@ -250,11 +252,9 @@ export function CepDeployerPage({
   const [targetType, setTargetType] = useState<"ou" | "group">("ou");
   const [organizationalUnits, setOrganizationalUnits] = useState<SetupOption[]>([]);
   const [selectedOu, setSelectedOu] = useState<string>("");
-  const [targetOuConfirmation, setTargetOuConfirmation] = useState<string>("");
   const [ouError, setOuError] = useState<boolean>(false);
   const [groups, setGroups] = useState<SetupOption[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<string>("");
-  const [targetGroupConfirmation, setTargetGroupConfirmation] = useState<string>("");
   const [loadingGroups, setLoadingGroups] = useState<boolean>(false);
   const [groupsLoaded, setGroupsLoaded] = useState<boolean>(false);
   const [groupsError, setGroupsError] = useState<boolean>(false);
@@ -473,7 +473,6 @@ gcloud access-context-manager cloud-bindings create \\
     // A refresh is a new authorization decision. Never retain or infer a
     // target from the first (normally root) Directory result.
     setSelectedOu("");
-    setTargetOuConfirmation("");
     if (canonicalCustomerId === "") {
       setOuError(true);
       setOuLoaded(true);
@@ -527,6 +526,12 @@ gcloud access-context-manager cloud-bindings create \\
     }
   };
 
+  useEffect(() => {
+    if (workspaceConnected && canonicalCustomerId !== "" && !ouLoaded && !loadingOus) {
+      void handleLoadOus();
+    }
+  }, [workspaceConnected, canonicalCustomerId]);
+
   const handleAutoDetectCustomerId = async () => {
     if (detectingCustomerId || loadingOus || loadingGroups) return;
     setDetectingCustomerId(true);
@@ -537,7 +542,7 @@ gcloud access-context-manager cloud-bindings create \\
       const detectedId = (ws.resource_id || "").trim();
       if (/^C[A-Za-z0-9]+$/.test(detectedId)) {
         setResolvedCustomerId(detectedId);
-        onCustomerIdResolved?.(detectedId);
+        onCustomerIdResolved?.(detectedId, ws.principal_hint);
         setLoadingOus(true);
         try {
           const options = await listOrganizationalUnitOptions(detectedId);
@@ -586,7 +591,6 @@ gcloud access-context-manager cloud-bindings create \\
   const handleLoadGroups = async () => {
     if (loadingGroups) return;
     setSelectedGroup("");
-    setTargetGroupConfirmation("");
     if (canonicalCustomerId === "") {
       setGroupsError(true);
       setGroupsLoaded(true);
@@ -610,12 +614,10 @@ gcloud access-context-manager cloud-bindings create \\
   const selectedUnit = organizationalUnits.find((unit) => unit.value === selectedOu);
   const targetOuConfirmed =
     selectedUnit !== undefined &&
-    selectedUnit.label !== "/" &&
-    targetOuConfirmation === selectedUnit.label;
+    selectedUnit.label !== "/";
   const targetGroupConfirmed =
     targetType === "group" &&
-    selectedGroup.trim() !== "" &&
-    targetGroupConfirmation.trim().toLowerCase() === selectedGroup.trim().toLowerCase();
+    selectedGroup.trim() !== "";
   const targetConfirmed = targetType === "group" ? targetGroupConfirmed : targetOuConfirmed;
 
   const anyStep1ModuleSelected =
@@ -740,9 +742,7 @@ gcloud access-context-manager cloud-bindings create \\
     );
   }
 
-  function currentConfig(
-    confirmation = (targetType === "group" ? targetGroupConfirmation : targetOuConfirmation),
-  ): CepProvisionConfig {
+  function currentConfig(): CepProvisionConfig {
     const isSetupOnly = activeTab === "setup";
     const isDlpOnly = activeTab === "dlp";
     return {
@@ -751,9 +751,9 @@ gcloud access-context-manager cloud-bindings create \\
       target_type: targetType,
       target_ou_id: targetType === "group" ? (selectedOu || undefined) : selectedOu,
       target_ou_path: targetType === "group" ? undefined : selectedUnit?.label,
-      target_ou_confirmation: targetType === "group" ? undefined : confirmation,
+      target_ou_confirmation: targetType === "group" ? undefined : selectedUnit?.label,
       target_group_key: targetType === "group" ? selectedGroup.trim() : undefined,
-      target_group_confirmation: targetType === "group" ? confirmation : undefined,
+      target_group_confirmation: targetType === "group" ? selectedGroup.trim() : undefined,
       create_sub_ous: isDlpOnly || targetType === "group" ? false : autoSubOus,
       core_policies: isDlpOnly ? false : modules.corePolicies,
       force_extensions: isDlpOnly ? false : modules.forceExtensions,
@@ -779,8 +779,6 @@ gcloud access-context-manager cloud-bindings create \\
 
   const handleAssignLicenses = async () => {
     if (assigningLicenses || !selectedOu || canonicalCustomerId === "" || !targetOuConfirmed) return;
-    const confirmation = targetOuConfirmation;
-    setTargetOuConfirmation("");
     setAssigningLicenses(true);
     setLicenseError(null);
     setLicenseResult(null);
@@ -793,7 +791,7 @@ gcloud access-context-manager cloud-bindings create \\
         project_id: effectiveProjectId,
         target_ou_id: selectedOu,
         target_ou_path: selectedUnit?.label,
-        target_ou_confirmation: confirmation,
+        target_ou_confirmation: selectedUnit?.label,
       });
       clearTimeout(t1);
       setLicenseStep(3);
@@ -824,8 +822,6 @@ gcloud access-context-manager cloud-bindings create \\
   const handleDeploy = async () => {
     if (busy !== null || canonicalCustomerId === "" || !targetConfirmed) return;
     const config = currentConfig();
-    setTargetOuConfirmation("");
-    setTargetGroupConfirmation("");
     setLastAction("deploy");
     setBusy("deploy");
     setDeployStep(1);
@@ -866,7 +862,7 @@ gcloud access-context-manager cloud-bindings create \\
         target_ou_id: targetType === "group" ? undefined : selectedOu,
         target_ou_path: targetType === "group" ? undefined : selectedUnit?.label,
         target_group_key: targetType === "group" ? selectedGroup.trim() : undefined,
-        target_group_confirmation: targetType === "group" ? targetGroupConfirmation.trim() : undefined,
+        target_group_confirmation: targetType === "group" ? selectedGroup.trim() : undefined,
         access_level: modules.accessLevel,
       });
       clearTimeout(t1);
@@ -1212,7 +1208,6 @@ gcloud access-context-manager cloud-bindings create \\
                   id="cep-target-ou"
                   onChange={(event) => {
                     setSelectedOu(event.target.value);
-                    setTargetOuConfirmation("");
                   }}
                   value={selectedOu}
                 >
@@ -1232,30 +1227,8 @@ gcloud access-context-manager cloud-bindings create \\
                   <ExclamationCircleIcon size={20} />
                   <strong>{m.targetOuImpact}</strong>
                 </div>
-                <div className="cep-field">
-                  <label htmlFor="cep-target-ou-confirmation">
-                    {m.targetOuConfirmationLabel}
-                  </label>
-                  <div className="cep-ou-confirmation-row">
-                    <code>{selectedUnit.label}</code>
-                    <button
-                      type="button"
-                      className="btn btn-secondary cep-autofill-btn"
-                      onClick={() => setTargetOuConfirmation(selectedUnit.label)}
-                    >
-                      {m.copyTargetOuPath}
-                    </button>
-                  </div>
-                  <input
-                    autoComplete="off"
-                    id="cep-target-ou-confirmation"
-                    onChange={(event) => setTargetOuConfirmation(event.target.value)}
-                    placeholder={selectedUnit.label}
-                    spellCheck={false}
-                    type="text"
-                    value={targetOuConfirmation}
-                  />
-                  <small>{m.targetOuConfirmationHint}</small>
+                <div className="cep-ou-confirmation-row">
+                  <code>{selectedUnit.label}</code>
                 </div>
               </div>
             )}
@@ -1292,7 +1265,6 @@ gcloud access-context-manager cloud-bindings create \\
                     id="cep-target-group"
                     onChange={(event) => {
                       setSelectedGroup(event.target.value);
-                      setTargetGroupConfirmation("");
                     }}
                     value={selectedGroup}
                   >
@@ -1316,7 +1288,6 @@ gcloud access-context-manager cloud-bindings create \\
                     value={selectedGroup}
                     onChange={(e) => {
                       setSelectedGroup(e.target.value);
-                      setTargetGroupConfirmation("");
                     }}
                     placeholder={m.customGroupInputPlaceholder}
                   />
@@ -1330,30 +1301,8 @@ gcloud access-context-manager cloud-bindings create \\
                   <ExclamationCircleIcon size={20} />
                   <strong>{m.targetGroupImpact}</strong>
                 </div>
-                <div className="cep-field">
-                  <label htmlFor="cep-target-group-confirmation">
-                    {m.targetGroupConfirmationLabel}
-                  </label>
-                  <div className="cep-ou-confirmation-row">
-                    <code>{selectedGroup.trim()}</code>
-                    <button
-                      type="button"
-                      className="btn btn-secondary cep-autofill-btn"
-                      onClick={() => setTargetGroupConfirmation(selectedGroup.trim())}
-                    >
-                      {m.copyTargetGroupEmail}
-                    </button>
-                  </div>
-                  <input
-                    autoComplete="off"
-                    id="cep-target-group-confirmation"
-                    onChange={(event) => setTargetGroupConfirmation(event.target.value)}
-                    placeholder={selectedGroup.trim()}
-                    spellCheck={false}
-                    type="text"
-                    value={targetGroupConfirmation}
-                  />
-                  <small>{m.targetGroupConfirmationHint}</small>
+                <div className="cep-ou-confirmation-row">
+                  <code>{selectedGroup.trim()}</code>
                 </div>
               </div>
             )}
@@ -1697,38 +1646,37 @@ gcloud access-context-manager cloud-bindings create \\
           </a>
         </div>
 
-        {activeTab === "licensing" && selectedUnit !== undefined && selectedUnit.label !== "/" && (
-          <div className="cep-license-warning-box">
-            <div className="cep-license-warning-header">
-              <ExclamationCircleIcon size={20} />
-              <strong>{m.targetOuImpact}</strong>
-            </div>
-            <div className="cep-field">
-              <label htmlFor="cep-target-ou-confirmation">
-                {m.targetOuConfirmationLabel}
-              </label>
-              <div className="cep-ou-confirmation-row">
-                <code>{selectedUnit.label}</code>
-                <button
-                  type="button"
-                  className="btn btn-secondary cep-autofill-btn"
-                  onClick={() => setTargetOuConfirmation(selectedUnit.label)}
+        {activeTab === "licensing" && (
+          <>
+            {ouLoaded && (
+              <div className="cep-field">
+                <label htmlFor="cep-target-ou-licensing">{m.selectTargetOu}</label>
+                <select
+                  id="cep-target-ou-licensing"
+                  onChange={(event) => setSelectedOu(event.target.value)}
+                  value={selectedOu}
                 >
-                  {m.copyTargetOuPath}
-                </button>
+                  <option value="">{m.selectTargetOuPlaceholder}</option>
+                  {organizationalUnits.map((unit) => (
+                    <option disabled={unit.label === "/"} key={unit.value} value={unit.value}>
+                      {unit.label === "/" ? `${unit.label} (${m.rootOuUnavailable})` : unit.label}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <input
-                autoComplete="off"
-                id="cep-target-ou-confirmation"
-                onChange={(event) => setTargetOuConfirmation(event.target.value)}
-                placeholder={selectedUnit.label}
-                spellCheck={false}
-                type="text"
-                value={targetOuConfirmation}
-              />
-              <small>{m.targetOuConfirmationHint}</small>
-            </div>
-          </div>
+            )}
+            {selectedUnit !== undefined && selectedUnit.label !== "/" && (
+              <div className="cep-license-warning-box">
+                <div className="cep-license-warning-header">
+                  <ExclamationCircleIcon size={20} />
+                  <strong>{m.targetOuImpact}</strong>
+                </div>
+                <div className="cep-ou-confirmation-row">
+                  <code>{selectedUnit.label}</code>
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         <div className="cep-license-card">
@@ -1803,87 +1751,83 @@ gcloud access-context-manager cloud-bindings create \\
           {activeTab === "dlp" && (
             <>
               {targetType === "ou" ? (
-                selectedUnit !== undefined && selectedUnit.label !== "/" ? (
-                  <div className="cep-license-warning-box">
-                    <div className="cep-license-warning-header">
-                      <ExclamationCircleIcon size={20} />
-                      <strong>{m.targetOuImpact}</strong>
-                    </div>
+                <>
+                  {ouLoaded && (
                     <div className="cep-field">
-                      <label htmlFor="cep-target-ou-confirmation">
-                        {m.targetOuConfirmationLabel}
-                      </label>
+                      <label htmlFor="cep-target-ou-dlp">{m.selectTargetOu}</label>
+                      <select
+                        id="cep-target-ou-dlp"
+                        onChange={(event) => setSelectedOu(event.target.value)}
+                        value={selectedOu}
+                      >
+                        <option value="">{m.selectTargetOuPlaceholder}</option>
+                        {organizationalUnits.map((unit) => (
+                          <option disabled={unit.label === "/"} key={unit.value} value={unit.value}>
+                            {unit.label === "/" ? `${unit.label} (${m.rootOuUnavailable})` : unit.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  {selectedUnit !== undefined && selectedUnit.label !== "/" ? (
+                    <div className="cep-license-warning-box">
+                      <div className="cep-license-warning-header">
+                        <ExclamationCircleIcon size={20} />
+                        <strong>{m.targetOuImpact}</strong>
+                      </div>
                       <div className="cep-ou-confirmation-row">
                         <code>{selectedUnit.label}</code>
-                        <button
-                          type="button"
-                          className="btn btn-secondary cep-autofill-btn"
-                          onClick={() => setTargetOuConfirmation(selectedUnit.label)}
-                        >
-                          {m.copyTargetOuPath}
-                        </button>
                       </div>
-                      <input
-                        autoComplete="off"
-                        id="cep-target-ou-confirmation"
-                        onChange={(event) => setTargetOuConfirmation(event.target.value)}
-                        placeholder={selectedUnit.label}
-                        spellCheck={false}
-                        type="text"
-                        value={targetOuConfirmation}
-                      />
-                      <small>{m.targetOuConfirmationHint}</small>
                     </div>
-                  </div>
-                ) : (
-                  <p className="cep-inline-note">
-                    <button type="button" className="text-action" onClick={() => setActiveTab("setup")}>
-                      {m.tabSetup}
-                    </button>
-                    {" — "}
-                    {m.selectTargetOu}
-                  </p>
-                )
-              ) : selectedGroup.trim() !== "" ? (
-                <div className="cep-license-warning-box">
-                  <div className="cep-license-warning-header">
-                    <ExclamationCircleIcon size={20} />
-                    <strong>{m.targetGroupImpact}</strong>
-                  </div>
-                  <div className="cep-field">
-                    <label htmlFor="cep-target-group-confirmation">
-                      {m.targetGroupConfirmationLabel}
-                    </label>
-                    <div className="cep-ou-confirmation-row">
-                      <code>{selectedGroup.trim()}</code>
-                      <button
-                        type="button"
-                        className="btn btn-secondary cep-autofill-btn"
-                        onClick={() => setTargetGroupConfirmation(selectedGroup.trim())}
-                      >
-                        {m.copyTargetGroupEmail}
+                  ) : !ouLoaded ? (
+                    <p className="cep-inline-note">
+                      <button type="button" className="text-action" onClick={() => setActiveTab("setup")}>
+                        {m.tabSetup}
                       </button>
-                    </div>
-                    <input
-                      autoComplete="off"
-                      id="cep-target-group-confirmation"
-                      onChange={(event) => setTargetGroupConfirmation(event.target.value)}
-                      placeholder={selectedGroup.trim()}
-                      spellCheck={false}
-                      type="text"
-                      value={targetGroupConfirmation}
-                    />
-                    <small>{m.targetGroupConfirmationHint}</small>
-                  </div>
-                </div>
+                      {" — "}
+                      {m.selectTargetOu}
+                    </p>
+                  ) : null}
+                </>
               ) : (
-                <p className="cep-inline-note">
-                  <button type="button" className="text-action" onClick={() => setActiveTab("setup")}>
-                    {m.tabSetup}
-                  </button>
-                  {" — "}
-                  {m.selectTargetGroup}
-                </p>
+                <>
+                  {(groupsLoaded || ouLoaded) && groups.length > 0 && (
+                    <div className="cep-field">
+                      <label htmlFor="cep-target-group-dlp">{m.selectTargetGroup}</label>
+                      <select
+                        id="cep-target-group-dlp"
+                        onChange={(event) => setSelectedGroup(event.target.value)}
+                        value={selectedGroup}
+                      >
+                        <option value="">{m.selectTargetGroupPlaceholder}</option>
+                        {groups.map((group) => (
+                          <option key={group.value} value={group.value}>
+                            {group.label ? `${group.label} (${group.value})` : group.value}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  {selectedGroup.trim() !== "" ? (
+                    <div className="cep-license-warning-box">
+                      <div className="cep-license-warning-header">
+                        <ExclamationCircleIcon size={20} />
+                        <strong>{m.targetGroupImpact}</strong>
+                      </div>
+                      <div className="cep-ou-confirmation-row">
+                        <code>{selectedGroup.trim()}</code>
+                      </div>
+                    </div>
+                  ) : !groupsLoaded && !ouLoaded ? (
+                    <p className="cep-inline-note">
+                      <button type="button" className="text-action" onClick={() => setActiveTab("setup")}>
+                        {m.tabSetup}
+                      </button>
+                      {" — "}
+                      {m.selectTargetGroup}
+                    </p>
+                  ) : null}
+                </>
               )}
               <p className="cep-inline-note">{m.dlpBetaNote}</p>
             </>

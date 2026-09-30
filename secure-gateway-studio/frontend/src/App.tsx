@@ -41,6 +41,7 @@ import {
   runtimeCapabilities,
   resumeDeploymentRun,
   saveExtensionClientState,
+  signInSession,
   signOutSession,
   validateGoogleCloudConnection,
   validateWorkspaceConnection,
@@ -691,14 +692,15 @@ export function App() {
     return res;
   }
 
-  async function handleValidateWorkspace() {
+  async function handleValidateWorkspace(overrideCustomerId?: string) {
     patchSetup({
       workspaceConnection: "checking",
       workspaceConnectionError: "",
       workspaceIdentity: "",
     });
     try {
-      const validation = await validateWorkspaceConnection(setup.customerId);
+      const targetCustomer = (overrideCustomerId ?? setup.customerId).trim() || "my_customer";
+      const validation = await validateWorkspaceConnection(targetCustomer);
       const canonicalCustomerId = validation.resource_id.trim();
       if (!/^C[A-Za-z0-9]+$/.test(canonicalCustomerId)) {
         throw new Error(
@@ -715,6 +717,36 @@ export function App() {
         workspaceConnection: "error",
         workspaceConnectionError: connectionErrorText(error, "workspace", messages.workflow),
         workspaceIdentity: "",
+      });
+    }
+  }
+
+  async function handleTopbarSignInWorkspace() {
+    try {
+      if (runtimeCapabilities.sessionSignIn) {
+        await signInSession();
+      }
+      await handleValidateWorkspace(setup.customerId.trim() || "my_customer");
+    } catch (error) {
+      patchSetup({
+        workspaceConnection: "error",
+        workspaceConnectionError: connectionErrorText(error, "workspace", messages.workflow),
+      });
+    }
+  }
+
+  async function handleTopbarBootstrapCloud() {
+    if (!globalThis.confirm(messages.workflow.bootstrapConfirm)) return;
+    try {
+      if (runtimeCapabilities.sessionSignIn) {
+        await signInSession();
+      }
+      await handleBootstrapCloud(false);
+      await handleValidateCloud(true);
+    } catch (error) {
+      patchSetup({
+        cloudConnection: "error",
+        cloudConnectionError: connectionErrorText(error, "cloud", messages.workflow),
       });
     }
   }
@@ -860,14 +892,38 @@ export function App() {
   return (
     <AppShell
       activeView={activeView}
+      cloudError={setup.cloudConnectionError}
+      cloudIdentityDetail={setup.cloudIdentity}
       cloudProject={setup.projectId}
+      cloudStatus={setup.cloudConnection}
+      customerId={setup.customerId}
       locale={locale}
       messages={messages}
+      onBootstrapCloud={handleTopbarBootstrapCloud}
+      onCustomerIdChange={(customerId) =>
+        patchSetup({
+          customerId,
+          workspaceConnection: "not_connected",
+          workspaceConnectionError: "",
+        })
+      }
       onLocaleChange={handleLocaleChange}
       onNavigate={setActiveView}
+      onProjectIdChange={(projectId) =>
+        patchSetup({
+          projectId,
+          accessPolicyId: "",
+          cloudConnection: "not_connected",
+          cloudConnectionError: "",
+        })
+      }
+      onSignInWorkspace={handleTopbarSignInWorkspace}
       onSignOut={handleSignOut}
+      onValidateCloud={() => handleValidateCloud(false)}
       showCepDeployer={runtimeCapabilities.cepDeployer}
       workspaceAdmin={setup.workspaceIdentity}
+      workspaceError={setup.workspaceConnectionError}
+      workspaceStatus={setup.workspaceConnection}
     >
       {activeView === "setup" ? (
         <WizardLayout
@@ -888,11 +944,12 @@ export function App() {
           <CepDeployerPage
             customerId={setup.customerId}
             messages={messages}
-            onCustomerIdResolved={(resolvedId) =>
+            onCustomerIdResolved={(resolvedId, principalHint) =>
               patchSetup({
                 customerId: resolvedId,
                 workspaceConnection: "connected",
                 workspaceConnectionError: "",
+                ...(principalHint ? { workspaceIdentity: principalHint } : {}),
               })
             }
             onProjectIdChange={(nextProjectId) =>
@@ -901,6 +958,7 @@ export function App() {
               })
             }
             projectId={setup.projectId}
+            workspaceConnected={setup.workspaceConnection === "connected"}
           />
         ) : null
       ) : (

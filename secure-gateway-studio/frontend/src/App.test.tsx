@@ -2118,4 +2118,55 @@ describe("Secure Gateway Studio mode screen", () => {
     fireEvent.click(screen.getByRole("button", { name: /エビデンス|Evidence/i }));
     expect(screen.getByRole("heading", { name: /証跡とエビデンス|Evidence/i })).toBeInTheDocument();
   });
+
+  it("opens top-right Google Workspace and Google Cloud popovers to share login and project settings across modes", async () => {
+    vi.spyOn(api, "signInSession").mockResolvedValue({ authenticated: true });
+    const validateWs = vi.spyOn(api, "validateWorkspaceConnection").mockResolvedValue({
+      provider: "workspace",
+      status: "connected",
+      principal_hint: "admin@example.com",
+      resource_id: "C01234567",
+      credential_kind: "chrome_identity",
+      access_policy_id: "285159511080",
+      read_only: true,
+    });
+    const validateCloud = vi.spyOn(api, "validateGoogleCloudConnection").mockResolvedValue({
+      provider: "google_cloud",
+      status: "connected",
+      principal_hint: "secure-gateway-studio-deployer@my-shared-proj.iam.gserviceaccount.com",
+      resource_id: "my-shared-proj",
+      credential_kind: "impersonated_service_account",
+      access_policy_id: "285159511080",
+      read_only: true,
+    });
+
+    render(<App />);
+
+    // 1. Click Google Workspace button in topbar
+    const wsTopbarBtn = screen.getByRole("button", { name: /Google Workspace/i });
+    fireEvent.click(wsTopbarBtn);
+    const wsDialog = screen.getByRole("dialog", { name: /Google Workspace/i });
+    expect(wsDialog).toBeInTheDocument();
+
+    // Click 1-click sign-in & auto-detect inside the Workspace popover
+    fireEvent.click(within(wsDialog).getByRole("button", { name: /Sign in with Google|Googleでログイン/i }));
+    await waitFor(() => {
+      expect(validateWs).toHaveBeenCalledWith("my_customer");
+    });
+
+    // 2. Click Google Cloud button in topbar
+    const cloudTopbarBtn = screen.getByRole("button", { name: /Google Cloud/i });
+    fireEvent.click(cloudTopbarBtn);
+    const cloudDialog = screen.getByRole("dialog", { name: /Google Cloud/i });
+    expect(cloudDialog).toBeInTheDocument();
+
+    const projInput = within(cloudDialog).getByLabelText(/Google Cloud Project ID|Google Cloud プロジェクト ID/i);
+    fireEvent.change(projInput, { target: { value: "my-shared-proj" } });
+    fireEvent.click(within(cloudDialog).getByRole("button", { name: /Verify Connection|接続を確認/i }));
+
+    await waitFor(() => {
+      expect(validateCloud).toHaveBeenCalledWith("my-shared-proj");
+    });
+  });
 });
+

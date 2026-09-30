@@ -467,11 +467,31 @@ input:focus-visible + .checkbox-visual {
   color: #b91c1c;
 }
 
+.identity-menu {
+  position: relative;
+}
+
 .identity-control {
   min-width: 224px;
   padding: 0 13px;
   gap: 11px;
   cursor: default;
+}
+
+.identity-control-btn {
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+
+.identity-control-btn.is-connected {
+  border-color: #a7f3d0;
+  background: #f0fdf4;
+}
+
+.identity-control-btn.is-error {
+  border-color: #fca5a5;
+  background: #fef2f2;
 }
 
 .identity-control:hover,
@@ -490,6 +510,7 @@ input:focus-visible + .checkbox-visual {
   color: white;
   font-size: 14px;
   font-weight: 800;
+  flex-shrink: 0;
 }
 
 .google-cloud-symbol {
@@ -512,6 +533,32 @@ input:focus-visible + .checkbox-visual {
   color: var(--ink-600);
 }
 
+.identity-copy-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.identity-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #94a3b8;
+  display: inline-block;
+}
+
+.identity-status-dot.status-connected {
+  background: #16a34a;
+}
+
+.identity-status-dot.status-validating {
+  background: #d97706;
+}
+
+.identity-status-dot.status-error {
+  background: #dc2626;
+}
+
 .identity-copy strong {
   max-width: 150px;
   overflow: hidden;
@@ -520,6 +567,94 @@ input:focus-visible + .checkbox-visual {
   color: var(--ink-900);
   font-size: 13px;
   font-weight: 600;
+}
+
+.identity-control-btn .rotated {
+  transform: rotate(180deg);
+}
+
+.identity-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  width: 340px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 14px 32px rgba(10, 31, 57, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.identity-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.identity-popover-header strong {
+  font-size: 14px;
+  color: var(--ink-900);
+}
+
+.identity-popover-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.identity-popover-badge.status-connected {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.identity-popover-badge.status-validating {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.identity-popover-badge.status-error {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.identity-popover-desc,
+.identity-popover-note,
+.identity-popover-meta {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-600);
+}
+
+.identity-popover-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-700);
+}
+
+.identity-popover-field input {
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.identity-popover-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .language-menu {

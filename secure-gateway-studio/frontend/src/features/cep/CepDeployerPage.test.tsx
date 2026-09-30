@@ -37,15 +37,11 @@ function renderPage() {
   return rendered;
 }
 
-async function selectPilotOu(confirm = true): Promise<void> {
-  const picker = await screen.findByLabelText(m.selectTargetOu);
+async function selectPilotOu(_confirm = true): Promise<void> {
+  const pickers = await screen.findAllByLabelText(m.selectTargetOu);
+  const picker = pickers[0];
   expect(picker).toHaveValue("");
   fireEvent.change(picker, { target: { value: "03pilot" } });
-  if (confirm) {
-    fireEvent.change(screen.getByLabelText(m.targetOuConfirmationLabel), {
-      target: { value: "/Pilot" },
-    });
-  }
 }
 
 function emptyResult(overrides: Partial<api.CepProvisionResult> = {}): api.CepProvisionResult {
@@ -126,10 +122,11 @@ describe("CepDeployerPage", () => {
     expect(api.listOrganizationalUnitOptions).not.toHaveBeenCalled();
   });
 
-  it("leaves a root-first OU list unselected and requires the exact path before mutations", async () => {
+  it("leaves a root-first OU list unselected and enables mutations immediately upon selecting a non-root OU", async () => {
     renderPage();
 
-    const picker = await screen.findByLabelText(m.selectTargetOu);
+    const pickers = await screen.findAllByLabelText(m.selectTargetOu);
+    const picker = pickers[0];
     expect(picker).toHaveValue("");
     expect(
       within(picker).getByRole("option", { name: new RegExp(m.rootOuUnavailable) }),
@@ -140,11 +137,6 @@ describe("CepDeployerPage", () => {
     fireEvent.change(picker, { target: { value: "03pilot" } });
     expect(screen.getByText(m.targetOuImpact)).toBeInTheDocument();
     expect(m.targetOuImpact).toMatch(/descendant|配下/i);
-    const confirmation = screen.getByLabelText(m.targetOuConfirmationLabel);
-    fireEvent.change(confirmation, { target: { value: "/Wrong" } });
-    expect(screen.getByText(m.btnDeploy)).toBeDisabled();
-    expect(screen.getByText(m.btnAssignLicensesToOu)).toBeDisabled();
-    fireEvent.change(confirmation, { target: { value: "/Pilot" } });
     expect(screen.getByText(m.btnDeploy)).toBeEnabled();
     expect(screen.getByText(m.btnAssignLicensesToOu)).toBeEnabled();
   });
@@ -174,7 +166,6 @@ describe("CepDeployerPage", () => {
       );
     });
     expect(screen.getByText("Applied 5 CEP settings to the target OU.")).toBeInTheDocument();
-    expect(screen.getByLabelText(m.targetOuConfirmationLabel)).toHaveValue("");
   });
 
   it("creates CEP sub OUs only after an explicit checkbox selection", async () => {
@@ -327,7 +318,6 @@ describe("CepDeployerPage", () => {
         ),
       ).toBeInTheDocument();
     });
-    expect(screen.getByLabelText(m.targetOuConfirmationLabel)).toHaveValue("");
   });
 
   it("renders the DLP matrix table with presets and threat rows", async () => {
@@ -484,43 +474,35 @@ describe("CepDeployerPage", () => {
     renderPage();
 
     // Switch to Google Group tab
-    const groupTab = screen.getByRole("tab", { name: new RegExp(m.targetTypeGroup || "Google グループ") });
-    fireEvent.click(groupTab);
-    expect(groupTab).toHaveAttribute("aria-selected", "true");
+    const groupTabs = screen.getAllByRole("tab", { name: new RegExp(m.targetTypeGroup || "Google グループ") });
+    fireEvent.click(groupTabs[0]);
+    expect(groupTabs[0]).toHaveAttribute("aria-selected", "true");
 
     // Group dropdown is visible with options
-    const groupSelect = await screen.findByLabelText(m.selectTargetGroup);
+    const groupSelects = await screen.findAllByLabelText(m.selectTargetGroup);
+    const groupSelect = groupSelects[0];
     expect(groupSelect).toBeInTheDocument();
     expect(within(groupSelect).getByRole("option", { name: /Security PoC Group/ })).toBeInTheDocument();
 
     // Manual input fallback is visible
-    expect(screen.getByPlaceholderText(m.customGroupInputPlaceholder)).toBeInTheDocument();
+    expect(screen.getAllByPlaceholderText(m.customGroupInputPlaceholder)[0]).toBeInTheDocument();
   });
 
-  it("enforces group confirmation before enabling deploy button", async () => {
+  it("enables deploy button immediately when selecting a Google Group from the dropdown", async () => {
     renderPage();
 
     // Switch to Group tab
-    fireEvent.click(screen.getByRole("tab", { name: new RegExp(m.targetTypeGroup || "Google グループ") }));
-    const groupSelect = await screen.findByLabelText(m.selectTargetGroup);
+    fireEvent.click(screen.getAllByRole("tab", { name: new RegExp(m.targetTypeGroup || "Google グループ") })[0]);
+    const groupSelects = await screen.findAllByLabelText(m.selectTargetGroup);
+    const groupSelect = groupSelects[0];
+
+    expect(screen.getByText(m.btnDeploy)).toBeDisabled();
 
     // Select group
     fireEvent.change(groupSelect, { target: { value: "sec-poc@example.com" } });
 
-    // Impact message appears
+    // Impact message appears and deploy is enabled immediately without double input
     expect(screen.getByText(m.targetGroupImpact)).toBeInTheDocument();
-
-    // Deploy is disabled without confirmation
-    expect(screen.getByText(m.btnDeploy)).toBeDisabled();
-
-    // Enter wrong confirmation
-    const confirmInput = screen.getByLabelText(m.targetGroupConfirmationLabel);
-    fireEvent.change(confirmInput, { target: { value: "wrong@example.com" } });
-    expect(screen.getByText(m.btnDeploy)).toBeDisabled();
-
-    // Autofill confirmation button works
-    fireEvent.click(screen.getByRole("button", { name: m.copyTargetGroupEmail }));
-    expect(confirmInput).toHaveValue("sec-poc@example.com");
     expect(screen.getByText(m.btnDeploy)).toBeEnabled();
   });
 
@@ -532,12 +514,12 @@ describe("CepDeployerPage", () => {
     renderPage();
 
     // Switch to Group tab
-    fireEvent.click(screen.getByRole("tab", { name: new RegExp(m.targetTypeGroup || "Google グループ") }));
-    const groupSelect = await screen.findByLabelText(m.selectTargetGroup);
+    fireEvent.click(screen.getAllByRole("tab", { name: new RegExp(m.targetTypeGroup || "Google グループ") })[0]);
+    const groupSelects = await screen.findAllByLabelText(m.selectTargetGroup);
+    const groupSelect = groupSelects[0];
 
-    // Select group and auto-fill confirmation
+    // Select group
     fireEvent.change(groupSelect, { target: { value: "sec-poc@example.com" } });
-    fireEvent.click(screen.getByRole("button", { name: m.copyTargetGroupEmail }));
 
     // Deploy
     fireEvent.click(screen.getByText(m.btnDeploy));
@@ -562,15 +544,11 @@ describe("CepDeployerPage", () => {
     renderPage();
 
     // Switch to Group tab
-    fireEvent.click(screen.getByRole("tab", { name: new RegExp(m.targetTypeGroup || "Google グループ") }));
+    fireEvent.click(screen.getAllByRole("tab", { name: new RegExp(m.targetTypeGroup || "Google グループ") })[0]);
 
     // Type custom group email
-    const manualInput = await screen.findByPlaceholderText(m.customGroupInputPlaceholder);
-    fireEvent.change(manualInput, { target: { value: "custom-sec@example.com" } });
-
-    // Confirm
-    const confirmInput = screen.getByLabelText(m.targetGroupConfirmationLabel);
-    fireEvent.change(confirmInput, { target: { value: "custom-sec@example.com" } });
+    const manualInputs = await screen.findAllByPlaceholderText(m.customGroupInputPlaceholder);
+    fireEvent.change(manualInputs[0], { target: { value: "custom-sec@example.com" } });
 
     // Rollback
     fireEvent.click(screen.getByText(m.btnRollback));
@@ -589,8 +567,9 @@ describe("CepDeployerPage", () => {
   it("enables Download Script when a Google Group target is selected", async () => {
     renderPage();
 
-    fireEvent.click(screen.getByRole("tab", { name: new RegExp(m.targetTypeGroup || "Google グループ") }));
-    const groupSelect = await screen.findByLabelText(m.selectTargetGroup);
+    fireEvent.click(screen.getAllByRole("tab", { name: new RegExp(m.targetTypeGroup || "Google グループ") })[0]);
+    const groupSelects = await screen.findAllByLabelText(m.selectTargetGroup);
+    const groupSelect = groupSelects[0];
 
     const downloadBtn = screen.getByRole("button", { name: m.btnDownloadScript });
     expect(downloadBtn).toBeDisabled();
@@ -615,10 +594,6 @@ describe("CepDeployerPage", () => {
     });
     expect(provision).toHaveBeenCalledTimes(1);
 
-    // Re-confirm OU so handleDeploy can proceed on retry
-    fireEvent.change(screen.getByLabelText(m.targetOuConfirmationLabel), {
-      target: { value: "/Pilot" },
-    });
     const retryBtn = screen.getByRole("button", { name: m.errDiagRetryBtn });
     fireEvent.click(retryBtn);
 
@@ -654,8 +629,24 @@ describe("CepDeployerPage", () => {
 
     await waitFor(() => {
       expect(validateWs).toHaveBeenCalledWith("my_customer");
-      expect(onResolved).toHaveBeenCalledWith("C09876543");
+      expect(onResolved).toHaveBeenCalledWith("C09876543", "admin@example.com");
       expect(api.listOrganizationalUnitOptions).toHaveBeenCalledWith("C09876543");
+    });
+  });
+
+  it("automatically loads OUs and Groups when workspaceConnected is true from topbar login", async () => {
+    render(
+      <CepDeployerPage
+        customerId="C012345"
+        messages={messages}
+        projectId="my-test-proj"
+        workspaceConnected={true}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(api.listOrganizationalUnitOptions).toHaveBeenCalledWith("C012345");
+      expect(api.listGroupOptions).toHaveBeenCalledWith("C012345");
     });
   });
 
@@ -710,9 +701,6 @@ describe("CepDeployerPage", () => {
     fireEvent.change(projectInput, { target: { value: "easy-poc-gcp-proj" } });
     expect(onProjectIdChange).toHaveBeenCalledWith("easy-poc-gcp-proj");
 
-    fireEvent.change(screen.getByLabelText(m.targetOuConfirmationLabel), {
-      target: { value: "/Pilot" },
-    });
     fireEvent.click(screen.getByText(m.btnDeploy));
 
     await waitFor(() => {
@@ -742,15 +730,14 @@ describe("CepDeployerPage", () => {
 
     const nav = screen.getByRole("navigation", { name: "CEP PoC Sections" });
 
-    // 2. Switch to Tab 2 (Users & Licensing): policy action bar is hidden, OU confirmation is available in Tab 2
+    // 2. Switch to Tab 2 (Users & Licensing): policy action bar is hidden, contextual OU dropdown is available in Tab 2
     fireEvent.click(within(nav).getByRole("button", { name: m.tabLicensing }));
     expect(screen.getByText(m.btnDeploy).closest(".cep-tab-panel")).toHaveClass("hidden");
-    expect(screen.getByLabelText(m.targetOuConfirmationLabel)).toBeInTheDocument();
+    expect(screen.getAllByLabelText(m.selectTargetOu).length).toBeGreaterThanOrEqual(2);
 
     // 3. Switch to Tab 3 (DLP & Threat Matrix): applies only DLP Matrix rules (core_policies: false, dlp_rules: true)
     fireEvent.click(within(nav).getByRole("button", { name: m.tabDlp }));
     expect(screen.getByText(m.btnDeploy).closest(".cep-tab-panel")).toHaveClass("active");
-    fireEvent.click(screen.getByRole("button", { name: m.copyTargetOuPath }));
     fireEvent.click(screen.getByText(m.btnDeploy));
 
     await waitFor(() => {
@@ -774,7 +761,6 @@ describe("CepDeployerPage", () => {
     // 5. Switch to Tab 5 (View All Sections): applies both Setup and DLP rules
     fireEvent.click(within(nav).getByRole("button", { name: m.tabAll }));
     expect(screen.getByText(m.btnDeploy).closest(".cep-tab-panel")).toHaveClass("active");
-    fireEvent.click(screen.getByRole("button", { name: m.copyTargetOuPath }));
     fireEvent.click(screen.getByText(m.btnDeploy));
 
     await waitFor(() => {
