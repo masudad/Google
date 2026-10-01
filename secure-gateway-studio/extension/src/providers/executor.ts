@@ -755,27 +755,61 @@ function validBeyondCorpTimes(payload: Record<string, unknown>): boolean {
 export function isCompatibleSecurityGatewayPayload(
   payload: Record<string, unknown>,
   spec: DeploymentSpec,
+  options?: { allowSharedDefault?: boolean },
 ): boolean {
+  const allowSharedDefault = options?.allowSharedDefault === true &&
+    spec.gateway_id === "default";
   const hasCamel = payload.serviceDiscovery !== undefined;
   const hasSnake = payload.service_discovery !== undefined;
-  if (hasCamel === hasSnake) return false;
+  if (hasCamel && hasSnake) return false;
+  if (!allowSharedDefault && !hasCamel && !hasSnake) return false;
   const serviceDiscovery = hasCamel ? payload.serviceDiscovery : payload.service_discovery;
   const allowed = new Set([
     "name",
     "displayName",
-    hasCamel ? "serviceDiscovery" : "service_discovery",
+    ...(hasCamel ? ["serviceDiscovery"] : hasSnake ? ["service_discovery"] : []),
     "logging",
     "createTime",
     "updateTime",
     "state",
     "delegatingServiceAccount",
     "externalIps",
+    ...(allowSharedDefault
+      ? ["hubs", "network", "hostingSubnet", "proxySubnet", "peerings"]
+      : []),
   ]);
+  const displayNameOk = allowSharedDefault
+    ? payload.displayName === undefined ||
+      (typeof payload.displayName === "string" && payload.displayName.trim() !== "")
+    : payload.displayName === spec.gateway_id;
+  const serviceDiscoveryOk = serviceDiscovery === undefined
+    ? allowSharedDefault
+    : emptyMessage(serviceDiscovery);
+  const loggingOk = payload.logging === undefined
+    ? allowSharedDefault
+    : emptyMessage(payload.logging);
+  const hubsOk = payload.hubs === undefined ||
+    (allowSharedDefault &&
+      typeof payload.hubs === "object" &&
+      payload.hubs !== null &&
+      !Array.isArray(payload.hubs) &&
+      Object.values(payload.hubs as Record<string, unknown>).every(
+        (hub) => typeof hub === "object" && hub !== null && !Array.isArray(hub),
+      ));
+  const internalFieldsOk = !allowSharedDefault || (
+    (payload.network === undefined || typeof payload.network === "string") &&
+    (payload.hostingSubnet === undefined || typeof payload.hostingSubnet === "string") &&
+    (payload.proxySubnet === undefined || typeof payload.proxySubnet === "string") &&
+    (payload.peerings === undefined || Array.isArray(payload.peerings))
+  );
   return payload.name ===
       `projects/${spec.project_id}/locations/global/securityGateways/${spec.gateway_id}` &&
-    payload.displayName === spec.gateway_id &&
+    displayNameOk &&
     Object.keys(payload).every((field) => allowed.has(field)) &&
-    emptyMessage(serviceDiscovery) && emptyMessage(payload.logging) &&
+    serviceDiscoveryOk &&
+    loggingOk &&
+    hubsOk &&
+    internalFieldsOk &&
     validBeyondCorpTimes(payload) && payload.state === "RUNNING" &&
     typeof payload.delegatingServiceAccount === "string" &&
     payload.delegatingServiceAccount.trim() === payload.delegatingServiceAccount &&

@@ -2164,6 +2164,88 @@ class IntegrityProbeTransport extends ReplayTransport {
         "shared gateway: compatible pre-existing default gateway without local ownership proof conflicted instead of reusing",
       );
     }
+
+    class ConsoleCreatedGatewayTransport extends IntegrityProbeTransport {
+      private readonly variant: "console-no-logging" | "terraform-hubs-no-sd";
+      constructor(secret: string, variant: "console-no-logging" | "terraform-hubs-no-sd") {
+        super(secret, "none");
+        this.variant = variant;
+      }
+      override async requestJson(
+        method: string,
+        url: string,
+        options: {
+          params?: Record<string, string | number>;
+          jsonBody?: Record<string, unknown>;
+          acceptedStatuses?: readonly number[];
+        } = {},
+      ): Promise<{ status: number; payload: Record<string, unknown> }> {
+        if (url === resourceUrl) {
+          this.calls.push({ method, url, params: options.params ?? null, body: options.jsonBody ?? null });
+          if (this.variant === "console-no-logging") {
+            return {
+              status: 200,
+              payload: {
+                name: "projects/enterprise-secgw-01/locations/global/securityGateways/default",
+                displayName: "default",
+                createTime: "2026-08-24T00:00:01Z",
+                updateTime: "2026-08-24T00:00:05Z",
+                serviceDiscovery: {},
+                state: "RUNNING",
+                delegatingServiceAccount: "gateway@example.iam.gserviceaccount.com",
+              },
+            };
+          }
+          return {
+            status: 200,
+            payload: {
+              name: "projects/enterprise-secgw-01/locations/global/securityGateways/default",
+              displayName: "Default Security Gateway",
+              createTime: "2026-08-24T00:00:01Z",
+              state: "RUNNING",
+              delegatingServiceAccount: "gateway@example.iam.gserviceaccount.com",
+              hubs: {
+                "asia-northeast1": {
+                  internetGateway: { assignedIps: ["203.0.113.10"] },
+                },
+              },
+            },
+          };
+        }
+        return super.requestJson(method, url, options);
+      }
+    }
+
+    for (const variant of ["console-no-logging", "terraform-hubs-no-sd"] as const) {
+      const staleProofs = {
+        ...otherProofs,
+        [resourceKey]: {
+          marker: null,
+          providerIdentityField: "createTime",
+          providerIdentity: "2025-01-01T00:00:00Z",
+        },
+      };
+      const variantResult = await new GoogleDiscoveryProvider(
+        new ConsoleCreatedGatewayTransport(encodedSecret, variant),
+        {
+          cloudIdentity: "secure-gateway-deployer@enterprise-secgw-01.iam.gserviceaccount.com",
+          ownershipProofs: staleProofs,
+        },
+      ).preflight(spec);
+      const variantChange = buildPlan(spec, variantResult.snapshot).changes.find(
+        (change) =>
+          `${change.provider}:${change.resource_type}:${change.resource_name}` === resourceKey,
+      );
+      if (
+        variantResult.snapshot.conflicting_resource_keys?.includes(resourceKey) ||
+        variantChange?.action !== "reuse" ||
+        variantChange.owned_after_apply !== false
+      ) {
+        failures.push(
+          `shared gateway (${variant}): pre-existing default gateway conflicted instead of reusing`,
+        );
+      }
+    }
   }
 
   for (const mismatch of [
