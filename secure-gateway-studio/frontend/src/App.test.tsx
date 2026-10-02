@@ -423,7 +423,7 @@ describe("Secure Gateway Studio mode screen", () => {
       />,
     );
 
-    const button = screen.getByRole("button", { name: "事前確認（プリフライト）を実行" });
+    const button = screen.getByRole("button", { name: "事前確認を実行" });
     expect(button).toBeEnabled();
     fireEvent.click(button);
     expect(onPrepare).toHaveBeenCalledTimes(1);
@@ -1037,7 +1037,7 @@ describe("Secure Gateway Studio mode screen", () => {
     try {
       render(<Harness />);
       fireEvent.click(screen.getByRole("button", {
-        name: "サンプルVMのOSイメージを自動設定（Debian 12）",
+        name: "サンプルVMのOSイメージを自動設定 · Debian 12",
       }));
       await waitFor(() => {
         expect(screen.getByRole("textbox", { name: "サンプルVM用 OSイメージ" }))

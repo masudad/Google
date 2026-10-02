@@ -1075,12 +1075,12 @@ export interface CepDeployerMessages {
 function friendlyDiagnosticTarget(raw: string, locale: Locale): string {
   const known: Record<string, { en: string; ja: string }> = {
     "cloud-billing": {
-      en: "Cloud Billing API (cloudbilling.googleapis.com)",
-      ja: "Cloud Billing API (cloudbilling.googleapis.com)",
+      en: "Cloud Billing API",
+      ja: "Cloud Billing API",
     },
     "service-usage": {
-      en: "Service Usage API (serviceusage.googleapis.com)",
-      ja: "Service Usage API (serviceusage.googleapis.com)",
+      en: "Service Usage API",
+      ja: "Service Usage API",
     },
     "project-permissions": {
       en: "Google Cloud project IAM permissions",
@@ -1091,80 +1091,80 @@ function friendlyDiagnosticTarget(raw: string, locale: Locale): string {
       ja: "アップストリーム Google Cloud プロジェクト IAM 権限",
     },
     "target-ou-invalid": {
-      en: "Target organizational unit (OU)",
-      ja: "対象の組織部門（OU）",
+      en: "Target organizational unit",
+      ja: "対象の組織部門",
     },
     "chrome-policy": {
-      en: "Chrome Policy API (target OU)",
-      ja: "Chrome Policy API（対象OU）",
+      en: "Chrome Policy API",
+      ja: "Chrome Policy API",
     },
     "chrome-group-policy": {
-      en: "Chrome Policy API (group policies)",
-      ja: "Chrome Policy API（グループポリシー）",
+      en: "Chrome Group Policy API",
+      ja: "Chrome グループポリシー API",
     },
     "chrome-root-store": {
       en: "Chrome Root Store policy",
       ja: "Chrome Root Store ポリシー",
     },
     "secretmanager.googleapis.com": {
-      en: "Secret Manager API (secretmanager.googleapis.com)",
-      ja: "Secret Manager API (secretmanager.googleapis.com)",
+      en: "Secret Manager API",
+      ja: "Secret Manager API",
     },
     "compute.googleapis.com": {
-      en: "Compute Engine API (compute.googleapis.com)",
-      ja: "Compute Engine API (compute.googleapis.com)",
+      en: "Compute Engine API",
+      ja: "Compute Engine API",
     },
     "dns.googleapis.com": {
-      en: "Cloud DNS API (dns.googleapis.com)",
-      ja: "Cloud DNS API (dns.googleapis.com)",
+      en: "Cloud DNS API",
+      ja: "Cloud DNS API",
     },
     "beyondcorp.googleapis.com": {
-      en: "Cloud BeyondCorp API (beyondcorp.googleapis.com)",
-      ja: "Cloud BeyondCorp API (beyondcorp.googleapis.com)",
+      en: "Cloud BeyondCorp API",
+      ja: "Cloud BeyondCorp API",
     },
     "privateca.googleapis.com": {
-      en: "Certificate Authority Service API (privateca.googleapis.com)",
-      ja: "Certificate Authority Service API (privateca.googleapis.com)",
+      en: "Certificate Authority Service API",
+      ja: "Certificate Authority Service API",
     },
     "iam.googleapis.com": {
-      en: "Identity and Access Management API (iam.googleapis.com)",
-      ja: "Identity and Access Management API (iam.googleapis.com)",
+      en: "IAM API",
+      ja: "IAM API",
     },
   };
   if (known[raw]) return known[raw][locale];
   if (raw.startsWith("secretmanager:secret_iam:")) {
     const name = raw.slice("secretmanager:secret_iam:".length);
     return locale === "ja"
-      ? `Secret Manager IAM ポリシー (${name})`
-      : `Secret Manager IAM policy (${name})`;
+      ? `Secret Manager IAM ポリシー: ${name}`
+      : `Secret Manager IAM policy: ${name}`;
   }
   if (raw.startsWith("secretmanager:secret_version:")) {
     const name = raw.slice("secretmanager:secret_version:".length);
     return locale === "ja"
-      ? `Secret Manager シークレットバージョン (${name})`
-      : `Secret Manager secret version (${name})`;
+      ? `Secret Manager バージョン: ${name}`
+      : `Secret Manager secret version: ${name}`;
   }
   if (raw.startsWith("secretmanager:secret:")) {
     const name = raw.slice("secretmanager:secret:".length);
     return locale === "ja"
-      ? `Secret Manager シークレット (${name})`
-      : `Secret Manager secret (${name})`;
+      ? `Secret Manager シークレット: ${name}`
+      : `Secret Manager secret: ${name}`;
   }
   if (raw.startsWith("compute:")) {
     const name = raw.slice("compute:".length);
-    return locale === "ja" ? `Compute Engine リソース (${name})` : `Compute Engine resource (${name})`;
+    return locale === "ja" ? `Compute Engine リソース: ${name}` : `Compute Engine resource: ${name}`;
   }
   if (raw.startsWith("beyondcorp:")) {
     const name = raw.slice("beyondcorp:".length);
-    return locale === "ja" ? `Secure Gateway リソース (${name})` : `Secure Gateway resource (${name})`;
+    return locale === "ja" ? `Secure Gateway リソース: ${name}` : `Secure Gateway resource: ${name}`;
   }
   if (raw.startsWith("dns:")) {
     const name = raw.slice("dns:".length);
-    return locale === "ja" ? `Cloud DNS リソース (${name})` : `Cloud DNS resource (${name})`;
+    return locale === "ja" ? `Cloud DNS リソース: ${name}` : `Cloud DNS resource: ${name}`;
   }
   if (raw.startsWith("iam:")) {
     const name = raw.slice("iam:".length);
-    return locale === "ja" ? `IAM サービスアカウント (${name})` : `IAM service account (${name})`;
+    return locale === "ja" ? `IAM サービスアカウント: ${name}` : `IAM service account: ${name}`;
   }
   if (raw.startsWith("accesscontextmanager:")) {
     return locale === "ja"
@@ -1177,35 +1177,35 @@ function friendlyDiagnosticTarget(raw: string, locale: Locale): string {
 function formatDiagnosticMessage(locale: Locale, code: string, fallback: string): string {
   if (code === "legacy-pac-policy-detected") {
     return locale === "ja"
-      ? "親OUから継承した旧PACポリシーが、このテストOUでまだ有効です。"
-      : "A legacy PAC policy inherited from a parent OU is still active for this test OU.";
+      ? "親OUから継承した旧PACポリシーがこのテストOUで有効です。"
+      : "An inherited legacy PAC policy is active on this test OU.";
   }
   if (code === "chrome-extension-group-policy-conflict") {
     return locale === "ja"
-      ? "Chromeのグループポリシーが、対象OUのSecure Enterprise Browser設定を上書きしています。"
-      : "A Chrome group policy overrides the Secure Enterprise Browser configuration from the target OU.";
+      ? "Chromeのグループポリシーが対象OUのSecure Enterprise Browser設定を上書きしています。"
+      : "A Chrome group policy overrides the target OU's Secure Enterprise Browser setting.";
   }
   if (code === "invalid-chrome-managed-configuration") {
     return locale === "ja"
-      ? "対象OUの既存のChrome拡張機能ポリシー設定が有効なJSON形式ではありません。"
-      : "The existing Chrome extension configuration in the target OU is not valid JSON.";
+      ? "対象OUのChrome拡張機能設定が有効なJSON形式ではありません。"
+      : "The Chrome extension configuration in the target OU is not valid JSON.";
   }
   if (code === "billing-disabled") {
     return locale === "ja"
-      ? "対象Google Cloudプロジェクトに有効な請求先アカウント（Cloud Billing）が紐付いていません。"
+      ? "対象プロジェクトに有効なCloud Billing請求先アカウントが紐付いていません。"
       : "The deployment project has no active billing association.";
   }
   if (code === "workspace-oauth-required" && locale === "ja") {
-    return "Google Cloudの認証は有効ですが、借用サービスアカウントのChrome管理者ロールの確認が必要です。";
+    return "サービスアカウントのChrome管理者ロール確認が必要です。";
   }
   if (code === "chrome-enterprise-premium-license-not-detected" && locale === "ja") {
-    return "Enterprise License Manager APIでChrome Enterprise Premiumのユーザー割り当てが検出されませんでした。";
+    return "Chrome Enterprise Premiumのユーザー割り当てが検出されませんでした。";
   }
   if (code === "chrome-enterprise-premium-manual-confirmation" && locale === "ja") {
-    return "Enterprise License Manager API経由でChrome Enterprise Premiumの利用権を自動確認できませんでした。";
+    return "Chrome Enterprise Premiumの利用権をAPIで自動確認できませんでした。";
   }
   if (code === "managed-certificate-rotation-required" && locale === "ja") {
-    return "既存の管理対象TLS証明書がローテーション期間に入っています。";
+    return "管理対象TLS証明書がローテーション期間に入っています。";
   }
   if (code === "api-unavailable") {
     const plannedMatch = fallback.match(
@@ -1214,8 +1214,8 @@ function formatDiagnosticMessage(locale: Locale, code: string, fallback: string)
     if (plannedMatch?.[1]) {
       const target = friendlyDiagnosticTarget(plannedMatch[1], locale);
       return locale === "ja"
-        ? `${target} は対象プロジェクトでまだ有効化されていません（Apply実行時に自動で有効化されます）。`
-        : `${target} is not enabled yet in the target project (will be enabled automatically during Apply).`;
+        ? `${target} は未有効です。Apply実行時に自動で有効化されます。`
+        : `${target} is not enabled yet and will be enabled automatically during Apply.`;
     }
     const inspectMatch = fallback.match(/^([^ ]+) could not be inspected: ([\s\S]+)$/);
     if (inspectMatch?.[1] && inspectMatch[2]) {
@@ -1226,13 +1226,13 @@ function formatDiagnosticMessage(locale: Locale, code: string, fallback: string)
         /API has not been used in project [^\s]+ before or it is disabled/i.test(detail)
       ) {
         return locale === "ja"
-          ? `${target} がこのプロジェクトで無効化されているか、まだ使用されていません。`
-          : `${target} is disabled or has not been used in this project yet.`;
+          ? `${target} がこのプロジェクトで無効化されています。`
+          : `${target} is disabled in this project.`;
       }
       if (detail.includes("Chrome managed configuration is not valid JSON")) {
         return locale === "ja"
-          ? "対象OUの既存のChrome拡張機能ポリシー設定が有効なJSON形式ではありません。"
-          : "The existing Chrome extension configuration in the target OU is not valid JSON.";
+          ? "対象OUのChrome拡張機能設定が有効なJSON形式ではありません。"
+          : "The Chrome extension configuration in the target OU is not valid JSON.";
       }
       return locale === "ja"
         ? `${target} の状態を確認できませんでした。`
@@ -1249,50 +1249,50 @@ function formatDiagnosticRemediation(
 ): string {
   if (code === "legacy-pac-policy-detected") {
     return locale === "ja"
-      ? "PACに定義されていないホスト名はDIRECT（直接接続）となり、通常DNSで名前解決できずに ERR_NAME_NOT_RESOLVED が発生します。Applyでは選択したテストOUだけを上書きし、親OUと既存PACファイルは変更しません。"
-      : "A hostname omitted from the PAC falls through to DIRECT, where private DNS commonly returns ERR_NAME_NOT_RESOLVED. Apply will override only the selected test OU; the parent OU and existing PAC file are not changed.";
+      ? "Applyでは選択したテストOUだけを上書きし、親OUと既存PACは変更しません。"
+      : "Apply overrides only the selected test OU; the parent OU and existing PAC file are unchanged.";
   }
   if (code === "chrome-extension-group-policy-conflict") {
     return locale === "ja"
-      ? "表示されたグループの［アプリと拡張機能］を確認し、空または不整合な管理対象設定を削除するか、テストOUと同じSecure Gateway設定にします。グループ変更は全メンバーへ影響するため、自動適用せずブロックします。"
-      : "Review the named group in Apps & extensions. Remove its empty or incompatible managed configuration, or set it to the same Secure Gateway configuration as the test OU. This is blocked because changing a group affects every member.";
+      ? "該当グループの［アプリと拡張機能］で不整合な設定を削除するか、テストOUと同じ設定に揃えてください。"
+      : "Remove the conflicting group extension config or match it to the test OU.";
   }
   if (code === "invalid-chrome-managed-configuration") {
     return locale === "ja"
-      ? "Apply実行時に、対象OUの拡張機能設定を承認済みのSecure Gateway用JSON構成で上書きします。"
-      : "Apply will replace the target OU's extension configuration with the approved Secure Gateway JSON payload.";
+      ? "Apply実行時に、対象OUの拡張機能設定を承認済みJSON構成で上書きします。"
+      : "Apply will replace the target OU's extension config with the approved JSON payload.";
   }
   if (code === "billing-disabled" && locale === "ja") {
-    return "Applyを実行する前に、対象プロジェクトへ有効な請求先アカウントをリンクしてください。";
+    return "Apply前にプロジェクトへ有効な請求先アカウントをリンクしてください。";
   }
   if (code === "workspace-oauth-required" && locale === "ja") {
-    return "テストOUに対するChrome管理者ロールをサービスアカウントへ付与し、Apply前にChrome Policy APIアクセスを確認してください。";
+    return "テストOUに対するChrome管理者ロールを付与し、Chrome Policy APIアクセスを確認してください。";
   }
   if (code === "chrome-enterprise-premium-license-not-detected" && locale === "ja") {
-    return "対象ユーザーにChrome Enterprise Premium（SKU 1010400001）を割り当てるか、Google管理コンソールでドメイン全体の利用権を確認してください。";
+    return "対象ユーザーへのCEPライセンス割り当てまたはドメイン全体の利用権を確認してください。";
   }
   if (code === "chrome-enterprise-premium-manual-confirmation" && locale === "ja") {
-    return "Google管理コンソールで対象ユーザーのライセンスまたはドメイン全体の利用権を確認してください。";
+    return "管理コンソールで対象ユーザーのライセンスまたはドメイン全体の利用権を確認してください。";
   }
   if (code === "managed-certificate-rotation-required" && locale === "ja") {
-    return "計画された証明書発行およびSecret Managerのローテーションを承認してください。";
+    return "証明書発行とSecret Managerのローテーションを承認してください。";
   }
   if (code === "api-unavailable" && locale === "ja") {
     const raw = fallback ?? "";
     const urlMatch = raw.match(/https:\/\/console\.developers\.google\.com\/apis\/api\/[^\s,)]+/i);
     if (raw.includes("serviceusage:project_services:required-apis")) {
       return urlMatch
-        ? `Applyの最初のステップ（serviceusage:project_services:required-apis）で自動的に有効化されます。事前確認（Preflight）の段階で既存リソースを検査したい場合は、${urlMatch[0]} でAPIを有効化してから再実行してください。`
-        : "Applyの最初のステップ（serviceusage:project_services:required-apis）で自動的に有効化されます。";
+        ? `Applyの最初のステップで自動有効化されます。事前確認で検査する場合は ${urlMatch[0]} で有効化してください。`
+        : "Applyの最初のステップで自動的に有効化されます。";
     }
     if (urlMatch) {
-      return `${urlMatch[0]} にアクセスしてAPIを有効化し、数分待ってから事前確認（Preflight）を再実行してください。`;
+      return `${urlMatch[0]} でAPIを有効化してから事前確認を再実行してください。`;
     }
     if (raw.includes("Chrome Policy API")) {
-      return "Chrome Policy APIが有効であり、ログイン中のWorkspace管理者が選択した組織部門（OU）とグループの読み取り権限を持っていることを確認してください。";
+      return "Chrome Policy APIの有効化と、管理者の対象OU・グループ読み取り権限を確認してください。";
     }
     if (raw === "Confirm the API is enabled and the deployer has read access.") {
-      return "対象のAPIが有効であり、デプロイヤー（サービスアカウント）に読み取り権限があることを確認してください。";
+      return "対象APIの有効化とデプロイヤーSAの読み取り権限を確認してください。";
     }
   }
   return fallback ?? "";
@@ -1308,7 +1308,7 @@ const en: Messages = {
   adminEmail: "Not connected",
   help: "Help",
   signOut: "Sign Out / Reset",
-  signOutConfirm: "Are you sure you want to sign out and reset the session? This will clear local authentication tokens and unblock the consent screen for a new session.",
+  signOutConfirm: "Sign out and clear local session tokens?",
   nav: {
     deployments: "Deployments",
     newSetup: "New setup",
@@ -1325,32 +1325,32 @@ const en: Messages = {
   modeTitle: "1. Start a Secure Gateway PoC",
   poc: "PoC",
   pocDescription:
-    "Build a test-OU deployment quickly with disposable resources and explicit safety gates. A local CA can be uploaded to managed Chrome through the Admin console.",
+    "Deploy to a test OU with safety gates and clean teardown.",
   production: "Production",
   productionDescription:
-    "Enterprise PKI, regional high availability, dedicated product-scoped service identities (outside the scope of this PoC tool).",
+    "Enterprise PKI and multi-zone HA (outside PoC scope).",
   productionUnavailable: "TBD",
   platformsTitle: "Managed Chrome platforms",
   managedChromeOnly: "",
   platformNote:
-    "Select platforms to include in acceptance testing (multiple selection allowed).",
+    "Select platforms for acceptance testing.",
   infrastructureTitle: "2. Infrastructure strategy",
   dedicatedNetwork: "Dedicated network",
   recommended: "Standard",
-  dedicatedDescription: "Create a new VPC dedicated to Secure Gateway services.",
+  dedicatedDescription: "Create a dedicated VPC for Secure Gateway.",
   existingVpc: "Existing VPC",
-  existingDescription: "Deploy into an existing VPC that you manage.",
+  existingDescription: "Deploy into an existing VPC.",
   certificateTitle: "3. Certificate strategy",
   enterpriseCa: "Enterprise PKI / CA Service",
-  enterpriseCaDescription: "Use organization CA or Cloud CA Service for internal TLS certificates.",
+  enterpriseCaDescription: "Issue internal TLS certificates via Cloud CA Service.",
   publicCertificate: "Publicly trusted certificate",
   publicCertificateDescription:
-    "Requires a registrable public DNS hostname and an exact Secret Manager certificate bundle. The hostname and certificate chain are validated using the VM's system public trust roots; private CA, self-signed, or internal-name certificates fail.",
+    "Use a public DNS hostname and a validated Secret Manager certificate bundle.",
   localPocCa: "Local PoC CA",
   disabledProduction: "disabled in Production",
   localPocAdminConsole: "Admin console upload required",
   localPocCaDescription:
-    "Generate a private root and leaf certificate, download the public root after Apply, then upload it for the test OU in the Google Admin console.",
+    "Generate a PoC root CA and upload the public PEM to Chrome Root Store for the test OU.",
   posture: "Deployment posture",
   mode: "Mode",
   managedPlatforms: "Managed Chrome platforms",
@@ -1370,17 +1370,17 @@ const en: Messages = {
   approval: "Approval",
   required: "Required",
   willValidate: "Will validate",
-  gateNote: "All gates must pass before deployment can be applied.",
+  gateNote: "All gates must pass before Apply.",
   back: "Back",
   continue: "Continue to identities",
-  noChanges: "No changes have been applied",
-  draftSaved: "Draft saved locally",
+  noChanges: "No changes applied",
+  draftSaved: "Draft saved",
   lastSaved: "Last saved",
   justNow: "just now",
   languages: { english: "English", japanese: "日本語" },
   topbarAuth: {
     cloudPopoverTitle: "Google Cloud Configuration",
-    cloudPopoverDesc: "Shared across Easy PoC (CAA / VPC-SC) and Secure Gateway Deployer.",
+    cloudPopoverDesc: "Shared across Easy PoC and Secure Gateway Deployer.",
     cloudProjectIdLabel: "Google Cloud Project ID",
     cloudProjectIdPlaceholder: "e.g. enterprise-secgw-01",
     cloudOperatorLabel: "Active Credential",
@@ -1388,27 +1388,27 @@ const en: Messages = {
     cloudVerifyingBtn: "Verifying…",
     cloudBootstrapBtn: "Create & Connect SGW Deployer SA",
     cloudBootstrappingBtn: "Preparing Deployer SA…",
-    cloudSharedNote: "Easy PoC uses your signed-in OAuth session with this Project ID. Secure Gateway Deployer uses the dedicated keyless deployer SA.",
+    cloudSharedNote: "Shared across Easy PoC and Secure Gateway Deployer.",
     workspacePopoverTitle: "Google Workspace Authentication",
-    workspacePopoverDesc: "Sign in once to share your Workspace administrator session, Customer ID, OUs, and Groups across Easy PoC and Secure Gateway Deployer.",
-    workspaceSignInBtn: "Sign in with Google (Auto-Detect)",
-    workspaceSigningInBtn: "Signing in & detecting…",
+    workspacePopoverDesc: "Sign in once to share Customer ID, OUs, and Groups across both tools.",
+    workspaceSignInBtn: "Sign in with Google",
+    workspaceSigningInBtn: "Signing in…",
     workspaceReverifyBtn: "Re-verify Workspace Connection",
-    workspaceCustomerIdLabel: "Customer ID (C...)",
+    workspaceCustomerIdLabel: "Customer ID",
     workspaceAdminLabel: "Signed-in Administrator",
-    workspaceSharedNote: "Organizational Units (OUs) and Groups are loaded automatically when needed.",
-    sharedHeaderConnectedBanner: "Connected via top-right header — shared across Easy PoC and SGW Deployer.",
+    workspaceSharedNote: "OUs and Groups load automatically.",
+    sharedHeaderConnectedBanner: "Connected via top-right header.",
   },
   workflow: {
     identitiesTitle: "Connect administrator identities",
     identitiesIntro:
-      "Use keyless service-account impersonation for Google Cloud mutations. The extension uses administrator OAuth sessions; static service-account JSON keys are never accepted or stored.",
+      "Connect Google Cloud via keyless service-account impersonation and Google Workspace via OAuth.",
     cloudAccount: "Google Cloud deployer",
     cloudAccountDescription:
-      "Used for discovery, planning, and applying approved GCP changes.",
+      "Discovers, plans, and applies approved GCP changes.",
     workspaceAccount: "Workspace and Chrome administrator",
     workspaceAccountDescription:
-      "The extension uses your signed-in Google administrator OAuth session to interact with Chrome Policy, Directory (OUs & groups), and License Manager APIs.",
+      "Reads OUs/Groups and manages Chrome policies and CEP licenses.",
     projectId: "Google Cloud project ID",
     operatorIdentity: "Validated credential",
     adminIdentity: "Validated administrator credential",
@@ -1420,58 +1420,58 @@ const en: Messages = {
     adcUnavailable:
       "Keyless Application Default Credentials are unavailable. Run “gcloud auth application-default login --impersonate-service-account=SERVICE_ACCOUNT_EMAIL”, then retry.",
     cloudValidationFailed:
-      "Google Cloud validation failed. Verify the project ID and read permissions.",
+      "Google Cloud validation failed. Check the project ID and permissions.",
     workspaceValidationFailed:
-      "Workspace validation failed. Verify the customer ID and Chrome Policy administrator permissions.",
+      "Workspace validation failed. Check the customer ID and admin roles.",
     workspaceRequiredRolesHint:
-      "Assign only the needed Chrome Policy, OU, group/user read, and License Management privileges. License Manager is required even for the CEP licence preflight because that API has no read-only scope. Listing or creating Chrome DLP rules through the Cloud Identity Policy API requires a Super Administrator; use a dedicated test administrator and pilot OU.",
-    cloudRequiredRolesTitle: "Minimum Google Cloud Roles Required:",
+      "Requires Chrome Policy, OU/Group read, and License Management privileges. Cloud Identity DLP rules require a Super Admin account.",
+    cloudRequiredRolesTitle: "Minimum Google Cloud Roles:",
     cloudRequiredRoles: [
       "Service Account Admin (roles/iam.serviceAccountAdmin)",
       "Role Admin (roles/iam.roleAdmin)",
       "Project IAM Admin (roles/resourcemanager.projectIamAdmin)",
-      "Policy Editor on target Access Context Manager policy (or Security Admin / Owner)",
+      "Access Context Manager Policy Editor",
     ],
     workspaceRequiredRolesTitle: "Required Workspace Privileges:",
     workspaceRequiredRoles: [
-      "Chrome Policy & OU Read (policy distribution & OU inspection)",
-      "Group & User Read (target scope inspection)",
-      "License Management (CEP license inspection & assignment)",
-      "Super Admin (Cloud Identity DLP rules) *dedicated test admin account required/scoped",
+      "Chrome Policy & OU Read/Write",
+      "Group & User Read",
+      "License Management",
+      "Super Admin (for Cloud Identity DLP rules)",
     ],
-    specInvalid: "The deployment specification contains invalid or missing fields.",
+    specInvalid: "Invalid or missing deployment fields.",
     connectionNotice:
-      "Connection validation is read-only. Apply permissions are checked separately during preflight.",
+      "Connection validation is read-only.",
     bootstrapDeployer: "Create deployer and product-scoped role",
     bootstrapDeployerHint:
-      "Automatically configures the deployer service account and scoped custom role in your project.",
+      "Creates the keyless deployer service account and custom role.",
     bootstrapConfirm:
-      "Create or update the deployer service account, custom role, project bindings, Access Policy Editor binding, and your Token Creator binding?",
+      "Create or update the deployer service account, custom role, and IAM bindings?",
     bootstrapLegacyMigrationConfirm:
-      "A deployer candidate using Secure Gateway Studio 0.2.0-compatible reserved names was found without an immutable ownership pin. If no local record exists, also require that it has no user-managed keys; then audit its numeric service-account identity, exact custom role, and service-account/project IAM allowlists before adopting it. Migration stops without changes if anything differs.",
+      "A legacy 0.2.0 deployer was found without an immutable ownership pin. Audit its numeric identity, custom role, and IAM bindings before adopting it?",
     bootstrapReplacementConfirm:
-      "The legacy deployer failed the exact migration audit and was not changed. Create a new isolated Secure Gateway Studio deployer and role under fresh reserved names, leaving the legacy identity untouched for separate review?",
+      "The legacy deployer did not match the audit and was left untouched. Create an isolated replacement deployer and role under fresh reserved names?",
     bootstrapDeletedDeployerConfirm:
-      "The immutable deployer pinned to this browser no longer exists. Confirm that its Cloud resources were deliberately deleted. The extension will verify that the exact service account is absent, the custom role is absent or in Google's deleted state with the exact SGS definition, and project IAM and Access Policy IAM contain no residual binding. It will then permanently retire the old numeric identity, safely restore the soft-deleted role when required, and create a new deployer. Continue?",
+      "The pinned deployer no longer exists. The extension will verify that project IAM and Access Policy IAM contain no residual binding, retire the old numeric identity, safely restore the soft-deleted role when required, and create a new deployer. Continue?",
     bootstrapWorking: "Creating deployer…",
     bootstrapValidating: "Waiting for IAM permissions…",
     bootstrapComplete: "Deployer service account ready",
     bootstrapNext:
-      "The deployer service account, all-supported-path project role, and Access Policy Editor binding were configured in Google Cloud. Subsequent calls use the active keyless authentication path.",
+      "Deployer service account and bindings are ready.",
     bootstrapFailed: "Automatic deployer setup failed",
     signInGoogle: "Sign in with Google",
     signingInGoogle: "Waiting for Google…",
     signInGoogleHint:
-      "Opens Google's consent window. Required once per Chrome profile before the deployer can be set up.",
+      "Required once per Chrome profile before setting up the deployer.",
     signInRequired:
-      "This Chrome profile has not authorized Secure Gateway Studio yet. Sign in with Google to grant access, then retry.",
+      "Sign in with Google first, then retry.",
     signInOperatorChanged:
-      "The signed-in Google account differs from the operator this deployer is bound to. Sign in with the original account, or create a replacement deployer.",
-    cloudStep1Label: "Step 1: Authenticate browser OAuth session",
-    cloudStep2Label: "Step 2: Bootstrap dedicated keyless deployer SA & role",
-    cloudStep3Label: "Step 3: Validate read-only project connection",
+      "The signed-in account differs from the bound operator. Sign in with the original account or create a replacement deployer.",
+    cloudStep1Label: "Step 1: Sign in with Google",
+    cloudStep2Label: "Step 2: Create & connect keyless deployer SA",
+    cloudStep3Label: "Step 3: Validate project connection",
     customerIdAutoHint:
-      "Leave as my_customer to automatically detect and fill your Customer ID (C...) when validating.",
+      "Leave as my_customer to auto-detect your Customer ID.",
     resolveSampleImageQuick: "Auto-fill Debian 12 PoC image",
     progressTitle: "Deployment progress",
     progressCount: (completed: number, total: number) =>
@@ -1481,75 +1481,75 @@ const en: Messages = {
     failedOperations: "Failed operations",
     manualCleanupTitle: "Manual cleanup required",
     manualCleanupDescription:
-      "Automated rollback is permanently unavailable. Review and remove every residual resource below in Google Cloud before resetting local extension state.",
+      "Automated rollback is unavailable. Remove the residual resources below in Google Cloud before resetting.",
     waitingForOperation: "Waiting for the first operation…",
     environmentTitle: "Configure the private environment",
     environmentIntro:
-      "Define the desired state. Existing resources are discovered before any mutation.",
+      "Select the deployment architecture and network parameters.",
     deploymentName: "Deployment name",
     region: "Region",
     zone: "Zone",
     secondaryZone: "Secondary zone (Production HA)",
     sourceImage: "Immutable VM image",
     sourceImageHint:
-      "Every VM-backed path requires a full, versioned Compute image resource name. Image families are rejected; Production images must have Python 3 and Nginx preinstalled.",
+      "Full versioned Compute image resource path.",
     sourceImageAutoHint:
-      "For a PoC sample VM, trusted preflight resolves Google Debian 12 to its exact immutable image and verifies the numeric image ID before filling this field. Enter another full image resource name to override it.",
-    sampleImageResolving: "Resolving immutable PoC image…",
+      "Preflight auto-fills the verified Debian 12 image for PoC sample VMs.",
+    sampleImageResolving: "Resolving PoC image…",
     sampleImageResolveFailed:
-      "Could not resolve the immutable Google Debian 12 image for the PoC sample VM.",
+      "Could not resolve the Debian 12 PoC image.",
     sampleImageConnectionRequired:
-      "Validate the Google Cloud connection before configuring the PoC sample VM image.",
+      "Validate Google Cloud connection first.",
     sampleImageResolved: "Immutable PoC image configured",
     minimumReplicas: "Minimum Nginx replicas",
     maximumReplicas: "Maximum Nginx replicas",
     cpuTarget: "Autoscaling CPU target (0.1–0.9)",
     autoscalingHint:
-      "Production uses a two-zone regional managed instance group. CPU autoscaling is used because passthrough load-balancer utilization is not an autoscaling signal.",
+      "Two-zone regional MIG with CPU autoscaling.",
     network: "Deployment architecture",
     vpcName: "Existing VPC name",
     vpcSameProjectHint:
-      "VPCs are loaded read-only from the deployment project. Enter an upstream project only for Shared VPC or another cross-project network.",
-    vpcOptionsFailed: "Could not load VPCs from the deployment project.",
+      "Loaded from the deployment project. Set Upstream project ID only for Shared VPC.",
+    vpcOptionsFailed: "Could not load VPCs.",
     subnetName: "Existing subnet name",
     upstreamVpcProjectId: "Upstream VPC project ID (optional)",
     upstreamVpcProjectIdHint:
-      "Leave empty when the VPC is in the deployment project. For a Shared VPC or other cross-project VPC, enter the project that owns the selected network; discovery and upstreamAccess IAM target that exact project.",
+      "Leave empty unless using a Shared or cross-project VPC.",
     upstreamVpcCrossProjectPrerequisite:
-      "Cross-project prerequisite: before validation or preflight, an administrator of the upstream project must manually create and grant the deployment-project deployer a project-level custom role containing exactly compute.networks.get, compute.networks.use, resourcemanager.projects.get, resourcemanager.projects.getIamPolicy, and resourcemanager.projects.setIamPolicy. Bootstrap configures only the deployment project; it does not create or grant this cross-project role. A project custom role created in the deployment project cannot be granted in the upstream project.",
+      "Cross-project prerequisite: before validation or preflight, grant compute.networks.get, compute.networks.use, resourcemanager.projects.get, resourcemanager.projects.getIamPolicy, and resourcemanager.projects.setIamPolicy in the upstream project. Bootstrap configures only the deployment project. A project custom role created in the deployment project cannot be granted in the upstream project.",
     managedSample: "Managed sample backend (Nginx)",
     managedSampleDescription:
-      "Create a private HTTP backend for validation and evidence collection.",
+      "Create a private HTTP sample backend VM.",
     existingBackend: "Existing HTTP backend (Nginx)",
     existingBackendDescription:
-      "Route to an administrator-managed private HTTP endpoint over connectivity that already exists.",
+      "Route to an existing private HTTP endpoint.",
     directHttps: "Option A — Connect directly to an existing HTTPS app",
     directHttpsDescription:
-      "Connect Secure Gateway directly to an existing HTTPS endpoint through its VPC. No Nginx, VM, NAT, or offload certificate is created.",
+      "Route Secure Gateway directly to an existing HTTPS endpoint in your VPC.",
     internalHttpsLb:
       "Option B — HTTPS offload with Internal Application Load Balancer",
     internalHttpsLbDescription:
-      "Terminate HTTPS on a regional internal Application Load Balancer in a dedicated VPC, then forward HTTP to a private sample VM backend. Dedicated VPC, subnet, ILB, and sample VM are created automatically.",
+      "Terminate HTTPS on a regional Internal ALB and forward HTTP to a private sample VM.",
     configureSampleVm: "Create a private sample VM during approved Apply",
     configureSampleVmDescription:
-      "Selects the owned Option B PoC defaults. The VM is created only by the final approved Apply, is private-only, and is recorded for teardown.",
+      "Configures Option B defaults and creates the private sample VM during Apply.",
     directSampleVmAction: "Use Option B's private sample VM",
     directSampleVmDescription:
-      "Option A requires an existing private HTTPS application; it does not create a VM. If no HTTPS test target exists, switch to Option B and create its private sample VM during approved Apply.",
+      "Option A requires an existing private HTTPS application. Switch to Option B to create a private sample VM during approved Apply.",
     managedSampleVmAction: "Create the private sample VM during Apply",
     managedSampleVmDescription:
-      "Managed Sample creates a private HTTP backend VM together with the Option C Nginx tier during the final approved Apply.",
+      "Creates a private HTTP sample VM and Option C Nginx tier during Apply.",
     existingSampleVmDescription:
-      "Existing HTTP requires a reachable private HTTP backend. If none exists, switch to Managed Sample; the approved Apply creates the private backend VM.",
+      "Requires a reachable private HTTP backend, or switch to Managed Sample.",
     legacyNginxTitle: "Option C — Legacy Nginx method / advanced settings",
     legacyNginxDescription:
-      "Expand only when an HTTP application or the previous Nginx-based deployment is required.",
+      "Use only when an HTTP app or Nginx offload is required.",
     proxySubnetCidr: "ILB proxy-only subnet CIDR",
     backendUrl: "Backend URL (http://)",
     directHttpsUrl: "Private HTTPS endpoint (https://host[:port])",
     applicationEgressRegion: "Egress region (optional)",
     applicationEgressRegionHint:
-      "Specifies the Google Cloud region for Gateway VPC egress. Defaults to the deployment region; set the target app's region for cross-region backends, or leave empty if the VPC uses Global dynamic routing.",
+      "Defaults to the deployment region. Leave empty for Global dynamic routing.",
     backendLocation: "Backend hosting location",
     backendLocationGcp: "Google Cloud",
     backendLocationAws: "AWS",
@@ -1558,68 +1558,68 @@ const en: Messages = {
     confirmBackendConnectivity:
       "I confirm private routing, DNS, and backend firewall access already exist from the selected GCP VPC/subnet",
     backendConnectivityHint:
-      "This PoC configures Nginx and verifies connectivity to the upstream backend. It does not create AWS/Azure VPNs, Cloud VPN, Interconnect, or on-premises routing. Establish that private path first; do not enter public endpoints or credentials here.",
-    cloudConsoleLinks: "Google Cloud & Workspace Console Deep-Links",
+      "This PoC configures Nginx and verifies upstream connectivity; it does not create AWS/Azure VPNs, Cloud VPN, or Interconnect.",
+    cloudConsoleLinks: "Google Cloud & Workspace Console Links",
     openInCloudConsole: "Open in Cloud Console",
     computeInstancesLink: "Compute Engine VM Instances",
     computeResourcesHint:
-      "Run-scoped Nginx and/or sample-backend VM resources; use the run inventory for exact names and private addresses.",
+      "Run-scoped Nginx and/or sample-backend VM resources.",
     securityGatewaysLink: "BeyondCorp Security Gateways",
     securityGatewayHint:
-      "Use the run inventory for the exact gateway resource name and live state.",
+      "Check the run inventory for exact gateway names.",
     vpcNetworksLink: "VPC Networks & Firewalls",
     cloudNatLink: "Cloud NAT",
     cloudNatHint:
       "Created for a dedicated-VPC path with private VMs; an existing VPC must provide verified private egress.",
     chromeAdminLink: "Chrome Admin Policies",
-    architectureBlueprint: "Architecture Blueprint & Telemetry",
+    architectureBlueprint: "Architecture Blueprint",
     directHttpsConnectivity:
       "I confirm the selected VPC resolves this hostname, routes to the HTTPS app, allows TCP from 136.124.16.0/20, and has a return path",
     directHttpsConnectivityHint:
-      "Secure Gateway connects directly to the HTTPS app. For AWS, Azure, or on-premises, first configure Cloud VPN/Interconnect, Cloud DNS forwarding, firewall rules, and an explicit return route for 136.124.16.0/20.",
+      "For AWS, Azure, or on-premises, configure VPN/Interconnect, DNS forwarding, firewall rules, and return routing for 136.124.16.0/20 first.",
     hostname: "Private application hostname",
     noExternalIpNotice:
-      "Any VM created by this workflow has external IPs disabled. A dedicated-VPC path with private VMs creates Cloud NAT; an existing VPC must provide verified private egress. The internal-HTTPS-LB path has no Nginx tier but does create its private sample-backend VM.",
+      "Created VMs have no external IPs. A dedicated-VPC path with private VMs creates Cloud NAT; an existing VPC must provide verified private egress. The internal-HTTPS-LB path has no Nginx tier but does create its private sample-backend VM.",
     certificateStepTitle: "Configure TLS certificate source",
     certificateIntro:
-      "The offload VM reads certificate material at runtime from Secret Manager; private keys are never written into startup scripts.",
+      "Certificates are read at runtime from Secret Manager.",
     internalLbCertificateIntro:
-      "The regional internal Application Load Balancer terminates HTTPS with a regional server certificate. Certificate material moves directly from memory to the Compute API and remains in Secret Manager for controlled lifecycle management.",
+      "The regional Internal ALB terminates HTTPS using a certificate stored in Secret Manager.",
     caPool: "CA pool resource",
     caName: "Issuing CA resource",
     secretName: "Secret Manager certificate secret",
     certificateNotice:
-      "Local CA is PoC-only. After Apply, download the public PEM root, add it at Chrome > Connectors > Chrome Root Store, and connect that configuration to the dedicated test OU. Public APIs cannot reliably inspect or perform this handoff; verify trust with browser HTTPS testing. Production still requires enterprise-pretrusted PKI or a publicly trusted certificate.",
+      "After Apply, download the public root PEM and add it at Chrome > Connectors > Chrome Root Store for the test OU.",
     internalLbCertificateNotice:
-      "For a local CA, the ILB presents the generated server certificate. After Apply, distribute only its public PEM root through Chrome Root Store to the test OU, restart Chrome, and verify HTTPS connectivity. The private key is never distributed to Chrome.",
+      "After Apply, upload the public root PEM to Chrome Root Store for the test OU and restart Chrome.",
     directCertificateIntro:
-      "The HTTPS application owns TLS termination. Secure Gateway does not create or store its certificate or private key.",
+      "The HTTPS application terminates TLS directly.",
     directCertificateNotice:
-      "For a publicly trusted app certificate, no Root Store action is needed. For a private CA, obtain the issuing root PEM from the application owner and add it manually at Chrome > Connectors > Chrome Root Store for the test OU; this configuration cannot be read or written reliably through the public API.",
+      "Publicly trusted certs need no Root Store setup. For a private CA, add its root PEM at Chrome > Connectors > Chrome Root Store for the test OU.",
     directPrivateCertificate: "Private app CA / manual Chrome Root Store trust",
     accessTitle: "Limit Chrome policy and application access",
     accessIntro:
-      "Start with the dedicated test OU and the smallest possible principal set.",
+      "Select the dedicated test OU and authorized principals.",
     customerId: "Workspace customer ID",
     targetOuId: "Dedicated test OU ID",
     managedChromeAccessLevel: "Managed Chrome access level",
     managedChromeAccessLevelHint:
-      "Select None or an existing full Access Context Manager resource name. This setup never creates an access level; create and review it separately before Apply.",
+      "Select None or an existing Access Context Manager resource name.",
     managedChromeAccessLevelNone: "None — do not require an access level",
     managedChromeAccessLevelNoneHint:
-      "No Access Context Manager condition is added. Access is still limited to the selected IAM principals.",
+      "Access is restricted to the selected IAM principals without a device condition.",
     optionsLoadedHint:
-      "Options are loaded read-only with the active authenticated identities: the product-scoped deployer for Google Cloud and the validated Workspace administrator for Directory data.",
+      "Options are loaded read-only using your authenticated Cloud and Workspace identities.",
     optionsLoading: "Loading options…",
     chooseOption: "Select an option",
     noOptions: "No options available",
     retryOptions: "Retry",
     ouOptionsFailed:
-      "Organizational units could not be loaded. Enable Admin SDK API and grant the validated Workspace administrator Organizational Units read access.",
+      "Could not load OUs. Check Admin SDK API and OU read permissions.",
     accessLevelOptionsFailed:
-      "Access levels could not be loaded. Grant the service account Policy Editor on the intended Access Context Manager policy; this also permits CEP AUTO_CREATE access-level lifecycle operations.",
+      "Could not load access levels. Check Access Context Manager Policy Editor permissions.",
     groupOptionsFailed:
-      "Groups could not be loaded. Add Groups read permission to the validated Workspace administrator role.",
+      "Could not load groups. Check Groups read permissions.",
     prerequisitesTitle: "Manual prerequisite confirmation",
     confirmEnterpriseLicense:
       "Chrome Enterprise Premium licenses are assigned to the target users",
@@ -1636,12 +1636,12 @@ const en: Messages = {
     group: "Group",
     domain: "Domain",
     accessNotice:
-      "The app conditionally grants application access through the verified managed-Chrome access level, and force-installs Secure Gateway plus Endpoint Verification in this OU; Chrome policy inheritance can also affect descendant OUs.",
+      "Force-installs Secure Gateway and Endpoint Verification on the selected OU and its descendants.",
     accessOuVsPrincipalNotice:
-      "Scope distinction: The Dedicated test OU determines which Chrome browsers receive the Secure Gateway and Endpoint Verification policies. Principals below determine which users or groups are granted IAM access through the gateway.",
+      "Test OU receives the Chrome browser policies; Principals below receive IAM access through the gateway.",
     reviewTitle: "Review detected state and automatic changes",
     reviewIntro:
-      "Compare what the APIs verified, what Apply will configure, and what still needs attention. This screen makes no changes.",
+      "Run preflight to inspect existing resources and approve the change plan.",
     configuration: "Configuration",
     safetyGates: "Safety gates",
     ready: "Ready",
@@ -1652,7 +1652,7 @@ const en: Messages = {
     actionRequired: "Action required",
     approvalPending: "Awaiting approval",
     reviewGateLegend:
-      "Ready = resolved by API discovery, administrator confirmation, or a configuration invariant. Automatic on Apply = created or updated after approval. Manual check = not reliably detectable by the available API. Action required = blocks Apply.",
+      "Ready = verified · Automatic on Apply = provisioned on Apply · Manual check = verify in console · Action required = blocks Apply.",
     gateLabels: {
       "immutable-image": "Immutable VM image",
       "billing-enabled": "Cloud Billing",
@@ -1674,56 +1674,56 @@ const en: Messages = {
       "human-approval": "Approval",
     },
     gateDescriptions: {
-      "immutable-image": "The exact Compute image resource and its immutable numeric identity are verified before any VM-backed path is approved or applied.",
-      "billing-enabled": "Cloud Billing API checks that the project has an active billing association.",
-      "enterprise-license": "Enterprise License Manager API checks assigned Chrome Enterprise Premium licenses; administrator confirmation remains a fallback.",
-      "chrome-root-store": "Chrome Root Store configuration, certificate upload, and OU binding are not reliably exposed by public APIs. Complete this one-time Admin console step after Apply, then verify trust with the managed Chrome HTTPS test.",
-      "workspace-services": "The target users' Workspace service settings require administrator confirmation.",
-      "managed-chrome-profile": "Chrome Management Profiles API checks actual profile and policy-sync reports for the selected OU.",
-      "secure-enterprise-browser-client": "Chrome Management Profiles API checks the installed and enabled client extension.",
-      "endpoint-verification": "Chrome Management Profiles API checks the actual client; Apply force-installs it when it has not reported yet.",
-      "no-external-ips": "Every VM or instance template created by Apply omits an external access configuration. Direct HTTPS creates no VM; the internal HTTPS load balancer creates a private sample-backend VM but no Nginx VM.",
-      "private-egress": "A dedicated-VPC path with private VMs creates Cloud NAT. An existing-VPC path with private VMs must expose a verified private egress path. Only direct HTTPS needs no package egress.",
-      "backend-connectivity": "The managed sample is created in the deployment VPC. For existing HTTP, the operator confirms private routing, DNS, and firewall access and verifies the path from Nginx to the upstream. Direct HTTPS uses the separately confirmed selected-VPC route; the internal HTTPS load balancer uses backend health. This PoC does not create cross-cloud VPN or Interconnect resources.",
-      "test-ou": "The selected OU was confirmed as a non-production test OU.",
-      "cloud-identity": "The Google Cloud deployer identity was validated read-only.",
-      "workspace-identity": "The Workspace and Chrome administrator identity was validated read-only.",
-      "required-apis": "Missing allowlisted APIs are enabled automatically during Apply.",
-      "apply-permissions": "The API checks whether the deployer has every permission required by the planned operations.",
-      "resource-conflicts": "Existing resources are checked for compatibility with the desired state.",
-      "human-approval": "An authorized operator approves the exact configuration hash before Apply.",
+      "immutable-image": "Verifies the exact Compute image resource and numeric ID.",
+      "billing-enabled": "Checks that the project has an active billing account.",
+      "enterprise-license": "Checks assigned Chrome Enterprise Premium licenses.",
+      "chrome-root-store": "Upload the root CA to Chrome Root Store for the test OU after Apply.",
+      "workspace-services": "Requires admin confirmation of Workspace service access.",
+      "managed-chrome-profile": "Checks active Chrome profiles in the selected OU.",
+      "secure-enterprise-browser-client": "Checks the Secure Enterprise Browser extension.",
+      "endpoint-verification": "Checks or force-installs Endpoint Verification on Apply.",
+      "no-external-ips": "Created VMs omit external IPs.",
+      "private-egress": "A dedicated-VPC path with private VMs creates Cloud NAT; an existing VPC must provide verified private egress.",
+      "backend-connectivity": "Verifies private routing to the target backend.",
+      "test-ou": "Confirms a non-production test OU is selected.",
+      "cloud-identity": "Google Cloud deployer validated.",
+      "workspace-identity": "Workspace administrator validated.",
+      "required-apis": "Enables missing required APIs during Apply.",
+      "apply-permissions": "Checks required deployer IAM permissions.",
+      "resource-conflicts": "Checks existing resources for conflicts.",
+      "human-approval": "Binds operator approval to the configuration hash.",
     },
     managedProfileEvidence: (total, profileOnly, sync) =>
-      `${total} reporting profile(s), including ${profileOnly} profile-managed BYOD profile(s). Latest policy sync: ${sync ?? "not reported"}.`,
+      `${total} profile(s) (${profileOnly} BYOD). Last sync: ${sync ?? "none"}.`,
     clientExtensionEvidence: (name, version, installed) =>
       installed
-        ? `${name} ${version ?? ""} is installed and enabled according to the Profiles API.`
-        : `${name} has not reported as installed and enabled yet.`,
+        ? `${name} ${version ?? ""} is installed and enabled.`
+        : `${name} is not reported yet.`,
     missingPermissions: (count: number) =>
-      `${count} required permissions are missing from the deployer.`,
+      `${count} required permissions are missing.`,
     approvePlan: "Approve this exact plan",
     approvePlanDescription:
-      "Approval is bound to the configuration hash and becomes invalid when settings change.",
+      "Bound to the configuration hash; invalidated if settings change.",
     generatePlan: "Run preflight and generate plan",
     runPreflight: "Run trusted preflight",
-    preparingPlan: "Discovering resources and generating an exact plan…",
-    planReady: "Server-attested plan is ready",
-    planBlocked: "The plan has blocking gates",
+    preparingPlan: "Discovering resources and generating plan…",
+    planReady: "Plan ready",
+    planBlocked: "Plan has blocking gates",
     changesCount: (count: number) =>
       count === 1
         ? "1 mutating operation requires approval"
         : `${count} mutating operations require approval`,
-    preflightProgressTitle: "Preflight Discovery Progress",
-    preflightStage1: "1/5: Verifying Service Usage & IAM permissions...",
-    preflightStage2: "2/5: Validating Cloud Billing & Project association...",
-    preflightStage3: "3/5: Discovering BeyondCorp Gateway & VPC network...",
-    preflightStage4: "4/5: Resolving Chrome Management & Test OU policies...",
-    preflightStage5: "5/5: Compiling change plan & evaluating safety gates...",
-    preflightStage5Detail: "Compiling desired-state diff & evaluating safety gates",
-    preflightComplete: "All preflight checks and safety gates verified",
+    preflightProgressTitle: "Preflight Progress",
+    preflightStage1: "1/5: Checking Service Usage & IAM...",
+    preflightStage2: "2/5: Checking Cloud Billing...",
+    preflightStage3: "3/5: Discovering Gateway & VPC...",
+    preflightStage4: "4/5: Checking Chrome & OU policies...",
+    preflightStage5: "5/5: Evaluating safety gates...",
+    preflightStage5Detail: "Building diff & evaluating safety gates",
+    preflightComplete: "Preflight complete",
     plannedChangesTitle: "Exact changes requiring approval",
     plannedChangesIntro:
-      "Only create and update operations are shown here. Reused and unchanged resources are not mutated.",
+      "Shows only create and update operations.",
     changeAction: (action) =>
       ({ create: "Create / override", update: "Update" })[action] ?? action,
     changeRisk: (risk) =>
@@ -1732,7 +1732,7 @@ const en: Messages = {
       ] ?? risk,
     changeSummary: (resourceType, fallback) =>
       resourceType === "service_discovery_proxy"
-        ? "Override the inherited legacy PAC in the test OU with Allow user to configure, enabling Service Discovery routing without a PAC file."
+        ? "Override inherited PAC in the test OU to enable Service Discovery routing."
         : fallback,
     diagnosticsTitle: "Detected conditions",
     apiEvidence: "API evidence",
@@ -1743,7 +1743,7 @@ const en: Messages = {
     continueToApply: "Continue to Apply",
     applyTitle: "Apply with checkpoints and evidence",
     applyIntro:
-      "Changes execute in dependency order. On failure, the run stops and offers rollback only for resources owned by this deployment.",
+      "Applies changes in dependency order and rolls back owned resources on failure.",
     preflight: "Preflight",
     desiredStatePlan: "Desired-state plan",
     applyChanges: "Apply approved changes",
@@ -1752,55 +1752,55 @@ const en: Messages = {
     runSucceeded: "Deployment succeeded",
     runRollingBack: "Rolling back applied changes…",
     runRollbackUnavailable:
-      "Apply failed and automated rollback was unavailable. Managed resources may remain in Google Cloud.",
+      "Apply failed and automated rollback was unavailable.",
     runRollbackFailed:
-      "Apply failed, and at least one owned change could not be rolled back. Review the failed operation and error below before changing Google Cloud manually.",
+      "Apply failed and at least one owned change could not be rolled back.",
     runRolledBack: "Deployment failed and owned changes were rolled back",
     runFinalized: "Run finished",
     noActiveOperation: "No operation is running",
     finalizedOperationCount: (count: number) =>
-      `Run finalized after ${count} recorded operations`,
+      `Run finalized (${count} operations)`,
     runInterrupted:
-      "The execution worker or local service stopped during Apply. Resume safely reconciles durable checkpoints with live resources before continuing.",
+      "Apply was interrupted. Resume reconciles checkpoints with live resources.",
     resumeRun: "Resume interrupted Apply",
     resumingRun: "Reconciling and resuming…",
     retryRollback: "Retry failed rollback",
-    retryingRollback: "Reconciling residual resources and retrying rollback…",
+    retryingRollback: "Retrying rollback…",
     runFailed: "Deployment requires operator attention",
     operationCount: (count: number) => `${count} operations recorded`,
     evidenceNotice:
-      "Every action records an audit event, redacted request metadata, result, and ownership for safe rollback.",
+      "All actions are recorded in the local audit chain.",
     caHandoffTitle: "Complete managed Chrome trust",
     caHandoffDescription:
-      "Chrome Root Store configuration, certificate upload, and OU binding cannot be reliably inspected or performed through public APIs. Complete this one-time Admin console handoff before end-to-end testing.",
+      "Upload the PoC Root CA to Google Admin Console before browser testing.",
     caHandoffSteps: [
-      "Download the public PoC root certificate below; it never contains the private key.",
-      "In Google Admin console, open All browsers and devices, then Chrome > Connectors > New provider configuration > Chrome Root Store. Add the PEM as a Root certificate and add the configuration.",
-      "Select the dedicated test OU. Under Certificate connectors > Chrome Root Store, select the new configuration and Save. Restart Chrome and verify it under chrome://certificate-manager > Local certificates.",
+      "Download the public PoC root certificate below.",
+      "In Google Admin Console > Chrome > Connectors > Chrome Root Store, add the PEM as a Root certificate.",
+      "Bind the configuration to the test OU, save, and restart Chrome.",
     ],
     downloadRootCa: "Download public root CA",
     downloadingRootCa: "Preparing download…",
     openAdminConsoleGuide: "Open Google's CA setup guide",
     caDownloadFailed:
-      "The root CA could not be downloaded. Confirm that Apply succeeded and retry.",
-    connectionHandoffTitle: "Connection verification & troubleshooting",
+      "Could not download root CA. Confirm Apply succeeded and retry.",
+    connectionHandoffTitle: "Connection verification",
     testUrlLabel: "Private Web App URL",
     sebTroubleshootingHint:
-      "If Chrome displays NXDOMAIN or fails to connect, the Secure Enterprise Browser (SEB) extension may be in its 2-hour backoff state after an initial sync race. Sign out of your managed Chrome profile and sign back in (or reload the SEB extension at chrome://extensions) to trigger an immediate route refresh.",
+      "If Chrome shows NXDOMAIN, reload the Secure Enterprise Browser extension at chrome://extensions or re-sign in to refresh routes.",
     previous: "Back",
     next: "Continue",
   },
   operations: {
     deploymentsTitle: "Deployment runs",
     deploymentsIntro:
-      "Review server-recorded Apply attempts and their terminal state.",
+      "Inspect recorded runs, logs, resources, and teardown.",
     evidenceTitle: "Audit evidence",
     evidenceIntro:
-      "Verify the local hash chain and export a portable JSON evidence bundle.",
-    loading: "Loading recorded state…",
-    loadFailed: "Recorded state could not be loaded from the execution API.",
-    noRuns: "No deployment runs have been recorded.",
-    noEvents: "No audit events have been recorded.",
+      "Verify the hash chain and export a JSON evidence bundle.",
+    loading: "Loading…",
+    loadFailed: "Could not load recorded state.",
+    noRuns: "No deployment runs recorded.",
+    noEvents: "No audit events recorded.",
     runId: "Run",
     status: "Status",
     started: "Started",
@@ -1826,15 +1826,15 @@ const en: Messages = {
       })[kind] ?? kind,
     accessLevelControlTitle: "Access Control & Access Level Policies",
     accessLevelControlIntro:
-      "Update the Access Context Manager condition bound to the BeyondCorp Application IAM policy.",
+      "Update the Access Context Manager condition and allowed principals.",
     selectAccessLevelLabel: "Target Access Level Policy",
     principalsLabel: "Allowed Principals (Users, Groups, Domains)",
-    principalsHelper: "Comma-separated list (e.g. user:admin@test-domain.dev, domain:test-domain.dev)",
-    noAccessLevelRequired: "(No Access Level constraint / All authenticated group users)",
+    principalsHelper: "Comma-separated (e.g. user:admin@example.com, group:devs@example.com)",
+    noAccessLevelRequired: "No Access Level constraint",
     boundGroup: "Target IAM Group",
     updateAccessLevelButton: "Update Access Level Policy",
     updatingAccessLevel: "Updating IAM Policy...",
-    accessLevelSaved: "Access Level updated and audited in hash chain",
+    accessLevelSaved: "Access Level updated",
     ownedResources: "Owned deployment resources",
     restoredResources: "Shared policy values restored from before-images",
     retainedResources: "Shared or reused resources retained",
@@ -1847,7 +1847,7 @@ const en: Messages = {
       })[action] ?? action,
     logsTitle: "Secure Gateway logs",
     logsIntro:
-      "Query access decisions, gateway connections, administrative activity, and collected Nginx entries from Cloud Logging.",
+      "Query gateway access, connection, admin, and Nginx logs from Cloud Logging.",
     logCategory: (category) =>
       ({
         access: "Access decisions",
@@ -1859,40 +1859,40 @@ const en: Messages = {
     hours168: "Last 7 days",
     refreshLogs: "Refresh logs",
     refreshingLogs: "Querying Cloud Logging…",
-    noLogs: "No matching log entries were found yet for this time range. Access the application from a managed Chrome browser to produce logs.",
+    noLogs: "No matching log entries found.",
     logQueryFailed:
-      "Cloud Logging or the current Secure Gateway logging state could not be verified. Confirm the deployer can read the gateway and list log entries, then retry. No log query is sent when the gateway state is malformed.",
+      "Could not query Cloud Logging. Verify gateway and logging read permissions.",
     dataAccessNotice:
-      "Access decisions require Data Access audit logs for the BeyondCorp Enterprise API.",
+      "Access decisions require BeyondCorp Enterprise Data Access audit logs.",
     gatewayLoggingEnabled:
       "Secure Gateway connection logging is enabled in this deployment project.",
     gatewayLoggingDisabled:
       "Secure Gateway connection logging is disabled. Connection entries will not be produced; review the gateway in Google Cloud before relying on this view.",
     nginxNotice:
-      "Nginx entries require the Google Cloud Ops Agent to collect sgstudio-access.log.",
+      "Nginx logs require Cloud Ops Agent collecting sgstudio-access.log.",
     principal: "Principal",
     method: "Method",
     requestId: "Request ID",
     callerIp: "Caller IP",
     payload: "Sanitized payload",
-    specInvalid: "The deployment specification contains invalid or missing fields.",
+    specInvalid: "Invalid or missing deployment fields.",
     teardownTitle: "Teardown this deployment",
     teardownIntro:
-      "Restore recorded shared-policy before-images and delete only resources owned by this successful Apply, in reverse dependency order.",
+      "Restores shared policies and deletes only resources owned by this run.",
     teardownSharedNotice:
-      "Shared IAM and Chrome policies are restored only when an exact before-image was recorded and their current state still matches this run's recorded managed-after state. A sending write with an unknown result or later drift is retained for manual reconciliation. Existing VPCs, Access Levels, project APIs, and other reused resources are retained. A Gateway created by this run is deleted only when no applications remain.",
-    teardownUnavailable: "This run has no safely owned resources available for teardown.",
+      "Shared IAM and Chrome policies are restored only when their current state matches this run's recorded managed-after state; a sending write with an unknown result or later drift is retained. Reused resources are retained, and the Gateway is deleted only when no applications remain.",
+    teardownUnavailable: "No owned resources available for teardown.",
     teardownConfirmation: "Exact confirmation",
     teardownConfirmationHint: "Type the exact phrase shown above",
     startTeardown: "Restore and delete run changes",
     teardownRunning: "Restoring and deleting run changes…",
     teardownSucceeded: "Teardown completed",
     teardownInterrupted:
-      "The execution worker or local service stopped during teardown. Resume reconciles durable checkpoints before continuing.",
+      "The execution worker or local service stopped during teardown. Resuming reconciles checkpoints before continuing.",
     teardownFailed: "Teardown stopped and requires review",
     resumeTeardown: "Resume interrupted teardown",
     resumingTeardown: "Reconciling and resuming…",
-    teardownActionFailed: "Teardown could not be started or refreshed.",
+    teardownActionFailed: "Could not start or refresh teardown.",
     teardownProgress: (completed, total) => `${completed} of ${total} operations complete`,
     exportEvidence: "Export evidence",
     integrityValid: "Audit chain verified",
@@ -1903,10 +1903,10 @@ const en: Messages = {
     notAvailable: "Not available",
     acceptanceTitle: "Acceptance certification",
     acceptanceIntro:
-      "Run automated system checks for backend response, TLS termination, and DNS, then record evidence from managed Chrome acceptance testing.",
-    noSuccessfulRun: "A successful deployment run is required before acceptance testing.",
+      "Run automated checks and record managed Chrome test results.",
+    noSuccessfulRun: "Complete a deployment run before acceptance testing.",
     runSystemChecks: "Run automated system checks",
-    runningSystemChecks: "Verifying Google Cloud resources…",
+    runningSystemChecks: "Verifying resources…",
     acceptanceComplete: "PoC acceptance complete",
     acceptancePending: "Acceptance evidence incomplete",
     requiredProgress: (satisfied, required) =>
@@ -1947,18 +1947,18 @@ const en: Messages = {
     viewEvidence: "View sanitized evidence",
     operatorEvidenceTitle: "Record endpoint evidence",
     operatorEvidenceIntro:
-      "Store only sanitized observations or artifact hashes. Never paste tokens, cookies, private keys, or credentials.",
+      "Record sanitized observations or hashes only; never enter secrets or tokens.",
     testCase: "Test case",
     testInstruction: (testId, caseKey) =>
       testId === "T06"
-        ? "Open an existing HTTPS Secure Gateway control application in the same managed work profile (the source guide uses https://demo-server1.internal/). Record Passed only if it opens without a certificate warning. For a greenfield PoC with no existing control application, record Skipped with that reason; Production still requires a pass."
+        ? "Open an existing HTTPS control app in the managed profile, or record Skipped for a greenfield PoC."
         : testId === "T07"
-          ? `Open the newly deployed private HTTPS application in the authorized managed Chrome profile on ${caseKey}. Record the visible result and timestamp.`
+          ? `Open the deployed private HTTPS app in the managed Chrome profile on ${caseKey}.`
           : testId === "T08"
-            ? "Correlate gateway, offload, and backend events using a sanitized request identifier and timestamp."
+            ? "Correlate gateway, offload, and backend log events."
             : testId === "T09"
-              ? "Confirm the selected unauthorized case is denied and that the backend receives no successful request."
-              : "Record the observed result for this acceptance case.",
+              ? "Confirm unauthorized or unmanaged access is denied."
+              : "Record the observed result.",
     evidenceOutcome: "Observed outcome",
     outcomePassed: "Passed",
     outcomeFailed: "Failed",
@@ -1968,7 +1968,7 @@ const en: Messages = {
     recordEvidence: "Record confirmation",
     recordingEvidence: "Recording…",
     evidenceRecorded: "Acceptance evidence recorded.",
-    acceptanceActionFailed: "Acceptance action failed. Check the execution API and credentials.",
+    acceptanceActionFailed: "Acceptance action failed.",
     statusSucceeded: "Success",
     statusDeleted: "Torn down",
     statusRunning: "Running",
@@ -1976,36 +1976,35 @@ const en: Messages = {
     statusFailed: "Failed",
     t07DiagnosticsTitle: "Managed Chrome client diagnostics",
     t07DiagnosticsIntro:
-      "Match the browser result before recording the acceptance test. These symptoms identify whether routing, authorization, or certificate trust is still incomplete.",
+      "Common browser symptoms and quick fixes:",
     t07Diagnostics: [
       {
         symptom: "ERR_NAME_NOT_RESOLVED",
         meaning:
-          "The private hostname was not captured. The managed extension may be inactive, or Service Discovery may be unable to load the route because an inherited legacy PAC still controls this profile.",
+          "The private hostname was not captured by the Secure Enterprise Browser extension or was bypassed by a legacy PAC.",
         actions: [
-          "Run preflight in this app. If it detects a legacy PAC, review the exact target-OU-only override before approval.",
-          "Confirm the same Chrome work profile reports Secure Enterprise Browser as administrator-installed and recently synchronized.",
-          "If no PAC is active, confirm the gateway route, Service Discovery IAM binding, and application access binding.",
+          "Verify the test OU overrides any inherited PAC policy.",
+          "Confirm Secure Enterprise Browser is installed and synced in the active Chrome profile.",
+          "Verify gateway route and Service Discovery IAM bindings.",
         ],
       },
       {
         symptom: "Access Denied (403)",
         meaning:
-          "Service Discovery reached Secure Gateway, but the principal or Access Context Manager condition was not satisfied.",
+          "Gateway reached, but IAM principal or Access Context Manager condition was not met.",
         actions: [
-          "Open Endpoint Verification in the same work profile, add the corporate account if prompted, and run Sync now.",
-          "Confirm the user or group has both gateway Service Discovery and application access bindings.",
-          "Check that the selected access level accepts PROFILE_MANAGED Chrome for a BYOD test.",
+          "Click Sync now in the Endpoint Verification extension.",
+          "Confirm the user/group has Service Discovery and application IAM bindings.",
+          "Check that the Access Level permits the test device or profile.",
         ],
       },
       {
         symptom: "Certificate authority error",
         meaning:
-          "Secure Gateway routing and TLS offload are active, but the PoC root CA is not trusted by this endpoint.",
+          "The PoC root CA is not yet trusted by this Chrome profile.",
         actions: [
-          "Download the generated PoC root certificate from Apply.",
-          "In Admin console, add the PEM at Chrome > Connectors > Chrome Root Store, then connect the configuration to the dedicated test OU and restart Chrome.",
-          "Verify the certificate fingerprint before trusting it and retry the private HTTPS URL.",
+          "Download the PoC root certificate from Apply.",
+          "Add the PEM at Chrome > Connectors > Chrome Root Store for the test OU and restart Chrome.",
         ],
       },
     ],
@@ -3142,95 +3141,95 @@ const en: Messages = {
   cepDeployer: {
     title: "Easy PoC for Chrome Enterprise Premium",
     subtitle:
-      "Apply a CEP evaluation baseline to one organizational unit and inspect exact cleanup candidates afterward.",
+      "Apply a CEP evaluation baseline to a pilot OU or Google Group.",
     intro:
-      "Writes Chrome policies for threat protection, content inspection, and data boundaries into a pilot OU. Cleanup inspection is read-only because CEP does not yet persist three-way before/managed-after ownership; Chrome Policy, Access Level, and Cloud Identity DLP candidates are retained for manual review. Workspace administrator access is assigned separately in the Admin console, and every policy is checked against live schemas before it is written.",
+      "Applies threat protection, content inspection, and data boundary policies to a pilot scope. Cleanup inspection is read-only and retains Chrome Policy, Access Level, and DLP candidates for review.",
     targetOuCardTitle: "1. Target organizational unit",
     targetOuCardSubtitle:
-      "Pick an isolated non-production pilot OU. Root is blocked; OU-scoped policy can affect the selected OU and its descendants.",
-    targetScopeCardTitle: "1. Target scope (Organizational Unit / Google Group)",
+      "Pick an isolated non-production pilot OU. Root is blocked.",
+    targetScopeCardTitle: "1. Target scope",
     targetScopeCardSubtitle:
-      "Select whether to apply policies to an Organizational Unit (OU) or a Google Group for zero-touch PoC evaluation without moving users.",
-    targetTypeOu: "Organizational Unit (OU)",
+      "Choose an Organizational Unit or Google Group. Groups apply policies without moving users.",
+    targetTypeOu: "Organizational Unit",
     targetTypeGroup: "Google Group",
     selectTargetGroup: "Target Google Group",
     selectTargetGroupPlaceholder: "Select or enter a Google Group",
     refreshGroups: "↻ Refresh Groups",
     targetGroupImpact:
-      "Chrome policies (via groups:batchModify) and Cloud Identity DLP rules will apply directly to members of the selected Google Group. Users do not need to be moved to a different OU.",
-    targetGroupConfirmationLabel: "Confirm the target group by typing its exact email address",
+      "Chrome policies and DLP rules apply directly to members of the selected Google Group without moving users between OUs.",
+    targetGroupConfirmationLabel: "Confirm the target group email",
     targetGroupConfirmationHint:
-      "This field is cleared after every mutation. Type the displayed group email to confirm deployment.",
+      "Cleared after each change. Type the group email above to confirm.",
     copyTargetGroupEmail: "Copy Group Email",
-    groupLoadFailed: "Groups could not be loaded. You can still type the group email manually.",
+    groupLoadFailed: "Groups could not be loaded. Enter the group email manually.",
     customGroupInputPlaceholder: "e.g. poc-team@yourdomain.com",
     orEnterGroupEmail: "Or enter group email directly:",
     selectTargetOu: "Target organizational unit",
     selectTargetOuPlaceholder: "Select a non-root pilot OU",
     rootOuUnavailable: "root — unavailable",
     targetOuImpact:
-      "Chrome policies and OU-scoped DLP rules can affect the selected OU and descendant OUs through inheritance. Creating an access level adds an organization-scoped resource but does not attach it to an application here. Licence assignment is limited to users whose current Directory path exactly equals the selected OU; descendants are excluded.",
-    targetOuConfirmationLabel: "Confirm the target by typing its exact OU path",
+      "Policies and OU-scoped DLP rules inherit to the selected OU and descendant OUs. License assignment targets only users directly inside the selected OU.",
+    targetOuConfirmationLabel: "Confirm the target OU path",
     targetOuConfirmationHint:
-      "This field is cleared after every provision or licence action. Review the impact above, then type the displayed path again before each mutation.",
+      "Cleared after each change. Type the displayed OU path to confirm.",
     ouLoadFailed:
-      "Organizational units could not be loaded. Confirm the Google Workspace connection on the setup screen, then reopen this tab.",
+      "OUs could not be loaded. Verify the Workspace connection above.",
     canonicalCustomerIdRequired:
-      "Verify the Workspace connection first. DLP changes require the Customer ID returned by Directory (it begins with C); my_customer is never sent to Cloud Identity Policy create.",
-    autoDetectCustomerIdBtn: "Auto-detect Customer ID (C...)",
+      "Verify Workspace first. DLP rules require a Customer ID starting with C rather than my_customer.",
+    autoDetectCustomerIdBtn: "Auto-detect Customer ID",
     autoDetectingCustomerIdBtn: "Detecting Customer ID…",
     googleAccountVerifiedBanner: (customerId, ouCount, groupCount) =>
-      `Google Account Verified (Customer ID: ${customerId} · ${ouCount} OUs · ${groupCount} Groups)`,
+      `Google Account Verified · Customer ID: ${customerId} · ${ouCount} OUs · ${groupCount} Groups`,
     dlpMatrixCustomizePrefix: "Customize ",
     dlpMatrixCustomizeMiddle: " rules in the ",
     dlpMatrixCustomizeSuffix: " tab",
     verifyGoogleAccount: "Verify Google Account & Load Directory",
-    verifyingGoogleAccount: "Verifying Google Account & Loading OUs & Groups…",
-    verifyGoogleAccountHint: "Authenticate with Google OAuth to load directory Organizational Units (OUs) and Google Groups.",
+    verifyingGoogleAccount: "Verifying & Loading Directory…",
+    verifyGoogleAccountHint: "Sign in with Google OAuth to load OUs and Google Groups.",
     retry: "Retry",
     refreshOus: "↻ Refresh OUs",
     reloading: "Reloading…",
-    createPilotOuLabel: "Need a pilot OU? Create one directly under Root (/) in 1 click:",
+    createPilotOuLabel: "Create a pilot child OU under / in 1 click:",
     createPilotOuPlaceholder: "CEP-PoC",
     createPilotOuBtn: "＋ Create & Select Pilot OU",
     creatingPilotOuBtn: "Creating Pilot OU…",
     createPilotOuHint:
-      "Creates or reuses a child Organizational Unit under '/' via the Directory API and selects it automatically. Afterwards, move 1–2 test user accounts into this OU in admin.google.com > Directory > Users.",
+      "Creates or reuses a child OU under '/' and selects it. Then move 1–2 test users into this OU in admin.google.com > Directory > Users.",
     pilotOuCreatedBanner: (path) =>
-      `Pilot OU '${path}' is ready and selected. Move 1–2 test user accounts into '${path}' in admin.google.com > Directory > Users.`,
+      `Pilot OU '${path}' selected. Move 1–2 test users into '${path}' in admin.google.com > Directory > Users.`,
     autoCreateSubOus: "Create \"CEP Users\" and \"CEP Browsers\" sub OUs",
     autoCreateSubOusHint:
-      "Creates or reuses optional child OUs for later organization. Policies stay on the selected pilot OU, cover its current occupants, and inherit to these children unless overridden there; users and enrolled browsers are not moved automatically.",
+      "Creates optional child OUs that inherit policies from the selected pilot OU.",
     presetsTitle: "2. Presets",
     presetsSubtitle:
-      "A starting point for the usual evaluation shapes. Adjust the modules below afterwards.",
+      "Select a baseline preset and adjust individual modules below.",
     presetFullPoc: "Full evaluation",
     presetFullPocDesc:
-      "Every module: threat protection, content inspection, reporting, posture signals, and copy/paste boundaries.",
+      "All modules: threat protection, content inspection, reporting, posture signals, and paste boundaries.",
     presetAiProtection: "Generative AI and data leaks",
     presetAiProtectionDesc:
-      "Paste and upload inspection aimed at prompts typed into external AI tools, plus non-corporate account blocking.",
+      "Paste and upload inspection for external AI tools plus non-corporate account blocking.",
     presetEndpoint: "Endpoint hardening",
     presetEndpointDesc:
-      "Enhanced Safe Browsing, real-time URL checks, forced Endpoint Verification, and Context-Aware Access.",
+      "Enhanced Safe Browsing, real-time URL checks, Endpoint Verification, and Context-Aware Access.",
     presetAudit: "Visibility and warnings",
-    presetAuditDesc: "Reporting plus warning-only Chrome DLP rules. Nothing is blocked.",
+    presetAuditDesc: "Reporting and warning-only Chrome DLP rules without blocking.",
     modulesTitle: "3. Policy modules",
     modulesSubtitle:
-      "Each module is applied as its own batch, so one unsupported policy does not take the others with it.",
+      "Each module is applied in its own batch.",
     moduleCorePolicies: "Chrome core security policies",
     moduleCorePoliciesDesc:
-      "Enhanced Safe Browsing, a warning when a corporate password is reused elsewhere, and Chrome cloud and profile reporting.",
+      "Enhanced Safe Browsing, password reuse warnings, and Chrome cloud/profile reporting.",
     moduleForceExtensions: "Force-install Endpoint Verification",
     moduleForceExtensionsDesc:
-      "Pushes Google's Endpoint Verification extension so device posture signals reach Context-Aware Access.",
+      "Pushes Google's Endpoint Verification extension for device posture signals.",
     moduleConnectors: "Content inspection connectors",
     moduleConnectorsDesc:
-      "Real-time URL checks plus file upload and download inspection, and security event reporting to Google.",
-    accessLevelTitle: "Context-Aware Access (CAA) Level",
+      "Real-time URL checks, file upload/download inspection, and security event reporting.",
+    accessLevelTitle: "Context-Aware Access Level",
     accessLevelSelectPrompt: "Select an Access Level to enforce",
     accessLevelHint:
-      "Enforces DLP unmanaged device rules and Secure Gateway controls on devices matching this Access Level (CEL: access_levels.meets_access_requirements). Leave as 'None' if not required.",
+      "Applies DLP unmanaged-device rules and Gateway controls via CEL access_levels.meets_access_requirements.",
     accessLevelNone: "None",
     accessLevelNoneDesc: "Do not require an access level.",
     accessLevelAutoProfile: "Create one: managed Chrome profile",
@@ -3238,24 +3237,24 @@ const en: Messages = {
     accessLevelAutoAny: "Create one: managed profile or browser",
     accessLevelExistingGroup: "Existing access levels",
     accessLevelLoadFailed:
-      "Existing access levels could not be listed. A Google Cloud project attached to an organization with an Access Context Manager policy is required to create one.",
+      "Access levels could not be listed. Requires a GCP project under an organization with an Access Context Manager policy.",
     moduleDlpDetectors: "DLP detector for internal sites",
     moduleDlpDetectorsDesc:
       "Unavailable: settings/detector.url_list is not supported by the policy mutation API.",
     moduleDlpRules: "Starter DLP rules",
     moduleDlpRulesDesc:
-      "Creates supported warn/block rules with LOW alert-center severity for sensitive operations, plus an allow-with-warning URL rule that watermarks internal pages and restricts screenshots.",
+      "Creates warn/block rules for sensitive data transfers and watermarks internal URLs.",
     betaBadge: "Beta",
     dlpBetaNote:
-      "Creating supported settings/rule.dlp policies uses the Cloud Identity policy API, whose mutation methods are still in beta. Unsupported URL-list detector and access-level/BYOD conditions are not sent. Refused calls are reported with their reason.",
+      "Uses the Cloud Identity policy API for settings/rule.dlp mutations.",
     dlpRegionTitle: "National identifier to scan for",
     dlpRegionHint:
-      "Sets which Cloud DLP detector the national ID rule uses. A detector for the wrong country matches nothing, and a rule that never fires looks the same as one that works.",
-    dlpRulesTableTitle: "Rules and what each one does",
+      "Selects the regional Cloud DLP detector used by the national ID rule.",
+    dlpRulesTableTitle: "Rules and actions",
     dlpRulesTableHint:
-      "Chrome DLP Policy API supports three actions: Audit only (log event), Allow with warning, and Block. Choose Off if you do not want a rule created.",
+      "Supported actions: Audit only, Allow with warning, Block, or Off.",
     dlpActionOff: "Do not create",
-    dlpActionAudit: "Audit only (log event)",
+    dlpActionAudit: "Audit only",
     dlpActionWarn: "Allow with warning",
     dlpActionBlock: "Block",
     dlpRuleNationalId: "National ID numbers pasted into pages",
@@ -3263,95 +3262,95 @@ const en: Messages = {
     dlpRuleAccessLevel: "Uploads from unmanaged Chrome",
     dlpRuleWatermark: "Watermark internal pages",
     dlpNoticeByodTitle: "Context-Aware Access Level Enforcement",
-    dlpNoticeByodDesc: "BYOD-scoped rows use CEL contextCondition: !access_levels.meets_access_requirements(['<ACCESS_LEVEL>']) so controls apply to unmanaged or non-compliant devices outside the corporate Access Level.",
+    dlpNoticeByodDesc: "BYOD rows use CEL !access_levels.meets_access_requirements(['<ACCESS_LEVEL>']) to target unmanaged devices.",
     activePresetBadge: "Active",
     dataBoundaryModeTitle: "Data boundary",
     dataBoundaryModeCopyPaste: "Inspect pasted content",
     dataBoundaryModeCopyPasteDesc:
-      "Bulk text pasted into a page is inspected, and Google apps only accept accounts on your primary domain.",
+      "Inspects pasted text and restricts Google apps to your primary domain.",
     dataBoundaryModeBlockNonCorp: "Block non-corporate Google accounts",
     dataBoundaryModeBlockNonCorpDesc:
-      "Google apps only accept accounts on your primary domain, which closes the personal-Gmail-tab route.",
+      "Restricts Google apps to your primary domain and blocks personal Gmail sign-ins.",
     dataBoundaryModeNone: "None",
     dataBoundaryModeNoneDesc:
-      "Leave clipboard and account behaviour inherited from the parent OU.",
-    httpHeadersTitle: "SaaS Tenant Restriction Headers (HttpHeaderInjection)",
+      "Inherit clipboard and account settings from the parent OU.",
+    httpHeadersTitle: "SaaS Tenant Restriction Headers",
     httpHeadersSubtitle:
-      "Inject custom HTTP request headers on matching URLs so SaaS applications (Slack, GitHub, ChatGPT, Claude, Microsoft 365, Dropbox, Box) only permit logins to your corporate tenant.",
+      "Inject HTTP headers on matching URLs to restrict SaaS logins to your corporate tenant.",
     httpHeadersPresetLabel: "Add SaaS Preset:",
     httpHeadersAddCustomBtn: "+ Custom Header Rule",
     httpHeadersEmptyHint:
-      "No HTTP header injection rules configured. Select a SaaS preset above to restrict logins to your organization's workspace or tenant ID.",
+      "Select a SaaS preset above to restrict logins to your organization's tenant.",
     httpHeadersRemoveRuleBtn: "Remove",
-    httpHeadersPatternsLabel: "Target URL Patterns (comma or newline separated)",
+    httpHeadersPatternsLabel: "Target URL Patterns",
     httpHeadersTenantValueLabel: "Allowed Tenant / Workspace / Enterprise ID",
     httpHeadersNameLabel: "Header Name",
     httpHeadersValueLabel: "Header Value",
     httpHeadersBoxNote:
-      "Note: Box primarily enforces tenant login boundaries via enterprise vanity URLs (https://<company>.account.box.com) and IdP Conditional Access; use X-Box-Enterprise-Id when inspected by an intermediate gateway or custom integration.",
-    httpHeadersM365ContextLabel: "Directory (Tenant) GUID for Restrict-Access-Context",
-    internalUrlsTitle: "Protected Internal Sites (Watermark & Screenshot Block)",
+      "Box primarily enforces tenant boundaries via vanity URLs and IdP Conditional Access.",
+    httpHeadersM365ContextLabel: "Directory Tenant GUID for Restrict-Access-Context",
+    internalUrlsTitle: "Protected Internal Sites",
     internalUrlsPlaceholder: "https://intranet.example.com\nhttps://portal.corp.example.com",
     internalUrlsHint:
-      "Overlays a dynamic watermark and blocks screenshots when users access these internal sites. Enter one URL per line.",
+      "Applies dynamic watermarks and blocks screenshots on these URLs. One URL per line.",
     rolesCardTitle: "4. Workspace administrator access",
     rolesCardSubtitle:
-      "Assign Workspace privileges in the Google Admin console. Google Cloud project IAM roles cannot grant Chrome Policy access or the required OAuth authority.",
+      "Assign Workspace privileges in the Admin console. GCP IAM roles do not grant Chrome Policy access.",
     roleAdminLabel: "Policy operator",
     roleAdminDesc:
-      "Assign a scoped Admin console role with Chrome settings and organizational-unit privileges. Cloud Identity DLP mutations require a Super Admin account.",
+      "Scoped Admin role with Chrome and OU privileges. DLP rules require a Super Admin.",
     roleAuditorLabel: "Read-only reviewer",
     roleAuditorDesc:
-      "Create a separate Admin console role limited to the Chrome and OU read privileges needed for review; do not reuse the deployment account.",
-    roleAssigneeEmailLabel: "Assignee Administrator Email (Optional)",
+      "Separate Admin role with Chrome and OU read privileges.",
+    roleAssigneeEmailLabel: "Assignee Administrator Email",
     roleAssigneeEmailPlaceholder: "admin@example.com",
-    roleAssigneeEmailHint: "Leave blank to create roles without assigning to a user.",
+    roleAssigneeEmailHint: "Leave blank to create roles without assigning a user.",
     roleTypeSelectLabel: "Target Roles",
-    roleTypeBoth: "Both (Policy Operator & Auditor)",
+    roleTypeBoth: "Both: Policy Operator & Auditor",
     roleTypeAdminOnly: "Policy Operator Only",
     roleTypeAuditorOnly: "Auditor Only",
-    roleScopeOuCheckbox: "Limit role scope to selected Organizational Unit (OU)",
+    roleScopeOuCheckbox: "Limit role scope to selected OU",
     roleCreateAssignBtn: "Create & Assign Workspace Roles",
     roleCreatingBtn: "Creating & Assigning Roles...",
     rolesAdminConsoleLink: "Open Admin roles in Google Admin console",
     rolesVerificationNote:
-      "Use “Verify Google Account & Load OUs” after assignment. Deployment then calls the real Chrome Policy and Cloud Identity APIs and reports any authorization failure explicitly; no role is inferred from a project IAM binding.",
+      "Run Verify Google Account after assigning roles.",
     rolesScopeManualChecklistTitle:
-      "Admin Console Setup Guide (Minimal OAuth Scope Design)",
+      "Admin Console Role Setup",
     rolesScopeManualChecklistDesc:
-      "To keep browser OAuth permissions minimal, this extension omits the high-privilege admin.directory.rolemanagement scope. If the API call returns HTTP 403, assign privileges directly in Google Admin Console (Account > Admin roles):",
+      "If role creation returns HTTP 403, assign privileges in Google Admin Console > Account > Admin roles:",
     rolesScopeManualSteps: [
-      "Policy Operator: Enable Chrome Management > Settings and Admin API Privileges > Organization Units (Read/Write), scoped to the pilot OU.",
-      "Read-Only Auditor: Enable Services > Chrome Management > Settings (Read) and Reports / Security Center > Audit Logs.",
-      "Cloud Identity DLP Rules: Creating or modifying Chrome DLP rules requires a Workspace Super Administrator account.",
+      "Policy Operator: Chrome Management > Settings and Admin API Privileges > Organization Units scoped to the pilot OU.",
+      "Read-Only Auditor: Chrome Management > Settings Read and Security Center > Audit Logs.",
+      "Cloud Identity DLP Rules: Requires a Workspace Super Administrator account.",
     ],
     testingScenariosTitle: "5. Testing the result",
     testingScenariosSubtitle:
-      "Sample values that trip the detectors, so you can demonstrate an interception without using real data.",
+      "Safe dummy values to trigger DLP detectors without using real data.",
     copyDummyData: "Copy",
     copiedToClipboard: "Copied",
     dummyPiiLabel: "Sample national ID number",
     dummyPiiValue: "1234-5678-9012",
-    dummyPiiHint: "Formatted as a Japanese My Number / US SSN. Not a real identifier.",
+    dummyPiiHint: "Dummy My Number / SSN format.",
     dummyCreditCardLabel: "Sample card number",
     dummyCreditCardValue: "4532015112830366",
-    dummyCreditCardHint: "A Visa test number that passes the Luhn check. Not a real card.",
+    dummyCreditCardHint: "Visa Luhn test number.",
     dummySourceCodeLabel: "Sample API key in source",
     dummySourceCodeValue:
       "const GCP_SECRET_KEY = 'AIzaSyA_DEMO_CONFIDENTIAL_KEY_FOR_TESTING';",
-    dummySourceCodeHint: "Shaped like a Google API key. Not a working credential.",
+    dummySourceCodeHint: "Dummy API key pattern.",
     scenarioGenAiTitle: "Paste inspection",
     scenarioGenAiStep:
-      "Open an external AI tool and paste the sample API key. With paste inspection on, Chrome holds the paste until the verdict returns.",
+      "Paste the sample API key into an external AI tool to verify paste inspection.",
     scenarioDataBoundaryTitle: "Data boundary",
     scenarioDataBoundaryStep:
-      "Sign in to a personal Google account in the managed profile. With non-corporate accounts blocked, the sign-in is refused.",
+      "Sign in to a personal Google account in the managed profile to verify sign-in blocking.",
     scenarioWatermarkTitle: "Upload inspection",
     scenarioWatermarkStep:
-      "Upload a file containing the sample card number to any site outside your internal list. The upload is held for inspection and the event reaches the security investigation tool.",
-    manualChecklistTitle: "Steps this tool cannot perform",
+      "Upload a file containing the sample card number to verify upload inspection and logging.",
+    manualChecklistTitle: "Manual Admin Console steps",
     manualChecklistSubtitle:
-      "Google exposes no API for these, so complete them in the Admin Console before running the tests above.",
+      "Complete these settings in the Admin Console before testing.",
     manualChecklistItems: [
       {
         title: "Turn on sensitive content storage",
@@ -3360,12 +3359,12 @@ const en: Messages = {
       },
       {
         title: "Turn on optical character recognition",
-        detail: "Needed for detectors to read text inside images.",
+        detail: "Required to inspect text inside images.",
         href: "https://admin.google.com/ac/dp",
       },
       {
         title: "Enable automatic CEP licensing",
-        detail: "Billing > License settings, for the pilot OU.",
+        detail: "Billing > License settings for the pilot OU.",
         href: "https://admin.google.com/ac/billing/licensesettings",
       },
     ],
@@ -3375,41 +3374,41 @@ const en: Messages = {
     btnRollingBack: "Inspecting...",
     btnDownloadScript: "Export Chrome policies as Python",
     confirmRollback:
-      "Inspect the exact Chrome Policy, Access Level, and Cloud Identity DLP cleanup candidates. This action is read-only and retains every candidate for ownership review. Continue?",
+      "Inspect Chrome Policy, Access Level, and Cloud Identity DLP cleanup candidates in read-only mode. Continue?",
     downloadFailed: "The script could not be generated",
     noModulesSelected: "Select at least one policy module.",
     appliedTitle: "Applied",
     skippedTitle: "Skipped",
     statusLogTitle: "Execution trace",
-    noActionYet: "Nothing has run yet. Pick a target OU and the modules you want, then apply.",
+    noActionYet: "Select a target scope and modules, then apply.",
 
-    licenseCardTitle: "License Management & Auto-Assignment Control",
+    licenseCardTitle: "License Management",
     licenseCardSubtitle:
-      "Prevent unexpected domain-wide license consumption and assign CEP licenses directly to the target OU.",
+      "Assign CEP licenses directly to users in the target OU.",
     licensePilotLimitNotice:
-      "Bounded pilot operation. Targets only users whose current Directory path exactly matches the selected non-root OU, at most 10 unique users, excluding sub-OUs. If the full set cannot be enumerated within 4 Directory pages, if the limit is exceeded, or if listing times out, no licenses are mutated. Every Directory and Licensing request is subject to a 5-second deadline, and deployer identity verification has a 10-second deadline across the root. If a per-user POST response is lost after mutations start, reconciliation falls back to an exact product/SKU/user GET and holds the durable lease until the outcome is confirmed. Partial outcomes are possible; success is never inferred.",
+      "Targets only users directly in the selected non-root OU: at most 10 unique users within 4 Directory pages and a 5-second deadline, excluding sub-OUs. Lost POST responses reconcile via exact GET.",
     licenseAutoAssignWarning:
-      "To prevent unintended license consumption across the company, ensure auto-assignment is turned OFF on the Root OU in the Admin console.",
+      "Keep auto-assignment turned OFF on the Root OU to prevent domain-wide license consumption.",
     licenseAutoAssignWarningLink: "Open Google Admin Console License Settings",
     licenseAutoAssignSteps: [
-      "1. Open License Settings in Google Admin Console and select the Root OU.",
+      "1. Open Billing > License settings on the Root OU.",
       "2. Turn Auto-assign OFF for Chrome Enterprise Premium.",
-      "3. Either turn Auto-assign ON only for this pilot OU, or use the button below to assign licenses directly.",
+      "3. Assign licenses only to the pilot OU or use the button below.",
     ],
-    btnAssignLicensesToOu: "Assign CEP licenses (maximum 10 exact-OU users)",
+    btnAssignLicensesToOu: "Assign CEP licenses · max 10 direct-OU users",
     copyTargetOuPath: "Auto-fill path",
     tabSetup: "1. Setup Wizard",
     tabLicensing: "2. Users & Licensing",
     tabDlp: "3. DLP & Threat Matrix",
     tabOperations: "4. Operations & Testing",
     tabAll: "View All Sections",
-    btnAssigningLicenses: "Assigning licenses to OU users...",
+    btnAssigningLicenses: "Assigning licenses...",
     licenseAssignUsersFound: "Processed users in OU",
     noUsersFoundInOu: "No users found in this organizational unit.",
 
     dlpMatrixTitle: "DLP Control Matrix",
     dlpMatrixSubtitle:
-      "Configure supported actions (Block, Warn, Off) across Upload, Download, Paste, Print, and Watermark for devices within the target scope (OU or Group) and Context-Aware Access level conditions.",
+      "Configure Block, Warn, or Off across Upload, Download, Paste, Print, and Watermark.",
     dlpColThreat: "Data & Threat Category",
     dlpColUpload: "Upload",
     dlpColDownload: "Download",
@@ -3419,272 +3418,270 @@ const en: Messages = {
     dlpColDeviceScope: "Supported Scope",
 
     dlpRowUniversalUpload: "All file uploads",
-    dlpRowUniversalUploadDesc: "Inspects and warns/blocks all file uploads from Chrome.",
+    dlpRowUniversalUploadDesc: "Controls all file uploads from Chrome.",
     dlpRowUniversalDownload: "All file downloads",
-    dlpRowUniversalDownloadDesc: "Inspects and warns/blocks all file downloads in Chrome.",
+    dlpRowUniversalDownloadDesc: "Controls all file downloads in Chrome.",
     dlpRowPaymentCard: "Credit card / Payment data",
-    dlpRowPaymentCardDesc: "Detects credit card numbers in uploads, pastes, and prints.",
+    dlpRowPaymentCardDesc: "Detects payment card numbers in uploads, pastes, and prints.",
     dlpRowNationalId: "National ID / PII data",
-    dlpRowNationalIdDesc: "Detects regional PII / National ID numbers (e.g. My Number / SSN).",
+    dlpRowNationalIdDesc: "Detects regional national ID numbers such as My Number or SSN.",
     dlpRowAccessLevel: "Unmanaged / Context-Aware non-compliant devices",
-    dlpRowAccessLevelDesc: "Enforces Chrome DLP controls on devices matching the Access Level via CEL condition (access_levels.meets_access_requirements).",
+    dlpRowAccessLevelDesc: "Enforces DLP controls via CEL access_levels.meets_access_requirements.",
     dlpRowWatermark: "Internal sites / Watermark",
-    dlpRowWatermarkDesc: "Allows navigation with a warning, overlays a watermark, and restricts screenshots on internal sites.",
-    dlpRowGenAiBlock: "Unapproved GenAI (allow Gemini)",
-    dlpRowGenAiBlockDesc: "Blocks ChatGPT, Claude, DeepSeek, etc. while allowing corporate Gemini.",
+    dlpRowWatermarkDesc: "Applies dynamic watermarks and restricts screenshots on internal URLs.",
+    dlpRowGenAiBlock: "Unapproved GenAI · allow Gemini",
+    dlpRowGenAiBlockDesc: "Blocks unapproved AI sites while allowing corporate Gemini.",
 
     dlpScopeAll: "All Devices",
-    dlpScopeByodOnly: "Access Level (CAA)",
+    dlpScopeByodOnly: "Access Level · CAA",
     dlpActionBadgeBlock: "Block",
     dlpActionBadgeWarn: "Warn",
     dlpActionBadgeAudit: "Unsupported",
     dlpActionBadgeAuditOnly: "Audit",
     dlpActionBadgeOff: "Off",
 
-    dlpActionParamsTitle: "Action Parameters (actionParams)",
-    dlpActionParamsSubtitle: "Attach additional controls to triggered DLP rules",
-    dlpCustomMessageLabel: "Custom End-User Message (customEndUserMessage)",
-    dlpCustomMessagePlaceholder: "e.g. This action violates corporate data protection policy. Contact Security.",
-    dlpCustomMessageHint: "Custom message displayed to the end user in Chrome when warning or blocking.",
-    dlpSaveContentLabel: "Save Matched Content Evidence (saveContent)",
-    dlpSaveContentHint: "Preserve a copy of the matched sensitive content for incident investigation and audit.",
+    dlpActionParamsTitle: "Action Parameters",
+    dlpActionParamsSubtitle: "Optional message and evidence settings for triggered DLP rules",
+    dlpCustomMessageLabel: "Custom End-User Message",
+    dlpCustomMessagePlaceholder: "e.g. This action violates corporate data protection policy.",
+    dlpCustomMessageHint: "Shown in Chrome when a rule warns or blocks.",
+    dlpSaveContentLabel: "Save Matched Content Evidence",
+    dlpSaveContentHint: "Stores matched content for security investigation.",
 
     dlpPresetRecommended: "Standard PoC",
-    dlpPresetRecommendedDesc: "Warn on sensitive data, block unapproved GenAI, and watermark internal sites without BYOD scoping.",
+    dlpPresetRecommendedDesc: "Warn on sensitive data, block unapproved GenAI, and watermark internal sites.",
     dlpPresetStrictZeroTrust: "Strict Zero Trust",
-    dlpPresetStrictZeroTrustDesc: "Block supported sensitive uploads and pastes; configure unmanaged-device conditions manually.",
+    dlpPresetStrictZeroTrustDesc: "Block sensitive uploads and pastes across all selected surfaces.",
     dlpPresetGenAiSecure: "Secure GenAI Pilot",
-    dlpPresetGenAiSecureDesc: "Block unapproved consumer AI, permit Gemini with paste inspection.",
+    dlpPresetGenAiSecureDesc: "Block unapproved AI and allow Gemini with paste inspection.",
     dlpPresetAuditOnly: "Warning First",
-    dlpPresetAuditOnlyDesc: "Use the least disruptive Chrome DLP action supported by the API across all selected surfaces.",
+    dlpPresetAuditOnlyDesc: "Use warning actions across all selected surfaces.",
     geminiEnterpriseTitle: "Gemini Enterprise & Vertex AI Search Protection",
     geminiEnterpriseSubtitle:
-      "Enterprise Generative AI & Agentic Search requires coordinated defense across Chrome, Identity, and Google Cloud perimeters.",
+      "Layered protection across Chrome, Identity, and Google Cloud perimeters.",
     geminiLayer1Title: "1. Chrome Endpoint & DLP Protection",
     geminiLayer1Desc:
-      "Inspect and protect data sent to or retrieved from enterprise generative AI web applications.",
+      "Inspect prompts and downloads on generative AI web apps.",
     geminiLayer1Bullet1:
-      "Block paste and uploads containing PII, API keys, and confidential customer identifiers into AI prompts.",
+      "Block or warn when pasting PII, API keys, or confidential data into prompts.",
     geminiLayer1Bullet2:
-      "Enforce dynamic watermarking on downloaded AI summaries, synthesized reports, and generated charts.",
-    geminiLayer2Title: "2. Context-Aware Access (CAA)",
+      "Apply watermarks on AI reports and internal search pages.",
+    geminiLayer2Title: "2. Context-Aware Access",
     geminiLayer2Desc:
-      "Restrict user authentication to compliant enterprise endpoints before access is granted.",
+      "Restrict authentication to compliant enterprise browsers.",
     geminiLayer2Bullet1:
-      "Require Endpoint Verification (device.chrome.management_state == BROWSER_MANAGED) or trusted IP ranges.",
+      "Require managed Chrome browsers or corporate IP ranges.",
     geminiLayer2Bullet2:
-      "Native Google Workspace CAA policy assignment now officially covers the Gemini app.",
+      "Assign Workspace CAA policies directly to the Gemini app.",
     geminiLayer3Title: "3. VPC Service Controls & Agent Gateway",
     geminiLayer3Desc:
-      "Prevent data exfiltration at the API and internal autonomous agent communication tiers.",
+      "Protect Discovery Engine APIs inside a VPC-SC perimeter.",
     geminiLayer3Bullet1:
-      "Enforce discoveryengine.googleapis.com (Gemini Enterprise backend) inside a secure VPC-SC perimeter.",
+      "Isolate discoveryengine.googleapis.com inside a service perimeter.",
     geminiLayer3Bullet2:
-      "Enforce mutual TLS (mTLS) and DPoP (RFC 9449) token binding for Agent-to-Agent interactions.",
-    geminiCliTitle: "Google Cloud VPC-SC & Access Level Provisioning Commands",
+      "Enforce mTLS and DPoP token binding for agent traffic.",
+    geminiCliTitle: "VPC-SC & Access Level CLI Commands",
     geminiCliCopyBtn: "Copy commands",
     dlpPresetGeminiEnterprise: "Gemini Enterprise",
     geminiAutoProvisionTitle: "Gemini Enterprise Zero-Trust Provisioning",
     geminiAutoProvisionSubtitle:
-      "Provision Google Cloud Access Context Manager (ACM) access levels and VPC Service Controls security perimeters.",
+      "Provision ACM access levels and VPC Service Controls perimeters.",
     geminiTargetProjectLabel: "Target Google Cloud Project ID",
-    geminiPolicyIdLabel: "Access Context Manager Policy ID (auto-detected if blank)",
+    geminiPolicyIdLabel: "ACM Policy ID · auto-detected if blank",
     geminiPerimeterNameLabel: "VPC-SC Perimeter Identifier",
-    geminiEnforceAccessLevelLabel: "Create & bind ACM Access Level (require Managed Chrome: BROWSER_MANAGED)",
+    geminiEnforceAccessLevelLabel: "Create & bind ACM Access Level requiring Managed Chrome",
     geminiAccessLevelSelectLabel: "ACM Access Level",
-    geminiAccessLevelDefaultOption: "Auto-create: secgw_chrome_managed (Managed Chrome Browser)",
-    geminiAccessLevelSelectHint: "Select an existing ACM Access Level or let SGS create a new level requiring Managed Chrome.",
-    geminiEnforcePerimeterLabel: "Create VPC-SC Service Perimeter protecting discoveryengine.googleapis.com",
-    geminiDryRunLabel: "Create in Dry-Run / Audit mode (log violations in Cloud Logging without blocking traffic)",
+    geminiAccessLevelDefaultOption: "Auto-create: secgw_chrome_managed",
+    geminiAccessLevelSelectHint: "Select an existing ACM Access Level or auto-create one for Managed Chrome.",
+    geminiEnforcePerimeterLabel: "Create VPC-SC Perimeter for discoveryengine.googleapis.com",
+    geminiDryRunLabel: "Create in Dry-Run mode · log violations without blocking",
     geminiAutoProvisionBtn: "Provision Zero-Trust Perimeter",
     geminiAutoProvisioningBtn: "Provisioning Zero-Trust...",
-    geminiSuccessTitle: "Zero-Trust Security Perimeter Provisioned Successfully",
+    geminiSuccessTitle: "Zero-Trust Security Perimeter Provisioned",
     geminiStep1: "1. Resolving GCP Project & Access Policy",
-    geminiStep2: "2. Ensuring ACM Access Level (Managed Chrome)",
-    geminiStep3: "3. Ensuring VPC-SC Perimeter (Discovery Engine)",
-    geminiStep4: "4. Verifying & Finalizing Zero-Trust Posture",
-    geminiStep5Rca: "5. Creating Restricted Client Application (RCA) User Access Binding",
-    geminiAdminLockoutWarningTitle: "Important: GCP Console Administrator Access Requirement",
+    geminiStep2: "2. Ensuring ACM Access Level",
+    geminiStep3: "3. Ensuring VPC-SC Perimeter",
+    geminiStep4: "4. Verifying Zero-Trust Posture",
+    geminiStep5Rca: "5. Creating RCA User Access Binding",
+    geminiAdminLockoutWarningTitle: "GCP Console Admin Access Notice",
     geminiAdminLockoutWarningText:
-      "Enforcing an Access Level on discoveryengine.googleapis.com (VPC-SC) requires GCP administrators managing Gemini Enterprise from the Cloud Console to also access it from a Managed Chrome browser. Unmanaged browsers will receive HTTP 403 errors in the Cloud Console. To avoid admin lockout on unmanaged devices, consider Approach 2 (RCA group binding) or Ingress user exceptions.",
-    geminiEnforceRcaLabel: "Approach 2: Bind Restricted Client Application (RCA) to Google Group",
-    geminiRcaGroupKeyLabel: "Target Google Group (Email or Group ID)",
-    geminiRcaGroupKeyPlaceholder: "e.g. gemini-enterprise-users@example.com or 0184mhaj3tyhbjb",
+      "Enforcing VPC-SC on discoveryengine.googleapis.com requires GCP admins to use a Managed Chrome browser as well. Use Approach 2 RCA group binding or ingress rules to avoid unmanaged console 403 errors.",
+    geminiEnforceRcaLabel: "Approach 2: Bind Restricted Client Application to Google Group",
+    geminiRcaGroupKeyLabel: "Target Google Group Email or ID",
+    geminiRcaGroupKeyPlaceholder: "e.g. gemini-enterprise-users@example.com",
     geminiRcaGroupKeyHint:
-      "Directly binds Gemini Enterprise app access levels to the specified group via Access Context Manager (avoids GCP admin console lockouts and VPC-SC perimeter conflicts).",
+      "Binds Gemini Enterprise access levels only to the target group via ACM.",
     geminiRcaBindingLabel: "RCA Cloud Binding",
-    geminiRcaCliTitle: "Restricted Client Application (RCA) gcloud Provisioning Commands",
+    geminiRcaCliTitle: "RCA gcloud Provisioning Commands",
     geminiRcaCliCopyBtn: "Copy RCA commands",
 
     deployProgressTitle: "Deploying Chrome Enterprise Premium...",
-    deployStep1: "1. Target OU Validation",
+    deployStep1: "1. Target Scope Validation",
     deployStep2: "2. Policy Generation",
-    deployStep3: "3. DLP Rule & Detector Registration",
-    deployStep4: "4. Finalization & Evidence Logging",
+    deployStep3: "3. DLP Rule Registration",
+    deployStep4: "4. Finalization & Audit Logging",
 
-    rollbackProgressTitle: "Executing Rollback...",
-    rollbackStep1: "1. Identifying Resources to Revert",
-    rollbackStep2: "2. Resetting Sub-OU Policies",
-    rollbackStep3: "3. Cleaning DLP Rules & Access Levels",
-    rollbackStep4: "4. Rollback Complete",
+    rollbackProgressTitle: "Inspecting Cleanup Candidates...",
+    rollbackStep1: "1. Identifying Resources",
+    rollbackStep2: "2. Checking OU Policies",
+    rollbackStep3: "3. Listing DLP Rules & Access Levels",
+    rollbackStep4: "4. Inspection Complete",
 
     roleProgressTitle: "Creating & Assigning Workspace Roles...",
     roleStep1: "1. Verifying Directory Privileges",
-    roleStep2: "2. Creating CEP Operator & Auditor Roles",
-    roleStep3: "3. Assigning Roles to Target Administrator",
+    roleStep2: "2. Creating Operator & Auditor Roles",
+    roleStep3: "3. Assigning Roles",
     roleStep4: "4. Role Assignment Complete",
 
     licenseProgressTitle: "Assigning Evaluation Licenses...",
-    licenseStep1: "1. Querying Users in Target OU",
-    licenseStep2: "2. Assigning Chrome Enterprise Licenses",
+    licenseStep1: "1. Listing Users in Target OU",
+    licenseStep2: "2. Assigning CEP Licenses",
     licenseStep3: "3. License Assignment Complete",
-    // Error Diagnostic Resolver
     errDiagIamTitle: "Google Cloud IAM Permission Insufficient",
-    errDiagIamCause: "The current Google account lacks organizational or project-level Access Context Manager permissions (e.g. roles/accesscontextmanager.policyAdmin).",
-    errDiagIamRemediation: "Request your Organization Administrator to grant roles/accesscontextmanager.policyAdmin, or run the command below with an admin account.",
+    errDiagIamCause: "The signed-in account lacks Access Context Manager permissions such as roles/accesscontextmanager.policyAdmin.",
+    errDiagIamRemediation: "Grant roles/accesscontextmanager.policyAdmin at the organization level and retry.",
     errDiagIamConsoleLink: "Open Google Cloud IAM Console",
     errDiagWorkspaceTitle: "Google Workspace Super Admin Required",
-    errDiagWorkspaceCause: "The Directory API or Chrome Policy API rejected the request because the signed-in account lacks Workspace Super Administrator privileges, or Third-Party API Client access is restricted.",
-    errDiagWorkspaceRemediation: "Sign in with a Google Workspace Super Administrator account or grant Admin SDK privileges in the Google Admin Console.",
+    errDiagWorkspaceCause: "The signed-in account lacks Workspace Super Admin privileges or Admin SDK access.",
+    errDiagWorkspaceRemediation: "Sign in with a Workspace Super Admin account or grant Admin SDK privileges.",
     errDiagWorkspaceConsoleLink: "Open Admin Console Roles",
     errDiagVpcScConflictTitle: "VPC Service Controls Perimeter Conflict",
-    errDiagVpcScConflictCause: "This Google Cloud project is already assigned to another VPC Service Controls perimeter or the perimeter identifier already exists.",
-    errDiagVpcScConflictRemediation: "Specify an isolated evaluation project, or modify the existing perimeter in Google Cloud Console to add Discovery Engine.",
+    errDiagVpcScConflictCause: "This GCP project already belongs to another VPC-SC perimeter or the perimeter name exists.",
+    errDiagVpcScConflictRemediation: "Use an isolated evaluation project or update the existing perimeter in Cloud Console.",
     errDiagVpcScConsoleLink: "Open VPC Service Controls Console",
-    errDiagOuConfirmTitle: "Target OU Path Confirmation Mismatch",
-    errDiagOuConfirmCause: "To prevent accidental deployment to parent or root organizational units, you must type the exact path of the target OU.",
-    errDiagOuConfirmRemediation: "Copy the exact path shown in the prompt and paste it into the confirmation field.",
-    errDiagRateLimitTitle: "Google Cloud API Rate Limit Exceeded (429)",
-    errDiagRateLimitCause: "Cloud Identity or Resource Manager API requests exceeded the standard quota (1 QPS).",
-    errDiagRateLimitRemediation: "Wait 10-30 seconds. Secure Gateway Studio uses automatic backoff, so retrying now should succeed.",
-    errDiagWorkerTitle: "Chrome Extension Background Worker Suspended",
-    errDiagWorkerCause: "Chrome put the Manifest V3 service worker to sleep, or the extension was reloaded mid-request.",
-    errDiagWorkerRemediation: "Click the Retry button below or reload the extension page to re-establish the connection.",
-    errDiagProjectNoOrgTitle: "Google Cloud Project Not in Organization",
-    errDiagProjectNoOrgCause: "Access Context Manager and VPC Service Controls require projects to belong to a Google Cloud Organization.",
-    errDiagProjectNoOrgRemediation: "Select a project under your company organization rather than an unassociated standalone project.",
+    errDiagOuConfirmTitle: "Target Scope Confirmation Mismatch",
+    errDiagOuConfirmCause: "The confirmation text does not match the selected OU path or group email.",
+    errDiagOuConfirmRemediation: "Copy the exact target path or email shown above into the confirmation field.",
+    errDiagRateLimitTitle: "Google Cloud API Rate Limit Exceeded",
+    errDiagRateLimitCause: "Cloud Identity or Resource Manager API requests exceeded quota.",
+    errDiagRateLimitRemediation: "Wait 10–30 seconds and click Retry.",
+    errDiagWorkerTitle: "Extension Service Worker Suspended",
+    errDiagWorkerCause: "Chrome suspended the background service worker during the request.",
+    errDiagWorkerRemediation: "Click Retry below or reload the extension page.",
+    errDiagProjectNoOrgTitle: "GCP Project Not in an Organization",
+    errDiagProjectNoOrgCause: "Access Context Manager and VPC-SC require a project under a Google Cloud Organization.",
+    errDiagProjectNoOrgRemediation: "Select a GCP project belonging to your organization.",
     errDiagPolicyNotFoundTitle: "Access Context Manager Policy Not Found",
-    errDiagPolicyNotFoundCause: "No Access Policy exists in your organization, or the default policy ID could not be resolved.",
-    errDiagPolicyNotFoundRemediation: "Create an Access Policy in Access Context Manager console or specify your policy ID manually.",
+    errDiagPolicyNotFoundCause: "No Access Policy exists in the organization or the policy ID could not be resolved.",
+    errDiagPolicyNotFoundRemediation: "Create an Access Policy in Cloud Console or enter the policy ID manually.",
     errDiagPolicyConsoleLink: "Open Access Context Manager Console",
-    errDiagOuStaleTitle: "Target Organizational Unit Not Found or Stale",
-    errDiagOuStaleCause: "The selected organizational unit ID is no longer present or its path changed in Google Workspace Directory.",
-    errDiagOuStaleRemediation: "Click 'Reload OU List' to refresh the organization structure and reselect the target organizational unit.",
-    errDiagRootOuForbiddenTitle: "Root Organizational Unit Not Permitted",
-    errDiagRootOuForbiddenCause: "Deploying CEP policies or assigning licenses directly to the root organizational unit (/) can impact all users across the domain.",
-    errDiagRootOuForbiddenRemediation: "Select a child organizational unit dedicated to your evaluation group or test users.",
-    errDiagScopeInvalidTitle: "Invalid Workspace Customer Scope or Identity",
-    errDiagScopeInvalidCause: "A valid Workspace Customer ID and target organizational unit ID are required for this operation.",
-    errDiagScopeInvalidRemediation: "Verify the Workspace customer ID in deployment settings and ensure an organizational unit is selected.",
+    errDiagOuStaleTitle: "Target OU Not Found",
+    errDiagOuStaleCause: "The selected OU was deleted or moved in Workspace Directory.",
+    errDiagOuStaleRemediation: "Refresh OUs and select the target OU again.",
+    errDiagRootOuForbiddenTitle: "Root OU Blocked",
+    errDiagRootOuForbiddenCause: "Applying policies or licenses directly to the Root OU is blocked for safety.",
+    errDiagRootOuForbiddenRemediation: "Select a dedicated child OU or Google Group.",
+    errDiagScopeInvalidTitle: "Invalid Workspace Customer Scope",
+    errDiagScopeInvalidCause: "A valid Workspace Customer ID and target scope are required.",
+    errDiagScopeInvalidRemediation: "Verify the Workspace connection and select a target OU or group.",
     errDiagProjectRequiredTitle: "Google Cloud Project ID Required",
-    errDiagProjectRequiredCause: "Cloud Access Context Manager, VPC Service Controls, or IAM mutations require a valid Google Cloud Project ID.",
-    errDiagProjectRequiredRemediation: "Enter or select a valid Google Cloud Project ID in the configuration field.",
-    errDiagGeminiTitle: "Gemini Enterprise / Discovery Engine Access Denied",
+    errDiagProjectRequiredCause: "ACM, VPC-SC, and IAM operations require a Google Cloud Project ID.",
+    errDiagProjectRequiredRemediation: "Enter a valid Google Cloud Project ID.",
+    errDiagGeminiTitle: "Gemini Enterprise Access Denied",
     errDiagGeminiCause:
-      "Access to Gemini Enterprise (vertexaisearch.cloud.google.com or discoveryengine.googleapis.com) was blocked because the current browser is not recognized as a Managed Chrome Browser meeting the Access Level, or a GCP administrator is attempting to access the Cloud Console from an unmanaged device.",
+      "Access to Discovery Engine was blocked by ACM or VPC-SC because the browser is not managed.",
     errDiagGeminiRemediation:
-      "Ensure you are using a company-managed Chrome browser with policy sync enabled. If you are a GCP administrator, access the Cloud Console from a Managed Chrome browser or configure an ingress exception rule.",
-    errDiagGeminiConsoleLink: "Open Vertex AI Search & Conversation Console",
-    geminiConfirmProjectLabel: "Confirm Project ID (Strict Enforcement Safeguard)",
-    geminiConfirmProjectHint: "To run Gemini Zero Trust provisioning with strict perimeter enforcement, re-type the exact target Project ID.",
+      "Access from a Managed Chrome browser or use Approach 2 RCA group binding.",
+    errDiagGeminiConsoleLink: "Open Vertex AI Search Console",
+    geminiConfirmProjectLabel: "Confirm Project ID",
+    geminiConfirmProjectHint: "Type the target Project ID to confirm strict perimeter enforcement.",
     geminiConfirmProjectMismatch: "Type the exact target Project ID before provisioning in strict mode.",
-    errDiagGenericTitle: "Operation Failed with Error",
+    errDiagGenericTitle: "Operation Failed",
     errDiagGenericCause: "An unexpected error occurred during execution.",
-    errDiagGenericRemediation: "Check the technical details below and verify API enablement and network connectivity.",
+    errDiagGenericRemediation: "Check the technical details below and verify API enablement.",
     errDiagCauseLabel: "Cause:",
-    errDiagRemediationLabel: "Remediation Steps:",
-    errDiagCommandHeader: "Fix Command / Admin Request Template:",
+    errDiagRemediationLabel: "Remediation:",
+    errDiagCommandHeader: "Fix Command:",
     errDiagRetryBtn: "Retry Operation",
-    errDiagRawDetails: "Technical Error Details (for debugging)",
+    errDiagRawDetails: "Technical Error Details",
 
-    // Security Assessment & Policy Recommender
     assessOpenBtn: "Security Requirements & Policy Wizard",
     assessModalTitle: "Security Requirements & Policy Wizard",
-    assessModalSubtitle: "Select your organization's security challenges and device protection requirements to configure the corresponding Chrome Enterprise Premium policy baseline (DLP and access control).",
+    assessModalSubtitle: "Select your security requirements to configure the CEP policy baseline and DLP matrix.",
     assessPresetLabel: "Quick Presets",
     assessPresetGenAi: "GenAI Safe Adoption",
-    assessPresetCost: "Exit VDI / Replace CASB (Cost Cut)",
-    assessPresetRemote: "Remote Work & BYOD Posture",
-    assessPresetAll: "Enterprise Max Security (Select All)",
+    assessPresetCost: "Exit VDI / Replace CASB",
+    assessPresetRemote: "Remote Work & BYOD",
+    assessPresetAll: "Select All",
     assessPresetClear: "Clear All",
     assessGroupGenAi: "GenAI & Cloud Data Protection",
     assessGroupPosture: "Device Posture & Remote Access",
-    assessGroupSaas: "SaaS Protection & Zero Trust Modernization",
-    assessGroupCost: "Cost Optimization & Zero-Agent Endpoint",
-    assessQ1Title: "Prevent confidential copy/pasting into GenAI (ChatGPT, Gemini, etc.) and Web",
-    assessQ1Risk: "Employees pasting confidential source code or customer data into external GenAI causing data leakage",
-    assessQ1Solution: "Chrome Enterprise DLP enforces real-time clipboard paste inspection and blocking/warning on web AI apps",
-    assessQ2Title: "Restrict Web upload/download of Personal Data (PII, Customer lists, Financials)",
-    assessQ2Risk: "Downloading PII/customer CSVs from SaaS or Web apps to unapproved personal PCs or clouds",
-    assessQ2Solution: "Real-time DLP file inspection blocking sensitive national IDs, credit cards, and customer data",
-    assessQ3Title: "Confidential screen printing restriction & screen capture watermark overlay",
-    assessQ3Risk: "Printing confidential designs/customer lists or taking phone camera screen photos to take off-site",
-    assessQ3Solution: "Browser print blocking + dynamic electronic watermark (user email, timestamp) over sensitive pages",
-    assessQ4Title: "SaaS access control from unmanaged BYOD / untrusted networks",
-    assessQ4Risk: "Accessing corporate SaaS from personal unapproved PCs leading to malware infection or credential theft",
-    assessQ4Solution: "Context-Aware Access (CAA) strictly restricting access to Managed Chrome browsers (BROWSER_MANAGED)",
-    assessQ5Title: "Block access from devices with outdated OS or unencrypted disks",
-    assessQ5Risk: "Vulnerable unpatched PCs connecting to internal systems becoming ransomware entry points",
-    assessQ5Solution: "Endpoint Verification posture checking enforcing minimum OS version, screen lock, and disk encryption",
-    assessQ6Title: "Strict corporate device identification using client certificates (mTLS)",
-    assessQ6Risk: "Credential leak allows unauthorized third-party devices to log in to corporate services",
-    assessQ6Solution: "Chrome Certificate Store binding corporate client certificates for strict mTLS device identification",
-    assessQ7Title: "Strict zero-trust authorization for Google Workspace, M365, Salesforce",
-    assessQ7Risk: "Critical SaaS relying solely on passwords/basic MFA remains vulnerable to cookie hijacking",
-    assessQ7Solution: "Chrome Enterprise + Google Cloud Access Context Manager multi-layered zero-trust authorization",
-    assessQ8Title: "Geographic access control (blocking untrusted/foreign IP ranges)",
-    assessQ8Risk: "Detecting and blocking unauthorized brute force or access attempts from foreign/suspicious IP ranges",
-    assessQ8Solution: "Granular IP-based and geographic CAA policies with automatic security alerts",
-    assessQ9Title: "Need to transition to VPN-less direct secure access (SWG breakout)",
-    assessQ9Risk: "VPN bandwidth saturation, frequent gateway crashes, and soaring hardware appliance maintenance costs",
-    assessQ9Solution: "Chrome + Cloud Secure Web Gateway (SWG) enabling secure direct internet breakout (Exit VPN)",
-    assessQ10Title: "Malicious Extension detection & force-uninstall",
-    assessQ10Risk: "Employees installing unauthorized rogue browser extensions that steal session cookies and screen data",
-    assessQ10Solution: "Extension whitelist enforcement (ExtensionInstallBlocklist: *, only corporate vetted extensions allowed)",
-    assessQ11Title: "Long-term security audit logging & SIEM/BigQuery instant synchronization",
-    assessQ11Risk: "Lack of forensic browser activity logs to investigate security incidents and regulatory compliance",
-    assessQ11Solution: "Direct telemetry export of Chrome URL visits, DLP events, file transfers to Cloud Logging and BigQuery",
-    assessQ12Title: "Immediate zero-day vulnerability patching & browser version governance",
-    assessQ12Risk: "Lag in manual OS/browser patching leaves multi-week blank vulnerability window when zero-days emerge",
-    assessQ12Solution: "Silent background auto-updates ensuring zero-day vulnerabilities are patched within hours org-wide",
-    assessQ13Title: "Review and replace expensive CASB/SWG licenses (Netskope, Zscaler, etc.)",
-    assessQ13Risk: "Paying tens to hundreds of millions of yen annually for third-party CASB/proxy subscription licenses",
-    assessQ13Solution: "Browser-native CEP DLP and Cloud SWG integration directly replacing costly third-party CASB/proxies",
-    assessQ14Title: "VDI (Citrix, VMware Horizon) server hardware refresh & maintenance cost reduction",
-    assessQ14Risk: "Exorbitant multi-million dollar quotes for upcoming VDI server refreshes prompts need to exit VDI",
-    assessQ14Solution: "Secure Enterprise Browser transforms local PCs into secure workspaces, slashing 80%+ of VDI/DaaS costs",
-    assessQ15Title: "Eliminate PC slowness caused by multiple heavy endpoint agents",
-    assessQ15Risk: "Stacking heavy agents (EDR, DLP, asset mgmt, encryption) causes slow PCs and endless user complaints",
-    assessQ15Solution: "Zero additional agents required; DLP, access control, and auditing run natively inside Chrome",
-    assessDefaultDlpCustomMessage: "Confidential data transfer is blocked by corporate security policy. Contact your security administrator if you require an exemption.",
+    assessGroupSaas: "SaaS Protection & Zero Trust",
+    assessGroupCost: "Cost & Endpoint Simplification",
+    assessQ1Title: "Prevent sensitive copy/paste into GenAI and Web apps",
+    assessQ1Risk: "Pasting source code or customer data into external AI tools.",
+    assessQ1Solution: "Real-time clipboard inspection and blocking on web AI apps.",
+    assessQ2Title: "Restrict Web upload/download of PII and financial data",
+    assessQ2Risk: "Downloading customer CSVs to personal devices or unapproved clouds.",
+    assessQ2Solution: "Real-time DLP file inspection for national IDs and payment cards.",
+    assessQ3Title: "Restrict confidential printing and apply screen watermarks",
+    assessQ3Risk: "Printing or photographing sensitive screens.",
+    assessQ3Solution: "Browser print blocking and dynamic user/timestamp watermarks.",
+    assessQ4Title: "Control SaaS access from unmanaged BYOD devices",
+    assessQ4Risk: "Accessing corporate SaaS from unmanaged personal computers.",
+    assessQ4Solution: "Context-Aware Access restricting login to Managed Chrome browsers.",
+    assessQ5Title: "Block devices with outdated OS or unencrypted disks",
+    assessQ5Risk: "Unpatched endpoints connecting to internal apps.",
+    assessQ5Solution: "Endpoint Verification checks for OS version, lock, and disk encryption.",
+    assessQ6Title: "Verify corporate devices with client certificates",
+    assessQ6Risk: "Stolen credentials used from unauthorized devices.",
+    assessQ6Solution: "Chrome Certificate Store binding for mTLS device checks.",
+    assessQ7Title: "Enforce zero-trust access for Workspace, M365, and Salesforce",
+    assessQ7Risk: "Password/MFA sessions exposed to cookie theft.",
+    assessQ7Solution: "Chrome Enterprise and Access Context Manager conditional access.",
+    assessQ8Title: "Block access from untrusted IP ranges or regions",
+    assessQ8Risk: "Unauthorized access attempts from untrusted networks.",
+    assessQ8Solution: "IP and region-based Context-Aware Access policies.",
+    assessQ9Title: "Move from legacy VPN to browser-based zero-trust access",
+    assessQ9Risk: "VPN bandwidth bottlenecks and appliance maintenance overhead.",
+    assessQ9Solution: "Direct zero-trust access via Chrome and BeyondCorp Secure Gateway.",
+    assessQ10Title: "Block unauthorized browser extensions",
+    assessQ10Risk: "Malicious extensions reading page content or session cookies.",
+    assessQ10Solution: "Extension allowlisting with ExtensionInstallBlocklist.",
+    assessQ11Title: "Export Chrome security logs to SIEM or BigQuery",
+    assessQ11Risk: "Missing browser audit trails during incident investigations.",
+    assessQ11Solution: "Export DLP, URL, and file events to Cloud Logging and BigQuery.",
+    assessQ12Title: "Automate browser security updates",
+    assessQ12Risk: "Delayed browser patching leaving endpoints exposed.",
+    assessQ12Solution: "Automated background Chrome updates and version governance.",
+    assessQ13Title: "Consolidate third-party CASB/SWG browser controls",
+    assessQ13Risk: "Overlapping third-party proxy and CASB licensing costs.",
+    assessQ13Solution: "Browser-native DLP and access controls inside Chrome.",
+    assessQ14Title: "Reduce VDI infrastructure footprint",
+    assessQ14Risk: "High VDI hardware refresh and maintenance expenses.",
+    assessQ14Solution: "Enforce data boundary controls directly in local Managed Chrome.",
+    assessQ15Title: "Reduce endpoint agent overhead",
+    assessQ15Risk: "Multiple endpoint agents slowing down user devices.",
+    assessQ15Solution: "Run DLP, access checks, and reporting natively in Chrome.",
+    assessDefaultDlpCustomMessage: "Confidential data transfer is restricted by corporate security policy.",
     assessRecHeader: "Selected Policy Baseline",
-    assessRecDlpHeader: "DLP (Data Loss Prevention) Matrix:",
+    assessRecDlpHeader: "DLP Matrix:",
     assessRecModulesHeader: "Policy Modules:",
-    assessRoiHeader: "Expected Outcomes & Security Improvements:",
-    assessRoiCostTitle: "License and Infrastructure Cost Efficiency",
-    assessRoiCostDesc: "Integrate CASB/SWG controls natively into the browser and optimize infrastructure costs.",
-    assessRoiPerfTitle: "Endpoint Agent Consolidation",
-    assessRoiPerfDesc: "Enforce security controls natively within Chrome without installing heavy third-party endpoint agents.",
-    assessRoiSecurityTitle: "Data Leakage Prevention & Threat Defense",
-    assessRoiSecurityDesc: "Control sensitive data transfers, downloads, and screen capture using dynamic watermarking and policy enforcement.",
+    assessRoiHeader: "Expected Outcomes:",
+    assessRoiCostTitle: "Infrastructure Simplification",
+    assessRoiCostDesc: "Consolidate browser security controls and reduce VDI/proxy overhead.",
+    assessRoiPerfTitle: "Agentless Browser Enforcement",
+    assessRoiPerfDesc: "Apply DLP and posture checks natively in Chrome without extra agents.",
+    assessRoiSecurityTitle: "Data Boundary & Threat Protection",
+    assessRoiSecurityDesc: "Control uploads, pastes, downloads, and watermarks in the browser.",
     assessApplyRecBtn: "Apply Configuration to PoC",
-    assessAppliedBanner: "✓ Applied policy configuration and DLP matrix based on selected requirements.",
+    assessAppliedBanner: "✓ Applied policy configuration and DLP matrix.",
     geminiArchDetailsToggle: "View 3-Tier Security Architecture & CLI Commands",
     assessShowDetails: "Show Risk & Solution Details",
     assessHideDetails: "Hide Details",
-    projectIdOptionalLabel: "Google Cloud Project ID (Optional — for Context-Aware Access & Gemini Zero Trust)",
-    projectIdOptionalHint: "Chrome policies, DLP rules, and CEP license assignment work with Workspace Customer ID alone. Enter a GCP Project ID only if you want to list or auto-create Access Context Manager levels or VPC-SC perimeters.",
-    projectIdOptionalPlaceholder: "e.g. my-gcp-project-id (leave blank for Workspace-only PoC)",
-    statusLogApiCallCount: (count: number) => `(${count} API calls)`,
-    assessStatusWatermarkOn: "ON (Enabled)",
+    projectIdOptionalLabel: "Google Cloud Project ID · Optional for CAA & Gemini Zero Trust",
+    projectIdOptionalHint: "Leave blank for Workspace-only PoC. Enter a GCP Project ID only when using Access Context Manager or VPC-SC.",
+    projectIdOptionalPlaceholder: "e.g. my-gcp-project-id",
+    statusLogApiCallCount: (count: number) => `${count} API calls`,
+    assessStatusWatermarkOn: "ON",
     assessStatusEnabled: "✓ Enabled",
     assessStatusDisabled: "Disabled",
     assessStatusAllowlistManaged: "✓ Allowlist Managed",
     assessStatusCloudLogging: "✓ Cloud Logging Linked",
-    assessStatusVpcScProtected: "✓ VPC-SC Perimeter Protected",
+    assessStatusVpcScProtected: "✓ VPC-SC Protected",
     assessStatusStandard: "Standard",
     assessSelectedCountSuffix: "selected",
-    dlpRegionJapanLabel: "Japan (My Number / Bank Account)",
+    dlpRegionJapanLabel: "Japan · My Number / Bank Account",
     dlpPresetsLabel: "Presets:",
   },
 };
@@ -3699,7 +3696,7 @@ const ja: Messages = {
   adminEmail: "未接続",
   help: "ヘルプ",
   signOut: "サインアウト / 初期化",
-  signOutConfirm: "サインアウトしてセッションを初期化しますか？ローカルの認証トークンとキャッシュがクリアされ、初期状態（同意画面）に戻ります。",
+  signOutConfirm: "サインアウトしてセッションを初期化しますか？ローカルの認証トークンとキャッシュを削除し、初期状態に戻ります。",
   nav: {
     deployments: "デプロイ",
     newSetup: "新規セットアップ",
@@ -3716,36 +3713,36 @@ const ja: Messages = {
   modeTitle: "1. Secure Gateway の PoC を開始",
   poc: "PoC",
   pocDescription:
-    "テスト組織（OU）向けにリソースを構築し、評価完了後に安全に削除できます。管理コンソール経由で管理対象 Chrome へローカル CA を配布できます。",
+    "テスト用OU向けにリソースを構築し、評価完了後に安全に削除します。",
   production: "本番環境",
   productionDescription:
-    "エンタープライズ PKI、リージョン高可用性、本番専用サービス ID 等の本格運用向け構成です（PoC 検証ツールのスコープ外）。",
+    "エンタープライズPKIや高可用性を備えた本番構成です。本ツールの対象外です。",
   productionUnavailable: "未定",
   platformsTitle: "管理対象 Chrome プラットフォーム",
   managedChromeOnly: "",
-  platformNote: "検証対象とする OS を選択してください（複数選択可）。",
+  platformNote: "検証対象のOSを選択します。複数選択可能です。",
   infrastructureTitle: "2. ネットワーク構成",
   dedicatedNetwork: "専用ネットワーク",
   recommended: "標準",
-  dedicatedDescription: "Secure Gateway サービス専用の新しいVPCを作成します。",
+  dedicatedDescription: "Secure Gateway専用の新しいVPCを作成します。",
   existingVpc: "既存VPC",
-  existingDescription: "管理している既存VPCへデプロイします。",
+  existingDescription: "管理中の既存VPCへデプロイします。",
   certificateTitle: "3. 証明書方式",
   enterpriseCa: "エンタープライズPKI / CA Service",
   enterpriseCaDescription: "組織CAまたはCloud CA Serviceで内部TLS証明書を発行します。",
-  publicCertificate: "パブリック証明書（公的CA発行）",
+  publicCertificate: "パブリック証明書",
   publicCertificateDescription:
-    "公開DNSホスト名と、Secret Manager内の証明書チェーンが必要です。公的ルートCA（Public Trust Roots）で検証されるため、プライベートCA、自己署名、内部ドメイン名の証明書は使用できません。",
+    "公開DNSホスト名とSecret Manager内の公的証明書チェーンを使用します。",
   localPocCa: "ローカルPoC CA",
   disabledProduction: "本番では無効",
-  localPocAdminConsole: "管理コンソールへのアップロードが必要",
+  localPocAdminConsole: "管理コンソールへの登録が必要",
   localPocCaDescription:
-    "プライベートルート証明書とサーバー証明書を生成します。適用後に公開ルートをダウンロードし、Google管理コンソールでテストOUへアップロードします。",
+    "ルート証明書とサーバー証明書を自動生成します。適用後に公開ルートをGoogle管理コンソールのテストOUへ登録します。",
   posture: "デプロイ方針",
   mode: "モード",
   managedPlatforms: "管理対象 Chrome",
   platformCount: (count: number) =>
-    count === 4 ? "全プラットフォーム対応 (macOS / Windows / Linux / ChromeOS)" : `${count} プラットフォーム`,
+    count === 4 ? "全プラットフォーム対応 · macOS / Windows / Linux / ChromeOS" : `${count} プラットフォーム`,
   infrastructure: "ネットワーク",
   certificateStrategy: "証明書方式",
   targetOu: "対象OU",
@@ -3760,7 +3757,7 @@ const ja: Messages = {
   approval: "承認",
   required: "必須",
   willValidate: "適用時に検証",
-  gateNote: "適用するには、すべてのゲートを通過する必要があります。",
+  gateNote: "適用前にすべてのゲートを通過する必要があります。",
   back: "戻る",
   continue: "ID設定へ進む",
   noChanges: "変更はまだ適用されていません",
@@ -3770,7 +3767,7 @@ const ja: Messages = {
   languages: { english: "English", japanese: "日本語" },
   topbarAuth: {
     cloudPopoverTitle: "Google Cloud 接続・プロジェクト設定",
-    cloudPopoverDesc: "Easy PoC（Context-Aware Access / VPC-SC）と Secure Gateway Deployer で共通利用されます。",
+    cloudPopoverDesc: "Easy PoC と Secure Gateway Deployer で共通利用します。",
     cloudProjectIdLabel: "Google Cloud プロジェクトID",
     cloudProjectIdPlaceholder: "例: enterprise-secgw-01",
     cloudOperatorLabel: "検証済みクレデンシャル",
@@ -3778,26 +3775,26 @@ const ja: Messages = {
     cloudVerifyingBtn: "確認中…",
     cloudBootstrapBtn: "SGWデプロイ用サービスアカウントを作成して接続",
     cloudBootstrappingBtn: "サービスアカウントを準備中…",
-    cloudSharedNote: "Easy PoC はログイン中の管理者OAuthとこのプロジェクトIDを使用します。Secure Gateway Deployer は専用のデプロイヤーSAを使用します。",
+    cloudSharedNote: "Easy PoC は管理者OAuthを、Secure Gateway Deployer は専用デプロイヤーSAを使用します。",
     workspacePopoverTitle: "Google Workspace 管理者ログイン",
-    workspacePopoverDesc: "ここで一度ログインすると、Easy PoC と Secure Gateway Deployer の両方で管理者セッション・顧客ID・OU・グループが共有されます。",
+    workspacePopoverDesc: "一度ログインすると、Easy PoC と Secure Gateway Deployer で顧客ID・OU・グループを共有します。",
     workspaceSignInBtn: "Googleでログインして自動設定",
     workspaceSigningInBtn: "ログイン・顧客IDを取得中…",
     workspaceReverifyBtn: "Workspace接続を再確認",
-    workspaceCustomerIdLabel: "顧客ID (C...)",
+    workspaceCustomerIdLabel: "顧客ID",
     workspaceAdminLabel: "ログイン中の管理者",
-    workspaceSharedNote: "組織部門（OU）とグループ一覧は必要な画面で自動的に読み込まれます。",
-    sharedHeaderConnectedBanner: "右上のヘッダーから接続済み（Easy PoC・SGW Deployer 共通）",
+    workspaceSharedNote: "組織部門とグループ一覧は各画面で自動的に読み込まれます。",
+    sharedHeaderConnectedBanner: "右上のヘッダーから接続済み · Easy PoC / SGW Deployer 共通",
   },
   workflow: {
     identitiesTitle: "Google Cloud と Workspace の接続設定",
     identitiesIntro:
-      "左側の Google Cloud（手順 1〜3）と右側の Google Workspace の順に接続します。JSON キーファイルは作成せず、ブラウザの管理者ログインとサービスアカウントの権限借用で安全に動作します。",
+      "左の Google Cloud と右の Google Workspace に順番に接続します。サービスアカウントキーは作成せず、権限借用で安全に動作します。",
     cloudAccount: "Google Cloud デプロイヤー",
-    cloudAccountDescription: "最初に対象の GCP プロジェクト ID を入力し、上から順にボタンを押して接続します。",
+    cloudAccountDescription: "GCPプロジェクトIDを入力し、上から順番にボタンを押して接続します。",
     workspaceAccount: "Workspace／Chrome管理者",
     workspaceAccountDescription:
-      "顧客 ID（初期値 my_customer のままで可）を確認し、「接続を確認」を押して Google Workspace に接続します。",
+      "「接続を確認」を押して Google Workspace に接続します。初期値 my_customer のままで構いません。",
     projectId: "Google Cloud プロジェクトID",
     operatorIdentity: "接続済みのサービスアカウント",
     adminIdentity: "接続済みの管理者アカウント",
@@ -3807,60 +3804,60 @@ const ja: Messages = {
     checking: "接続を確認中…",
     connectionFailed: "接続確認に失敗しました",
     adcUnavailable:
-      "キーレス Application Default Credentials がありません。「gcloud auth application-default login --impersonate-service-account=SERVICE_ACCOUNT_EMAIL」を実行し、再試行してください。",
+      "Application Default Credentials がありません。gcloud auth application-default login を実行して再試行してください。",
     cloudValidationFailed:
       "Google Cloud の検証に失敗しました。プロジェクトIDと読み取り権限を確認してください。",
     workspaceValidationFailed:
-      "Workspace の検証に失敗しました。顧客IDと Chrome Policy 管理者権限を確認してください。",
+      "Workspace の検証に失敗しました。顧客IDと管理者権限を確認してください。",
     workspaceRequiredRolesHint:
-      "必要な Chrome Policy、OU、グループ／ユーザー読み取り、ライセンス管理の権限だけを割り当てます。Enterprise License Manager API には読み取り専用スコープがないため、CEP ライセンスの事前確認だけでもライセンス管理権限が必要です。Cloud Identity Policy API で Chrome DLP ルールを一覧・作成する操作には特権管理者が必要です。専用のテスト管理者とパイロット OU を使用してください。",
+      "Chrome Policy、OU、グループ／ユーザー読み取り、ライセンス管理の権限が必要です。Cloud Identity DLP ルールの操作には特権管理者が必要です。",
     cloudRequiredRolesTitle: "必要な Google Cloud 最小ロール:",
     cloudRequiredRoles: [
-      "サービス アカウント管理者 (roles/iam.serviceAccountAdmin)",
-      "ロール管理者 (roles/iam.roleAdmin)",
-      "プロジェクト IAM 管理者 (roles/resourcemanager.projectIamAdmin)",
-      "対象 Access Context Manager ポリシーの Policy Editor 権限（またはプロジェクトのセキュリティ管理者／オーナー）",
+      "サービス アカウント管理者 · roles/iam.serviceAccountAdmin",
+      "ロール管理者 · roles/iam.roleAdmin",
+      "プロジェクト IAM 管理者 · roles/resourcemanager.projectIamAdmin",
+      "Access Context Manager の Policy Editor またはセキュリティ管理者",
     ],
     workspaceRequiredRolesTitle: "必要な Workspace 権限:",
     workspaceRequiredRoles: [
-      "Chrome 設定 & OU 読み取り（ポリシー配信と組織構造の確認）",
-      "グループ & ユーザー読み取り（対象スコープの確認）",
-      "ライセンス管理（CEP ライセンスの事前確認および割り当て）",
-      "特権管理者（Cloud Identity DLP ルールの作成・一覧取得）※専用のテスト管理者アカウントを対象",
+      "Chrome 設定 & OU 読み取り",
+      "グループ & ユーザー読み取り",
+      "ライセンス管理",
+      "特権管理者 · Cloud Identity DLP ルール作成時",
     ],
     specInvalid: "デプロイ設定に無効または不足している項目があります。",
     connectionNotice:
-      "接続検証は読み取り専用です。適用権限は事前確認で別途検証します。",
+      "接続検証は読み取り専用です。適用権限は事前確認で検証します。",
     bootstrapDeployer: "サービスアカウントを作成して接続",
     bootstrapDeployerHint:
-      "専用サービスアカウントとカスタムロールを自動作成し、そのまま接続確認まで自動で完了します（約10〜30秒）。",
+      "専用サービスアカウントとカスタムロールを作成し、そのまま接続確認まで完了します。",
     bootstrapConfirm:
-      "デプロイヤーSA、カスタムロール、プロジェクトIAM、Access Policy Editor、あなたのToken Creator権限を作成または更新します。続行しますか？",
+      "デプロイヤーSA、カスタムロール、プロジェクトIAM、Access Policy Editor、Token Creator権限を作成・更新します。続行しますか？",
     bootstrapLegacyMigrationConfirm:
-      "Secure Gateway Studio 0.2.0互換の予約名を持つ、所有者ピンのないデプロイヤー候補が見つかりました。ローカル記録がない場合はユーザー管理キーが存在しないことも含め、SAの不変な数値ID、カスタムロールの完全な定義、SA／プロジェクトIAMの許可リストを監査し、一致した場合だけ移行しますか？差異があれば変更せず停止します。",
+      "予約名を持つ未固定のデプロイヤー候補が見つかりました。SAの不変な数値ID、カスタムロール定義、IAM許可リストを監査し、一致した場合だけ移行しますか？",
     bootstrapReplacementConfirm:
-      "旧デプロイヤーは厳密な移行監査に一致せず、変更されていません。旧デプロイヤーを監査用にそのまま残し、別の予約名で新しい分離デプロイヤーSAとロールを作成しますか？",
+      "旧デプロイヤーは移行監査に一致しませんでした。旧デプロイヤーを監査用に残し、別の予約名で新しいデプロイヤーSAとロールを作成しますか？",
     bootstrapDeletedDeployerConfirm:
-      "このブラウザに不変IDで固定されたデプロイヤーはCloud上に存在しません。意図してCloudリソースを削除したことを確認してください。拡張機能は、対象SAが存在しないこと、カスタムロールが存在しないかGoogleの削除済み状態でSGSの完全な定義と一致すること、プロジェクトIAMとAccess Policy IAMに残存バインディングがないことを検証します。その後、旧数値IDを恒久的に廃止し、必要なら論理削除中のロールを安全に復元して、新しいデプロイヤーを作成します。続行しますか？",
+      "固定されたデプロイヤーがCloud上に存在しません。残存IAMバインディングがないことを検証した上で、旧数値IDを恒久的に廃止し、必要なら論理削除中のロールを安全に復元して新しいデプロイヤーを作成します。続行しますか？",
     bootstrapWorking: "1/2: サービスアカウントを作成中…",
     bootstrapValidating: "2/2: IAM権限の反映と接続を確認中…",
     bootstrapComplete: "Google Cloud の接続準備が完了しました",
     bootstrapNext:
-      "デプロイ用サービスアカウントの作成と接続確認が完了しました。右側の Google Workspace 接続も「接続済み」になったら「続行」を押してください。",
+      "Google Cloud の準備が完了しました。右側の Google Workspace も接続済みになったら「続行」を押してください。",
     bootstrapFailed: "サービスアカウントの自動準備に失敗しました",
     signInGoogle: "Google でサインイン",
     signingInGoogle: "Google の応答を待っています…",
     signInGoogleHint:
-      "Google の承認画面を開きます。この Chrome プロファイルで初めて使う場合のみ実行してください。",
+      "Google の承認画面を開きます。初回のみ実行してください。",
     signInRequired:
-      "この Chrome プロファイルはまだ Secure Gateway Studio を承認していません。「Google でサインイン」を押して承認してから、もう一度実行してください。",
+      "先に「Google でサインイン」を押して承認してから再実行してください。",
     signInOperatorChanged:
-      "サインイン中の Google アカウントが、このデプロイヤーに紐づく運用者と異なります。元のアカウントでサインインするか、置き換え用のデプロイヤーを作成してください。",
-    cloudStep1Label: "手順 1: Google アカウントの承認（初回のみ）",
+      "サインイン中のアカウントがデプロイヤーの運用者と異なります。元のアカウントを使うか、デプロイヤーを再作成してください。",
+    cloudStep1Label: "手順 1: Google アカウントの承認 · 初回のみ",
     cloudStep2Label: "手順 2: デプロイ用サービスアカウントの作成と自動接続",
-    cloudStep3Label: "手順 3: 接続状態の再確認（すでに作成済みの場合）",
+    cloudStep3Label: "手順 3: 接続状態の再確認",
     customerIdAutoHint:
-      "my_customer のまま「接続を検証」を押すと、Directory API から C で始まる顧客 ID を自動取得して反映します。",
+      "my_customer のまま接続を確認すると、C で始まる顧客IDを自動取得します。",
     resolveSampleImageQuick: "Debian 12 PoC イメージを自動取得",
     progressTitle: "デプロイ進捗",
     progressCount: (completed: number, total: number) =>
@@ -3870,7 +3867,7 @@ const ja: Messages = {
     failedOperations: "失敗した操作一覧",
     manualCleanupTitle: "手動削除が必要です",
     manualCleanupDescription:
-      "本デプロイの自動ロールバックは利用できません。拡張機能のローカル状態をリセットする前に、以下の残存リソースを Google Cloud コンソールで確認し、手動で削除してください。",
+      "自動ロールバックを利用できません。以下の残存リソースを Google Cloud コンソールで手動削除してください。",
     waitingForOperation: "最初の操作を待っています…",
     environmentTitle: "プライベート環境を設定",
     environmentIntro:
@@ -3878,143 +3875,143 @@ const ja: Messages = {
     deploymentName: "デプロイ名",
     region: "リージョン",
     zone: "ゾーン",
-    secondaryZone: "セカンダリゾーン（本番HA）",
+    secondaryZone: "セカンダリゾーン",
     sourceImage: "サンプルVM用 OSイメージ",
     sourceImageHint:
-      "作成するVMで使用するCompute Engineイメージ名（バージョン固定のリソースパス）を指定します。",
+      "作成するVMで使用するバージョン固定のCompute Engineイメージパスです。",
     sourceImageAutoHint:
-      "PoC用のDebian 12イメージが自動で設定されます。別のカスタムイメージを使う場合のみ書き換えてください。",
+      "Debian 12イメージが自動設定されます。カスタムイメージを使う場合のみ変更してください。",
     sampleImageResolving: "サンプルVM用イメージを取得中…",
     sampleImageResolveFailed:
-      "サンプルVM用のGoogle Debian 12イメージを取得できませんでした。",
+      "Debian 12イメージを取得できませんでした。",
     sampleImageConnectionRequired:
-      "サンプルVMのイメージを取得する前に、ステップ2でGoogle Cloud接続を完了してください。",
+      "先にステップ2でGoogle Cloud接続を完了してください。",
     sampleImageResolved: "サンプルVM用イメージを設定しました",
     minimumReplicas: "Nginx最小レプリカ数",
     maximumReplicas: "Nginx最大レプリカ数",
-    cpuTarget: "オートスケーリングCPU目標値（0.1～0.9）",
+    cpuTarget: "オートスケーリングCPU目標値 · 0.1〜0.9",
     autoscalingHint:
-      "本番では2ゾーンのリージョンManaged Instance Groupを使用します。パススルー型ロードバランサの使用率はスケーリング指標にできないため、CPUで自動スケールします。",
+      "本番では2ゾーンのリージョンMIGを使用し、CPU使用率で自動スケールします。",
     network: "デプロイ方式",
     vpcName: "既存VPC名",
     vpcSameProjectHint:
-      "デプロイ先プロジェクトのVPCを読み取り専用で取得します。Shared VPCなど別プロジェクトの場合だけアップストリームプロジェクトを入力してください。",
-    vpcOptionsFailed: "デプロイ先プロジェクトのVPC一覧を取得できませんでした。",
+      "対象プロジェクトのVPCを取得します。Shared VPCの場合のみアップストリームプロジェクトを入力してください。",
+    vpcOptionsFailed: "VPC一覧を取得できませんでした。",
     subnetName: "既存サブネット名",
-    upstreamVpcProjectId: "アップストリームVPCのプロジェクトID（任意）",
+    upstreamVpcProjectId: "アップストリームVPCのプロジェクトID · 任意",
     upstreamVpcProjectIdHint:
-      "VPCがデプロイ先プロジェクト内にある場合は空欄にします。Shared VPCなど別プロジェクトのVPCでは、選択したネットワークを所有するプロジェクトを入力します。検出とupstreamAccess IAMはそのプロジェクトだけを対象にします。",
+      "同一プロジェクト内のVPCでは空欄にします。Shared VPCの場合のみネットワーク所有プロジェクトIDを入力します。",
     upstreamVpcCrossProjectPrerequisite:
-      "クロスプロジェクトの前提条件: 検証または事前確認より前に、アップストリームプロジェクトの管理者が、デプロイ先プロジェクトのデプロイヤーSAにプロジェクトレベルのカスタムロールを手動で作成・付与する必要があります。権限は compute.networks.get、compute.networks.use、resourcemanager.projects.get、resourcemanager.projects.getIamPolicy、resourcemanager.projects.setIamPolicy の5つだけです。初回準備が構成するのはデプロイ先プロジェクトだけで、このクロスプロジェクトロール／付与は作成しません。デプロイ先プロジェクトで作成したプロジェクトカスタムロールをアップストリームプロジェクトへ付与することもできません。",
-    managedSample: "管理対象サンプルバックエンド（Nginx）",
+      "クロスプロジェクトの前提条件: 事前確認より前に、アップストリームプロジェクトで compute.networks.get、compute.networks.use、resourcemanager.projects.get、resourcemanager.projects.getIamPolicy、resourcemanager.projects.setIamPolicy をデプロイヤーSAに付与してください。初回準備が構成するのはデプロイ先プロジェクトだけです。",
+    managedSample: "管理対象サンプルバックエンド · Nginx",
     managedSampleDescription:
-      "検証とエビデンス収集用のプライベートHTTPバックエンドを作成します。",
-    existingBackend: "既存HTTPバックエンド（Nginx）",
+      "検証用のプライベートHTTPバックエンドを作成します。",
+    existingBackend: "既存HTTPバックエンド · Nginx",
     existingBackendDescription:
-      "既に確立済みのプライベート接続を使い、管理者が管理するHTTPエンドポイントへ転送します。",
+      "既存のプライベートHTTPエンドポイントへ転送します。",
     directHttps: "Option A — 既存HTTPSアプリへ直接接続",
     directHttpsDescription:
-      "Secure Gatewayから既存HTTPSエンドポイントへVPC経由で直接接続します。Nginx、VM、NAT、オフロード証明書は作成しません。",
+      "Secure Gatewayから既存HTTPSエンドポイントへ直接接続します。VMやロードバランサは作成しません。",
     internalHttpsLb:
       "Option B — Internal Application Load BalancerでHTTPSオフロード",
     internalHttpsLbDescription:
-      "専用VPC内でRegional Internal Application Load BalancerがHTTPSを終端し、プライベートサンプルVMへHTTP転送します。専用VPC・サブネット・ILB・サンプルVMが自動作成されます。",
-    configureSampleVm: "サンプルVMのOSイメージを自動設定（Debian 12）",
+      "専用VPC内で内部HTTPSロードバランサがTLSを終端し、非公開サンプルVMへHTTP転送します。",
+    configureSampleVm: "サンプルVMのOSイメージを自動設定 · Debian 12",
     configureSampleVmDescription:
-      "Option Bでは、最終ステップ（適用）の実行時にテスト用の非公開サンプルVM（外部IPなし）を1台自動作成します。ボタンを押すと、サンプルVM用のDebian 12イメージを自動設定します。",
-    directSampleVmAction: "Option B（サンプルVM付き構成）へ切り替える",
+      "Option Bでは、適用時に外部IPなしの非公開サンプルVMを1台自動作成します。",
+    directSampleVmAction: "Option Bへ切り替える",
     directSampleVmDescription:
-      "Option Aは既存のHTTPSアプリへ直接接続する方式のため、テスト用VMは作成しません。テスト用VMも自動作成したい場合はOption Bへ切り替えてください。",
-    managedSampleVmAction: "サンプルVMのOSイメージを自動設定（Debian 12）",
+      "Option Aは既存HTTPSアプリへ直接接続するためテスト用VMを作成しません。サンプルVMも自動作成する場合はOption Bへ切り替えてください。",
+    managedSampleVmAction: "サンプルVMのOSイメージを自動設定 · Debian 12",
     managedSampleVmDescription:
       "管理対象サンプルでは、Option CのNginx層とプライベートHTTPバックエンドVMを最終承認済みApplyで作成します。",
     existingSampleVmDescription:
-      "既存HTTP方式には到達可能なプライベートHTTPバックエンドが必要です。存在しない場合は管理対象サンプルへ切り替えると、承認済みApplyでバックエンドVMを作成します。",
-    legacyNginxTitle: "Option C — 旧Nginx方式 / Legacy・詳細設定",
+      "既存HTTP方式には到達可能なプライベートHTTPバックエンドが必要です。サンプルVMを作成する場合は管理対象サンプルへ切り替えてください。",
+    legacyNginxTitle: "Option C — 旧Nginx方式 / 詳細設定",
     legacyNginxDescription:
-      "HTTPアプリ、または従来のNginxベース構成が必要な場合だけ展開します。",
+      "従来のNginxベース構成が必要な場合のみ選択します。",
     proxySubnetCidr: "ILB Proxy-onlyサブネットCIDR",
-    backendUrl: "バックエンドURL（http://）",
-    directHttpsUrl: "プライベートHTTPSエンドポイント（https://host[:port]）",
-    applicationEgressRegion: "下り（外向き）リージョン（任意）",
+    backendUrl: "バックエンドURL · http://",
+    directHttpsUrl: "プライベートHTTPSエンドポイント · https://host[:port]",
+    applicationEgressRegion: "下りリージョン · 任意",
     applicationEgressRegionHint:
-      "Secure GatewayがVPCへ下りるGoogle Cloudリージョンを指定します。既定値はデプロイリージョンです。クロスリージョンの場合はターゲットVMのあるリージョンを指定してください。VPCがGlobal動的ルーティングの場合は空欄でも動作します。",
+      "Secure GatewayがVPCへ出るリージョンです。空欄時はデプロイリージョンを使用します。",
     backendLocation: "バックエンドのホスティング先",
     backendLocationGcp: "Google Cloud",
     backendLocationAws: "AWS",
     backendLocationAzure: "Azure",
     backendLocationOnPrem: "オンプレミス",
     confirmBackendConnectivity:
-      "選択したGCP VPC/サブネットからのプライベートルーティング、DNS、バックエンドのファイアウォール許可が確立済みです",
+      "選択したVPCからのプライベートルーティング、DNS、ファイアウォール許可が設定済みです",
     backendConnectivityHint:
-      "本PoCではNginxを構成し、アップストリーム（バックエンド）への接続性を検証します。AWS/Azure VPN、Cloud VPN、Interconnect、オンプレミス側ルートは作成しません。先にプライベート経路を確立し、公開エンドポイントや認証情報は入力しないでください。",
+      "VPNやInterconnectは本ツールでは作成しません。事前にプライベート経路を確立してください。",
     cloudConsoleLinks: "Google Cloud & Workspace コンソール直リンク",
     openInCloudConsole: "コンソールで確認",
     computeInstancesLink: "Compute Engine VM インスタンス一覧",
     computeResourcesHint:
-      "runに紐づくNginxおよび／またはサンプルバックエンドVM。正確な名前とプライベートアドレスはrunのリソース一覧で確認します。",
+      "作成したVMの名前とプライベートIPはリソース一覧で確認できます。",
     securityGatewaysLink: "BeyondCorp Security Gateways",
     securityGatewayHint:
-      "正確なGatewayリソース名とライブ状態はrunのリソース一覧で確認します。",
+      "Gatewayリソース名と稼働状態はリソース一覧で確認できます。",
     vpcNetworksLink: "VPC ネットワーク & サブネット",
     cloudNatLink: "Cloud NAT",
     cloudNatHint:
-      "プライベートVMを持つ専用VPC方式で作成します。既存VPCは検証済みのプライベート送信経路を提供する必要があります。",
-    chromeAdminLink: "Chrome 管理ポリシー (Root Store)",
+      "プライベートVMを持つ専用VPC方式で自動作成されます。",
+    chromeAdminLink: "Chrome 管理ポリシー · Root Store",
     architectureBlueprint: "アーキテクチャ設計図 & テレメトリ",
     directHttpsConnectivity:
-      "選択したVPCでホスト名を解決でき、HTTPSアプリへの経路、136.124.16.0/20からのTCP許可、戻り経路が設定済みです",
+      "選択したVPCでホスト名を解決でき、136.124.16.0/20からのTCP許可と戻り経路が設定済みです",
     directHttpsConnectivityHint:
-      "Secure GatewayはHTTPSアプリへ直接接続します。AWS・Azure・オンプレミスでは、先にCloud VPN/Interconnect、Cloud DNS転送ゾーン、ファイアウォール、136.124.16.0/20への明示的な戻り経路を設定します。",
+      "AWS・Azure・オンプレミス接続時は、事前にCloud VPN/Interconnect、Cloud DNS、136.124.16.0/20への戻り経路を設定してください。",
     hostname: "プライベートアプリのホスト名",
     noExternalIpNotice:
-      "このワークフローが作成するVMは外部IPを持ちません。プライベートVMを持つ専用VPC方式はCloud NATを作成し、既存VPCは検証済みのプライベート送信経路を提供する必要があります。内部HTTPS LB方式はNginxを作成しませんが、非公開サンプルバックエンドVMを作成します。",
+      "作成されるVMは外部IPを持ちません。プライベートVMを持つ専用VPC方式はCloud NATを作成し、既存VPCは検証済みのプライベート送信経路を提供する必要があります。内部HTTPS LB方式はNginxを作成しませんが、非公開サンプルバックエンドVMを作成します。",
     certificateStepTitle: "TLS証明書ソースを設定",
     certificateIntro:
-      "オフロードVMは実行時にSecret Managerから証明書を読み取ります。秘密鍵は起動スクリプトに書き込まれません。",
+      "証明書はSecret Managerで安全に管理され、起動スクリプトには秘密鍵を書き込みません。",
     internalLbCertificateIntro:
-      "Regional Internal Application Load Balancerがリージョンサーバー証明書でHTTPSを終端します。証明書データはメモリからCompute APIへ直接送信し、Secret Managerでライフサイクル管理します。",
+      "内部HTTPSロードバランサがリージョンサーバー証明書でTLSを終端します。",
     caPool: "CAプールのリソース名",
     caName: "発行CAのリソース名",
     secretName: "Secret Managerの証明書シークレット",
     certificateNotice:
-      "ローカルCAはPoC専用です。適用後に公開ルート証明書（PEM）をダウンロードし、[Chrome] > [コネクタ] > [Chrome Root Store] へ追加して専用テストOUへ接続します。公開APIではこの引き渡しを確実に参照・実行できないため、管理対象Chromeでの実機HTTPSテストで信頼を検証します。本番ではエンタープライズPKIまたは公開信頼済み証明書が必要です。",
+      "ローカルCAはPoC専用です。適用後に公開ルートPEMをダウンロードし、[Chrome] > [コネクタ] > [Chrome Root Store] でテストOUへ登録してください。",
     internalLbCertificateNotice:
-      "ローカルCAではILBが生成済みサーバー証明書を提示します。Apply（適用）後に公開ルート証明書（PEM）を管理コンソールのChrome Root Store経由でテストOUへ配布し、Chrome再起動後に管理対象ChromeでHTTPS接続を検証します。秘密鍵はChromeへ配布しません。",
+      "適用後に公開ルートPEMを管理コンソールのChrome Root StoreでテストOUへ登録し、Chromeを再起動して接続を確認します。",
     directCertificateIntro:
-      "HTTPSアプリ自身がTLS終端を行います。Secure Gatewayはアプリの証明書や秘密鍵を作成・保存しません。",
+      "HTTPSアプリ自身がTLS終端を行います。本ツールは証明書や秘密鍵を作成しません。",
     directCertificateNotice:
-      "公開信頼済み証明書ならRoot Store操作は不要です。プライベートCAの場合はアプリ管理者から発行元ルートPEMを入手し、[Chrome] > [コネクタ] > [Chrome Root Store] でテストOUへ手動配布します。この構成は公開APIで確実に参照・変更できません。",
+      "プライベートCA証明書を使う場合は、発行元ルートPEMを [Chrome] > [コネクタ] > [Chrome Root Store] でテストOUへ登録してください。",
     directPrivateCertificate: "アプリのプライベートCA / Chrome Root Store手動信頼",
     accessTitle: "Chromeポリシーとアプリへのアクセスを制限",
-    accessIntro: "専用テストOUと最小限のプリンシパルから開始します。",
+    accessIntro: "専用テストOUと許可プリンシパルを指定します。",
     customerId: "Workspace 顧客ID",
     targetOuId: "専用テストOU ID",
     managedChromeAccessLevel: "管理対象Chromeのアクセスレベル",
     managedChromeAccessLevelHint:
-      "なし、または既存のAccess Context Managerリソース名全体を選択します。このセットアップはアクセスレベルを作成しません。Apply前に別途作成・確認してください。",
+      "なし、または既存のAccess Context Managerリソース名を選択します。",
     managedChromeAccessLevelNone: "なし — アクセスレベルを要求しない",
     managedChromeAccessLevelNoneHint:
-      "Access Context Manager条件は追加されません。アクセスは選択したIAMプリンシパルに引き続き限定されます。",
+      "アクセスレベル条件は追加せず、指定したIAMプリンシパルのみに許可します。",
     optionsLoadedHint:
-      "Google Cloudには製品用途限定デプロイヤー、Directoryデータには検証済みWorkspace管理者を使用し、選択肢を読み取り専用で取得します。",
+      "組織部門・アクセスレベル・グループを読み取り専用で取得します。",
     optionsLoading: "選択肢を取得中…",
     chooseOption: "選択してください",
     noOptions: "選択肢がありません",
     retryOptions: "再取得",
     ouOptionsFailed:
-      "組織部門を取得できませんでした。Admin SDK APIと、検証済みWorkspace管理者の組織部門読み取り権限を確認してください。",
+      "組織部門を取得できませんでした。Admin SDK APIと管理者権限を確認してください。",
     accessLevelOptionsFailed:
-      "アクセスレベルを取得できませんでした。対象のAccess Context ManagerポリシーでサービスアカウントにPolicy Editorを付与してください。このロールはCEPのAUTO_CREATEアクセスレベル作成・削除にも使用します。",
+      "アクセスレベルを取得できませんでした。サービスアカウントにAccess Context ManagerのPolicy Editorを付与してください。",
     groupOptionsFailed:
-      "グループを取得できませんでした。検証済みWorkspace管理者ロールにグループ読み取り権限を追加してください。",
+      "グループを取得できませんでした。管理者ロールのグループ読み取り権限を確認してください。",
     prerequisitesTitle: "手動の前提条件確認",
     confirmEnterpriseLicense:
       "対象ユーザーにChrome Enterprise Premiumライセンスを割り当て済み",
     confirmWorkspaceServices:
-      "対象ユーザーの追加のGoogleサービスとGoogle Cloudアクセスを有効化済み",
+      "対象ユーザーの追加GoogleサービスとGoogle Cloudアクセスを有効化済み",
     confirmEndpointVerification:
-      "このOUでEndpoint Verificationのデバイス信号収集を有効化済み",
+      "このOUでEndpoint Verificationを有効化済み",
     confirmTestOu: "非本番のテストOUであることを確認しました",
     principalType: "プリンシパル種別",
     principalValue: "プリンシパル",
@@ -4024,12 +4021,12 @@ const ja: Messages = {
     group: "グループ",
     domain: "ドメイン",
     accessNotice:
-      "検証済みの管理対象Chromeアクセスレベルを条件にアプリへのアクセスを付与し、このOUにSecure GatewayとEndpoint Verificationを強制配布します。Chromeポリシーの継承により配下OUにも影響する場合があります。",
+      "選択したテストOUにSecure GatewayとEndpoint Verificationを配信します。設定は配下OUにも継承されます。",
     accessOuVsPrincipalNotice:
-      "設定範囲の違い: 「専用テスト OU」は Chrome ポリシー（拡張機能・ルーティング設定）の配信先ブラウザを指定します。下の「プリンシパル」は Secure Gateway 経由でアプリケーションへの接続を許可するユーザー／グループ（IAM 認可）を指定します。",
+      "専用テストOUはChromeポリシーの配信先、プリンシパルはアプリ接続を許可するユーザーまたはグループです。",
     reviewTitle: "検出結果と自動設定予定を確認",
     reviewIntro:
-      "APIで確認できた状態、Applyで自動設定する項目、対応が必要な項目を分けて表示します。この画面ではまだ変更しません。",
+      "APIの検出結果とApplyでの変更予定を表示します。この画面ではまだ変更しません。",
     configuration: "構成",
     safetyGates: "安全ゲート",
     ready: "準備完了",
@@ -4040,7 +4037,7 @@ const ja: Messages = {
     actionRequired: "要対応",
     approvalPending: "承認待ち",
     reviewGateLegend:
-      "【検証済み】API検出や構成条件で確認完了 / 【Applyで自動設定】承認後に自動プロビジョニング / 【手動確認】管理者の確認が必要な項目 / 【要対応】適用をブロックする問題です。",
+      "検証済み: API確認完了 / Applyで自動設定: 承認後に自動作成 / 手動確認: 管理者確認が必要 / 要対応: 適用前に解消が必要",
     gateLabels: {
       "immutable-image": "サンプルVM用 OSイメージ",
       "billing-enabled": "Cloud Billing",
@@ -4062,53 +4059,53 @@ const ja: Messages = {
       "human-approval": "承認",
     },
     gateDescriptions: {
-      "immutable-image": "VMを作成する方式では、バージョン固定されたComputeイメージのリソース名と数値IDを検証します。",
-      "billing-enabled": "Cloud Billing APIでプロジェクトに有効な課金アカウントが紐付いているか確認します。",
-      "enterprise-license": "Enterprise License Manager APIでChrome Enterprise Premiumの割り当て数を確認します。APIで確認できない場合のみ管理者確認を使用します。",
-      "chrome-root-store": "Chrome Root Store構成、証明書アップロード、OUバインドは公開APIで確実に参照できません。Apply後にこの1回限りの管理コンソール操作を完了し、管理対象Chromeの実機HTTPSテストで信頼を検証します。",
-      "workspace-services": "対象ユーザーのWorkspaceサービス設定は管理者による確認が必要です。",
-      "managed-chrome-profile": "Chrome Management Profiles APIで対象OUの実プロファイルとポリシー同期報告を確認します。",
-      "secure-enterprise-browser-client": "Chrome Management Profiles APIでクライアント拡張機能のインストール・有効状態を確認します。",
-      "endpoint-verification": "Chrome Management Profiles APIで実クライアントを確認し、未報告の場合はApplyで対象OUへ強制インストールします。",
-      "no-external-ips": "Applyが作成するすべてのVM／インスタンステンプレートは外部アクセス構成を持ちません。直接HTTPSはVMを作成せず、内部HTTPS LBはNginxではなく非公開サンプルバックエンドVMを作成します。",
-      "private-egress": "プライベートVMを持つ専用VPC方式はCloud NATを作成します。プライベートVMを持つ既存VPC方式は検証済みのプライベート送信経路が必要です。パッケージ送信経路が不要なのは直接HTTPSだけです。",
-      "backend-connectivity": "管理対象サンプルはデプロイVPC内に作成します。既存HTTPではプライベートルーティング、DNS、ファイアウォール許可を確認し、Nginxからのアップストリーム経路を検証します。直接HTTPSは個別確認済みの選択VPC経路、内部HTTPS LBはbackend healthを使用します。本PoCではクロスクラウドVPNやInterconnectを作成しません。",
+      "immutable-image": "作成するVMのOSイメージパスと数値IDを検証します。",
+      "billing-enabled": "プロジェクトに有効な課金アカウントが紐付いているか確認します。",
+      "enterprise-license": "CEPライセンスの割り当て数を確認します。",
+      "chrome-root-store": "Apply後に公開ルートPEMを管理コンソールのChrome Root Storeへ登録します。",
+      "workspace-services": "対象ユーザーのWorkspaceサービス設定を確認します。",
+      "managed-chrome-profile": "対象OUの管理対象Chromeプロファイルとポリシー同期を確認します。",
+      "secure-enterprise-browser-client": "クライアント拡張機能のインストール状態を確認します。",
+      "endpoint-verification": "Endpoint Verificationの状態を確認し、未導入ならApplyで配信します。",
+      "no-external-ips": "作成するVMに外部IPを付与しないことを検証します。",
+      "private-egress": "プライベートVMを持つ専用VPC方式はCloud NATを作成します。既存VPC方式は検証済みのプライベート送信経路が必要です。",
+      "backend-connectivity": "バックエンドへのプライベート経路、DNS、ファイアウォールを確認します。",
       "test-ou": "選択したOUが非本番テスト用であることを確認済みです。",
-      "cloud-identity": "Google Cloudデプロイヤーを読み取り専用で検証済みです。",
-      "workspace-identity": "Workspace／Chrome管理者IDを読み取り専用で検証済みです。",
-      "required-apis": "不足している許可済みAPIはApply中に自動で有効化します。",
-      "apply-permissions": "計画した操作に必要な全権限がデプロイヤーにあるかAPIで確認します。",
-      "resource-conflicts": "既存リソースが望ましい状態と互換性を持つか確認します。",
-      "human-approval": "Apply前に、構成ハッシュへ紐付いたプランを管理者が承認します。",
+      "cloud-identity": "Google Cloudデプロイヤーを検証済みです。",
+      "workspace-identity": "Workspace／Chrome管理者IDを検証済みです。",
+      "required-apis": "不足しているAPIはApply中に自動で有効化します。",
+      "apply-permissions": "計画した操作に必要なIAM権限が揃っているか確認します。",
+      "resource-conflicts": "既存リソースとの競合がないか確認します。",
+      "human-approval": "Apply前に構成ハッシュへ紐付いたプランを承認します。",
     },
     managedProfileEvidence: (total, profileOnly, sync) =>
-      `検出されたプロファイル数: ${total}件（プロファイル管理BYOD: ${profileOnly}件）、最終ポリシー同期: ${sync ?? "未同期"}`,
+      `検出プロファイル: ${total}件 · BYOD: ${profileOnly}件 · 最終同期: ${sync ?? "未同期"}`,
     clientExtensionEvidence: (name, version, installed) =>
       installed
-        ? `Profiles APIで${name} ${version ?? ""}のインストール済み・有効を確認しました。`
-        : `${name}のインストール済み・有効報告はまだありません。`,
+        ? `Profiles APIで${name} ${version ?? ""}の有効状態を確認しました。`
+        : `${name}の有効報告はまだありません。`,
     missingPermissions: (count: number) =>
       `デプロイヤーに必要な権限が${count}件不足しています。`,
-    approvePlan: "デプロイ実行計画（プラン）を承認",
+    approvePlan: "デプロイ実行計画を承認",
     approvePlanDescription:
       "承認は構成ハッシュに紐付き、設定を変更すると無効になります。",
     generatePlan: "事前確認を実行してプランを生成",
-    runPreflight: "事前確認（プリフライト）を実行",
-    preparingPlan: "環境の現状を検査し、実行計画を作成しています…",
+    runPreflight: "事前確認を実行",
+    preparingPlan: "環境を検査し、実行計画を作成しています…",
     planReady: "事前確認が完了し、実行計画を作成しました",
-    planBlocked: "事前確認で要対応の項目が見つかりました（解消後に再実行できます）",
-    changesCount: (count: number) => `承認が必要な実変更 ${count} 件`,
-    preflightProgressTitle: "事前確認・リソース検出の進捗",
-    preflightStage1: "1/5: Service Usage & IAM 権限の検証中...",
-    preflightStage2: "2/5: Cloud Billing & プロジェクト関連付けの検証中...",
-    preflightStage3: "3/5: BeyondCorp Security Gateway & VPC リソースの検出中...",
-    preflightStage4: "4/5: Chrome Management & テスト OU ポリシーの照合中...",
-    preflightStage5: "5/5: 差分計画の構築 & セーフティゲートの判定中...",
-    preflightStage5Detail: "望ましい状態の差分プラン構築と全セーフティゲートの評価",
-    preflightComplete: "すべての事前確認とセーフティゲートの検証が完了しました",
-    plannedChangesTitle: "承認対象の変更内容（実行計画）",
+    planBlocked: "要対応の項目があります。解消後に再実行してください。",
+    changesCount: (count: number) => `承認が必要な変更 ${count} 件`,
+    preflightProgressTitle: "事前確認の進捗",
+    preflightStage1: "1/5: Service Usage & IAM 権限を確認中...",
+    preflightStage2: "2/5: Cloud Billing を確認中...",
+    preflightStage3: "3/5: Security Gateway & VPC を検出中...",
+    preflightStage4: "4/5: Chrome テスト OU ポリシーを照合中...",
+    preflightStage5: "5/5: 差分計画と安全ゲートを判定中...",
+    preflightStage5Detail: "差分プランの構築と全セーフティゲートの評価",
+    preflightComplete: "すべての事前確認が完了しました",
+    plannedChangesTitle: "承認対象の変更内容",
     plannedChangesIntro:
-      "作成・更新する項目だけを表示します。再利用または変更なしのリソースは更新しません。",
+      "新規作成・更新する項目だけを表示します。既存リソースは変更しません。",
     changeAction: (action) =>
       ({ create: "新規作成", update: "更新" })[action] ?? action,
     changeRisk: (risk) =>
@@ -4117,7 +4114,7 @@ const ja: Messages = {
       ] ?? risk,
     changeSummary: (resourceType, fallback) =>
       resourceType === "service_discovery_proxy"
-        ? "対象テストOUで継承中の旧PACを［ユーザーによる設定を許可］で上書きし、PACファイルなしのService Discoveryルーティングへ切り替えます。"
+        ? "対象テストOUで継承中の旧PACを上書きし、Service Discoveryルーティングへ切り替えます。"
         : fallback,
     diagnosticsTitle: "検出した状態",
     apiEvidence: "API検出値",
@@ -4128,7 +4125,7 @@ const ja: Messages = {
     continueToApply: "適用へ進む",
     applyTitle: "チェックポイントとエビデンス付きで適用",
     applyIntro:
-      "依存関係に従って順番に変更を適用します。途中で失敗した場合は即座に停止し、本デプロイで作成されたリソースのみを安全にロールバックします。",
+      "依存関係順に適用します。失敗時は即座に停止し、本実行で作成したリソースのみを逆順ロールバックします。",
     preflight: "事前確認",
     desiredStatePlan: "望ましい状態プラン",
     applyChanges: "承認済み変更を適用",
@@ -4137,16 +4134,16 @@ const ja: Messages = {
     runSucceeded: "デプロイに成功しました",
     runRollingBack: "適用された変更をロールバック中…",
     runRollbackUnavailable:
-      "適用に失敗しましたが自動ロールバックは利用できません。GCP上にリソースが残存している可能性があります。",
+      "適用に失敗し、自動ロールバックを利用できません。GCP上の残存リソースを確認してください。",
     runRollbackFailed:
-      "適用に失敗し、所有する変更の一部をロールバックできませんでした。GCPを手動変更する前に、下の失敗した操作とエラーを確認してください。",
+      "一部の変更をロールバックできませんでした。下の失敗した操作とエラーを確認してください。",
     runRolledBack: "デプロイに失敗し、所有する変更をロールバックしました",
     runFinalized: "処理は完了しています",
     noActiveOperation: "現在実行中の操作はありません",
     finalizedOperationCount: (count: number) =>
-      `処理完了（${count} 件の操作を記録）`,
+      `処理完了 · ${count} 件の操作を記録`,
     runInterrupted:
-      "適用中に実行ワーカーまたはローカルサービスが停止しました。再開すると、永続化済みチェックポイントと実リソースを安全に照合してから処理を続行します。",
+      "適用中にワーカーが停止しました。再開するとチェックポイントと実リソースを照合して続行します。",
     resumeRun: "中断した適用を再開",
     resumingRun: "照合して再開しています…",
     retryRollback: "失敗したロールバックを再試行",
@@ -4154,36 +4151,36 @@ const ja: Messages = {
     runFailed: "オペレーターによる確認が必要です",
     operationCount: (count: number) => `${count} 件の操作を記録`,
     evidenceNotice:
-      "すべての操作について、監査イベント、マスク済みリクエスト情報、結果、所有権を記録します。",
+      "すべての操作の監査イベント、マスク済みリクエスト、結果、所有権を記録します。",
     caHandoffTitle: "管理対象Chromeの信頼設定を完了",
     caHandoffDescription:
-      "Chrome Root Store構成、証明書アップロード、OUバインドは公開APIで確実に参照・実行できません。E2Eテスト前に、この1回限りの管理コンソール引き渡しを完了してください。",
+      "公開ルート証明書を管理コンソールのChrome Root Storeに登録してテストOUへ紐付けます。",
     caHandoffSteps: [
-      "下から公開PoCルート証明書をダウンロードします。秘密鍵は含まれません。",
-      "Google管理コンソールで [すべてのブラウザとデバイス] を開き、[Chrome] > [コネクタ] > [新しいプロバイダの設定] > [Chrome Root Store] と進みます。PEMを [ルート] 証明書として追加し、構成を追加します。",
-      "専用テストOUを選択し、[証明書コネクタ] > [Chrome Root Store] で新しい構成を選んで保存します。Chromeを再起動し、chrome://certificate-manager > [ローカル証明書] で確認します。",
+      "下から公開PoCルート証明書をダウンロードします。",
+      "Google管理コンソールで [Chrome] > [コネクタ] > [新しいプロバイダの設定] > [Chrome Root Store] を開き、PEMを登録します。",
+      "専用テストOUを選択し、[証明書コネクタ] > [Chrome Root Store] で作成した構成を割り当てて保存し、Chromeを再起動します。",
     ],
     downloadRootCa: "公開ルートCAをダウンロード",
     downloadingRootCa: "ダウンロードを準備中…",
     openAdminConsoleGuide: "GoogleのCA設定ガイドを開く",
     caDownloadFailed:
-      "ルートCAをダウンロードできませんでした。適用が成功していることを確認して再試行してください。",
+      "ルートCAをダウンロードできませんでした。適用完了後に再試行してください。",
     connectionHandoffTitle: "接続確認とトラブルシューティング",
     testUrlLabel: "プライベート Web アプリ URL",
     sebTroubleshootingHint:
-      "Chrome で NXDOMAIN が表示される、または接続できない場合、初期同期のタイミングによって Secure Enterprise Browser（SEB）拡張機能が 2 時間の更新待機（バックオフ）に入っている可能性があります。管理対象 Chrome プロファイルから一度サインアウトして再サインインする（または chrome://extensions で SEB 拡張機能を再読み込みする）ことで、即座に最新ルートを取得できます。",
+      "接続できない場合は、管理対象Chromeプロファイルから一度サインアウトして再サインインするか、chrome://extensions で Secure Enterprise Browser 拡張機能を再読み込みしてください。",
     previous: "戻る",
     next: "続行",
   },
   operations: {
     deploymentsTitle: "デプロイ実行履歴",
     deploymentsIntro:
-      "サーバーに記録された適用処理と、その最終状態を確認します。",
+      "記録された適用処理と最終状態を確認します。",
     evidenceTitle: "監査証跡",
     evidenceIntro:
-      "ローカルのハッシュチェーンを検証し、持ち運び可能なJSON証跡を出力します。",
+      "ハッシュチェーンを検証し、JSON証跡を出力します。",
     loading: "記録済みの状態を読み込み中…",
-    loadFailed: "実行APIから記録済みの状態を読み込めませんでした。",
+    loadFailed: "記録済みの状態を読み込めませんでした。",
     noRuns: "デプロイ実行履歴はまだありません。",
     noEvents: "監査イベントはまだありません。",
     runId: "実行ID",
@@ -4211,15 +4208,15 @@ const ja: Messages = {
       })[kind] ?? kind,
     accessLevelControlTitle: "アクセス制御・アクセスレベル設定",
     accessLevelControlIntro:
-      "BeyondCorp Application の IAM ポリシーにバインドされている Access Context Manager のアクセスレベル条件や許可プリンシパルを即時更新します。",
+      "BeyondCorp Application のアクセスレベル条件と許可プリンシパルを即時更新します。",
     selectAccessLevelLabel: "適用するアクセスレベル",
-    principalsLabel: "許可するプリンシパル（ユーザー / グループ / ドメイン）",
-    principalsHelper: "カンマ区切りで指定（例: user:admin@test-domain.dev, domain:test-domain.dev）",
-    noAccessLevelRequired: "（アクセスレベル制限なし・認証済みグループ全ユーザー）",
+    principalsLabel: "許可するプリンシパル · ユーザー / グループ / ドメイン",
+    principalsHelper: "カンマ区切りで指定 · 例: user:admin@test-domain.dev, domain:test-domain.dev",
+    noAccessLevelRequired: "アクセスレベル制限なし · 許可プリンシパル全員",
     boundGroup: "対象 IAM グループ",
     updateAccessLevelButton: "アクセスレベルを即時更新",
     updatingAccessLevel: "IAMポリシーを更新中...",
-    accessLevelSaved: "アクセスレベルを更新し、暗号化ハッシュチェーンに記録しました",
+    accessLevelSaved: "アクセスレベルを更新し、監査チェーンに記録しました",
     ownedResources: "このデプロイが所有するリソース",
     restoredResources: "変更前の状態へ復元する共有ポリシー",
     retainedResources: "保持する共有・再利用リソース",
@@ -4232,7 +4229,7 @@ const ja: Messages = {
       })[action] ?? action,
     logsTitle: "Secure Gatewayログ",
     logsIntro:
-      "Cloud Loggingからアクセス判定、Gateway接続、管理操作、収集済みNginxログを取得します。",
+      "Cloud Loggingからアクセス判定、Gateway接続、管理操作、Nginxログを取得します。",
     logCategory: (category) =>
       ({
         access: "アクセス判定",
@@ -4244,17 +4241,17 @@ const ja: Messages = {
     hours168: "過去7日間",
     refreshLogs: "ログを更新",
     refreshingLogs: "Cloud Loggingを照会中…",
-    noLogs: "指定期間に一致するログはまだ記録されていません。管理対象Chromeブラウザからアクセスすると順次表示されます。",
+    noLogs: "対象期間のログはありません。管理対象Chromeからアクセスすると表示されます。",
     logQueryFailed:
-      "Cloud Logging または現在の Secure Gateway ログ設定を検証できません。デプロイヤーが Gateway の読み取りとログ一覧取得を行えることを確認して再試行してください。Gateway の状態が不正な場合、ログ照会は送信しません。",
+      "Cloud Logging を取得できませんでした。デプロイヤーの権限と Gateway の状態を確認してください。",
     dataAccessNotice:
       "アクセス判定ログにはBeyondCorp Enterprise APIのData Access Audit Logsが必要です。",
     gatewayLoggingEnabled:
-      "このデプロイ先プロジェクトでは Secure Gateway の接続ログが有効です。",
+      "このプロジェクトでは Secure Gateway の接続ログが有効です。",
     gatewayLoggingDisabled:
-      "Secure Gateway の接続ログが無効です。接続ログは生成されないため、この画面を証跡として使う前に Google Cloud で Gateway を確認してください。",
+      "Secure Gateway の接続ログが無効です。Google Cloud コンソールで設定を確認してください。",
     nginxNotice:
-      "NginxログにはGoogle Cloud Ops Agentによるsgstudio-access.logの収集が必要です。",
+      "NginxログにはCloud Ops Agentによるsgstudio-access.logの収集が必要です。",
     principal: "プリンシパル",
     method: "メソッド",
     requestId: "リクエストID",
@@ -4263,21 +4260,21 @@ const ja: Messages = {
     specInvalid: "デプロイ設定に無効または不足している項目があります。",
     teardownTitle: "このデプロイを削除",
     teardownIntro:
-      "記録済みの共有ポリシーを変更前状態へ復元し、成功した Apply が所有するリソースだけを依存関係の逆順で削除します。",
+      "共有ポリシーを変更前状態へ復元し、この実行が所有するリソースだけを逆順削除します。",
     teardownSharedNotice:
-      "共有 IAM／Chrome Policy は、正確な変更前状態を記録し、現在値がこのrunの記録済みmanaged-after状態と一致する場合だけ復元します。送信結果が不明な変更や後発ドリフトは保持し、手動で照合します。既存 VPC、Access Level、Project API、その他の共有・再利用リソースは保持します。この実行が作成した Gateway も、Application が残っていない場合だけ削除します。",
-    teardownUnavailable: "安全に削除できる所有リソースがこの実行にはありません。",
+      "共有 IAM／Chrome Policy は、現在値がこのrunの記録済みmanaged-after状態と安全に一致する場合だけ復元します。送信結果が不明な変更や後発ドリフト、既存VPC、Access Levelなどの共有リソースは保持します。",
+    teardownUnavailable: "削除可能な所有リソースがこの実行にはありません。",
     teardownConfirmation: "確認フレーズの入力",
     teardownConfirmationHint: "上記の確認フレーズをそのまま入力",
     startTeardown: "実行の変更を復元・削除",
     teardownRunning: "実行の変更を復元・削除中…",
     teardownSucceeded: "削除完了",
     teardownInterrupted:
-      "削除中に実行ワーカーまたはローカルサービスが停止しました。再開すると、永続化済みチェックポイントを照合してから処理を続行します。",
-    teardownFailed: "削除を停止しました。確認が必要です",
+      "削除中にワーカーが停止しました。再開するとチェックポイントを照合して続行します。",
     resumeTeardown: "中断した削除を再開",
     resumingTeardown: "照合して再開しています…",
-    teardownActionFailed: "削除処理を開始または更新できませんでした。",
+    teardownFailed: "削除を停止しました。確認が必要です",
+    teardownActionFailed: "削除処理を開始できませんでした。",
     teardownProgress: (completed, total) => `${total}件中${completed}件の操作が完了`,
     exportEvidence: "証跡を出力",
     integrityValid: "監査チェーン検証済み",
@@ -4288,8 +4285,8 @@ const ja: Messages = {
     notAvailable: "利用できません",
     acceptanceTitle: "受入検証・テスト",
     acceptanceIntro:
-      "バックエンド応答・TLS終端・DNS解決などの自動システム検証を実行し、管理対象Chromeの実機テスト結果と監査ログ証跡を記録・管理します。",
-    noSuccessfulRun: "受入テストを開始するには、成功したデプロイ実行が必要です。",
+      "自動システム検証を実行し、管理対象Chromeでの実機テスト結果と監査証跡を記録します。",
+    noSuccessfulRun: "受入テストには成功したデプロイ実行が必要です。",
     runSystemChecks: "自動システム検証を実行",
     runningSystemChecks: "Google Cloudリソースを検証しています…",
     acceptanceComplete: "PoC受入を完了",
@@ -4332,18 +4329,18 @@ const ja: Messages = {
     viewEvidence: "マスク済み証跡を表示",
     operatorEvidenceTitle: "エンドポイント証跡を記録",
     operatorEvidenceIntro:
-      "マスク済みの観測結果または成果物のハッシュだけを保存してください。トークン、Cookie、秘密鍵、認証情報は入力しないでください。",
+      "マスク済みの観測結果またはSHA-256ハッシュだけを記録してください。秘密鍵や認証情報は入力しないでください。",
     testCase: "テスト項目",
     testInstruction: (testId, caseKey) =>
       testId === "T06"
-        ? "同じ管理対象仕事用プロファイルで既存のHTTPS Secure Gatewayコントロールアプリを開きます（例: https://demo-server1.internal/）。証明書警告なしで開いた場合だけ合格として記録します。既存の制御アプリがない新規PoCでは、その理由を付けて［スキップ］を記録できます。本番では引き続き合格が必須です。"
+        ? "管理対象プロファイルで既存のHTTPS制御アプリを開き、証明書警告なしで表示されたら合格を記録します。新規PoCでは理由を添えてスキップできます。"
         : testId === "T07"
-          ? `${caseKey}の許可済み管理対象Chromeプロファイルで、新しくデプロイしたプライベートHTTPSアプリを開き、表示結果と時刻を記録します。`
+          ? `${caseKey}の管理対象ChromeプロファイルでプライベートHTTPSアプリを開き、表示結果と時刻を記録します。`
           : testId === "T08"
-            ? "マスク済みリクエスト識別子と時刻を使い、Gateway・オフロード・バックエンドのイベントを相関します。"
+            ? "マスク済みリクエストIDと時刻でGateway・オフロード・バックエンドのログを相関します。"
             : testId === "T09"
-              ? "選択した未承認ケースが拒否され、バックエンドへ成功リクエストが届いていないことを確認します。"
-              : "この受入ケースで観測した結果を記録します。",
+              ? "未承認ケースが拒否され、バックエンドへ到達しないことを確認します。"
+              : "観測した結果を記録します。",
     evidenceOutcome: "観測結果",
     outcomePassed: "合格",
     outcomeFailed: "不合格",
@@ -4362,36 +4359,36 @@ const ja: Messages = {
     statusFailed: "エラー",
     t07DiagnosticsTitle: "管理対象Chromeクライアント診断",
     t07DiagnosticsIntro:
-      "受入テストを記録する前に、ブラウザで発生した事象を診断・切り分けます。エラー内容に応じて、ルーティング、IAM認可、証明書信頼のどの設定に問題があるかを特定できます。",
+      "ブラウザのエラー表示から、ルーティング・IAM認可・証明書信頼のどこに原因があるか切り分けます。",
     t07Diagnostics: [
       {
         symptom: "ERR_NAME_NOT_RESOLVED",
         meaning:
-          "プライベートホスト名が捕捉されていません。管理対象拡張機能が未有効、または親OUから継承した旧PACがこのプロファイルを制御してService Discoveryのルートを読み込めない状態が考えられます。",
+          "プライベートホスト名が捕捉されていません。拡張機能が未同期か、親OUの旧PACが優先されています。",
         actions: [
-          "このアプリで事前確認を実行し、旧PACが検出された場合は対象テストOUだけの上書き内容を承認前に確認します。",
-          "同じChrome仕事用プロファイルでSecure Enterprise Browserが管理者によるインストール済みかつ最近同期済みであることを確認します。",
-          "PACが有効でなければ、Gatewayルート、Service Discovery IAM、アプリ利用IAMを確認します。",
+          "事前確認を実行し、旧PACが検出された場合はテストOUでの上書きを確認します。",
+          "管理対象プロファイルでSecure Enterprise Browser拡張機能が有効か確認します。",
+          "GatewayルートとIAM権限を確認します。",
         ],
       },
       {
-        symptom: "Access Denied（403）",
+        symptom: "Access Denied · 403",
         meaning:
-          "Service DiscoveryはSecure Gatewayへ到達しましたが、プリンシパルまたはAccess Context Manager条件を満たしていません。",
+          "Gatewayへ到達しましたが、プリンシパルまたはAccess Context Manager条件を満たしていません。",
         actions: [
-          "同じ仕事用プロファイルでEndpoint Verificationを開き、必要なら会社アカウントを追加して［今すぐ同期］を実行します。",
-          "ユーザーまたはグループにGatewayのService Discovery権限とアプリ利用権限の両方があることを確認します。",
-          "BYODテストでは選択したAccess LevelがPROFILE_MANAGED Chromeを許可していることを確認します。",
+          "Endpoint Verificationを開き、［今すぐ同期］を実行します。",
+          "ユーザーまたはグループにGatewayとアプリのIAM権限があるか確認します。",
+          "Access Levelが対象プロファイルや端末を許可しているか確認します。",
         ],
       },
       {
-        symptom: "NET::ERR_CERT_AUTHORITY_INVALID（証明書エラー）",
+        symptom: "NET::ERR_CERT_AUTHORITY_INVALID · 証明書エラー",
         meaning:
-          "Secure GatewayのルーティングとTLSオフロードは動作していますが、この端末がPoCルートCAを信頼していません。",
+          "Gateway経由で接続できていますが、端末がPoCルートCAを信頼していません。",
         actions: [
-          "Apply画面から生成済みPoCルート証明書をダウンロードします。",
-          "管理コンソールの [Chrome] > [コネクタ] > [Chrome Root Store] でPEMを追加し、その構成を専用テストOUへ接続してからChromeを再起動します。",
-          "信頼前に証明書フィンガープリントを照合し、プライベートHTTPS URLを再試験します。",
+          "Apply画面から公開PoCルート証明書をダウンロードします。",
+          "管理コンソールの [Chrome] > [コネクタ] > [Chrome Root Store] でPEMをテストOUへ登録し、Chromeを再起動します。",
+          "プライベートHTTPS URLへ再度アクセスします。",
         ],
       },
     ],
@@ -5483,94 +5480,94 @@ const ja: Messages = {
   },
   cepDeployer: {
     title: "Chrome Enterprise Premium 向け Easy PoC",
-    subtitle: "CEP の評価用ベースラインを 1 つの組織部門に適用し、評価後の削除候補を確認します。",
+    subtitle: "CEPの評価用ベースラインをパイロットOUまたはグループに適用します。",
     intro:
-      "脅威対策・コンテンツ検査・データ境界の Chrome ポリシーをパイロット OU に適用します。CEP では適用前の状態との厳密な 3-way 所有台帳（変更前・変更後）を永続化しないため、ロールバック操作は「削除候補の確認（読み取り専用）」として安全に動作します。Chrome Policy、Access Level、Cloud Identity DLP は手動確認用に保持されます。Workspace 管理者権限は管理コンソールで別途割り当て、各ポリシーは live スキーマと照合して安全に適用されます。",
-    targetOuCardTitle: "1. 対象の組織部門（OU）",
+      "脅威対策・コンテンツ検査・データ境界のポリシーをパイロット対象に適用します。削除候補の確認は読み取り専用で動作します。",
+    targetOuCardTitle: "1. 対象の組織部門",
     targetOuCardSubtitle:
-      "隔離された非本番のパイロット OU を選んでください。ルート OU は使用できず、OU 対象ポリシーは選択 OU とその配下へ影響する場合があります。",
-    targetScopeCardTitle: "1. 対象のスコープ（組織部門 / Google グループ）",
+      "非本番のパイロットOUを選択します。ルートOUへの適用はブロックされます。",
+    targetScopeCardTitle: "1. 対象のスコープ",
     targetScopeCardSubtitle:
-      "ポリシーの適用先として組織部門（OU）または Google グループを選択します。グループ指定ならユーザーの OU 移動が不要です。",
-    targetTypeOu: "組織部門（OU）",
+      "組織部門またはGoogleグループを選択します。グループ指定ならユーザーのOU移動が不要です。",
+    targetTypeOu: "組織部門 · OU",
     targetTypeGroup: "Google グループ",
     selectTargetGroup: "対象の Google グループ",
     selectTargetGroupPlaceholder: "Google グループを選択または直接入力",
     refreshGroups: "↻ グループを再読込",
     targetGroupImpact:
-      "Chrome ポリシー（groups:batchModify）および Cloud Identity DLP ルールが、選択した Google グループのメンバーに直接適用されます。ユーザーを別の OU に移動する必要はありません。",
+      "選択したGoogleグループのメンバーに直接ポリシーとDLPルールを適用します。ユーザーのOU移動は不要です。",
     targetGroupConfirmationLabel: "確認のため、対象グループのメールアドレスを入力",
     targetGroupConfirmationHint:
-      "誤適用を防ぐため、変更操作の直前に表示されたグループのメールアドレスを入力してください（横のボタンで自動入力できます）。",
+      "誤適用防止のため、上に表示されたグループのメールアドレスを入力してください。",
     copyTargetGroupEmail: "グループアドレスを入力",
-    groupLoadFailed: "グループ一覧を取得できませんでした。メールアドレスを直接入力して適用することも可能です。",
+    groupLoadFailed: "グループ一覧を取得できませんでした。メールアドレスを直接入力できます。",
     customGroupInputPlaceholder: "例: poc-security@yourdomain.com",
     orEnterGroupEmail: "またはグループのアドレスを直接入力:",
     selectTargetOu: "対象の組織部門",
     selectTargetOuPlaceholder: "ルート以外のパイロット OU を選択",
     rootOuUnavailable: "ルート — 使用不可",
     targetOuImpact:
-      "Chrome ポリシーと OU 対象の DLP ルールは、継承により選択 OU と配下の OU に影響する場合があります。アクセスレベルを作成すると組織スコープのリソースが追加されますが、この画面ではアプリへ割り当てません。ライセンス割り当ては Directory 上の現在のパスが選択 OU と完全一致するユーザーだけが対象で、配下 OU のユーザーは除外します。",
+      "ChromeポリシーとDLPルールは選択OUと配下OUに継承されます。ライセンス割り当ては選択OU直下のユーザーだけが対象で、配下OUは除外します。",
     targetOuConfirmationLabel: "確認のため、対象の OU パスを入力",
     targetOuConfirmationHint:
-      "誤適用を防ぐため、変更操作の直前に表示された対象 OU パスを入力してください（横のボタンで自動入力できます）。",
+      "誤適用防止のため、上に表示された対象OUパスを入力してください。",
     ouLoadFailed:
-      "組織部門を取得できませんでした。セットアップ画面で Google Workspace の接続を確認してから、このタブを開き直してください。",
+      "組織部門を取得できませんでした。ヘッダーからWorkspace接続を確認してください。",
     canonicalCustomerIdRequired:
-      "先に Workspace 接続を検証してください。DLP の変更には Directory が返す C で始まる顧客 ID が必要で、my_customer を Cloud Identity Policy の作成には送信しません。",
-    autoDetectCustomerIdBtn: "顧客 ID (C...) を自動取得して読み込む",
+      "先にWorkspace接続を確認してください。DLPルール作成にはCで始まる顧客IDが必要です。",
+    autoDetectCustomerIdBtn: "顧客 ID を自動取得して読み込む",
     autoDetectingCustomerIdBtn: "顧客 ID を自動取得中…",
     googleAccountVerifiedBanner: (customerId, ouCount, groupCount) =>
-      `Google アカウント認証完了 (顧客 ID: ${customerId} / 取得 OU: ${ouCount} 件 / グループ: ${groupCount} 件)`,
+      `Google アカウント認証完了 · 顧客 ID: ${customerId} · OU: ${ouCount} 件 · グループ: ${groupCount} 件`,
     dlpMatrixCustomizePrefix: "",
     dlpMatrixCustomizeMiddle: " の詳細設定は「",
-    dlpMatrixCustomizeSuffix: "」タブからカスタマイズできます",
-    verifyGoogleAccount: "Google アカウントを認証して組織（OU）とグループを読み込む",
-    verifyingGoogleAccount: "Google アカウントを認証して組織・グループを取得中…",
-    verifyGoogleAccountHint: "Google アカウントの OAuth 認可を実行し、管理対象の組織部門（OU）および Google グループを一覧取得します。",
+    dlpMatrixCustomizeSuffix: "」タブで変更できます",
+    verifyGoogleAccount: "Google アカウントを認証して組織とグループを読み込む",
+    verifyingGoogleAccount: "組織とグループを取得中…",
+    verifyGoogleAccountHint: "Google OAuthで組織部門とGoogleグループを一覧取得します。",
     retry: "再試行",
     refreshOus: "↻ OUを再読込",
     reloading: "再読込中…",
-    createPilotOuLabel: "検証用の子 OU がまだない場合（ルート `/` 直下にワンクリック作成）:",
+    createPilotOuLabel: "検証用の子 OU をルート / 直下にワンクリック作成:",
     createPilotOuPlaceholder: "CEP-PoC",
     createPilotOuBtn: "＋ 検証用 OU を作成して選択",
     creatingPilotOuBtn: "検証用 OU を作成中…",
     createPilotOuHint:
-      "Directory API 経由でルート（/）直下に検証用の子 OU を作成（または既存の同名 OU を再利用）して自動選択します。作成後、Google 管理コンソール（admin.google.com > ディレクトリ > ユーザー）でテスト用ユーザーを1〜2名この OU へ移動してください。",
+      "ルート / 直下に検証用子OUを作成または再利用して選択します。作成後、admin.google.com の［ディレクトリ］>［ユーザー］でテストユーザーを移動してください。",
     pilotOuCreatedBanner: (path) =>
-      `検証用 OU「${path}」を準備して選択しました。admin.google.com（ディレクトリ > ユーザー）でテスト用ユーザーを1〜2名「${path}」へ移動してください。`,
+      `検証用 OU「${path}」を選択しました。admin.google.com の［ディレクトリ］>［ユーザー］でテストユーザーを移動してください。`,
     autoCreateSubOus: "サブ OU「CEP Users」「CEP Browsers」を作成する",
     autoCreateSubOusHint:
-      "後で整理するための任意の子 OU を作成または再利用します。ポリシーは選択したパイロット OU の現在の対象に適用され、子 OU 側で上書きされていなければ継承されます。ユーザーや登録済みブラウザは自動では移動しません。",
+      "選択したパイロットOU配下に整理用の子OUを作成します。ポリシーは子OUにも継承されます。",
     presetsTitle: "2. プリセット",
-    presetsSubtitle: "代表的な評価パターンの出発点です。適用前に下のモジュールで調整できます。",
+    presetsSubtitle: "評価パターンの出発点を選択し、下のモジュールで調整します。",
     presetFullPoc: "フル評価",
     presetFullPocDesc:
-      "全モジュール。脅威対策、コンテンツ検査、レポート、端末シグナル、コピー＆ペースト境界を含みます。",
+      "脅威対策、コンテンツ検査、レポート、端末シグナル、貼り付け制御を一括で有効化します。",
     presetAiProtection: "生成 AI とデータ漏えい対策",
     presetAiProtectionDesc:
-      "外部 AI ツールへの入力を想定した貼り付け・アップロード検査と、非社用アカウントの遮断に絞ります。",
+      "外部AIツールへの貼り付け・アップロード検査と、非社用アカウントの遮断を有効化します。",
     presetEndpoint: "端末ハードニング",
     presetEndpointDesc:
-      "強化セーフブラウジング、リアルタイム URL 検査、Endpoint Verification の強制、コンテキストアウェアアクセス。",
+      "強化セーフブラウジング、リアルタイムURL検査、Endpoint Verification、アクセス制御を有効化します。",
     presetAudit: "可視化・警告",
-    presetAuditDesc: "レポートと警告のみの Chrome DLP ルールを適用し、ブロックは行いません。",
+    presetAuditDesc: "レポートと警告のみのDLPルールを適用し、遮断は行いません。",
     modulesTitle: "3. ポリシーモジュール",
     modulesSubtitle:
-      "モジュールごとに別のバッチで適用するため、非対応のポリシーが 1 つあっても他を巻き込みません。",
+      "モジュール単位で個別に適用します。",
     moduleCorePolicies: "Chrome コアセキュリティポリシー",
     moduleCorePoliciesDesc:
-      "強化セーフブラウジング、社用パスワードの使い回し警告、Chrome のクラウドレポートおよびプロファイルレポートを有効化します。",
+      "強化セーフブラウジング、パスワード使い回し警告、クラウドレポートを有効化します。",
     moduleForceExtensions: "Endpoint Verification の強制インストール",
     moduleForceExtensionsDesc:
-      "Google 公式の Endpoint Verification 拡張機能を配布し、端末の状態シグナルをコンテキストアウェアアクセスに渡します。",
+      "Endpoint Verification拡張機能を自動配信し、端末状態を収集します。",
     moduleConnectors: "コンテンツ検査コネクタ",
     moduleConnectorsDesc:
-      "リアルタイム URL 検査、ファイルのアップロード／ダウンロード検査、Google へのセキュリティイベント送信。",
-    accessLevelTitle: "コンテキストアウェアアクセス (CAA) レベル",
+      "リアルタイムURL検査、ファイルのアップロード・ダウンロード検査、イベント送信を有効化します。",
+    accessLevelTitle: "コンテキストアウェアアクセスレベル",
     accessLevelSelectPrompt: "適用するアクセスレベルを選択",
     accessLevelHint:
-      "DLP の『未管理端末制御ルール』や Secure Gateway に適用するアクセスレベルを選択します（選択したレベルは CEL 条件 access_levels.meets_access_requirements に自動組み込みされます）。不要な場合は『なし』のままで問題ありません。",
+      "未管理端末向けのDLPルールやGateway制御に適用するアクセスレベルを選択します。不要な場合は「なし」を選択します。",
     accessLevelNone: "なし",
     accessLevelNoneDesc: "アクセスレベルによる制限を行いません。",
     accessLevelAutoProfile: "新規作成: 管理対象 Chrome プロファイル",
@@ -5578,134 +5575,134 @@ const ja: Messages = {
     accessLevelAutoAny: "新規作成: 管理対象のプロファイルまたはブラウザ",
     accessLevelExistingGroup: "既存のアクセスレベル",
     accessLevelLoadFailed:
-      "既存のアクセスレベルを取得できませんでした。作成するには、Access Context Manager ポリシーを持つ組織に属した Google Cloud プロジェクトが必要です。",
+      "既存のアクセスレベルを取得できませんでした。Access Context Managerが有効な組織配下のGCPプロジェクトが必要です。",
     moduleDlpDetectors: "社内サイト用の DLP 検出器",
     moduleDlpDetectorsDesc:
-      "利用できません。settings/detector.url_list は Policy API の変更操作で未対応です。",
-    moduleDlpRules: "DLP ルール（サンプル一式）",
+      "利用できません。settings/detector.url_list は Policy API で未対応です。",
+    moduleDlpRules: "DLP ルール一式",
     moduleDlpRulesDesc:
-      "機密データの外部送信に対して警告・ブロックを行う DLP ルール（アラートセンター重大度: 低）や、社内サイトへのアクセス時に動的透かしを表示して画面キャプチャや情報持ち出しを抑止する URL ルールを作成します。",
+      "機密データ送信の警告・遮断ルールと、社内サイトへの透かし・画面キャプチャ制限ルールを作成します。",
     betaBadge: "ベータ",
     dlpBetaNote:
-      "対応済みの settings/rule.dlp 作成にはベータ版の Cloud Identity Policy API を使用します。未対応のURLリスト検出器とアクセスレベル／BYOD条件は送信しません。拒否された呼び出しは理由付きで表示します。",
+      "Cloud Identity Policy API を使用して DLP ルールを作成します。",
     dlpRegionTitle: "検出対象とする個人番号の国・地域",
     dlpRegionHint:
-      "個人番号ルールが使用する Cloud DLP 検出器を切り替えます。国が合っていない検出器は何も検知しないため、動作しているルールと見分けがつきません。",
+      "個人番号ルールで使用する Cloud DLP 検出器の国を選択します。",
     dlpRulesTableTitle: "ルールごとの動作",
     dlpRulesTableHint:
-      "Chrome DLP Policy API が提供する動作は「監査のみ（イベント記録）」「警告」「ブロック」の3種類です。ルールを作成しない操作は「オフ」を選択してください。",
+      "各ルールの動作を「監査のみ」「警告」「ブロック」「オフ」から選択します。",
     dlpActionOff: "作成しない",
-    dlpActionAudit: "監査のみ（イベント記録）",
+    dlpActionAudit: "監査のみ",
     dlpActionWarn: "警告して許可",
     dlpActionBlock: "ブロック",
     dlpRuleNationalId: "ページへの個人番号の貼り付け",
     dlpRulePaymentCard: "アップロードに含まれるカード番号",
     dlpRuleAccessLevel: "管理対象外 Chrome からのアップロード",
     dlpRuleWatermark: "社内ページへの電子透かし",
-    dlpNoticeByodTitle: "コンテキスト アウェア アクセス（CAA）条件の連動",
-    dlpNoticeByodDesc: "BYOD 限定（アクセスレベル連動）に設定した行は CEL 条件式（!access_levels.meets_access_requirements(['<ACCESS_LEVEL>'])）を使用し、選択したアクセスレベルを満たさない未管理端末に限定して DLP 制御を適用します。",
+    dlpNoticeByodTitle: "コンテキストアウェアアクセス条件の連動",
+    dlpNoticeByodDesc: "アクセスレベル連動に設定した行は CEL 条件式 !access_levels.meets_access_requirements を使用し、未管理端末のみにDLP制御を適用します。",
     activePresetBadge: "選択中",
     dataBoundaryModeTitle: "データ境界",
     dataBoundaryModeCopyPaste: "貼り付け内容を検査する",
     dataBoundaryModeCopyPasteDesc:
-      "ページに貼り付けられたテキストを検査し、Google アプリでは主要ドメインのアカウントだけを許可します。",
+      "貼り付けテキストを検査し、Googleアプリでは自社ドメインのアカウントのみを許可します。",
     dataBoundaryModeBlockNonCorp: "非社用の Google アカウントを遮断する",
     dataBoundaryModeBlockNonCorpDesc:
-      "Google アプリで主要ドメインのアカウントのみを許可し、個人 Gmail タブ経由の持ち出し経路を塞ぎます。",
+      "Googleアプリで自社ドメインのみを許可し、個人Gmailへのログインを遮断します。",
     dataBoundaryModeNone: "なし",
     dataBoundaryModeNoneDesc:
-      "クリップボードとアカウントの挙動は親 OU の設定を継承したままにします。",
-    httpHeadersTitle: "SaaS テナント制限・カスタム HTTP ヘッダー（HttpHeaderInjection）",
+      "親OUの設定をそのまま継承します。",
+    httpHeadersTitle: "SaaS テナント制限・カスタム HTTP ヘッダー",
     httpHeadersSubtitle:
-      "指定した URL へのアクセス時に Chrome から HTTP リクエストヘッダーを付与し、Slack・GitHub・ChatGPT・Claude・Microsoft 365・Dropbox・Box などの SaaS で自社テナント以外へのログインを制限します。",
+      "指定URLへの通信にHTTPヘッダーを付与し、SaaSへのログインを自社テナントのみに制限します。",
     httpHeadersPresetLabel: "SaaS プリセットを追加:",
     httpHeadersAddCustomBtn: "+ カスタムルールを追加",
     httpHeadersEmptyHint:
-      "HTTP ヘッダー付与ルールは未設定です。上の SaaS プリセットを選択すると、自社ワークスペース ID やテナント ID のみのログイン制限ルールを追加できます。",
+      "上のSaaSプリセットを選択すると、テナント制限ルールを追加できます。",
     httpHeadersRemoveRuleBtn: "削除",
-    httpHeadersPatternsLabel: "対象 URL パターン（カンマまたは改行区切り）",
+    httpHeadersPatternsLabel: "対象 URL パターン",
     httpHeadersTenantValueLabel: "許可する自社テナント / ワークスペース / Enterprise ID",
     httpHeadersNameLabel: "ヘッダー名",
     httpHeadersValueLabel: "ヘッダー値",
     httpHeadersBoxNote:
-      "※ Box は主に企業専用 URL（https://<company>.account.box.com）および IdP 条件付きアクセスでテナント境界を制御します。中継プロキシや連携基盤でヘッダー検査を行う場合に設定してください。",
-    httpHeadersM365ContextLabel: "ディレクトリ（テナント）GUID（Restrict-Access-Context 用）",
+      "Boxは主に企業専用URLとIdP条件付きアクセスでテナント境界を制御します。",
+    httpHeadersM365ContextLabel: "ディレクトリ GUID · Restrict-Access-Context 用",
     internalUrlsTitle: "社内機密サイト・透かし保護対象 URL",
     internalUrlsPlaceholder: "https://intranet.example.com\nhttps://portal.corp.example.com",
     internalUrlsHint:
-      "ここに登録した社内サイトを開いた際、画面上に動的な電子透かしを表示し、画面キャプチャ（スクリーンショット）を自動的にブロックします。保護したい URL を 1 行に 1 件入力してください。",
+      "登録したURLの表示時に電子透かしを重ね、画面キャプチャを遮断します。1行に1件入力してください。",
     rolesCardTitle: "4. Workspace 管理者権限",
     rolesCardSubtitle:
-      "Workspace の権限は Google 管理コンソールで割り当てます。Google Cloud プロジェクトの IAM ロールでは Chrome Policy API の権限や必要な OAuth 権限を付与できません。",
+      "Workspaceの管理者ロールを割り当てます。GCPのIAMロールではChromeポリシー権限を付与できません。",
     roleAdminLabel: "ポリシー実施者",
     roleAdminDesc:
-      "Chrome 設定と組織部門に限定した管理コンソールの管理者ロールを割り当てます。Cloud Identity DLP の変更には特権管理者アカウントが必要です。",
+      "Chrome設定とOU権限を持つ管理コンソールロールです。DLPルール変更には特権管理者が必要です。",
     roleAuditorLabel: "読み取り専用の確認者",
     roleAuditorDesc:
-      "確認に必要な Chrome と OU の読み取り権限だけを持つ別の管理コンソールロールを作成し、デプロイ用アカウントと共用しません。",
-    roleAssigneeEmailLabel: "割り当て先管理者メールアドレス（任意）",
+      "ChromeとOUの読み取り権限だけを持つ確認用ロールです。",
+    roleAssigneeEmailLabel: "割り当て先管理者メールアドレス · 任意",
     roleAssigneeEmailPlaceholder: "admin@example.com",
-    roleAssigneeEmailHint: "空欄にした場合、ロールの作成のみを行い、ユーザーへの割り当てはスキップします。",
+    roleAssigneeEmailHint: "空欄の場合はロール作成のみ行います。",
     roleTypeSelectLabel: "対象ロール",
-    roleTypeBoth: "両方（ポリシー実施者 ＋ 監査担当者）",
+    roleTypeBoth: "両方 · ポリシー実施者 ＋ 監査担当者",
     roleTypeAdminOnly: "ポリシー実施者のみ",
     roleTypeAuditorOnly: "監査担当者のみ",
-    roleScopeOuCheckbox: "選択中の組織部門（OU）にスコープを限定する",
+    roleScopeOuCheckbox: "選択中の組織部門にスコープを限定する",
     roleCreateAssignBtn: "Workspace 管理者ロールを作成・アサイン",
     roleCreatingBtn: "ロール作成・アサイン中...",
     rolesAdminConsoleLink: "Google 管理コンソールの管理者ロールを開く",
     rolesVerificationNote:
-      "ロールの割り当て完了後、「Googleアカウントを認証して組織情報を取得」を実行してください。ポリシーのデプロイに必要な Chrome Policy API および Cloud Identity API の権限が不足している場合は、実行時にエラー詳細と修復手順が表示されます。",
+      "ロール割り当て後に組織情報の再取得を実行してください。",
     rolesScopeManualChecklistTitle:
-      "Google 管理コンソールでの手動設定ガイド（最小 OAuth スコープ設計）",
+      "Google 管理コンソールでの手動設定手順",
     rolesScopeManualChecklistDesc:
-      "ブラウザ拡張機能の OAuth 権限を最小限に保つため、特権スコープ（admin.directory.rolemanagement）は要求していません。API 実行時に 403 となる場合は、Google 管理コンソール（アカウント › 管理者ロール）で以下の権限を割り当ててください。",
+      "APIで403が返る場合は、Google管理コンソールの［アカウント］>［管理者ロール］で以下を付与してください。",
     rolesScopeManualSteps: [
-      "ポリシー実施者: 「サービス › Chrome 管理 › 設定」および「Admin API 権限 › 組織部門」を有効化し、パイロット OU にスコープを限定します。",
-      "読み取り専用の確認者: 「サービス › Chrome 管理 › 設定（読み取り）」および「レポート（監査ログ）」を有効化します。",
-      "Cloud Identity DLP ルール: Chrome DLP ルールの作成・変更には Google Workspace の特権管理者（Super Admin）アカウントが必要です。",
+      "ポリシー実施者: ［サービス］>［Chrome 管理］>［設定］と［Admin API 権限］>［組織部門］を対象OUに付与します。",
+      "読み取り専用の確認者: ［Chrome 管理］>［設定の読み取り］と［監査ログ］を有効化します。",
+      "Cloud Identity DLP ルール: 特権管理者アカウントを使用します。",
     ],
     testingScenariosTitle: "5. 結果を確認する",
     testingScenariosSubtitle:
-      "検出器に反応するサンプル値です。実データを使わずに検知の様子を実演できます。",
+      "実データを使わずにDLP動作を確認できるテスト用ダミー値です。",
     copyDummyData: "コピー",
     copiedToClipboard: "コピーしました",
     dummyPiiLabel: "サンプルの個人番号",
     dummyPiiValue: "1234-5678-9012",
-    dummyPiiHint: "マイナンバー／SSN の書式に合わせたダミー値です。実在の番号ではありません。",
+    dummyPiiHint: "マイナンバー／SSN形式のダミー値です。",
     dummyCreditCardLabel: "サンプルのカード番号",
     dummyCreditCardValue: "4532015112830366",
-    dummyCreditCardHint: "Luhn チェックを通る Visa のテスト番号です。実在のカードではありません。",
+    dummyCreditCardHint: "Luhnチェックを通るVisaテスト番号です。",
     dummySourceCodeLabel: "サンプルの API キー入りソースコード",
     dummySourceCodeValue:
       "const GCP_SECRET_KEY = 'AIzaSyA_DEMO_CONFIDENTIAL_KEY_FOR_TESTING';",
-    dummySourceCodeHint: "Google API キーの形式に似せた文字列です。実際には使えません。",
+    dummySourceCodeHint: "APIキー形式のダミー文字列です。",
     scenarioGenAiTitle: "貼り付け検査",
     scenarioGenAiStep:
-      "外部の AI ツールを開き、上のサンプル API キーを貼り付けます。貼り付け検査が有効なら、判定が返るまで Chrome が貼り付けを保留します。",
+      "外部AIツールにサンプルAPIキーを貼り付け、検査・警告動作を確認します。",
     scenarioDataBoundaryTitle: "データ境界",
     scenarioDataBoundaryStep:
-      "管理対象プロファイルで個人の Google アカウントにログインします。非社用アカウントの遮断が有効なら、ログインが拒否されます。",
+      "管理対象プロファイルで個人Googleアカウントへのログインが遮断されることを確認します。",
     scenarioWatermarkTitle: "アップロード検査",
     scenarioWatermarkStep:
-      "サンプルのカード番号を含むファイルを、社内サイト一覧に無いサイトへアップロードします。検査のため保留され、イベントがセキュリティ調査ツールに届きます。",
-    manualChecklistTitle: "このツールでは実施できない設定",
+      "サンプルカード番号を含むファイルをアップロードし、検査とログ記録を確認します。",
+    manualChecklistTitle: "管理コンソールでの手動設定項目",
     manualChecklistSubtitle:
-      "Google が外部設定用 API を提供していない項目です。上記の動作テストを実施する前に Google 管理コンソールで設定を完了してください。",
+      "API非対応のため、動作テスト前にGoogle管理コンソールで設定してください。",
     manualChecklistItems: [
       {
         title: "機密コンテンツの保存を有効化",
-        detail: "セキュリティ › アクセスとデータ管理 › データ保護。",
+        detail: "セキュリティ › アクセスとデータ管理 › データ保護",
         href: "https://admin.google.com/ac/dp",
       },
       {
-        title: "光学文字認識（OCR）を有効化",
-        detail: "画像内のテキストを検出器が読むために必要です。",
+        title: "光学文字認識 · OCR を有効化",
+        detail: "画像内のテキスト検出に使用します。",
         href: "https://admin.google.com/ac/dp",
       },
       {
         title: "CEP ライセンスの自動割り当てを有効化",
-        detail: "お支払い › ライセンス設定で、パイロット OU に対して設定します。",
+        detail: "お支払い › ライセンス設定でパイロットOUに設定します。",
         href: "https://admin.google.com/ac/billing/licensesettings",
       },
     ],
@@ -5715,41 +5712,41 @@ const ja: Messages = {
     btnRollingBack: "確認中...",
     btnDownloadScript: "Chrome ポリシーを Python で出力",
     confirmRollback:
-      "Chrome Policy、Access Level、Cloud Identity DLP の削除候補を確認します。この操作は読み取り専用で、すべての候補を所有権確認用に保持します。続行しますか？",
+      "Chrome Policy、Access Level、Cloud Identity DLPの削除候補を読み取り専用で確認します。続行しますか？",
     downloadFailed: "スクリプトを生成できませんでした",
     noModulesSelected: "ポリシーモジュールを 1 つ以上選択してください。",
     appliedTitle: "適用した設定",
     skippedTitle: "スキップした設定",
     statusLogTitle: "実行トレース",
-    noActionYet: "まだ実行していません。対象 OU とモジュールを選び、適用してください。",
+    noActionYet: "対象スコープとモジュールを選択して適用してください。",
 
     licenseCardTitle: "ライセンス管理と自動割り当て制御",
     licenseCardSubtitle:
-      "全社への意図しないライセンス消費を防ぎ、対象 OU のユーザーにのみ CEP ライセンスを直接割り当てます。",
+      "対象OUのユーザーにのみCEPライセンスを割り当てます。",
     licensePilotLimitNotice:
-      "PoC向けの上限付き操作です。Directory上の現在のパスが選択したルート以外のOUと完全一致するユーザーだけを対象とし、最大10名、配下OUは除外します。最初の割り当て前に4ページ以内で全件列挙できない場合、上限超過の場合、または一覧取得がタイムアウトした場合は、ライセンスを1件も変更しません。Directory／Licensingの各要求は5秒、deployer identity確認はルート全体で10秒の上限です。割り当て開始後にユーザー単位のPOST応答が失われた場合は、product／SKU／userが完全一致するGETで照合し、結果を確認できるまでdurable leaseを保持します。部分結果になる場合はありますが、成功を推測しません。",
+      "選択した非ルートOU直下のユーザーだけを対象とし、最大10名、配下OUは除外します。4ページ以内で全件列挙できない場合や5秒の期限を超過した場合は変更しません。POST応答が失われた場合はGETで照合して結果を確認します。",
     licenseAutoAssignWarning:
-      "全社への意図しないライセンス消費を防ぐため、ルート組織（ドメイン全体）で CEP の自動割り当てが『オフ』になっていることを確認してください。",
+      "全社への意図しない消費を防ぐため、ルートOUではCEPの自動割り当てをオフにしてください。",
     licenseAutoAssignWarningLink: "Google 管理コンソールのライセンス設定を開く",
     licenseAutoAssignSteps: [
-      "1. Google 管理コンソールの「お支払い › ライセンス設定」を開き、最上位組織（ルート OU）を選択します。",
-      "2. Chrome Enterprise Premium の自動割り当てを「オフ」に変更します。",
-      "3. このパイロット OU のみ自動割り当てを「オン」にするか、または下のボタンから対象ユーザーへ直接一括割り当てを行います。",
+      "1. 管理コンソールの［お支払い］>［ライセンス設定］でルートOUを選択します。",
+      "2. Chrome Enterprise Premium の自動割り当てをオフにします。",
+      "3. パイロットOUのみオンにするか、下のボタンから直接割り当てます。",
     ],
-    btnAssignLicensesToOu: "CEPライセンスを割り当て（OU直下・最大10名）",
+    btnAssignLicensesToOu: "CEPライセンスを割り当て · OU直下最大10名",
     copyTargetOuPath: "このパスを自動入力",
     tabSetup: "1. セットアップ",
     tabLicensing: "2. ユーザー & ライセンス",
     tabDlp: "3. DLP & 脅威対策",
     tabOperations: "4. 運用 & 検証",
     tabAll: "すべて表示",
-    btnAssigningLicenses: "OU 内のユーザーへライセンスを割り当て中...",
+    btnAssigningLicenses: "ライセンスを割り当て中...",
     licenseAssignUsersFound: "OU 内のユーザーを処理しました",
     noUsersFoundInOu: "選択された組織部門内にユーザーは見つかりませんでした。",
 
     dlpMatrixTitle: "DLP コントロール マトリクス",
     dlpMatrixSubtitle:
-      "Step 1 で選択した対象組織（OU）またはグループ内の端末に対し、各操作（アップロード・ダウンロード・貼り付け・印刷・画面透かし）の動作（ブロック・警告・オフ）を設定します。",
+      "対象スコープ内の端末に対し、アップロード・ダウンロード・貼り付け・印刷・透かしの動作を設定します。",
     dlpColThreat: "データ・脅威種別",
     dlpColUpload: "アップロード",
     dlpColDownload: "ダウンロード",
@@ -5759,19 +5756,19 @@ const ja: Messages = {
     dlpColDeviceScope: "対象スコープ内の端末",
 
     dlpRowUniversalUpload: "すべてのファイルアップロード",
-    dlpRowUniversalUploadDesc: "Chrome からのあらゆるファイルアップロードを検査・制御します。",
+    dlpRowUniversalUploadDesc: "Chromeからの全ファイルアップロードを制御します。",
     dlpRowUniversalDownload: "すべてのファイルダウンロード",
-    dlpRowUniversalDownloadDesc: "Chrome でのファイルダウンロードを検査・不正ダウンロードを防止します。",
+    dlpRowUniversalDownloadDesc: "Chromeでの全ファイルダウンロードを制御します。",
     dlpRowPaymentCard: "クレジットカード・金融情報",
-    dlpRowPaymentCardDesc: "アップロード、貼り付け、印刷時のカード番号漏洩を検知・制御します。",
+    dlpRowPaymentCardDesc: "アップロード・貼り付け・印刷時のカード番号を検知します。",
     dlpRowNationalId: "マイナンバー・個人識別情報",
-    dlpRowNationalIdDesc: "各国の個人番号（マイナンバー／SSN等）の外部送信を検知・制御します。",
+    dlpRowNationalIdDesc: "マイナンバーやSSNなどの個人番号送信を検知します。",
     dlpRowAccessLevel: "未管理端末・コンテキストアウェア非準拠からの操作",
-    dlpRowAccessLevelDesc: "設定されたアクセスレベル（Context-Aware Access）に一致する端末からの操作を CEL 条件（access_levels.meets_access_requirements）で制御します。",
+    dlpRowAccessLevelDesc: "CEL条件 access_levels.meets_access_requirements で未管理端末からの操作を制御します。",
     dlpRowWatermark: "社内機密サイト保護・透かし",
-    dlpRowWatermarkDesc: "警告して閲覧を許可し、登録した社内サイト上で動的透かしを表示して画面キャプチャを制限します。",
-    dlpRowGenAiBlock: "未承認の生成AI利用ブロック（Geminiのみ許可）",
-    dlpRowGenAiBlockDesc: "ChatGPT・Claude・DeepSeek 等のコンシューマー向け AI サービスをブロックし、社内で承認された Gemini のみ安全な利用を許可します。",
+    dlpRowWatermarkDesc: "登録した社内サイトに動的透かしを表示し、画面キャプチャを制限します。",
+    dlpRowGenAiBlock: "未承認の生成AI利用ブロック · Geminiのみ許可",
+    dlpRowGenAiBlockDesc: "未承認の外部AIサイトを遮断し、社内Geminiのみ利用を許可します。",
 
     dlpScopeAll: "対象内の全端末",
     dlpScopeByodOnly: "アクセスレベル連動",
@@ -5781,250 +5778,248 @@ const ja: Messages = {
     dlpActionBadgeAuditOnly: "監査のみ",
     dlpActionBadgeOff: "オフ",
 
-    dlpActionParamsTitle: "追加アクション パラメータ（actionParams）",
-    dlpActionParamsSubtitle: "DLP ルール発動時の挙動を拡張するオプション設定",
-    dlpCustomMessageLabel: "エンドユーザー向けカスタム メッセージ（customEndUserMessage）",
-    dlpCustomMessagePlaceholder: "例: 社内規定によりこの操作は制限されています。詳細はセキュリティチームにお問い合わせください。",
-    dlpCustomMessageHint: "Chrome で警告またはブロックダイアログが表示された際、エンドユーザーに表示するメッセージです。",
-    dlpSaveContentLabel: "検出されたコンテンツの証拠保存（saveContent）",
-    dlpSaveContentHint: "インシデント調査や監査のため、検知対象となった機密コンテンツのコピーを保存します。",
+    dlpActionParamsTitle: "追加アクション パラメータ",
+    dlpActionParamsSubtitle: "DLPルール発動時の表示メッセージと証拠保存設定",
+    dlpCustomMessageLabel: "エンドユーザー向けカスタムメッセージ",
+    dlpCustomMessagePlaceholder: "例: 社内規定によりこの操作は制限されています。",
+    dlpCustomMessageHint: "警告またはブロック時にChrome上に表示するメッセージです。",
+    dlpSaveContentLabel: "検出されたコンテンツの証拠保存",
+    dlpSaveContentHint: "監査のため、検知した機密コンテンツのコピーを保存します。",
 
     dlpPresetRecommended: "標準構成",
-    dlpPresetRecommendedDesc: "機密データの送信時に警告を表示、未承認 AI は遮断し、社内サイトには動的透かしを適用して情報漏洩を防止します。",
+    dlpPresetRecommendedDesc: "機密データ送信時に警告を表示し、未承認AIの遮断と社内サイトへの透かしを適用します。",
     dlpPresetStrictZeroTrust: "厳格なゼロトラスト",
-    dlpPresetStrictZeroTrustDesc: "機密データの外部送信を確実にブロックし、最も厳格なゼロトラスト ポリシーを適用します（BYOD 条件は管理コンソールで設定）。",
+    dlpPresetStrictZeroTrustDesc: "機密データのアップロードと貼り付けをブロックします。",
     dlpPresetGenAiSecure: "生成AIセキュア活用",
-    dlpPresetGenAiSecureDesc: "ChatGPT 等のコンシューマー向け AI を遮断し、貼り付け検査を有効にした上で Gemini の安全な業務利用を許可します。",
+    dlpPresetGenAiSecureDesc: "未承認AIを遮断し、貼り付け検査付きでGeminiの利用を許可します。",
     dlpPresetAuditOnly: "警告ファースト",
-    dlpPresetAuditOnlyDesc: "選択した全操作で、API が Chrome 向けに提供する最も穏やかな DLP 操作を使用します。",
+    dlpPresetAuditOnlyDesc: "選択した全操作に警告アクションを設定します。",
     geminiEnterpriseTitle: "Gemini Enterprise & Vertex AI Search ゼロトラスト保護",
     geminiEnterpriseSubtitle:
-      "エンタープライズ生成AI（自社データ連携Agent・社内検索）は、Chrome・アイデンティティ・Google Cloud境界の多層防御で保護します。",
+      "Chrome・アイデンティティ・Google Cloud境界の3層で生成AIと社内検索を保護します。",
     geminiLayer1Title: "1. Chrome エンドポイント & DLP 保護",
     geminiLayer1Desc:
-      "生成AI Web アプリケーションに対するプロンプト入力や生成データのダウンロードをリアルタイムで検査・保護します。",
+      "生成AIアプリへのプロンプト入力とダウンロードを検査します。",
     geminiLayer1Bullet1:
-      "個人情報（PII）、API キー、機密コード等のプロンプト貼り付け・アップロードを遮断または警告。",
+      "個人情報、APIキー、機密コードの貼り付け・アップロードを遮断または警告します。",
     geminiLayer1Bullet2:
-      "社内データ検索結果や AI 生成レポートのダウンロード・画面キャプチャ時に電子透かし（ウォーターマーク）を強制適用。",
-    geminiLayer2Title: "2. コンテキストアウェア アクセス (CAA)",
+      "検索結果や生成レポートの表示・ダウンロード時に電子透かしを適用します。",
+    geminiLayer2Title: "2. コンテキストアウェア アクセス",
     geminiLayer2Desc:
-      "許可された会社支給デバイスや安全なネットワークからのみサインインを許可します。",
+      "管理対象ブラウザや社内ネットワークからのみアクセスを許可します。",
     geminiLayer2Bullet1:
-      "Endpoint Verification（管理対象 Chrome ブラウザ）または社内 IP アドレスをアクセス条件として必須化。",
+      "管理対象Chromeブラウザまたは社内IPアドレスを条件に設定します。",
     geminiLayer2Bullet2:
-      "Google Workspace 管理コンソールの CAA アプリ割り当てで「Gemini」アプリへのネイティブ保護ポリシーを適用。",
+      "Google WorkspaceのCAA設定でGeminiアプリを保護します。",
     geminiLayer3Title: "3. VPC Service Controls & Agent Gateway",
     geminiLayer3Desc:
-      "API レベルでのデータ持ち出し防止および自社エージェント間通信の暗号的保護を行います。",
+      "API境界でDiscovery Engineを隔離・保護します。",
     geminiLayer3Bullet1:
-      "VPC Service Controls サービス境界内で discoveryengine.googleapis.com（Gemini Enterprise API）を隔離・保護。",
+      "VPC Service Controls境界内で discoveryengine.googleapis.com を保護します。",
     geminiLayer3Bullet2:
-      "Agent Gateway により、エージェント間通信（A2A）で mTLS および DPoP（RFC 9449）トークンバインディングを強制。",
-    geminiCliTitle: "Google Cloud VPC-SC 境界 & ACM アクセスレベル設定コマンド",
+      "エージェント間通信にmTLSとDPoPトークンバインディングを適用します。",
+    geminiCliTitle: "VPC-SC 境界 & ACM アクセスレベル設定コマンド",
     geminiCliCopyBtn: "コマンドをコピー",
     dlpPresetGeminiEnterprise: "Gemini Enterprise 保護",
     geminiAutoProvisionTitle: "Gemini Enterprise ゼロトラスト境界のプロビジョニング",
     geminiAutoProvisionSubtitle:
-      "Access Context Manager (ACM) アクセスレベルおよび VPC Service Controls 境界を Google Cloud API 経由で作成・適用します。",
+      "ACMアクセスレベルとVPC Service Controls境界を作成・適用します。",
     geminiTargetProjectLabel: "対象 Google Cloud プロジェクト ID",
-    geminiPolicyIdLabel: "Access Context Manager ポリシー ID (省略時は自動検出)",
+    geminiPolicyIdLabel: "Access Context Manager ポリシー ID · 空欄時は自動検出",
     geminiPerimeterNameLabel: "VPC-SC 境界識別名",
-    geminiEnforceAccessLevelLabel: "ACM アクセスレベルを作成・バインド (管理対象 Chrome: BROWSER_MANAGED を必須化)",
+    geminiEnforceAccessLevelLabel: "管理対象 Chrome を必須化する ACM アクセスレベルを作成・バインド",
     geminiAccessLevelSelectLabel: "適用する ACM アクセスレベル",
-    geminiAccessLevelDefaultOption: "新規作成: secgw_chrome_managed (管理対象 Chrome ブラウザ)",
-    geminiAccessLevelSelectHint: "Gemini Enterprise の VPC-SC 境界または RCA にバインドするアクセスレベルを指定します。Step 1 で取得した既存レベルを選択するか、管理対象 Chrome 専用レベルを新規作成します。",
-    geminiEnforcePerimeterLabel: "VPC-SC サービス境界を作成 (discoveryengine.googleapis.com を境界内で隔離・保護)",
-    geminiDryRunLabel: "ドライラン（試行・監査）モードで作成 (既存の通信を遮断せず Cloud Logging にのみ記録)",
+    geminiAccessLevelDefaultOption: "新規作成: secgw_chrome_managed",
+    geminiAccessLevelSelectHint: "既存レベルを選択するか、管理対象Chrome専用レベルを新規作成します。",
+    geminiEnforcePerimeterLabel: "discoveryengine.googleapis.com を保護する VPC-SC 境界を作成",
+    geminiDryRunLabel: "ドライランモードで作成 · 遮断せず Cloud Logging に記録",
     geminiAutoProvisionBtn: "ゼロトラスト境界を作成・適用",
     geminiAutoProvisioningBtn: "プロビジョニング中...",
     geminiSuccessTitle: "ゼロトラスト境界の自動作成が完了しました",
     geminiStep1: "1. Google Cloud プロジェクト & Access Policy 解決",
-    geminiStep2: "2. ACM アクセスレベル作成 (管理対象 Chrome)",
-    geminiStep3: "3. VPC-SC サービス境界作成 (Discovery Engine)",
+    geminiStep2: "2. ACM アクセスレベル作成",
+    geminiStep3: "3. VPC-SC サービス境界作成",
     geminiStep4: "4. ゼロトラスト環境検証 & 完了",
-    geminiStep5Rca: "5. Restricted Client Applications (RCA) ユーザーアクセスバインディング作成",
-    geminiAdminLockoutWarningTitle: "重要: Google Cloud Console 管理者へのアクセス要件（ロックアウト注意）",
+    geminiStep5Rca: "5. Restricted Client Applications アクセスバインディング作成",
+    geminiAdminLockoutWarningTitle: "注意: Google Cloud コンソール管理者のアクセス要件",
     geminiAdminLockoutWarningText:
-      "discoveryengine.googleapis.com に対してアクセスレベルを適用（VPC-SC）すると、エンドユーザーだけでなく、Google Cloud Console から Gemini Enterprise を設定・管理する GCP 管理者自身も、管理対象ブラウザ（Managed Chrome）から接続しない限りコンソール上で 403 権限エラーとなります。管理者が未管理端末を利用する場合は、Approach 2 (RCA) のグループ限定バインドの併用または Ingress 例外設定を検討してください。",
-    geminiEnforceRcaLabel: "Approach 2: Restricted Client Applications (RCA) を直接プロビジョニングする",
-    geminiRcaGroupKeyLabel: "対象 Google グループ（メールアドレスまたは Group ID）",
-    geminiRcaGroupKeyPlaceholder: "例: gemini-users@example.com または 0184mhaj3tyhbjb",
+      "discoveryengine.googleapis.com にVPC-SCを適用すると、GCP管理者も管理対象Chromeからの接続が必要になります。未管理端末での403エラーを避けるには、Approach 2のグループ限定バインドまたはIngress例外を併用してください。",
+    geminiEnforceRcaLabel: "Approach 2: Restricted Client Applications をグループにバインドする",
+    geminiRcaGroupKeyLabel: "対象 Google グループのメールアドレスまたは ID",
+    geminiRcaGroupKeyPlaceholder: "例: gemini-users@example.com",
     geminiRcaGroupKeyHint:
-      "Access Context Manager API を直接呼び出し、指定したグループのみに Gemini Enterprise アプリのアクセスレベルを直接バインドします（GCP 管理者のコンソールロックアウトや VPC-SC ペリメーター競合を回避可能）。",
+      "指定したグループのみにGemini Enterpriseのアクセスレベルを適用します。",
     geminiRcaBindingLabel: "RCA Cloud Binding",
-    geminiRcaCliTitle: "Restricted Client Application (RCA) gcloud コマンドスニペット",
+    geminiRcaCliTitle: "RCA gcloud コマンドスニペット",
     geminiRcaCliCopyBtn: "RCA コマンドをコピー",
 
     deployProgressTitle: "Chrome Enterprise Premium デプロイ進行中...",
-    deployStep1: "1. 対象 OU の検証",
+    deployStep1: "1. 対象スコープの検証",
     deployStep2: "2. ポリシー設定の生成",
-    deployStep3: "3. DLP ルール & 検出器の登録",
+    deployStep3: "3. DLP ルールの登録",
     deployStep4: "4. 完了 & 証跡の記録",
 
-    rollbackProgressTitle: "ロールバック実行中...",
-    rollbackStep1: "1. ロールバック対象の特定",
-    rollbackStep2: "2. サブ OU ポリシーの初期化",
-    rollbackStep3: "3. DLP ルール & レベルの解除",
-    rollbackStep4: "4. ロールバック完了",
+    rollbackProgressTitle: "削除候補を確認中...",
+    rollbackStep1: "1. 対象リソースの特定",
+    rollbackStep2: "2. OU ポリシーの確認",
+    rollbackStep3: "3. DLP ルール & レベルの確認",
+    rollbackStep4: "4. 確認完了",
 
-    roleProgressTitle: "Workspace 管理者ロールの作成・アサイン中...",
+    roleProgressTitle: "Workspace 管理者ロールを作成・アサイン中...",
     roleStep1: "1. ディレクトリ権限の確認",
-    roleStep2: "2. CEP PoC 運用・監査ロールの作成",
-    roleStep3: "3. 対象管理者への権限アサイン",
+    roleStep2: "2. 運用・監査ロールの作成",
+    roleStep3: "3. 対象管理者へのアサイン",
     roleStep4: "4. 権限設定完了",
 
-    licenseProgressTitle: "試用ライセンスの割り当て中...",
+    licenseProgressTitle: "試用ライセンスを割り当て中...",
     licenseStep1: "1. 対象 OU ユーザーの取得",
-    licenseStep2: "2. Chrome Enterprise ライセンスの割り当て",
+    licenseStep2: "2. CEP ライセンスの割り当て",
     licenseStep3: "3. ライセンス適用完了",
-    // Error Diagnostic Resolver
     errDiagIamTitle: "Google Cloud IAM 権限不足",
-    errDiagIamCause: "現在の Google アカウントに Access Context Manager または Google Cloud 組織レベルの権限（例: roles/accesscontextmanager.policyAdmin）が付与されていません。",
-    errDiagIamRemediation: "組織の特権管理者に roles/accesscontextmanager.policyAdmin ロールの付与を依頼するか、以下のコマンドを管理者アカウントで実行してください。",
+    errDiagIamCause: "現在のアカウントに roles/accesscontextmanager.policyAdmin などの組織権限がありません。",
+    errDiagIamRemediation: "組織管理者に roles/accesscontextmanager.policyAdmin の付与を依頼するか、以下のコマンドを実行してください。",
     errDiagIamConsoleLink: "Google Cloud IAM コンソールを開く",
     errDiagWorkspaceTitle: "Google Workspace 特権管理者権限が必要",
-    errDiagWorkspaceCause: "サインイン中のアカウントに Workspace 特権管理者（Super Admin）権限がないか、サードパーティ API クライアント アクセスが管理コンソールで制限されています。",
-    errDiagWorkspaceRemediation: "Google Workspace の特権管理者アカウントでサインインし直すか、管理コンソール（admin.google.com）で Admin SDK へのアクセスを承認してください。",
+    errDiagWorkspaceCause: "サインイン中のアカウントに特権管理者権限またはAdmin SDKアクセス権がありません。",
+    errDiagWorkspaceRemediation: "特権管理者アカウントでサインインし直すか、管理コンソールでAdmin SDKを有効化してください。",
     errDiagWorkspaceConsoleLink: "Workspace 管理ロール画面を開く",
-    errDiagVpcScConflictTitle: "VPC Service Controls 境界の競合・重複所属",
-    errDiagVpcScConflictCause: "対象の Google Cloud プロジェクトはすでに別の VPC サービス境界に所属しているか、同名の境界が既に存在します。",
-    errDiagVpcScConflictRemediation: "検証専用の独立した別プロジェクトを指定するか、Google Cloud コンソールから既存の境界に Discovery Engine API を追加してください。",
+    errDiagVpcScConflictTitle: "VPC Service Controls 境界の競合",
+    errDiagVpcScConflictCause: "対象プロジェクトが既に別のVPC-SC境界に属しているか、同名の境界が存在します。",
+    errDiagVpcScConflictRemediation: "別の検証用プロジェクトを指定するか、既存境界に Discovery Engine API を追加してください。",
     errDiagVpcScConsoleLink: "VPC Service Controls コンソールを開く",
-    errDiagOuConfirmTitle: "対象 OU パスの一致確認エラー",
-    errDiagOuConfirmCause: "上位組織やルート OU への誤適用事故を防止するため、対象 OU のフルパスを手動入力して完全一致させる必要があります。",
-    errDiagOuConfirmRemediation: "画面に表示されている対象 OU のパスを正確にコピーし、確認入力欄に貼り付けてください。",
-    errDiagRateLimitTitle: "Google Cloud API レートリミット制限 (429)",
-    errDiagRateLimitCause: "Cloud Identity または Resource Manager API のリクエスト頻度が上限（1 QPS）を超過しました。",
-    errDiagRateLimitRemediation: "SGS は自動バックオフ機能を備過しています。10〜30 秒待機してから [再試行] ボタンを押すと成功します。",
-    errDiagWorkerTitle: "Chrome 拡張機能バックグラウンドワーカーの一時休止",
-    errDiagWorkerCause: "Chrome ブラウザの省電力機能により Service Worker が休止状態になったか、拡張機能がリロードされました。",
-    errDiagWorkerRemediation: "下の [再試行] ボタンを押すか、拡張機能の管理画面からページを再読み込みしてください。",
+    errDiagOuConfirmTitle: "対象スコープの一致確認エラー",
+    errDiagOuConfirmCause: "確認入力欄の文字列が選択中のOUパスまたはグループアドレスと一致していません。",
+    errDiagOuConfirmRemediation: "画面に表示されているパスまたはメールアドレスをそのまま入力してください。",
+    errDiagRateLimitTitle: "Google Cloud API レート制限 · 429",
+    errDiagRateLimitCause: "APIリクエスト頻度が上限を超過しました。",
+    errDiagRateLimitRemediation: "10〜30秒待ってから［操作を再試行］を押してください。",
+    errDiagWorkerTitle: "拡張機能バックグラウンドワーカーの一時休止",
+    errDiagWorkerCause: "Service Workerが一時休止したか、拡張機能が再読み込みされました。",
+    errDiagWorkerRemediation: "下の［操作を再試行］を押すか、ページを再読み込みしてください。",
     errDiagProjectNoOrgTitle: "Google Cloud プロジェクトが組織に未所属",
-    errDiagProjectNoOrgCause: "Access Context Manager および VPC Service Controls は、Google Cloud 組織（Organization）に属するプロジェクトでのみ動作します。",
-    errDiagProjectNoOrgRemediation: "スタンドアロンの個人プロジェクトではなく、企業組織配下の GCP プロジェクトを選択してください。",
+    errDiagProjectNoOrgCause: "Access Context ManagerとVPC-SCには組織配下のプロジェクトが必要です。",
+    errDiagProjectNoOrgRemediation: "企業組織配下のGCPプロジェクトを選択してください。",
     errDiagPolicyNotFoundTitle: "Access Context Manager ポリシー未検出",
-    errDiagPolicyNotFoundCause: "組織内に Access Policy が作成されていないか、デフォルトのポリシー ID を自動取得できませんでした。",
-    errDiagPolicyNotFoundRemediation: "Access Context Manager コンソールでポリシーを新規作成するか、ポリシー ID を手動入力してください。",
+    errDiagPolicyNotFoundCause: "組織内にAccess Policyが存在しないか、ポリシーIDを取得できませんでした。",
+    errDiagPolicyNotFoundRemediation: "コンソールでAccess Policyを作成するか、ポリシーIDを手動入力してください。",
     errDiagPolicyConsoleLink: "Access Context Manager コンソールを開く",
-    errDiagOuStaleTitle: "対象組織部門 (OU) が見つからないか変更されています",
-    errDiagOuStaleCause: "選択された組織部門 (OU) の ID が存在しないか、Google Workspace のディレクトリ構成が更新されました。",
-    errDiagOuStaleRemediation: "「OU リストを再読込」をクリックして組織ツリーを更新し、対象の組織部門を再選択してください。",
-    errDiagRootOuForbiddenTitle: "ルート組織部門 (Root OU) への適用は禁止されています",
-    errDiagRootOuForbiddenCause: "Google Workspace の最上位ルート組織部門 (/) への直接適用は、ドメイン全体の全ユーザーに影響を与えるため安全上ブロックされています。",
-    errDiagRootOuForbiddenRemediation: "検証用またはパイロット対象の配下組織部門 (子 OU) を選択してください。",
-    errDiagScopeInvalidTitle: "無効な Workspace 顧客識別子または組織スコープ",
-    errDiagScopeInvalidCause: "有効な Workspace Customer ID および対象の組織部門 ID が指定されていないか、形式が不正です。",
-    errDiagScopeInvalidRemediation: "デプロイ設定の Workspace Customer ID を確認し、対象の組織部門が正しく選択されていることを確認してください。",
+    errDiagOuStaleTitle: "対象組織部門が見つかりません",
+    errDiagOuStaleCause: "選択したOUが削除または移動されました。",
+    errDiagOuStaleRemediation: "［↻ OUを再読込］を押して対象OUを選び直してください。",
+    errDiagRootOuForbiddenTitle: "ルート組織部門への適用はブロックされています",
+    errDiagRootOuForbiddenCause: "最上位のルートOU / への直接適用は全ユーザーに影響するためブロックされています。",
+    errDiagRootOuForbiddenRemediation: "検証用の子OUまたはGoogleグループを選択してください。",
+    errDiagScopeInvalidTitle: "無効な Workspace 顧客 ID または対象スコープ",
+    errDiagScopeInvalidCause: "有効な顧客IDまたは対象スコープが指定されていません。",
+    errDiagScopeInvalidRemediation: "Workspace接続を確認し、対象OUまたはグループを選択してください。",
     errDiagProjectRequiredTitle: "Google Cloud プロジェクト ID が未指定です",
-    errDiagProjectRequiredCause: "Access Context Manager、VPC Service Controls、または IAM 設定には Google Cloud プロジェクト ID が必須です。",
-    errDiagProjectRequiredRemediation: "設定入力欄に有効な Google Cloud プロジェクト ID を入力または選択してください。",
-    errDiagGeminiTitle: "Gemini Enterprise / Discovery Engine へのアクセスが拒否されました",
+    errDiagProjectRequiredCause: "ACM、VPC-SC、IAM操作にはGoogle CloudプロジェクトIDが必要です。",
+    errDiagProjectRequiredRemediation: "有効なGoogle CloudプロジェクトIDを入力してください。",
+    errDiagGeminiTitle: "Gemini Enterprise へのアクセスが拒否されました",
     errDiagGeminiCause:
-      "Gemini Enterprise (vertexaisearch.cloud.google.com または discoveryengine.googleapis.com) へのアクセスが、ACM アクセスレベルまたは VPC-SC サービス境界によって遮断されました。現在のブラウザが管理対象 Chrome（BROWSER_MANAGED）ではないか、GCP 管理者が未管理端末から Cloud Console に接続しています。",
+      "現在のブラウザが管理対象Chromeではないため、ACMまたはVPC-SCにより遮断されました。",
     errDiagGeminiRemediation:
-      "組織の管理対象 Chrome ブラウザからアクセスしてください。GCP 管理者がコンソールにアクセスする場合は、管理対象端末から接続するか、Ingress 例外ルールまたは Approach 2 (RCA) のグループ限定バインドを設定してください。",
-    errDiagGeminiConsoleLink: "Gemini Enterprise / Vertex AI Search コンソールを開く",
-    geminiConfirmProjectLabel: "プロジェクト ID の確認入力（厳格適用セーフガード）",
-    geminiConfirmProjectHint: "厳格モードで Gemini Enterprise のサービス境界とアクセスレベルを強制適用するには、対象プロジェクト ID を再入力してください。",
-    geminiConfirmProjectMismatch: "厳格適用を行うには、対象プロジェクト ID を正確に入力してください。",
+      "管理対象Chromeから接続するか、Approach 2のグループ限定バインドを設定してください。",
+    errDiagGeminiConsoleLink: "Vertex AI Search コンソールを開く",
+    geminiConfirmProjectLabel: "プロジェクト ID の確認入力",
+    geminiConfirmProjectHint: "厳格モードで境界を適用するため、対象プロジェクトIDを再入力してください。",
+    geminiConfirmProjectMismatch: "対象プロジェクトIDを正確に入力してください。",
     errDiagGenericTitle: "処理中にエラーが発生しました",
-    errDiagGenericCause: "処理の実行中に予期しないエラーが返されました。",
-    errDiagGenericRemediation: "以下の技術詳細を確認し、API の有効化状況およびネットワーク接続を確認してください。",
+    errDiagGenericCause: "実行中に予期しないエラーが返されました。",
+    errDiagGenericRemediation: "下の技術詳細とAPIの有効化状況を確認してください。",
     errDiagCauseLabel: "発生原因:",
     errDiagRemediationLabel: "修復手順:",
-    errDiagCommandHeader: "修復用コマンド / 権限付与依頼テンプレート:",
+    errDiagCommandHeader: "修復用コマンド:",
     errDiagRetryBtn: "操作を再試行",
-    errDiagRawDetails: "技術詳細ログ（デバッグ用）",
+    errDiagRawDetails: "技術詳細ログ",
 
-    // Security Assessment & Policy Recommender
     assessOpenBtn: "セキュリティ要件・ポリシー構成ウィザード",
     assessModalTitle: "セキュリティ要件・ポリシー構成ウィザード",
-    assessModalSubtitle: "組織が直面しているセキュリティ課題や端末保護の要件を選択してください。課題に対応する Chrome Enterprise Premium のポリシー構成（DLP・アクセス制御）を設定します。",
+    assessModalSubtitle: "セキュリティ課題を選択すると、対応するCEPポリシーとDLPマトリクスを自動設定します。",
     assessPresetLabel: "クイック一括選択",
     assessPresetGenAi: "生成AI安全活用 & 漏洩防止",
     assessPresetCost: "脱VDI・脱CASB コスト最適化",
     assessPresetRemote: "リモートワーク・BYOD対策",
-    assessPresetAll: "エンタープライズ最高水準 (全選択)",
+    assessPresetAll: "全項目を選択",
     assessPresetClear: "クリア",
     assessGroupGenAi: "生成AI & クラウドデータ保護",
     assessGroupPosture: "端末ポスチャ & リモートアクセス",
     assessGroupSaas: "SaaS保護 & ゼロトラスト移行",
     assessGroupCost: "コスト削減 & エージェント軽量化",
-    assessQ1Title: "生成AI（ChatGPT, Gemini等）や外部Webへの機密コピペ・プロンプト漏洩防止",
-    assessQ1Risk: "従業員が生成AIにソースコードや顧客情報をペーストして情報流出する懸念がある",
-    assessQ1Solution: "Chrome Enterprise DLP によるクリップボード貼り付け (Paste) リアルタイム検査・ブロック & 警告",
-    assessQ2Title: "個人情報（マイナンバー・顧客名簿）のWebダウンロード・アップロード制限",
-    assessQ2Risk: "SaaSやWebアプリから個人情報CSVを私用PCやクラウドにダウンロードされるリスク",
-    assessQ2Solution: "マイナンバー、クレジットカード番号、個人情報ファイルのWebアップロード・ダウンロード即時遮断",
-    assessQ3Title: "機密画面の印刷制限 ＆ 画面キャプチャ抑止（動的電子透かし表示）",
-    assessQ3Risk: "重要顧客情報や設計図面を印刷・画面撮影して社外へ持ち出されるリスク",
-    assessQ3Solution: "Web画面印刷のブロック、およびブラウザ表示面へのユーザー名・日時・会社名の動的電子透かし強制表示",
-    assessQ4Title: "社外ネットワーク・私用端末(BYOD)からのSaaSアクセス制御",
-    assessQ4Risk: "在宅勤務や出張先から未承認PCでSaaSにアクセスされ、マルウェア感染やデータ漏洩の恐れ",
-    assessQ4Solution: "Context-Aware Access (CAA) により、組織管理対象ブラウザ（BROWSER_MANAGED）のみアクセス認可",
-    assessQ5Title: "OSバージョン未更新・ディスク未暗号化端末のアクセス遮断",
-    assessQ5Risk: "パッチ未適用の脆弱な端末が社内システムに接続しランサムウェアの侵入口になる",
-    assessQ5Solution: "Endpoint Verification デバイスポスチャ連携による OS バージョン、ディスク暗号化、画面ロック必須化",
-    assessQ6Title: "端末電子証明書による正規会社支給PCの厳格な特定",
-    assessQ6Risk: "ID/パスワードの漏洩により、第三者が不正な端末からログインするリスク",
-    assessQ6Solution: "Chrome 証明書ストアと連携したクライアント電子証明書（mTLS）検証による会社支給端末の厳格特定",
-    assessQ7Title: "Google Workspace / M365 / Salesforceへのアクセス認可厳格化",
-    assessQ7Risk: "重要SaaSへのログインがID/PWや通常MFAのみで、セッションハイジャックに脆弱",
-    assessQ7Solution: "Chrome Enterprise と Google Cloud Access Context Manager (ACM) の連動による多層ゼロトラスト認可",
-    assessQ8Title: "地理的アクセス制御（海外・不審IPからの不正アクセス遮断）",
-    assessQ8Risk: "海外拠点や不審なIP範囲からの不正アクセス試行をリアルタイムに検知・防御したい",
-    assessQ8Solution: "IP 範囲・国・地域ポリシーに基づくアクセス拒否とセキュリティアラート自動発行",
-    assessQ9Title: "VPNレス直接セキュア接続（ゼロトラストアクセス）への移行ニーズ",
-    assessQ9Risk: "全社員のVPN集中による通信帯域逼迫、障害多発、GW保守費用の高騰に悩んでいる",
-    assessQ9Solution: "Chrome + Cloud Secure Web Gateway (SWG) による安全な直接インターネットブレイクアウト (脱VPN)",
-    assessQ10Title: "悪意ある拡張機能（Extension）の検知・強制アンインストール",
-    assessQ10Risk: "従業員が非公認の危険なブラウザ拡張機能を導入し情報が詐取されるリスク",
-    assessQ10Solution: "拡張機能の完全ホワイトリスト管理（未承認拡張の即時ブロック & 会社承認拡張の自動配信）",
-    assessQ11Title: "セキュリティ監査ログの長期保管 ＆ SIEM/BigQuery即時連携",
-    assessQ11Risk: "セキュリティ事故発生時にインシデント調査を行うためのブラウザ操作ログが不足",
-    assessQ11Solution: "Chrome 監査ログ（ファイル操作・URL訪問・DLP違反・拡張機能イベント）の Google Cloud Logging & BigQuery 即時連携",
-    assessQ12Title: "ゼロデイ脆弱性パッチの即時配信 ＆ バージョン固定管理",
-    assessQ12Risk: "Chromiumゼロデイ発覚時に手動パッチ当てが追いつかず、脆弱性放置の空白期間が発生",
-    assessQ12Solution: "Chrome 自動サイレントアップデート機能による数日以内のゼロデイパッチ自動適用",
-    assessQ13Title: "高額なCASB/SWG（Netskope/Zscaler等）のライセンス見直し",
-    assessQ13Risk: "CASBやプロキシ製品に年間数千万円〜数億円規模のライセンス料を支払っている",
-    assessQ13Solution: "Chrome Enterprise Premium のブラウザネイティブ DLP ＆ Google Cloud SWG 統合による CASB 置換（コスト削減）",
-    assessQ14Title: "画面転送VDI（Citrix/VMware）のサーバー更新・維持費削減",
-    assessQ14Risk: "次回のVDIハードウェア更新で億単位の費用が見積もられており、脱VDIを模索中",
-    assessQ14Solution: "セキュアエンタープライズブラウザによるローカルセキュアワークスペース化（脱VDI・DaaS費用の 80% 以上削減）",
-    assessQ15Title: "多層エンドポイントエージェント乱立による端末負荷の解消",
-    assessQ15Risk: "EDR、資産管理、暗号化ソフトの多重常駐でPCが重く、職員からの苦情が絶えない",
-    assessQ15Solution: "エージェント追加不要（Chrome ブラウザ単体）で DLP、SWG、認証、監査ログが完結するゼロエージェント運用",
-    assessDefaultDlpCustomMessage: "社内セキュリティポリシーにより、機密データの外部送信・コピペは制限されています。業務上の例外申請が必要な場合はセキュリティ管理者へお問い合わせください。",
+    assessQ1Title: "生成AIや外部Webへの機密コピペ・プロンプト漏洩防止",
+    assessQ1Risk: "生成AIへのソースコードや顧客情報の貼り付けによる情報流出",
+    assessQ1Solution: "Chrome DLPによるクリップボード貼り付けのリアルタイム検査・遮断",
+    assessQ2Title: "個人情報・顧客名簿のWebダウンロード・アップロード制限",
+    assessQ2Risk: "SaaSから個人情報CSVを私用端末や外部クラウドへ持ち出されるリスク",
+    assessQ2Solution: "マイナンバーやカード番号を含むファイルのアップロード・ダウンロード遮断",
+    assessQ3Title: "機密画面の印刷制限と画面キャプチャ抑止の電子透かし表示",
+    assessQ3Risk: "顧客情報や設計図面の印刷・画面撮影による持ち出しリスク",
+    assessQ3Solution: "印刷ブロックとユーザー名・日時の動的電子透かし表示",
+    assessQ4Title: "社外ネットワーク・私用端末からのSaaSアクセス制御",
+    assessQ4Risk: "未承認PCからのSaaSアクセスによる情報漏洩リスク",
+    assessQ4Solution: "Context-Aware Accessによる管理対象Chromeブラウザ限定アクセス",
+    assessQ5Title: "OS未更新・ディスク未暗号化端末のアクセス遮断",
+    assessQ5Risk: "パッチ未適用端末からの社内システム接続リスク",
+    assessQ5Solution: "Endpoint VerificationによるOSバージョン・暗号化・画面ロック確認",
+    assessQ6Title: "クライアント証明書による会社支給PCの特定",
+    assessQ6Risk: "認証情報漏洩時に第三者端末からログインされるリスク",
+    assessQ6Solution: "Chrome証明書ストアと連携したmTLSクライアント証明書検証",
+    assessQ7Title: "Google Workspace / M365 / Salesforceへのアクセス認可強化",
+    assessQ7Risk: "ID・パスワードのみのログインによるセッション乗っ取りリスク",
+    assessQ7Solution: "Chrome EnterpriseとAccess Context Managerによる多層認可",
+    assessQ8Title: "海外・不審IPからの不正アクセス遮断",
+    assessQ8Risk: "不審なIP範囲からの不正アクセス試行",
+    assessQ8Solution: "IP範囲・地域ポリシーに基づくアクセス拒否とアラート発行",
+    assessQ9Title: "VPNレスのゼロトラストアクセスへの移行",
+    assessQ9Risk: "VPN帯域逼迫とゲートウェイ保守コストの増加",
+    assessQ9Solution: "ChromeとSecure GatewayによるVPN不要のゼロトラスト接続",
+    assessQ10Title: "不正なブラウザ拡張機能の検知・ブロック",
+    assessQ10Risk: "非公認の拡張機能による通信内容やCookieの詐取リスク",
+    assessQ10Solution: "拡張機能の許可リスト管理と未承認拡張のブロック",
+    assessQ11Title: "セキュリティ監査ログのSIEM / BigQuery連携",
+    assessQ11Risk: "事故調査に必要なブラウザ操作ログの不足",
+    assessQ11Solution: "URL訪問・DLPイベント・ファイル操作ログのCloud Logging / BigQuery連携",
+    assessQ12Title: "ゼロデイ脆弱性パッチの自動配信とバージョン管理",
+    assessQ12Risk: "手動更新の遅れによるブラウザ脆弱性の放置",
+    assessQ12Solution: "Chrome自動アップデートによる迅速なセキュリティパッチ適用",
+    assessQ13Title: "サードパーティCASB / SWGライセンスの見直し",
+    assessQ13Risk: "外部CASBやプロキシ製品のライセンス・運用コスト負担",
+    assessQ13Solution: "ブラウザ内蔵DLPとアクセス制御による構成の簡素化",
+    assessQ14Title: "画面転送VDIのサーバー更新・維持費削減",
+    assessQ14Risk: "VDI基盤の更新・維持にかかる高額なインフラ費用",
+    assessQ14Solution: "管理対象Chromeによるデータ境界制御でVDI対象業務を縮小",
+    assessQ15Title: "複数エンドポイントエージェントによる端末負荷の軽減",
+    assessQ15Risk: "複数エージェントの常駐によるPCの動作遅延",
+    assessQ15Solution: "追加エージェントなしでChrome単体でのDLP・アクセス制御・監査を実現",
+    assessDefaultDlpCustomMessage: "社内セキュリティポリシーにより、機密データの外部送信・貼り付けは制限されています。",
     assessRecHeader: "選定されたポリシー構成",
-    assessRecDlpHeader: "DLP (データ損失防止) マトリクス設定:",
+    assessRecDlpHeader: "DLP マトリクス設定:",
     assessRecModulesHeader: "構成モジュール設定:",
-    assessRoiHeader: "期待される効果と改善項目:",
-    assessRoiCostTitle: "ライセンスおよびインフラ運用の効率化",
-    assessRoiCostDesc: "サードパーティ CASB/SWG 機能のブラウザ統合や、VDI 環境のブラウザ移行によるコスト最適化を図ります。",
+    assessRoiHeader: "期待される効果:",
+    assessRoiCostTitle: "ライセンス・インフラ運用の効率化",
+    assessRoiCostDesc: "ブラウザ標準機能への集約により、外部CASBやVDIの運用コストを抑えます。",
     assessRoiPerfTitle: "端末エージェントの集約と負荷軽減",
-    assessRoiPerfDesc: "常駐エージェントの追加を伴わずにブラウザ標準機能で制御を完結し、端末パフォーマンスへの影響を抑えます。",
-    assessRoiSecurityTitle: "生成 AI および Web からの情報漏洩抑止",
-    assessRoiSecurityDesc: "Web サービスへの機密データ送信、ダウンロード、画面キャプチャを電子透かしやポリシーで制御します。",
+    assessRoiPerfDesc: "常駐エージェントを追加せず、Chrome標準機能で制御を完結します。",
+    assessRoiSecurityTitle: "生成AIおよびWebからの情報漏洩抑止",
+    assessRoiSecurityDesc: "機密データの送信・ダウンロード・画面キャプチャをポリシーと透かしで制御します。",
     assessApplyRecBtn: "この構成を PoC 設定に反映する",
-    assessAppliedBanner: "✓ 選択した要件に基づき、ポリシー構成および DLP マトリクスを反映しました。",
-    geminiArchDetailsToggle: "3層セキュリティ境界アーキテクチャ・CLI コマンドの解説を見る",
-    assessShowDetails: "現場リスク・解決策の詳細を表示",
+    assessAppliedBanner: "✓ 選択した要件に基づき、ポリシー構成とDLPマトリクスを反映しました。",
+    geminiArchDetailsToggle: "3層セキュリティ境界アーキテクチャ・CLI コマンドを表示",
+    assessShowDetails: "リスク・解決策の詳細を表示",
     assessHideDetails: "詳細を折りたたむ",
-    projectIdOptionalLabel: "Google Cloud プロジェクト ID（任意 — Context-Aware Access・Gemini ゼロトラスト用）",
-    projectIdOptionalHint: "Chrome ポリシー、DLP ルール、CEP ライセンス割り当ては Workspace 顧客 ID のみで実行できます。Access Context Manager のアクセスレベル一覧取得・自動作成や VPC-SC 境界設定を行う場合のみ GCP プロジェクト ID を入力してください。",
-    projectIdOptionalPlaceholder: "例: my-gcp-project-id（Workspace のみの PoC では空欄可）",
-    statusLogApiCallCount: (count: number) => `（${count} 件の API 呼び出し）`,
-    assessStatusWatermarkOn: "ON (有効)",
+    projectIdOptionalLabel: "Google Cloud プロジェクト ID · CAA / Gemini ゼロトラスト利用時のみ任意指定",
+    projectIdOptionalHint: "Chromeポリシー、DLPルール、ライセンス割り当てはWorkspace顧客IDのみで動作します。Access Context ManagerやVPC-SCを使う場合のみ入力してください。",
+    projectIdOptionalPlaceholder: "例: my-gcp-project-id",
+    statusLogApiCallCount: (count: number) => `API 呼び出し ${count} 件`,
+    assessStatusWatermarkOn: "ON",
     assessStatusEnabled: "✓ 有効",
     assessStatusDisabled: "無効",
-    assessStatusAllowlistManaged: "✓ ホワイトリスト管理",
+    assessStatusAllowlistManaged: "✓ 許可リスト管理",
     assessStatusCloudLogging: "✓ Cloud Logging 連携",
     assessStatusVpcScProtected: "✓ VPC-SC 境界保護",
     assessStatusStandard: "標準",
     assessSelectedCountSuffix: "項目反映",
-    dlpRegionJapanLabel: "Japan (マイナンバー・銀行口座)",
+    dlpRegionJapanLabel: "Japan · マイナンバー / 銀行口座",
     dlpPresetsLabel: "プリセット:",
   },
 };
