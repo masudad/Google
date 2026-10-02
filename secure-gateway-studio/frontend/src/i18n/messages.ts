@@ -1465,7 +1465,7 @@ const en: Messages = {
     cloudStep2Label: "Step 2: Bootstrap dedicated keyless deployer SA & role",
     cloudStep3Label: "Step 3: Validate read-only project connection",
     customerIdAutoHint:
-      "Leave as my_customer to automatically detect and fill your canonical C... customer ID when validating.",
+      "Leave as my_customer to automatically detect and fill your Customer ID (C...) when validating.",
     resolveSampleImageQuick: "Auto-fill Debian 12 PoC image",
     progressTitle: "Deployment progress",
     progressCount: (completed: number, total: number) =>
@@ -2153,7 +2153,7 @@ const en: Messages = {
       {
         label: "Google Workspace (Top-Right Header)",
         detail:
-          "Required for both workflows. Click the top-right Google Workspace button to authenticate via Chrome Identity OAuth and automatically resolve your canonical Customer ID (C...), Organizational Units (OUs), and Google Groups.",
+          "Required for both workflows. Click the top-right Google Workspace button to authenticate via Chrome Identity OAuth and automatically resolve your Customer ID (C...), Organizational Units (OUs), and Google Groups.",
       },
       {
         label: "Google Cloud (Top-Right Header)",
@@ -2265,7 +2265,7 @@ const en: Messages = {
           title: "Unified Header Auth & OU / Group Scope",
           items: [
             "Shares top-right Google Workspace and Google Cloud authentication state with Secure Gateway Deployer.",
-            "Resolves 'my_customer' to your canonical Customer ID (C...) in one click and automatically loads Organizational Units, Google Groups, and Access Levels.",
+            "Resolves 'my_customer' to your Customer ID (C...) in one click and automatically loads Organizational Units, Google Groups, and Access Levels.",
             "Supports both Organizational Unit (OU) targeting and zero-touch Google Group targeting without requiring users to be moved between OUs.",
             "Validates dropdown selections directly without requiring redundant manual path or email re-typing, while strictly blocking the Root OU (/).",
           ],
@@ -2331,7 +2331,7 @@ const en: Messages = {
           summary:
             "Select your pilot Organizational Unit or Google Group, optionally run the 15-point Security Assessment, and apply baseline Chrome Enterprise policies, Endpoint Verification, Enterprise Connectors, Context-Aware Access levels, clipboard boundaries, and SaaS HTTP header restrictions.",
           actions: [
-            "Verify Google Workspace in the top-right header (or click Verify in the banner) to load your canonical Customer ID (C...), OUs, and Groups.",
+            "Verify Google Workspace in the top-right header (or click Verify in the banner) to load your Customer ID (C...), OUs, and Groups.",
             "Choose Organizational Unit (OU) or Google Group as the deployment target from the dropdown.",
             "Select a quick preset or toggle individual modules (Core Browser Policies, Endpoint Verification Extension, Enterprise Connectors).",
             "Optionally configure Context-Aware Access Level (auto-create Profile/Browser Managed or select existing), Clipboard Data Boundary mode, and SaaS HTTP Header Injection rules, then click 'Deploy Selected Policies' to apply Tab 1 settings.",
@@ -2357,7 +2357,7 @@ const en: Messages = {
             {
               method: "GET",
               endpoint: "https://admin.googleapis.com/admin/directory/v1/customers/my_customer",
-              purpose: "Resolves 'my_customer' to the tenant's canonical Customer ID (C...).",
+              purpose: "Resolves 'my_customer' to the tenant's Customer ID (C...).",
             },
             {
               method: "GET",
@@ -3248,7 +3248,7 @@ const en: Messages = {
     ouLoadFailed:
       "Organizational units could not be loaded. Confirm the Google Workspace connection on the setup screen, then reopen this tab.",
     canonicalCustomerIdRequired:
-      "Verify the Workspace connection first. DLP changes require the canonical customer ID returned by Directory (it begins with C); my_customer is never sent to Cloud Identity Policy create.",
+      "Verify the Workspace connection first. DLP changes require the Customer ID returned by Directory (it begins with C); my_customer is never sent to Cloud Identity Policy create.",
     autoDetectCustomerIdBtn: "Auto-detect Customer ID (C...)",
     autoDetectingCustomerIdBtn: "Detecting Customer ID…",
     googleAccountVerifiedBanner: (customerId, ouCount, groupCount) =>
@@ -3924,7 +3924,7 @@ const ja: Messages = {
     cloudStep2Label: "手順 2: デプロイ用サービスアカウントの作成と自動接続",
     cloudStep3Label: "手順 3: 接続状態の再確認（すでに作成済みの場合）",
     customerIdAutoHint:
-      "my_customer のまま「接続を検証」を押すと、Directory API から C で始まる正規の顧客 ID を自動取得して反映します。",
+      "my_customer のまま「接続を検証」を押すと、Directory API から C で始まる顧客 ID を自動取得して反映します。",
     resolveSampleImageQuick: "Debian 12 PoC イメージを自動取得",
     progressTitle: "デプロイ進捗",
     progressCount: (completed: number, total: number) =>
@@ -4609,7 +4609,7 @@ const ja: Messages = {
       {
         label: "Google Workspace（画面右上ボタン）",
         detail:
-          "Easy PoC・Secure Gateway Deployer の両方で利用します。右上の［Google Workspace］をクリックしてOAuthログインすると、正規の顧客ID（C...から始まるID）、組織部門（OU）、Google グループ一覧が自動取得されます。",
+          "Easy PoC・Secure Gateway Deployer の両方で利用します。右上の［Google Workspace］をクリックしてOAuthログインすると、顧客ID（C...から始まるID）、組織部門（OU）、Google グループ一覧が自動取得されます。",
       },
       {
         label: "Google Cloud（画面右上ボタン）",
@@ -4721,7 +4721,7 @@ const ja: Messages = {
           title: "右上共通ログインと OU / グループ指定",
           items: [
             "画面右上の Google Workspace / Google Cloud ポップオーバーでログイン状態を Secure Gateway Deployer と共有します。",
-            "my_customer から正規の顧客ID（C...）をワンクリックで自動検出し、組織部門（OU）・Google グループ・Access Level 一覧を自動取得します。",
+            "my_customer から顧客ID（C...）をワンクリックで自動検出し、組織部門（OU）・Google グループ・Access Level 一覧を自動取得します。",
             "組織部門（OU）単位の適用に加え、ユーザーを現在のOUから移動させずに検証できる Google グループ単位のゼロタッチ適用に対応しています。",
             "ドロップダウンから選択するだけで対象が確定し、ルートOU（/）への変更はコードレベルで拒否します。",
           ],
@@ -4787,7 +4787,7 @@ const ja: Messages = {
           summary:
             "パイロット対象の組織部門（OU）または Google グループを選択し、Chrome 基本保護ポリシー、Endpoint Verification 拡張機能、Enterprise Connectors、Context-Aware Access レベル、クリップボード境界、SaaS テナント制限ヘッダーを適用します。",
           actions: [
-            "画面右上の［Google Workspace］ボタン（または画面内の確認ボタン）をクリックし、正規の顧客ID（C...）、OU一覧、グループ一覧を読み込みます。",
+            "画面右上の［Google Workspace］ボタン（または画面内の確認ボタン）をクリックし、顧客ID（C...）、OU一覧、グループ一覧を読み込みます。",
             "適用対象として「組織部門（OU）」または「Google グループ」を選び、ドロップダウンから対象を選択します。",
             "必要に応じて「15項目のセキュリティ診断」またはクイックプリセットを選択し、有効化するモジュール（基本ポリシー、拡張機能、コネクタ）を切り替えます。",
             "Context-Aware Access レベル（自動作成または既存選択）、データ境界モード、SaaS テナント制限（HTTPヘッダー注入）を設定し、［選択したポリシーをデプロイ］をクリックしてタブ1の設定を適用します。",
@@ -4813,7 +4813,7 @@ const ja: Messages = {
             {
               method: "GET",
               endpoint: "https://admin.googleapis.com/admin/directory/v1/customers/my_customer",
-              purpose: "my_customer エイリアスからテナントの正規顧客ID（C...）を解決します。",
+              purpose: "my_customer エイリアスからテナントの顧客ID（C...）を解決します。",
             },
             {
               method: "GET",
@@ -5701,7 +5701,7 @@ const ja: Messages = {
     ouLoadFailed:
       "組織部門を取得できませんでした。セットアップ画面で Google Workspace の接続を確認してから、このタブを開き直してください。",
     canonicalCustomerIdRequired:
-      "先に Workspace 接続を検証してください。DLP の変更には Directory が返す C で始まる正規顧客 ID が必要で、my_customer を Cloud Identity Policy の作成には送信しません。",
+      "先に Workspace 接続を検証してください。DLP の変更には Directory が返す C で始まる顧客 ID が必要で、my_customer を Cloud Identity Policy の作成には送信しません。",
     autoDetectCustomerIdBtn: "顧客 ID (C...) を自動取得して読み込む",
     autoDetectingCustomerIdBtn: "顧客 ID を自動取得中…",
     googleAccountVerifiedBanner: (customerId, ouCount, groupCount) =>
