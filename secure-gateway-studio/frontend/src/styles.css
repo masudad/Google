@@ -2542,7 +2542,7 @@ h1 {
 
 .guide-beginner-section {
   width: 100%;
-  margin: 0 auto 26px;
+  margin: 32px auto 0;
   padding: 24px 26px;
   border: 1px solid #bfd7e8;
   border-radius: 18px;
@@ -2745,6 +2745,7 @@ h1 {
 }
 
 .guide-glossary-details {
+  margin-bottom: 32px;
   border: 1px solid #cfdbe6;
   border-radius: 14px;
   background: #ffffff;
@@ -2844,7 +2845,7 @@ h1 {
 
 .guide-shared-auth-card {
   width: 100%;
-  margin: 0 auto 26px;
+  margin: 0;
   padding: 20px 24px;
   border: 1px solid #c5dbe9;
   border-radius: 16px;

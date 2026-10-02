@@ -52,129 +52,13 @@ export function GuidePage({ messages, onNavigate }: GuidePageProps) {
 
   return (
     <main className="guide-page">
-      {/* Top-level Guide Portal Header */}
+      {/* ABOVE THE FOLD: Portal Header + Prominent 2-Tab Mode Switcher */}
       <header className="guide-portal-header">
         <p className="eyebrow">{guide.portalEyebrow}</p>
         <h1>{guide.portalTitle}</h1>
         <p className="guide-portal-intro">{guide.portalIntro}</p>
       </header>
 
-      {/* Beginner Primer: 3 Building Blocks + Step 0 Preparation + Plain-Language Glossary */}
-      <section
-        className="guide-beginner-section"
-        id="beginner-primer-section"
-        aria-labelledby="guide-beginner-title"
-      >
-        <header className="guide-beginner-header">
-          <p className="eyebrow">{guide.beginnerEyebrow}</p>
-          <h2 id="guide-beginner-title">{guide.beginnerTitle}</h2>
-          <p>{guide.beginnerIntro}</p>
-        </header>
-
-        <div className="guide-pillars-grid">
-          {guide.beginnerPillars.map((pillar) => (
-            <article className="guide-pillar-card" key={pillar.title}>
-              <span className="guide-pillar-badge">{pillar.badge}</span>
-              <h3>{pillar.title}</h3>
-              <p className="guide-pillar-analogy">{pillar.analogy}</p>
-              <p className="guide-pillar-desc">{pillar.description}</p>
-              <code className="guide-pillar-url">{pillar.whereUrl}</code>
-            </article>
-          ))}
-        </div>
-
-        <div className="guide-step-zero-box">
-          <header className="guide-step-zero-header">
-            <p className="eyebrow">{guide.stepZeroEyebrow}</p>
-            <h3>{guide.stepZeroTitle}</h3>
-            <p>{guide.stepZeroIntro}</p>
-          </header>
-
-          <div className="guide-step-zero-grid">
-            {guide.stepZeroChecklist.map((prep, index) => (
-              <article className="guide-step-zero-card" key={prep.title}>
-                <div className="guide-step-zero-top">
-                  <span className="guide-step-zero-number" aria-hidden="true">
-                    {index + 1}
-                  </span>
-                  <div>
-                    <span className="guide-step-zero-badge">{prep.stepBadge}</span>
-                    <h4>{prep.title}</h4>
-                  </div>
-                </div>
-                <p className="guide-step-zero-summary">{prep.summary}</p>
-                <ul className="guide-step-zero-list">
-                  {prep.details.map((detail) => (
-                    <li key={detail}>
-                      <CheckIcon size={15} />
-                      <span>{detail}</span>
-                    </li>
-                  ))}
-                </ul>
-              </article>
-            ))}
-          </div>
-        </div>
-
-        <details className="guide-glossary-details" open>
-          <summary className="guide-glossary-summary">
-            <span className="guide-glossary-summary-title">
-              <BookIcon size={18} />
-              <span>{guide.glossaryTitle}</span>
-            </span>
-            <small className="guide-glossary-summary-hint">{guide.glossaryEyebrow}</small>
-          </summary>
-          <div className="guide-glossary-body">
-            <p className="guide-glossary-intro">{guide.glossaryIntro}</p>
-            <div className="guide-glossary-table-wrap">
-              <table className="guide-glossary-table">
-                <thead>
-                  <tr>
-                    <th scope="col">{guide.glossaryTermHeader}</th>
-                    <th scope="col">{guide.glossaryAnalogyHeader}</th>
-                    <th scope="col">{guide.glossaryMeaningHeader}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {guide.glossaryItems.map((item) => (
-                    <tr key={item.term}>
-                      <td className="guide-glossary-term">{item.term}</td>
-                      <td className="guide-glossary-analogy">{item.analogy}</td>
-                      <td className="guide-glossary-meaning">{item.meaning}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </details>
-      </section>
-
-      {/* Shared Header Login & Credential Architecture Callout */}
-      <section className="guide-shared-auth-card" aria-labelledby="guide-shared-auth-title">
-        <div className="guide-shared-auth-header">
-          <span className="guide-shared-auth-icon" aria-hidden="true">
-            <LockIcon size={20} />
-          </span>
-          <div>
-            <h2 id="guide-shared-auth-title">{guide.sharedAuthTitle}</h2>
-            <p>{guide.sharedAuthIntro}</p>
-          </div>
-        </div>
-        <ul className="guide-shared-auth-list">
-          {guide.sharedAuthItems.map((item) => (
-            <li key={item.label}>
-              <CheckIcon size={16} />
-              <div>
-                <strong>{item.label}: </strong>
-                <span>{item.detail}</span>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      {/* Prominent 2-Tab Switcher: Easy PoC Guide vs. Secure Gateway Deployer Guide */}
       <div className="guide-mode-tabs" role="tablist" aria-label={guide.portalTitle}>
         <button
           type="button"
@@ -220,6 +104,7 @@ export function GuidePage({ messages, onNavigate }: GuidePageProps) {
         aria-labelledby={isEasyPoc ? "guide-tab-easy-poc" : "guide-tab-sgw"}
         className="guide-tabpanel"
       >
+        {/* Active Guide Banner + Direct Action CTA */}
         <header className="guide-heading">
           <div className="guide-heading-row">
             <div>
@@ -253,24 +138,20 @@ export function GuidePage({ messages, onNavigate }: GuidePageProps) {
           </div>
         </header>
 
+        {/* Sticky 4-Chapter Navigation in Chronological Order */}
         <nav className="guide-sticky-nav" aria-label="Guide navigation">
           <a className="guide-nav-pill" href="#beginner-primer-section">
-            {guide.beginnerNavLabel}
-          </a>
-          <a className="guide-nav-pill" href="#architecture-section">
-            {activeGuide.quickOverviewTitle}
-          </a>
-          <a className="guide-nav-pill" href="#implementation-section">
-            {activeGuide.implementationTitle}
+            1. {guide.beginnerNavLabel}
           </a>
           <a className="guide-nav-pill" href="#technical-deep-dive-section">
-            {activeGuide.technicalDeepDiveTitle}
+            2. {activeGuide.technicalDeepDiveTitle}
           </a>
-          {activeGuide.faqs && activeGuide.faqs.length > 0 && (
-            <a className="guide-nav-pill" href="#faq-section">
-              {activeGuide.faqTitle}
-            </a>
-          )}
+          <a className="guide-nav-pill" href="#architecture-section">
+            3. {activeGuide.quickOverviewTitle}
+          </a>
+          <a className="guide-nav-pill" href="#faq-section">
+            4. {activeGuide.faqTitle}
+          </a>
         </nav>
 
         <aside className="guide-poc-notice">
@@ -281,7 +162,196 @@ export function GuidePage({ messages, onNavigate }: GuidePageProps) {
           </div>
         </aside>
 
-        {/* TOP SECTION: Quick Overview & Architecture Decisions */}
+        {/* CHAPTER 1: First-Time Admin Primer (3 Building Blocks) + Step 0 Preparation + Shared Login */}
+        <section
+          className="guide-beginner-section"
+          id="beginner-primer-section"
+          aria-labelledby="guide-beginner-title"
+        >
+          <header className="guide-beginner-header">
+            <p className="eyebrow">{guide.beginnerEyebrow}</p>
+            <h2 id="guide-beginner-title">{guide.beginnerTitle}</h2>
+            <p>{guide.beginnerIntro}</p>
+          </header>
+
+          <div className="guide-pillars-grid">
+            {guide.beginnerPillars.map((pillar) => (
+              <article className="guide-pillar-card" key={pillar.title}>
+                <span className="guide-pillar-badge">{pillar.badge}</span>
+                <h3>{pillar.title}</h3>
+                <p className="guide-pillar-analogy">{pillar.analogy}</p>
+                <p className="guide-pillar-desc">{pillar.description}</p>
+                <code className="guide-pillar-url">{pillar.whereUrl}</code>
+              </article>
+            ))}
+          </div>
+
+          <div className="guide-step-zero-box">
+            <header className="guide-step-zero-header">
+              <p className="eyebrow">{guide.stepZeroEyebrow}</p>
+              <h3>{guide.stepZeroTitle}</h3>
+              <p>{guide.stepZeroIntro}</p>
+            </header>
+
+            <div className="guide-step-zero-grid">
+              {guide.stepZeroChecklist.map((prep, index) => (
+                <article className="guide-step-zero-card" key={prep.title}>
+                  <div className="guide-step-zero-top">
+                    <span className="guide-step-zero-number" aria-hidden="true">
+                      {index + 1}
+                    </span>
+                    <div>
+                      <span className="guide-step-zero-badge">{prep.stepBadge}</span>
+                      <h4>{prep.title}</h4>
+                    </div>
+                  </div>
+                  <p className="guide-step-zero-summary">{prep.summary}</p>
+                  <ul className="guide-step-zero-list">
+                    {prep.details.map((detail) => (
+                      <li key={detail}>
+                        <CheckIcon size={15} />
+                        <span>{detail}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </article>
+              ))}
+            </div>
+          </div>
+
+          {/* Integrated Shared Login Summary */}
+          <div className="guide-shared-auth-card" aria-labelledby="guide-shared-auth-title">
+            <div className="guide-shared-auth-header">
+              <span className="guide-shared-auth-icon" aria-hidden="true">
+                <LockIcon size={20} />
+              </span>
+              <div>
+                <h3 id="guide-shared-auth-title">{guide.sharedAuthTitle}</h3>
+                <p>{guide.sharedAuthIntro}</p>
+              </div>
+            </div>
+            <ul className="guide-shared-auth-list">
+              {guide.sharedAuthItems.map((item) => (
+                <li key={item.label}>
+                  <CheckIcon size={16} />
+                  <div>
+                    <strong>{item.label}: </strong>
+                    <span>{item.detail}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        {/* CHAPTER 2: Step-by-Step Operating Walkthrough (with Technical / API drawers collapsed by default) */}
+        <section
+          className="technical-deep-dive-section"
+          id="technical-deep-dive-section"
+          aria-labelledby="technical-deep-dive-title"
+        >
+          <header className="architecture-heading">
+            <p className="eyebrow">{activeGuide.technicalEyebrow}</p>
+            <h2 id="technical-deep-dive-title">{activeGuide.technicalDeepDiveTitle}</h2>
+            <p>{activeGuide.technicalDeepDiveIntro}</p>
+          </header>
+
+          <div className="guide-step-jump-bar" aria-label="Step quick navigation">
+            {activeGuide.steps.map((_s, idx) => (
+              <a className="guide-step-jump-pill" href={`#guide-step-${idx + 1}`} key={idx}>
+                #{idx + 1}
+              </a>
+            ))}
+          </div>
+
+          <ol className="guide-steps">
+            {activeGuide.steps.map((step, index) => (
+              <li className="guide-step technical-step-card" id={`guide-step-${index + 1}`} key={step.title}>
+                <div className="guide-step-number" aria-hidden="true">
+                  {index + 1}
+                </div>
+                <div className="guide-step-copy">
+                  <div className="step-title-group">
+                    <span className="step-badge">{activeGuide.stepLabel(index + 1)}</span>
+                    <h2>{step.title}</h2>
+                    {step.subtitle && <p className="step-subtitle">{step.subtitle}</p>}
+                  </div>
+                  <p className="step-summary-text">{step.summary}</p>
+
+                  <div className="step-section-block">
+                    <h4 className="step-subheading">
+                      <CheckIcon size={16} />
+                      <span>{guide.checklistLabel}</span>
+                    </h4>
+                    <ul className="step-actions-list">
+                      {step.actions.map((action) => (
+                        <li key={action}>
+                          <CheckIcon size={16} />
+                          <span>{action}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {step.safetyNote && (
+                    <div className="step-safety-note">
+                      <ShieldIcon size={18} />
+                      <div>
+                        <strong>{guide.safetyGuardrailLabel}</strong>
+                        <p>{step.safetyNote}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {step.optionsBehavior && step.optionsBehavior.length > 0 && (
+                    <div className="step-section-block">
+                      <details className="step-collapsible">
+                        <summary className="step-collapsible-summary">
+                          <NetworkIcon size={16} />
+                          <span>{guide.optionsBehaviorLabel} ({step.optionsBehavior.length})</span>
+                        </summary>
+                        <div className="options-behavior-grid">
+                          {step.optionsBehavior.map((opt) => (
+                            <div className="option-behavior-card" key={opt.name}>
+                              <strong>{opt.name}</strong>
+                              <p>{opt.behavior}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    </div>
+                  )}
+
+                  {step.apiCalls && step.apiCalls.length > 0 && (
+                    <div className="step-section-block">
+                      <details className="step-collapsible">
+                        <summary className="step-collapsible-summary">
+                          <CodeIcon size={16} />
+                          <span>{guide.apiCallsLabel} ({step.apiCalls.length})</span>
+                        </summary>
+                        <div className="api-calls-list">
+                          {step.apiCalls.map((api) => (
+                            <div className="api-call-row" key={`${api.method}-${api.endpoint}`}>
+                              <span className={`api-badge api-badge-${api.method.toLowerCase()}`}>
+                                {api.method}
+                              </span>
+                              <div className="api-call-content">
+                                <code className="api-endpoint">{api.endpoint}</code>
+                                <p className="api-purpose">{api.purpose}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    </div>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        {/* CHAPTER 3: Architecture / Scenarios Visual Overview & Feature Inventory */}
         <section className="architecture-section" id="architecture-section" aria-labelledby="architecture-title">
           <header className="architecture-heading">
             <p className="eyebrow">{activeGuide.quickOverviewTitle}</p>
@@ -357,7 +427,6 @@ export function GuidePage({ messages, onNavigate }: GuidePageProps) {
           </div>
         </section>
 
-        {/* MIDDLE SECTION: Implementation Inventory */}
         <section className="implementation-section" id="implementation-section" aria-labelledby="implementation-title">
           <header className="architecture-heading">
             <p className="eyebrow">{activeGuide.implementationEyebrow}</p>
@@ -384,148 +453,80 @@ export function GuidePage({ messages, onNavigate }: GuidePageProps) {
           </div>
         </section>
 
-        {/* BOTTOM SECTION: Step-by-Step Technical Deep Dive & REST API Reference */}
-        <section className="technical-deep-dive-section" id="technical-deep-dive-section" aria-labelledby="technical-deep-dive-title">
-          <header className="architecture-heading">
-            <p className="eyebrow">{activeGuide.technicalEyebrow}</p>
-            <h2 id="technical-deep-dive-title">{activeGuide.technicalDeepDiveTitle}</h2>
-            <p>{activeGuide.technicalDeepDiveIntro}</p>
-          </header>
-
-          <div className="guide-step-jump-bar" aria-label="Step quick navigation">
-            {activeGuide.steps.map((_s, idx) => (
-              <a className="guide-step-jump-pill" href={`#guide-step-${idx + 1}`} key={idx}>
-                #{idx + 1}
-              </a>
-            ))}
-          </div>
-
-          <ol className="guide-steps">
-            {activeGuide.steps.map((step, index) => (
-              <li className="guide-step technical-step-card" id={`guide-step-${index + 1}`} key={step.title}>
-                <div className="guide-step-number" aria-hidden="true">
-                  {index + 1}
-                </div>
-                <div className="guide-step-copy">
-                  <div className="step-title-group">
-                    <span className="step-badge">{activeGuide.stepLabel(index + 1)}</span>
-                    <h2>{step.title}</h2>
-                    {step.subtitle && <p className="step-subtitle">{step.subtitle}</p>}
-                  </div>
-                  <p className="step-summary-text">{step.summary}</p>
-
-                  <div className="step-section-block">
-                    <h4 className="step-subheading">
-                      <CheckIcon size={16} />
-                      <span>{guide.checklistLabel}</span>
-                    </h4>
-                    <ul className="step-actions-list">
-                      {step.actions.map((action) => (
-                        <li key={action}>
-                          <CheckIcon size={16} />
-                          <span>{action}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  {step.optionsBehavior && step.optionsBehavior.length > 0 && (
-                    <div className="step-section-block">
-                      <details className="step-collapsible" open>
-                        <summary className="step-collapsible-summary">
-                          <NetworkIcon size={16} />
-                          <span>{guide.optionsBehaviorLabel}</span>
-                        </summary>
-                        <div className="options-behavior-grid">
-                          {step.optionsBehavior.map((opt) => (
-                            <div className="option-behavior-card" key={opt.name}>
-                              <strong>{opt.name}</strong>
-                              <p>{opt.behavior}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </details>
-                    </div>
-                  )}
-
-                  {step.apiCalls && step.apiCalls.length > 0 && (
-                    <div className="step-section-block">
-                      <details className="step-collapsible" open>
-                        <summary className="step-collapsible-summary">
-                          <CodeIcon size={16} />
-                          <span>{guide.apiCallsLabel} ({step.apiCalls.length})</span>
-                        </summary>
-                        <div className="api-calls-list">
-                          {step.apiCalls.map((api) => (
-                            <div className="api-call-row" key={`${api.method}-${api.endpoint}`}>
-                              <span className={`api-badge api-badge-${api.method.toLowerCase()}`}>
-                                {api.method}
-                              </span>
-                              <div className="api-call-content">
-                                <code className="api-endpoint">{api.endpoint}</code>
-                                <p className="api-purpose">{api.purpose}</p>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </details>
-                    </div>
-                  )}
-
-                  {step.safetyNote && (
-                    <div className="step-safety-note">
-                      <ShieldIcon size={18} />
-                      <div>
-                        <strong>{guide.safetyGuardrailLabel}</strong>
-                        <p>{step.safetyNote}</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ol>
-        </section>
-
-        {/* FAQ & Troubleshooting Section */}
-        {activeGuide.faqs && activeGuide.faqs.length > 0 && (
-          <section className="faq-section" id="faq-section" aria-labelledby="faq-title">
-            <header className="architecture-heading">
-              <p className="eyebrow">{activeGuide.faqEyebrow}</p>
-              <h2 id="faq-title">{activeGuide.faqTitle}</h2>
-              <p>{activeGuide.faqIntro}</p>
-            </header>
-
-            <div className="faq-grid">
-              {activeGuide.faqs.map((faq) => (
-                <details className="faq-card" key={faq.id}>
-                  <summary className="faq-summary">
-                    <span className="faq-category-tag">{faq.category}</span>
-                    <strong className="faq-question">{faq.question}</strong>
-                  </summary>
-                  <div className="faq-content">
-                    <p className="faq-answer">{faq.answer}</p>
-                    {faq.checklist && faq.checklist.length > 0 && (
-                      <div className="faq-checklist-box">
-                        <div className="faq-checklist-title">
-                          <CheckIcon size={16} />
-                          <span>{guide.faqChecklistLabel}</span>
-                        </div>
-                        <ul className="faq-checklist">
-                          {faq.checklist.map((item, idx) => (
-                            <li key={idx}>
-                              <span>{item}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                </details>
-              ))}
+        {/* CHAPTER 4: Plain-Language Glossary & Troubleshooting FAQ */}
+        <section className="faq-section" id="faq-section" aria-labelledby="faq-title">
+          <details className="guide-glossary-details" open>
+            <summary className="guide-glossary-summary">
+              <span className="guide-glossary-summary-title">
+                <BookIcon size={18} />
+                <span>{guide.glossaryTitle}</span>
+              </span>
+              <small className="guide-glossary-summary-hint">{guide.glossaryEyebrow}</small>
+            </summary>
+            <div className="guide-glossary-body">
+              <p className="guide-glossary-intro">{guide.glossaryIntro}</p>
+              <div className="guide-glossary-table-wrap">
+                <table className="guide-glossary-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">{guide.glossaryTermHeader}</th>
+                      <th scope="col">{guide.glossaryAnalogyHeader}</th>
+                      <th scope="col">{guide.glossaryMeaningHeader}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {guide.glossaryItems.map((item) => (
+                      <tr key={item.term}>
+                        <td className="guide-glossary-term">{item.term}</td>
+                        <td className="guide-glossary-analogy">{item.analogy}</td>
+                        <td className="guide-glossary-meaning">{item.meaning}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </section>
-        )}
+          </details>
+
+          {activeGuide.faqs && activeGuide.faqs.length > 0 && (
+            <>
+              <header className="architecture-heading">
+                <p className="eyebrow">{activeGuide.faqEyebrow}</p>
+                <h2 id="faq-title">{activeGuide.faqTitle}</h2>
+                <p>{activeGuide.faqIntro}</p>
+              </header>
+
+              <div className="faq-grid">
+                {activeGuide.faqs.map((faq) => (
+                  <details className="faq-card" key={faq.id}>
+                    <summary className="faq-summary">
+                      <span className="faq-category-tag">{faq.category}</span>
+                      <strong className="faq-question">{faq.question}</strong>
+                    </summary>
+                    <div className="faq-content">
+                      <p className="faq-answer">{faq.answer}</p>
+                      {faq.checklist && faq.checklist.length > 0 && (
+                        <div className="faq-checklist-box">
+                          <div className="faq-checklist-title">
+                            <CheckIcon size={16} />
+                            <span>{guide.faqChecklistLabel}</span>
+                          </div>
+                          <ul className="faq-checklist">
+                            {faq.checklist.map((item, idx) => (
+                              <li key={idx}>
+                                <span>{item}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  </details>
+                ))}
+              </div>
+            </>
+          )}
+        </section>
       </div>
     </main>
   );
