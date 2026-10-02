@@ -1070,8 +1070,30 @@ export async function route(
   }
 
   if (key === "POST /api/v1/setup-options/organizational-units") {
-    const customerId = (body as { customer_id: string }).customer_id;
-    return { options: await (await workspaceCatalog()).listOrganizationalUnits(customerId) };
+    const request = body as {
+      customer_id: string;
+      create_name?: string;
+      parent_org_unit_path?: string;
+    };
+    const catalog = await workspaceCatalog();
+    if (
+      typeof request.create_name === "string" &&
+      request.create_name.trim() !== ""
+    ) {
+      const created = await catalog.createOrganizationalUnit(
+        request.customer_id,
+        request.create_name,
+        request.parent_org_unit_path,
+      );
+      let options = await catalog.listOrganizationalUnits(request.customer_id);
+      if (!options.some((opt) => opt.value === created.value)) {
+        options = [...options, created].sort((a, b) =>
+          a.label.toLowerCase().localeCompare(b.label.toLowerCase()),
+        );
+      }
+      return { options, created };
+    }
+    return { options: await catalog.listOrganizationalUnits(request.customer_id) };
   }
 
   if (key === "POST /api/v1/setup-options/groups") {

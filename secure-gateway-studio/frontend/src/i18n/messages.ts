@@ -682,6 +682,12 @@ export interface CepDeployerMessages {
   retry: string;
   refreshOus: string;
   reloading: string;
+  createPilotOuLabel: string;
+  createPilotOuPlaceholder: string;
+  createPilotOuBtn: string;
+  creatingPilotOuBtn: string;
+  createPilotOuHint: string;
+  pilotOuCreatedBanner: (ouPath: string) => string;
   autoCreateSubOus: string;
   autoCreateSubOusHint: string;
   presetsTitle: string;
@@ -2046,12 +2052,12 @@ const en: Messages = {
       "Complete these three preparation steps once so your PoC policies apply cleanly to your test browser:",
     stepZeroChecklist: [
       {
-        stepBadge: "Prep 1 · Admin Console",
-        title: "Create one test Child OU (folder) or test Google Group in admin.google.com",
+        stepBadge: "Prep 1 · Pilot OU or Group",
+        title: "Create a pilot OU in 1 click inside Easy PoC (or prepare a test Google Group)",
         summary:
-          "Because the Root OU (/) is protected from modification, prepare an isolated container for your pilot users first.",
+          "Because the Root OU (/) is protected from modification, use an isolated pilot OU or Google Group and assign 1–2 test user accounts to it.",
         details: [
-          "To test by OU (folder): Open admin.google.com > Directory > Organizational units, click the '+' icon under your top-level organization to create a child OU such as 'CEP-PoC', and move 1–2 test user accounts into it.",
+          "To test by OU (folder): You do not even need to create the folder manually in admin.google.com—in Easy PoC Tab 1, click '+ Create & Select Pilot OU' to create '/CEP-PoC' (plus optional 'CEP Users' and 'CEP Browsers' sub-OUs during deploy) in one click, then move 1–2 test user accounts into '/CEP-PoC' in admin.google.com > Directory > Users.",
           "To test by Group (no folder move needed): Open admin.google.com > Directory > Groups, create a group such as 'cep-poc@yourdomain.com', and add your test user account as a member.",
           "To create DLP rules in Easy PoC Tab 3, sign in with an administrator account that holds the Google Workspace Super Admin role.",
         ],
@@ -2262,11 +2268,11 @@ const en: Messages = {
       implementationGroups: [
         {
           eyebrow: "Authentication & Targeting",
-          title: "Unified Header Auth & OU / Group Scope",
+          title: "Unified Header Auth, 1-Click Pilot OU Creation & Group Scope",
           items: [
             "Shares top-right Google Workspace and Google Cloud authentication state with Secure Gateway Deployer.",
             "Resolves 'my_customer' to your Customer ID (C...) in one click and automatically loads Organizational Units, Google Groups, and Access Levels.",
-            "Supports both Organizational Unit (OU) targeting and zero-touch Google Group targeting without requiring users to be moved between OUs.",
+            "Creates and selects a child Pilot OU (such as '/CEP-PoC') in one click directly inside the extension (plus optional 'CEP Users' and 'CEP Browsers' sub-OUs during deploy), or targets an existing Google Group without moving users across OUs.",
             "Validates dropdown selections directly without requiring redundant manual path or email re-typing, while strictly blocking the Root OU (/).",
           ],
         },
@@ -2327,20 +2333,20 @@ const en: Messages = {
       steps: [
         {
           title: "1. Setup Wizard",
-          subtitle: "Target scope, baseline Chrome policies, connectors, CAA, and SaaS X-Headers",
+          subtitle: "Target scope (or 1-click Pilot OU creation), baseline Chrome policies, connectors, CAA, and SaaS X-Headers",
           summary:
-            "Select your pilot Organizational Unit or Google Group, optionally run the 15-point Security Assessment, and apply baseline Chrome Enterprise policies, Endpoint Verification, Enterprise Connectors, Context-Aware Access levels, clipboard boundaries, and SaaS HTTP header restrictions.",
+            "Select or create your pilot Organizational Unit in 1 click (or choose a Google Group), optionally run the 15-point Security Assessment, and apply baseline Chrome Enterprise policies, Endpoint Verification, Enterprise Connectors, Context-Aware Access levels, clipboard boundaries, and SaaS HTTP header restrictions.",
           actions: [
             "Verify Google Workspace in the top-right header (or click Verify in the banner) to load your Customer ID (C...), OUs, and Groups.",
-            "Choose Organizational Unit (OU) or Google Group as the deployment target from the dropdown.",
+            "Choose Organizational Unit (OU) or Google Group as the deployment target—or click '+ Create & Select Pilot OU' to create '/CEP-PoC' directly from this screen.",
             "Select a quick preset or toggle individual modules (Core Browser Policies, Endpoint Verification Extension, Enterprise Connectors).",
             "Optionally configure Context-Aware Access Level (auto-create Profile/Browser Managed or select existing), Clipboard Data Boundary mode, and SaaS HTTP Header Injection rules, then click 'Deploy Selected Policies' to apply Tab 1 settings.",
           ],
           optionsBehavior: [
             {
-              name: "Target Scope: OU vs. Google Group",
+              name: "Target Scope: OU (with 1-Click Pilot OU Creation) vs. Google Group",
               behavior:
-                "OU mode applies policies via orgunits:batchModify (inherited by child OUs unless overridden). Group mode applies policies via groups:batchModify directly to group members without moving users across OUs.",
+                "OU mode applies policies via orgunits:batchModify (inherited by child OUs unless overridden) and includes a 1-click button to create '/CEP-PoC' directly under '/' via the Directory API. Group mode applies policies via groups:batchModify directly to group members without moving users across OUs.",
             },
             {
               name: "Context-Aware Access (Optional GCP Project)",
@@ -2363,6 +2369,11 @@ const en: Messages = {
               method: "GET",
               endpoint: "https://admin.googleapis.com/admin/directory/v1/customer/{customerId}/orgunits?type=all",
               purpose: "Loads all non-root Organizational Units for target dropdown selection.",
+            },
+            {
+              method: "POST",
+              endpoint: "https://admin.googleapis.com/admin/directory/v1/customer/{customerId}/orgunits",
+              purpose: "Creates a new child Pilot OU (such as '/CEP-PoC') in 1 click and optional 'CEP Users' / 'CEP Browsers' sub-OUs.",
             },
             {
               method: "GET",
@@ -3262,6 +3273,14 @@ const en: Messages = {
     retry: "Retry",
     refreshOus: "↻ Refresh OUs",
     reloading: "Reloading…",
+    createPilotOuLabel: "Need a pilot OU? Create one directly under Root (/) in 1 click:",
+    createPilotOuPlaceholder: "CEP-PoC",
+    createPilotOuBtn: "＋ Create & Select Pilot OU",
+    creatingPilotOuBtn: "Creating Pilot OU…",
+    createPilotOuHint:
+      "Creates or reuses a child Organizational Unit under '/' via the Directory API and selects it automatically. Afterwards, move 1–2 test user accounts into this OU in admin.google.com > Directory > Users.",
+    pilotOuCreatedBanner: (path) =>
+      `Pilot OU '${path}' is ready and selected. Move 1–2 test user accounts into '${path}' in admin.google.com > Directory > Users.`,
     autoCreateSubOus: "Create \"CEP Users\" and \"CEP Browsers\" sub OUs",
     autoCreateSubOusHint:
       "Creates or reuses optional child OUs for later organization. Policies stay on the selected pilot OU, cover its current occupants, and inherit to these children unless overridden there; users and enrolled browsers are not moved automatically.",
@@ -4502,13 +4521,13 @@ const ja: Messages = {
       "Google Workspace を初めて触る場合でも、以下の 3 ステップを順番に行うだけで安全に PoC 環境を準備できます。",
     stepZeroChecklist: [
       {
-        stepBadge: "準備 1 · 管理コンソール",
-        title: "Google 管理コンソール（admin.google.com）で検証用の「子 OU」または「グループ」を1つ作成する",
+        stepBadge: "準備 1 · 検証用 OU またはグループ",
+        title: "Easy PoC 画面で検証用「子 OU」をワンクリック作成する（またはテスト用グループを用意する）",
         summary:
-          "全社（ルート OU `/`）への誤適用を防ぐため、最初にテスト対象ユーザーを入れる「検証用の箱」を1つ用意します。",
+          "全社（ルート OU `/`）への誤適用を防ぐため、テスト対象ユーザーを入れる「検証用の箱」を1つ使い、1〜2名のテストユーザーを入れます。",
         details: [
-          "【方法A：組織部門（OU）で試す場合】admin.google.com の左メニュー［ディレクトリ］>［組織部門］を開き、最上位フォルダにカーソルを合わせて「＋（新しい組織部門を作成）」から『CEP-PoC』などの子フォルダを作成し、テスト用ユーザーを1〜2名移動します。",
-          "【方法B：Google グループで試す場合（部署移動が不要で手軽）】左メニュー［ディレクトリ］>［グループ］から『cep-poc@自社ドメイン』のようなグループを作成し、テストしたいユーザーアカウントをメンバーに追加します。",
+          "【方法A：組織部門（OU）で試す場合】admin.google.com で手動作成する必要はありません。Easy PoC のタブ 1 にある［＋ 検証用 OU を作成して選択］ボタンを押すだけで、子フォルダ『/CEP-PoC』（およびデプロイ時の『CEP Users』『CEP Browsers』サブOU）をワンクリックで自動作成できます。作成後、admin.google.com の［ディレクトリ］>［ユーザー］でテスト用ユーザーを1〜2名『/CEP-PoC』へ移動します。",
+          "【方法B：Google グループで試す場合（部署移動が不要で手軽）】admin.google.com の左メニュー［ディレクトリ］>［グループ］から『cep-poc@自社ドメイン』のようなグループを作成し、テストしたいユーザーアカウントをメンバーに追加します。",
           "【管理者権限の確認】Easy PoC のタブ 3（DLP ルール作成）を実行する際は、Google 管理コンソールで「特権管理者（Super Admin）」権限を持つ管理者アカウントを使用してください。",
         ],
       },
@@ -4718,11 +4737,11 @@ const ja: Messages = {
       implementationGroups: [
         {
           eyebrow: "認証・ターゲット選択",
-          title: "右上共通ログインと OU / グループ指定",
+          title: "右上共通ログイン・検証用 OU ワンクリック作成・グループ指定",
           items: [
             "画面右上の Google Workspace / Google Cloud ポップオーバーでログイン状態を Secure Gateway Deployer と共有します。",
             "my_customer から顧客ID（C...）をワンクリックで自動検出し、組織部門（OU）・Google グループ・Access Level 一覧を自動取得します。",
-            "組織部門（OU）単位の適用に加え、ユーザーを現在のOUから移動させずに検証できる Google グループ単位のゼロタッチ適用に対応しています。",
+            "画面内の［＋ 検証用 OU を作成して選択］ボタンで検証用の子OU（例: /CEP-PoC）をワンクリック作成・選択できるほか、デプロイ時のサブOU（CEP Users / CEP Browsers）作成や、ユーザーを移動させない Google グループ単位のゼロタッチ適用に対応しています。",
             "ドロップダウンから選択するだけで対象が確定し、ルートOU（/）への変更はコードレベルで拒否します。",
           ],
         },
@@ -4783,20 +4802,20 @@ const ja: Messages = {
       steps: [
         {
           title: "1. セットアップウィザード（1. Setup Wizard）",
-          subtitle: "適用スコープ選択・基本ブラウザポリシー・コネクタ・CAA・SaaS ヘッダー制限",
+          subtitle: "適用スコープ選択（または検証用OUワンクリック作成）・基本ブラウザポリシー・コネクタ・CAA・SaaS ヘッダー制限",
           summary:
-            "パイロット対象の組織部門（OU）または Google グループを選択し、Chrome 基本保護ポリシー、Endpoint Verification 拡張機能、Enterprise Connectors、Context-Aware Access レベル、クリップボード境界、SaaS テナント制限ヘッダーを適用します。",
+            "パイロット対象の組織部門（OU）をワンクリック作成または選択（もしくは Google グループを選択）し、Chrome 基本保護ポリシー、Endpoint Verification 拡張機能、Enterprise Connectors、Context-Aware Access レベル、クリップボード境界、SaaS テナント制限ヘッダーを適用します。",
           actions: [
             "画面右上の［Google Workspace］ボタン（または画面内の確認ボタン）をクリックし、顧客ID（C...）、OU一覧、グループ一覧を読み込みます。",
-            "適用対象として「組織部門（OU）」または「Google グループ」を選び、ドロップダウンから対象を選択します。",
+            "適用対象として「組織部門（OU）」または「Google グループ」を選び、ドロップダウンから選択するか、［＋ 検証用 OU を作成して選択］ボタンで『/CEP-PoC』をその場で自動作成します。",
             "必要に応じて「15項目のセキュリティ診断」またはクイックプリセットを選択し、有効化するモジュール（基本ポリシー、拡張機能、コネクタ）を切り替えます。",
             "Context-Aware Access レベル（自動作成または既存選択）、データ境界モード、SaaS テナント制限（HTTPヘッダー注入）を設定し、［選択したポリシーをデプロイ］をクリックしてタブ1の設定を適用します。",
           ],
           optionsBehavior: [
             {
-              name: "組織部門（OU） vs Google グループ",
+              name: "組織部門（OU：ワンクリック作成対応） vs Google グループ",
               behavior:
-                "OU 指定時は orgunits:batchModify を使用します（配下の子OUにも継承されます）。Google グループ指定時は groups:batchModify を使用し、ユーザーの所属OUを変更せずにグループメンバーへ直接ポリシーを適用します。",
+                "OU 指定時は orgunits:batchModify を使用し（配下の子OUにも継承）、画面内のボタンから Directory API 経由で『/CEP-PoC』をワンクリック作成できます。Google グループ指定時は groups:batchModify を使用し、ユーザーの所属OUを変更せずにグループメンバーへ直接ポリシーを適用します。",
             },
             {
               name: "Context-Aware Access（GCP プロジェクトID任意連携）",
@@ -4819,6 +4838,11 @@ const ja: Messages = {
               method: "GET",
               endpoint: "https://admin.googleapis.com/admin/directory/v1/customer/{customerId}/orgunits?type=all",
               purpose: "ドロップダウン選択用にすべての非ルート組織部門（OU）を取得します。",
+            },
+            {
+              method: "POST",
+              endpoint: "https://admin.googleapis.com/admin/directory/v1/customer/{customerId}/orgunits",
+              purpose: "検証用の子 OU（例: /CEP-PoC）のワンクリック作成およびサブ OU（CEP Users / CEP Browsers）の作成を行います。",
             },
             {
               method: "GET",
@@ -5715,6 +5739,14 @@ const ja: Messages = {
     retry: "再試行",
     refreshOus: "↻ OUを再読込",
     reloading: "再読込中…",
+    createPilotOuLabel: "検証用の子 OU がまだない場合（ルート `/` 直下にワンクリック作成）:",
+    createPilotOuPlaceholder: "CEP-PoC",
+    createPilotOuBtn: "＋ 検証用 OU を作成して選択",
+    creatingPilotOuBtn: "検証用 OU を作成中…",
+    createPilotOuHint:
+      "Directory API 経由でルート（/）直下に検証用の子 OU を作成（または既存の同名 OU を再利用）して自動選択します。作成後、Google 管理コンソール（admin.google.com > ディレクトリ > ユーザー）でテスト用ユーザーを1〜2名この OU へ移動してください。",
+    pilotOuCreatedBanner: (path) =>
+      `検証用 OU「${path}」を準備して選択しました。admin.google.com（ディレクトリ > ユーザー）でテスト用ユーザーを1〜2名「${path}」へ移動してください。`,
     autoCreateSubOus: "サブ OU「CEP Users」「CEP Browsers」を作成する",
     autoCreateSubOusHint:
       "後で整理するための任意の子 OU を作成または再利用します。ポリシーは選択したパイロット OU の現在の対象に適用され、子 OU 側で上書きされていなければ継承されます。ユーザーや登録済みブラウザは自動では移動しません。",

@@ -15,6 +15,7 @@ import type {
 import {
   assignCepLicenses,
   createCepCustomRoles,
+  createOrganizationalUnitOption,
   generateCepScript,
   listAccessLevelOptions,
   listGroupOptions,
@@ -608,6 +609,37 @@ gcloud access-context-manager cloud-bindings create \\
       setGroupsLoaded(true);
     } finally {
       setLoadingGroups(false);
+    }
+  };
+
+  const [pilotOuName, setPilotOuName] = useState<string>("CEP-PoC");
+  const [creatingPilotOu, setCreatingPilotOu] = useState<boolean>(false);
+  const [pilotOuCreatedNotice, setPilotOuCreatedNotice] = useState<string>("");
+
+  const handleCreatePilotOu = async () => {
+    const cleanName = pilotOuName.trim().replace(/^\/+/, "").trim();
+    if (creatingPilotOu || loadingOus || canonicalCustomerId === "" || !cleanName) return;
+    setCreatingPilotOu(true);
+    setActionError(null);
+    setPilotOuCreatedNotice("");
+    try {
+      await signInSession();
+      const res = await createOrganizationalUnitOption(canonicalCustomerId, cleanName, "/");
+      setOrganizationalUnits(res.options);
+      setOuError(false);
+      setOuLoaded(true);
+      if (res.created?.value) {
+        setSelectedOu(res.created.value);
+        setPilotOuCreatedNotice(
+          m.pilotOuCreatedBanner
+            ? m.pilotOuCreatedBanner(res.created.label)
+            : `Pilot OU '${res.created.label}' is ready and selected.`,
+        );
+      }
+    } catch (err) {
+      setActionError(err);
+    } finally {
+      setCreatingPilotOu(false);
     }
   };
 
@@ -1220,6 +1252,47 @@ gcloud access-context-manager cloud-bindings create \\
                 </select>
               </div>
             ) : null}
+
+            {(ouLoaded || ouError) && canonicalCustomerId !== "" && (
+              <div className="cep-create-pilot-ou-box">
+                <label htmlFor="cep-create-pilot-ou-input" className="cep-create-pilot-ou-label">
+                  {m.createPilotOuLabel}
+                </label>
+                <div className="cep-create-pilot-ou-row">
+                  <div className="cep-create-pilot-ou-input-wrap">
+                    <span className="cep-create-pilot-ou-prefix" aria-hidden="true">/</span>
+                    <input
+                      id="cep-create-pilot-ou-input"
+                      type="text"
+                      value={pilotOuName}
+                      onChange={(event) => setPilotOuName(event.target.value)}
+                      placeholder={m.createPilotOuPlaceholder || "CEP-PoC"}
+                      disabled={creatingPilotOu || loadingOus}
+                      spellCheck={false}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-secondary cep-create-pilot-ou-btn"
+                    disabled={
+                      creatingPilotOu ||
+                      loadingOus ||
+                      pilotOuName.trim().replace(/^\/+/, "").trim() === ""
+                    }
+                    onClick={() => void handleCreatePilotOu()}
+                  >
+                    {creatingPilotOu ? m.creatingPilotOuBtn : m.createPilotOuBtn}
+                  </button>
+                </div>
+                <small className="cep-create-pilot-ou-hint">{m.createPilotOuHint}</small>
+                {pilotOuCreatedNotice !== "" && (
+                  <p className="cep-banner cep-banner-ok cep-pilot-ou-created-banner" role="status">
+                    <CheckCircleIcon size={16} />
+                    <span>{pilotOuCreatedNotice}</span>
+                  </p>
+                )}
+              </div>
+            )}
 
             {activeTab !== "licensing" && activeTab !== "dlp" && selectedUnit !== undefined && selectedUnit.label !== "/" && (
               <div className="cep-license-warning-box">

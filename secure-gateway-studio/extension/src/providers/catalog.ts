@@ -574,6 +574,75 @@ export class GoogleSetupCatalog {
     );
   }
 
+  async createOrganizationalUnit(
+    customerId: string,
+    name: string,
+    parentOrgUnitPath = "/",
+  ): Promise<SetupOption> {
+    const cleanCustomerId = customerId.trim();
+    if (cleanCustomerId === "" || /[/?#]/.test(cleanCustomerId)) {
+      throw new ConnectionError(
+        "customer-id-invalid",
+        "The Google Workspace customer ID is invalid",
+      );
+    }
+    const cleanName = name.trim().replace(/^\/+/, "").trim();
+    if (cleanName === "" || cleanName.includes("/")) {
+      throw new ConnectionError(
+        "organizational-unit-name-invalid",
+        "The organizational unit name must be a single non-root unit name (for example, CEP-PoC)",
+      );
+    }
+    const parentPath =
+      parentOrgUnitPath.trim() === "" ? "/" : parentOrgUnitPath.trim();
+    if (!parentPath.startsWith("/")) {
+      throw new ConnectionError(
+        "organizational-unit-parent-invalid",
+        "The parent organizational unit path must start with /",
+      );
+    }
+    const expectedPath =
+      parentPath === "/"
+        ? `/${cleanName}`
+        : `${parentPath.replace(/\/+$/, "")}/${cleanName}`;
+
+    const existing = await this.listOrganizationalUnits(cleanCustomerId);
+    const match = existing.find(
+      (unit) => unit.label.toLowerCase() === expectedPath.toLowerCase(),
+    );
+    if (match !== undefined) {
+      return match;
+    }
+
+    const { payload } = await this.transport.requestJson(
+      "POST",
+      `${ADMIN}/customer/${encodeURIComponent(cleanCustomerId)}/orgunits`,
+      {
+        jsonBody: {
+          name: cleanName,
+          parentOrgUnitPath: parentPath,
+          description: "Created by Secure Gateway Studio for PoC verification",
+        },
+      },
+    );
+    const rawId = payload.orgUnitId;
+    const path =
+      typeof payload.orgUnitPath === "string" && payload.orgUnitPath !== ""
+        ? payload.orgUnitPath
+        : expectedPath;
+    if (typeof rawId !== "string" || rawId === "" || path === "/") {
+      throw new ConnectionError(
+        "catalog-response-invalid",
+        "Google returned an invalid organizational-unit identity",
+      );
+    }
+    return {
+      value: rawId.replace(/^id:/, ""),
+      label: path,
+      description: String(payload.name ?? cleanName),
+    };
+  }
+
   async listGroups(customerId: string): Promise<SetupOption[]> {
     const options: SetupOption[] = [];
     let pageToken = "";

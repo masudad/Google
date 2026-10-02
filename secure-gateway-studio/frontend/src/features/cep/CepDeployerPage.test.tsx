@@ -818,6 +818,40 @@ describe("CepDeployerPage", () => {
       },
     ]);
   });
+
+  it("creates a pilot OU in 1 click and automatically selects it", async () => {
+    const createOuSpy = vi
+      .spyOn(api, "createOrganizationalUnitOption")
+      .mockResolvedValue({
+        created: {
+          value: "03ceppoc",
+          label: "/CEP-PoC",
+          description: "CEP-PoC (Pilot OU created by Secure Gateway Studio)",
+        },
+        options: [
+          ...OU_OPTIONS,
+          {
+            value: "03ceppoc",
+            label: "/CEP-PoC",
+            description: "CEP-PoC (Pilot OU created by Secure Gateway Studio)",
+          },
+        ],
+      });
+
+    renderPage();
+
+    const createBtn = await screen.findByRole("button", { name: m.createPilotOuBtn });
+    expect(createBtn).not.toBeDisabled();
+    fireEvent.click(createBtn);
+
+    await waitFor(() => {
+      expect(createOuSpy).toHaveBeenCalledWith("C012345", "CEP-PoC", "/");
+    });
+
+    const pickers = await screen.findAllByLabelText(m.selectTargetOu);
+    expect(pickers[0]).toHaveValue("03ceppoc");
+    expect(screen.getByText(m.pilotOuCreatedBanner("/CEP-PoC"))).toBeInTheDocument();
+  });
 });
 
 

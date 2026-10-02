@@ -425,6 +425,43 @@ export async function listOrganizationalUnitOptions(
   return Array.isArray(res) ? res : res?.options ?? [];
 }
 
+export interface CreateOrganizationalUnitResult {
+  created: SetupOption;
+  options: SetupOption[];
+}
+
+export async function createOrganizationalUnitOption(
+  customerId: string,
+  name: string,
+  parentOrgUnitPath = "/",
+): Promise<CreateOrganizationalUnitResult> {
+  const cleanName = name.trim().replace(/^\/+/, "").trim() || "CEP-PoC";
+  const res = await postJson<{
+    created?: SetupOption;
+    options?: SetupOption[];
+  }>("/api/v1/setup-options/organizational-units", {
+    customer_id: customerId,
+    create_name: cleanName,
+    parent_org_unit_path: parentOrgUnitPath,
+  });
+  const options = Array.isArray(res?.options) ? res.options : [];
+  const created =
+    res?.created ??
+    options.find(
+      (opt) => opt.label.toLowerCase() === `/${cleanName}`.toLowerCase(),
+    ) ?? {
+      value: cleanName,
+      label: `/${cleanName}`,
+      description: cleanName,
+    };
+  return {
+    created,
+    options: options.some((opt) => opt.value === created.value)
+      ? options
+      : [...options, created],
+  };
+}
+
 export async function listGroupOptions(
   customerId: string,
 ): Promise<SetupOption[]> {

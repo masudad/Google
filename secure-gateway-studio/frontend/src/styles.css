@@ -7749,3 +7749,72 @@ h1 {
   gap: 10px;
 }
 
+.cep-create-pilot-ou-box {
+  margin-top: 12px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px dashed #b9d0ec;
+  background: #f6f9fe;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cep-create-pilot-ou-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.cep-create-pilot-ou-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cep-create-pilot-ou-input-wrap {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  padding-inline-start: 10px;
+  min-width: 200px;
+  flex: 1 1 220px;
+  max-width: 320px;
+}
+
+.cep-create-pilot-ou-prefix {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  margin-inline-end: 2px;
+  user-select: none;
+}
+
+.cep-create-pilot-ou-input-wrap input {
+  border: none;
+  background: transparent;
+  padding: 7px 10px 7px 2px;
+  font-size: 13px;
+  width: 100%;
+  outline: none;
+}
+
+.cep-create-pilot-ou-btn {
+  white-space: nowrap;
+}
+
+.cep-create-pilot-ou-hint {
+  font-size: 12px;
+  color: #475569;
+  line-height: 1.45;
+}
+
+.cep-pilot-ou-created-banner {
+  margin-top: 4px;
+  margin-bottom: 0;
+}

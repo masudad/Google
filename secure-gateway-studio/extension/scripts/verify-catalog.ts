@@ -1466,6 +1466,50 @@ function routeContext(
   );
 }
 
+{
+  const calls: Array<{ method: string; url: string; body?: unknown }> = [];
+  const existingUnits: Array<Record<string, unknown>> = [];
+  const transport: Transport = {
+    async requestJson(method, url, options = {}) {
+      calls.push({ method, url, body: options.jsonBody });
+      if (method === "GET" && url.includes("/orgunits")) {
+        return {
+          status: 200,
+          payload: { organizationUnits: existingUnits },
+        };
+      }
+      if (method === "POST" && url.includes("/orgunits")) {
+        const created = {
+          orgUnitId: "id:03ph8a2z2ceppoc",
+          orgUnitPath: "/CEP-PoC",
+          name: "CEP-PoC",
+          description: "Pilot OU created by Secure Gateway Studio",
+        };
+        existingUnits.push(created);
+        return {
+          status: 200,
+          payload: created,
+        };
+      }
+      throw new Error(`unexpected ${method} ${url}`);
+    },
+  };
+  const catalog = new GoogleSetupCatalog(transport, {
+    principalHint: "admin@example.com",
+    credentialKind: "user_oauth",
+  });
+  const created = await catalog.createOrganizationalUnit("C012345", "CEP-PoC", "/");
+  const reused = await catalog.createOrganizationalUnit("C012345", "/CEP-PoC", "/");
+  check(
+    "createOrganizationalUnit creates a child pilot OU and idempotently reuses it when present",
+    created.value === "03ph8a2z2ceppoc" &&
+      created.label === "/CEP-PoC" &&
+      reused.value === "03ph8a2z2ceppoc" &&
+      calls.filter((c) => c.method === "POST").length === 1,
+    JSON.stringify({ created, reused, calls }),
+  );
+}
+
 if (failures.length > 0) {
   console.error(`FAIL ${failures.length} of ${failures.length + passed} checks`);
   for (const failure of failures) console.error(`  ${failure}`);
