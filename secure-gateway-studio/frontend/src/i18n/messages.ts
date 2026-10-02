@@ -2013,20 +2013,20 @@ const en: Messages = {
     portalEyebrow: "Chrome Enterprise Premium · Operations Guide",
     portalTitle: "Documentation & Step-by-Step PoC Guide",
     portalIntro:
-      "Deploy Chrome Enterprise Premium in minutes. Use Easy PoC for browser DLP, GenAI controls, and SaaS tenant restrictions, or Secure Gateway Deployer for VPN-less private web apps.",
-    beginnerNavLabel: "New to Google? Start Here",
-    beginnerEyebrow: "Quick Primer",
+      "Use Easy PoC for agentless browser DLP, GenAI controls, and SaaS tenant restrictions, or Secure Gateway Deployer for VPN-less private web apps.",
+    beginnerNavLabel: "Quick Start",
+    beginnerEyebrow: "Core Building Blocks",
     beginnerTitle: "New to Google Workspace or Google Cloud? Understand the 3 Building Blocks",
     beginnerIntro:
-      "How the three Google consoles and scopes used by this tool map to Microsoft and general IT terms:",
+      "How the three Google consoles and scopes used by this tool map to general IT terms:",
     beginnerPillars: [
       {
         badge: "1. Identity & Browser Console",
         title: "[Google Admin Console](https://admin.google.com)",
         analogy: "Equivalent to Microsoft Entra ID + Intune",
         description:
-          "Manages user accounts, organizational units, groups, and Chrome policies. Easy PoC runs entirely against this console.",
-        whereUrl: "",
+          "Manages users, organizational units, groups, and Chrome policies. Easy PoC runs entirely against this console.",
+        whereUrl: "[admin.google.com](https://admin.google.com)",
       },
       {
         badge: "2. Policy Target Scope",
@@ -2034,7 +2034,7 @@ const en: Messages = {
         analogy: "Equivalent to Active Directory OUs & Security Groups",
         description:
           "The top-level Root OU `/` affects everyone and is blocked in code. Pick a child test OU such as `/CEP-PoC` or a Google Group.",
-        whereUrl: "[Google Admin Console](https://admin.google.com) > Directory > Organizational units / Groups",
+        whereUrl: "[admin.google.com](https://admin.google.com) > Directory > Organizational units / Groups",
       },
       {
         badge: "3. Cloud Infrastructure",
@@ -2042,7 +2042,7 @@ const en: Messages = {
         analogy: "Equivalent to an AWS Account or Azure Subscription",
         description:
           "Not required for basic Easy PoC policies. Used only for Secure Gateway Deployer or Context-Aware Access device posture rules.",
-        whereUrl: "",
+        whereUrl: "[console.cloud.google.com](https://console.cloud.google.com)",
       },
     ],
     stepZeroEyebrow: "Step 0 · Pre-Flight Checklist",
@@ -2058,7 +2058,7 @@ const en: Messages = {
         details: [
           "By OU: Click '+ Create & Select Pilot OU' in Easy PoC Tab 1 to create `/CEP-PoC`, then move test users into it in [Google Admin Console](https://admin.google.com).",
           "By Group: Create a group in [Google Admin Console](https://admin.google.com) and add test users without changing their department OU.",
-          "Sign in with a Google Workspace Super Admin account when creating DLP rules in Tab 3.",
+          "Sign in with a Workspace Super Admin account when creating DLP rules in Tab 3.",
         ],
       },
       {
@@ -2077,7 +2077,7 @@ const en: Messages = {
         summary:
           "Policies sync to signed-in Chrome profiles within seconds.",
         details: [
-          "Sign in to a Chrome profile with your test user account and enable profile management.",
+          "Sign in to a Chrome profile with your test user account.",
           "Open `chrome://policy` and click 'Reload policies' after deploying.",
         ],
       },
@@ -2098,7 +2098,7 @@ const en: Messages = {
       {
         term: "Organizational Unit / OU",
         analogy: "Active Directory OU",
-        meaning: "Folder hierarchy in [Google Admin Console](https://admin.google.com). Always target a child OU rather than `/ Maz` Root.",
+        meaning: "Folder hierarchy in [Google Admin Console](https://admin.google.com). Always target a child OU rather than Root `/`.",
       },
       {
         term: "Google Group",
@@ -2108,46 +2108,46 @@ const en: Messages = {
       {
         term: "Enterprise Connectors",
         analogy: "Agentless Browser Sensor",
-        meaning: "Built-in Chrome inspection for uploads, downloads, pastes, and printing without endpoint agents.",
+        meaning: "Built-in Chrome inspection for uploads, downloads, pastes, and printing.",
       },
       {
         term: "Cloud Identity DLP",
-        analogy: "Purview DLP / CASB Rule",
-        meaning: "Evaluates file and clipboard content to Audit, Warn, Block, or apply a screen watermark.",
+        analogy: "Endpoint DLP Rule",
+        meaning: "Evaluates file and clipboard content to Audit, Warn, Block, or apply a watermark.",
       },
       {
         term: "Context-Aware Access",
         analogy: "Conditional Access",
-        meaning: "Checks whether the user is on a corporate managed Chrome profile or an unmanaged BYOD device.",
+        meaning: "Checks whether the user is on a managed Chrome profile or an unmanaged BYOD device.",
       },
       {
         term: "Endpoint Verification",
-        analogy: "Posture Helper Extension",
-        meaning: "Official Chrome extension reporting OS and disk encryption status to [Google Admin Console](https://admin.google.com).",
+        analogy: "Posture Extension",
+        meaning: "Official Chrome extension reporting OS and encryption status to [Google Admin Console](https://admin.google.com).",
       },
       {
         term: "Security Gateway",
         analogy: "Zscaler ZPA / Private Access",
-        meaning: "Zero-trust proxy granting VPN-less Chrome access to private internal web apps.",
+        meaning: "Zero-trust proxy granting VPN-less Chrome access to private web apps.",
       },
       {
         term: "Project ID",
         analogy: "AWS Account / Azure Subscription",
-        meaning: "The [Google Cloud Console](https://console.cloud.google.com) project identifier where gateway resources are created.",
+        meaning: "The [Google Cloud Console](https://console.cloud.google.com) project ID where gateway resources are created.",
       },
       {
         term: "Keyless Service Account",
         analogy: "IAM Role / Managed Identity",
-        meaning: "Automation identity used via short-lived OAuth impersonation without downloadable JSON keys.",
+        meaning: "Automation identity used via short-lived OAuth impersonation without JSON keys.",
       },
     ],
-    sharedAuthTitle: "Unified Top-Right Authentication & Shared Credentials",
+    sharedAuthTitle: "Shared Top-Right Sign-In",
     sharedAuthIntro:
       "Both workflows share the Google Workspace and Google Cloud buttons in the top-right header.",
     sharedAuthItems: [
       {
         label: "Google Workspace",
-        detail: "Auto-resolves Customer ID, OUs, and Google Groups via Chrome Identity OAuth.",
+        detail: "Auto-resolves Customer ID, OUs, and Groups via Chrome Identity OAuth.",
       },
       {
         label: "Google Cloud",
@@ -2169,9 +2169,9 @@ const en: Messages = {
       title: "How Easy PoC Configures Chrome Enterprise Premium",
       intro:
         "Deploys browser DLP, malware scanning, clipboard boundaries, SaaS tenant restrictions, and Gemini Zero Trust controls to a pilot OU or Google Group without provisioning VMs.",
-      pocNoticeTitle: "Pilot Scope Isolation & Non-Destructive Execution",
+      pocNoticeTitle: "Pilot Scope Isolation & Rollback",
       pocNoticeBody:
-        "The Root OU `/` is blocked in code. Deploy each tab independently to a pilot OU or Group, and use Tab 4 Rollback to restore inherited defaults.",
+        "Root `/` is blocked in code. Deploy each tab independently to a child OU or Group, and use Tab 4 Rollback to restore inherited defaults.",
       quickOverviewTitle: "Core Protection Scenarios",
       scenariosTitle: "Three Core Evaluation Scenarios in Easy PoC",
       scenariosIntro:
@@ -2185,9 +2185,9 @@ const en: Messages = {
           title: "Real-Time File, Clipboard, Print, and Watermark Controls",
           summary:
             "Inspects uploads, downloads, bulk pastes, and print actions via Chrome Connectors and Cloud Identity DLP, with optional BYOD-only enforcement.",
-          estimatedTime: "Deployment time: ~30s",
+          estimatedTime: "Time: ~30s",
           targetScope: "Pilot OU or Google Group.",
-          authRequirement: "Workspace Super Admin for DLP rules.",
+          authRequirement: "Workspace Super Admin.",
           nodes: [
             { label: "Managed Chrome", detail: "OU/Group sync + Endpoint Verification", costBadge: "Profile / Device" },
             { label: "Enterprise Connectors", detail: "Upload, download, paste & print", costBadge: "Real-time scan" },
@@ -2198,7 +2198,7 @@ const en: Messages = {
             { label: "7-Row Threat Matrix", detail: "Upload, Download, Paste, Print, and Watermark per row" },
             { label: "BYOD-Only Scope", detail: "Stricter rules on unmanaged devices" },
             { label: "Clipboard Boundary", detail: "Block copy/paste from internal URLs to external sites" },
-            { label: "Custom User Message", detail: "Custom remediation guidance on Warn/Block dialogs" },
+            { label: "Custom User Message", detail: "Custom guidance on Warn/Block dialogs" },
             { label: "Deep Malware Scan", detail: "Safe Browsing Enhanced Protection" },
             { label: "1-Click Test Data", detail: "Built-in test credit card, National ID, and source code" },
           ],
@@ -2208,7 +2208,7 @@ const en: Messages = {
           title: "Consumer GenAI Blocking + HTTP Header SaaS Tenant Restrictions",
           summary:
             "Blocks unapproved consumer AI while permitting corporate Gemini, and injects HTTP headers to block sign-in to personal SaaS accounts.",
-          estimatedTime: "Deployment time: ~20s",
+          estimatedTime: "Time: ~20s",
           targetScope: "Pilot OU or Google Group.",
           authRequirement: "Workspace Admin.",
           nodes: [
@@ -2231,8 +2231,8 @@ const en: Messages = {
           title: "Context-Aware Access + Restricted Client Access + VPC Service Controls",
           summary:
             "Protects Gemini and Vertex AI endpoints with managed Chrome posture, Cloud Identity Group bindings, and a VPC-SC perimeter.",
-          estimatedTime: "Deployment time: ~45s",
-          targetScope: "GCP Project + Org Access Policy + Cloud Identity Group.",
+          estimatedTime: "Time: ~45s",
+          targetScope: "GCP Project + Org Access Policy + Group.",
           authRequirement: "GCP Org / ACM Admin + Workspace Admin.",
           nodes: [
             { label: "Layer 1 · Chrome Posture", detail: "ACM Access Level for managed Chrome", costBadge: "Device check" },
@@ -2241,7 +2241,7 @@ const en: Messages = {
             { label: "Gemini Enterprise", detail: "Blocks unmanaged API/token access", costBadge: "Zero Trust AI" },
           ],
           supports: [
-            { label: "Folder Discovery", detail: "Walks up to 20 folder hops to resolve Org ID" },
+            { label: "Folder Discovery", detail: "Walks parent folders to resolve Org ID" },
             { label: "Dry-Run Default", detail: "Provisions VPC-SC in Dry-Run mode by default" },
             { label: "Lockout Guard", detail: "Preserves existing perimeter members" },
           ],
@@ -2258,7 +2258,7 @@ const en: Messages = {
           items: [
             "Shares top-right Workspace and Cloud sign-in state with Secure Gateway Deployer.",
             "Auto-resolves Customer ID and loads OUs, Groups, and Access Levels.",
-            "Creates `/CEP-PoC` in 1 click or targets an existing Google Group while blocking Root `/ Maz`.",
+            "Creates `/CEP-PoC` in 1 click or targets a Google Group while blocking Root `/`.",
           ],
         },
         {
@@ -2297,7 +2297,7 @@ const en: Messages = {
           eyebrow: "Audit & Cleanup",
           title: "Per-Tab Execution, Trace & Rollback",
           items: [
-            "Deploys each tab independently, logs full HTTP traces, and exports `provision-cep-poc.sh`.",
+            "Deploys each tab independently, logs HTTP traces, and exports `provision-cep-poc.sh`.",
             "1-click Rollback restores inherited Chrome policies and deletes only PoC DLP rules.",
           ],
         },
@@ -2358,7 +2358,7 @@ const en: Messages = {
             },
           ],
           safetyNote:
-            "Tab 1 deploys only browser policies and connectors without creating DLP rules, and never modifies Root `/ Maz`.",
+            "Tab 1 deploys only browser policies and connectors without creating DLP rules, and never modifies Root `/`.",
         },
         {
           title: "2. License & Roles",
@@ -2366,7 +2366,7 @@ const en: Messages = {
           summary:
             "Assign CEP licenses to pilot OU users and create least-privilege custom Admin roles.",
           actions: [
-            "Select the pilot OU and click 'Assign CEP Licenses to Selected OU' in [Google Admin Console](https://admin.google.com/ac/billing/licensesettings).",
+            "Select the pilot OU and click 'Assign CEP Licenses' in [Google Admin Console](https://admin.google.com/ac/billing/licensesettings).",
             "Choose CEP Security Admin or CEP Auditor and click 'Create / Verify Custom Roles' for [Admin Roles](https://admin.google.com/ac/roles).",
           ],
           optionsBehavior: [
@@ -2496,7 +2496,7 @@ const en: Messages = {
           category: "Target Scope",
           question: "Should I target an Organizational Unit or a Google Group?",
           answer:
-            "Use an OU for full browser policy coverage and Tab 2 license assignment. Use a Google Group when you cannot move users out of their current department OUs.",
+            "Use an OU for full browser policy coverage and Tab 2 license assignment. Use a Google Group when you cannot move users out of their department OUs.",
           checklist: [
             "Use Tab 1's '+ Create & Select Pilot OU' button to create `/CEP-PoC` in one click.",
           ],
@@ -2526,7 +2526,7 @@ const en: Messages = {
           category: "SaaS Controls",
           question: "How does HTTP Header Injection block personal SaaS sign-ins?",
           answer:
-            "Chrome attaches allowed-tenant headers (`X-GoogApps-Allowed-Domains`, `Restrict-Access-To-Tenants`, etc.) to HTTPS requests while blocking Incognito and Guest modes.",
+            "Chrome attaches allowed-tenant headers to HTTPS requests while blocking Incognito and Guest modes.",
           checklist: [
             "Select a SaaS preset in Tab 1 and enter your corporate domain or workspace ID.",
           ],
@@ -2546,16 +2546,16 @@ const en: Messages = {
     eyebrow: "New setup guide",
     title: "What happens in each setup step",
     intro:
-      "The wizard turns a small set of PoC choices into a discovered, reviewable, and approved Secure Gateway deployment. Before final Apply, it changes only the deployer service account, custom role, and IAM bindings that you explicitly confirm during the initial bootstrap; discovery and all other setup steps are read-only.",
+      "The wizard builds a discovered, reviewable, and approved Secure Gateway deployment. Before final Apply, it changes only the deployer service account, custom role, and IAM bindings that you explicitly confirm during bootstrap; discovery and all other setup steps are read-only.",
     pocNoticeTitle: "PoC deployment scope and safety guardrails",
     pocNoticeBody:
       "Production mode is disabled in this release. Use a dedicated non-production OU and test principals; do not route production traffic through this workflow.",
     quickOverviewTitle: "Quick Overview & Core Concepts",
     quickOverviewIntro:
-      "A fast summary of the 3 architecture deployment paths and the 7-step wizard workflow.",
+      "Summary of the 3 architecture paths and 7 setup steps.",
     technicalDeepDiveTitle: "Step-by-Step Technical Deep Dive & API Calls",
     technicalDeepDiveIntro:
-      "Comprehensive breakdown of the underlying logic, configuration behaviors, and Google Cloud / Workspace REST APIs invoked at every stage.",
+      "Configuration behavior and Google REST APIs invoked at each step.",
     technicalEyebrow: "Technical reference & API calls",
     checklistLabel: "Checklist & actions",
     optionsBehaviorLabel: "Option Behaviors & Logic",
@@ -2563,15 +2563,15 @@ const en: Messages = {
     safetyGuardrailLabel: "Safety & Rollback Guardrails",
     architectureTitle: "Three independent deployment architectures",
     architectureIntro:
-      "Choose one path per application. Options A and B are the primary PoC paths; the previous Nginx method remains available as Option C under Legacy / advanced settings.",
+      "Choose one path per app. Options A and B are the primary PoC paths; Option C provides the legacy Nginx method.",
     extensionArchitectureTitle: "Extension-supported deployment architectures",
     extensionArchitectureIntro:
-      "Choose Direct HTTPS, regional Internal HTTPS Load Balancer offload, or the legacy Nginx path for each PoC application.",
+      "Choose Direct HTTPS, regional Internal HTTPS Load Balancer offload, or the legacy Nginx path.",
     extensionArchitectureNote:
-      "The Chrome extension plans and applies all three PoC paths. Option B creates its private sample VM only during the final approved Apply.",
-    costOverviewTitle: "Cost drivers — verify current pricing before deployment",
+      "The Chrome extension plans and applies all three PoC paths. Option B creates its private sample VM only during approved Apply.",
+    costOverviewTitle: "Cost drivers",
     costOverviewIntro:
-      "Pricing varies by region, usage, selected resources, and your Chrome Enterprise Premium agreement. These cards are a resource inventory, not a quote. Confirm the current Google Cloud price pages or Pricing Calculator and your CEP contract before applying a plan.",
+      "Pricing varies by region, usage, and your CEP agreement. Confirm current [Google Cloud Console](https://console.cloud.google.com) pricing before applying.",
     costTag: "Verify current pricing",
     fixedCostLabel: "Provisioned resources",
     variableCostLabel: "Usage drivers",
@@ -2580,53 +2580,53 @@ const en: Messages = {
         eyebrow: "Option A · Direct HTTPS",
         title: "Secure Gateway + existing private HTTPS app",
         summary:
-          "Use when the application already serves HTTPS. Secure Gateway routes directly through the selected VPC; no Nginx, VM, NAT, or offload certificate is created.",
+          "Routes Secure Gateway directly to an existing HTTPS app in your VPC without creating VMs, NAT, or offload certificates.",
         estimatedCost: "Estimated monthly PoC: USD 0 new infrastructure",
-        costFixed: "No new VM, load balancer, Cloud NAT, offload certificate, or managed DNS record. The existing application and its private DNS remain operator-owned.",
-        costVariable: "Existing DNS, network data transfer, and the application's own infrastructure charges.",
+        costFixed: "No new VM, load balancer, Cloud NAT, offload certificate, or managed DNS record.",
+        costVariable: "Existing DNS, network data transfer, and app infrastructure charges.",
         nodes: [
           { label: "Managed Chrome", detail: "User identity + device/profile context", costBadge: "CEP license required" },
           { label: "Secure Gateway", detail: "Hostname:port matcher + access policy", costBadge: "Check CEP agreement" },
-          { label: "Upstream VPC", detail: "Delegating service account has upstreamAccess", costBadge: "Network usage billed" },
+          { label: "Upstream VPC", detail: "Delegating SA has upstreamAccess", costBadge: "Network usage billed" },
           { label: "HTTPS app", detail: "Existing certificate and TLS termination", costBadge: "Existing infrastructure" },
         ],
         supports: [
-          { label: "DNS resolution", detail: "Cloud DNS private zone or forwarding zone" },
+          { label: "DNS resolution", detail: "Cloud DNS private or forwarding zone" },
           { label: "Network policy", detail: "Allow TCP from 136.124.16.0/20 and return route" },
-          { label: "Regional routing", detail: "Optional egress region, or Global Access for regional LB" },
+          { label: "Regional routing", detail: "Optional egress region or Global Access" },
         ],
       },
       {
         eyebrow: "Option B · ILB HTTPS offload",
         title: "Secure Gateway + internal HTTPS load balancer + private sample VM",
         summary:
-          "The approved run creates a regional internal Application Load Balancer and one run-owned private sample backend VM. The ILB presents the server certificate and forwards decrypted HTTP to that VM on port 80; this path cannot target an existing HTTP endpoint, and Nginx is not deployed.",
+          "Creates a regional Internal Application Load Balancer and one run-owned private sample VM on port 80.",
         estimatedCost: "Estimated monthly PoC: about USD 80–90",
-        costFixed: "720 hours in asia-northeast1, light traffic: minimum three ILB proxies are about USD 54/month; one e2-small VM plus a 20 GB disk, Cloud DNS, and dedicated-VPC Cloud NAT make up the remainder.",
-        costVariable: "Excludes Chrome Enterprise Premium/Secure Gateway contract pricing and tax. Traffic, logging, image licensing, exchange rates, and region changes alter the total; delete the run after testing to stop hourly charges.",
+        costFixed: "720 hours in asia-northeast1: 3 ILB proxies (~USD 54/mo), 1 e2-small VM + 20 GB disk, Cloud DNS, and dedicated-VPC Cloud NAT.",
+        costVariable: "Traffic, logging, and region changes; delete the run after testing to stop hourly charges.",
         nodes: [
-          { label: "Managed Chrome", detail: "Trusts the issuing root through Chrome Root Store", costBadge: "CEP license required" },
+          { label: "Managed Chrome", detail: "Trusts issuing root via Chrome Root Store", costBadge: "CEP license required" },
           { label: "Secure Gateway", detail: "Identity, context, and hostname:443 policy", costBadge: "Check CEP agreement" },
-          { label: "Regional internal Application LB", detail: "HTTPS termination with a regional server certificate", costBadge: "Region and usage billed" },
-          { label: "HTTP backend", detail: "Run-owned private sample VM on port 80; no existing-endpoint option", costBadge: "Compute/disk billed" },
+          { label: "Regional internal Application LB", detail: "HTTPS termination with server certificate", costBadge: "Region and usage billed" },
+          { label: "HTTP backend", detail: "Run-owned private sample VM on port 80", costBadge: "Compute/disk billed" },
         ],
         supports: [
-          { label: "Proxy-only subnet", detail: "REGIONAL_MANAGED_PROXY subnet dedicated to Google-managed Envoy proxies" },
-          { label: "TLS ownership", detail: "Enterprise CA, local PoC CA, or validated existing certificate secret" },
-          { label: "Chrome trust", detail: "Download the public root PEM and connect it to the test OU through Chrome Root Store" },
-          { label: "Managed L7 path", detail: "HTTP health check, backend service, URL map, target HTTPS proxy, and internal forwarding rule" },
-          { label: "Private egress", detail: "Dedicated VPC creates Router/NAT; existing VPC requires verified private egress" },
-          { label: "Safe lifecycle", detail: "Discovery, conflict checks, reverse rollback, ownership-only teardown, and a dedicated change identity" },
+          { label: "Proxy-only subnet", detail: "REGIONAL_MANAGED_PROXY subnet for Envoy proxies" },
+          { label: "TLS ownership", detail: "Enterprise CA, local PoC CA, or existing secret" },
+          { label: "Chrome trust", detail: "Upload public root PEM to Chrome Root Store for the test OU" },
+          { label: "Managed L7 path", detail: "HTTP health check, backend service, URL map, HTTPS proxy, forwarding rule" },
+          { label: "Private egress", detail: "Dedicated VPC creates Router/NAT; existing VPC requires private egress" },
+          { label: "Safe lifecycle", detail: "Discovery, conflict checks, reverse rollback, and ownership teardown" },
         ],
       },
       {
         eyebrow: "Option C · Legacy Nginx / advanced",
         title: "Secure Gateway + Nginx + HTTP app",
         summary:
-          "Use only when the private application speaks HTTP or the previous Nginx deployment is required. PoC uses one private Nginx VM; the implemented scale-ready path uses an internal passthrough Network Load Balancer and two-zone Nginx MIG (Production selection is disabled).",
+          "Use only when an HTTP app or Nginx offload is required. PoC uses one private Nginx VM.",
         estimatedCost: "Estimated monthly PoC: about USD 45–60",
-        costFixed: "Compute Engine instances, disks, Cloud DNS, and Cloud NAT are provisioned for the Nginx path. The local backend's scale-ready path also adds a passthrough load balancer.",
-        costVariable: "VM runtime, network data transfer, NAT processing and assigned IPs, DNS queries, and autoscaled replica count.",
+        costFixed: "Compute Engine instances, disks, Cloud DNS, and Cloud NAT for the Nginx path.",
+        costVariable: "VM runtime, network transfer, NAT processing, DNS queries, and replica count.",
         nodes: [
           { label: "Managed Chrome", detail: "User identity + device/profile context", costBadge: "CEP license required" },
           { label: "Secure Gateway", detail: "Service Discovery + access policy", costBadge: "Check CEP agreement" },
@@ -2634,83 +2634,76 @@ const en: Messages = {
           { label: "HTTP app", detail: "GCP, AWS, Azure, or on premises", costBadge: "Existing infrastructure" },
         ],
         supports: [
-          { label: "CPU autoscaling", detail: "Scale-ready default 2–20 replicas at 60%; min, max, and target are configurable" },
-          { label: "Healthy capacity gate", detail: "Apply waits until the configured minimum replica count is healthy" },
-          { label: "Two-zone resilience", detail: "Regional MIG distributes Nginx replicas across two zones" },
-          { label: "Private DNS", detail: "App hostname resolves to the Nginx internal IP" },
-          { label: "TLS material", detail: "CA Service/local CA or existing secret for Nginx" },
-          { label: "Private path", detail: "VPN/Interconnect and backend firewall when off-GCP" },
-          { label: "Discovery + conflicts", detail: "MIG and autoscaler state is discovered before mutations" },
-          { label: "Rollback", detail: "Owned MIG/autoscaler changes participate in deployment rollback" },
-          { label: "Product-scoped IAM", detail: "The shared role covers supported paths; preflight checks the selected path's required permissions" },
+          { label: "CPU autoscaling", detail: "Scale-ready default 2–20 replicas at 60% CPU" },
+          { label: "Healthy capacity gate", detail: "Apply waits for the minimum healthy replica count" },
+          { label: "Two-zone resilience", detail: "Regional MIG across two zones" },
+          { label: "Private DNS", detail: "App hostname resolves to Nginx internal IP" },
+          { label: "TLS material", detail: "CA Service, local CA, or existing secret" },
+          { label: "Private path", detail: "VPN/Interconnect and firewall when off-GCP" },
+          { label: "Discovery + conflicts", detail: "MIG and autoscaler state checked before mutation" },
+          { label: "Rollback", detail: "Owned MIG/autoscaler changes roll back on failure" },
+          { label: "Product-scoped IAM", detail: "Preflight verifies required permissions for the selected path" },
         ],
       },
     ],
     implementationTitle: "What is implemented",
     implementationIntro:
-      "This is the implementation inventory for the current codebase. “Scale-ready” items exist in the backend but are not selectable while Production remains disabled; they are not presented as an active PoC resource.",
+      "Current codebase capabilities. Scale-ready items exist in the backend while Production selection remains disabled.",
     implementationEyebrow: "Implementation inventory",
     implementationGroups: [
       {
         eyebrow: "Data plane",
         title: "HTTP offload and direct HTTPS",
         items: [
-          "The Nginx HTTP-offload paths support either a managed sample backend or an existing private HTTP app in GCP, AWS, Azure, or on premises. The separate ILB HTTPS-offload path supports only its run-owned private sample backend VM.",
-          "The extension's ILB HTTPS offload path creates the private sample VM, its unmanaged instance group, a REGIONAL_MANAGED_PROXY subnet, HTTP health check, INTERNAL_MANAGED backend service, regional URL map, regional server certificate, target HTTPS proxy, internal forwarding rule, and private DNS record without an Nginx offload VM.",
-          "Direct HTTPS creates an exact hostname:port Secure Gateway application route through an existing VPC and omits Nginx, offload TLS, NAT, and managed A records.",
-          "Dedicated-VPC and existing-VPC strategies, private-only VM addressing, private DNS, and the 136.124.16.0/20 gateway firewall source are modeled. A dedicated VPC adds Cloud Router/NAT for created VMs; an existing VPC must pass the private-egress confirmation gate.",
-          "Off-GCP connectivity is consumed, not created: VPN/Interconnect, private DNS forwarding, backend firewall, and return routes remain explicit prerequisites.",
+          "Nginx HTTP offload supports a managed sample or an existing HTTP app in GCP, AWS, Azure, or on premises; ILB HTTPS offload uses a run-owned private sample VM.",
+          "Option B creates the private sample VM, unmanaged instance group, REGIONAL_MANAGED_PROXY subnet, health check, backend service, URL map, server certificate, HTTPS proxy, forwarding rule, and private DNS.",
+          "Direct HTTPS routes hostname:port through an existing VPC without Nginx, offload TLS, NAT, or managed A records.",
+          "A dedicated VPC adds Cloud Router/NAT for created VMs; an existing VPC requires verified private egress.",
         ],
       },
       {
         eyebrow: "Scale-ready HTTP tier",
         title: "Regional Nginx availability and autoscaling",
         items: [
-          "A two-zone regional Nginx managed instance group, internal passthrough Network Load Balancer, regional TLS health check, and health-check firewall are implemented for the scale-ready path. TLS remains on Nginx.",
-          "CPU autoscaling defaults to 2–20 replicas at 60% CPU; minimum, maximum, and CPU target are configurable in English and Japanese.",
-          "Deployment waits for the configured minimum number of healthy replicas before continuing.",
-          "MIG/autoscaler discovery, compatibility and conflict detection, ownership-bounded reverse rollback, and required IAM permission checks are implemented.",
+          "Implements a two-zone regional Nginx MIG, internal passthrough Network Load Balancer, and regional TLS health check.",
+          "CPU autoscaling defaults to 2–20 replicas at 60% CPU and waits for the configured minimum number of healthy replicas.",
+          "Includes MIG/autoscaler discovery, conflict detection, and ownership-bounded reverse rollback.",
         ],
       },
       {
         eyebrow: "Google control plane",
         title: "Cloud and Chrome API automation",
         items: [
-          "Service Usage, IAM, Compute Engine, Cloud DNS, Secret Manager, CA Service, BeyondCorp, Access Context Manager, Chrome Policy, Chrome Management, Licensing, and Billing are discovered or orchestrated as required by the selected architecture.",
-          "The helper bootstraps a keyless deployer service account, product-scoped all-path custom role and bindings; Apply enables missing approved APIs.",
-          "Secure Gateway, Service Discovery user IAM, delegating-account upstreamAccess, application matcher, application IAM, and optional Access Level condition are planned and applied.",
-          "The test OU receives Secure Enterprise Browser and Endpoint Verification force-install policies, gateway route configuration, and the inherited legacy PAC override; OU, group, and Access Level options are fetched from APIs.",
+          "Orchestrates Service Usage, IAM, Compute, Cloud DNS, Secret Manager, CA Service, BeyondCorp, Access Context Manager, Chrome Policy/Management, Licensing, and Billing.",
+          "Bootstraps a keyless deployer SA and custom role, and enables missing approved APIs during Apply.",
+          "Force-installs Secure Enterprise Browser and Endpoint Verification on the test OU and configures the gateway route.",
         ],
       },
       {
         eyebrow: "TLS and identity",
         title: "Certificates and managed Chrome access",
         items: [
-          "HTTP offload supports Enterprise CA, a validated existing public certificate secret, and a generated local PoC CA with its public root exported as PEM.",
-          "Private keys remain in Secret Manager with a dedicated accessor identity. Owned offload secrets use a managed active-version alias for rotation; an approved public-certificate input is pinned to its numeric SecretVersion and digest. Renewal checks, offload refresh, and failure compensation are implemented.",
-          "Chrome Root Store upload and OU connection are documented as a manual Admin console handoff because the public API cannot reliably read or mutate that configuration.",
-          "Profile-managed BYOD Chrome and browser-managed Chrome can be represented by the selected Access Context Manager level; current profile, client, and Endpoint Verification reporting is surfaced separately.",
+          "Supports Enterprise CA, a validated existing public certificate secret, and a local PoC CA with exported public root PEM.",
+          "Stores private keys in Secret Manager with dedicated accessor IAM bindings.",
+          "Guides Chrome Root Store upload and OU binding in [Google Admin Console](https://admin.google.com).",
         ],
       },
       {
         eyebrow: "Safe Apply",
         title: "Discovery, approval, progress, and rollback",
         items: [
-          "Trusted discovery builds a desired-state diff, labels create/update/no-op/conflict actions, and blocks incompatible existing resources before mutation.",
-          "Billing, licenses, Workspace prerequisites, test OU, APIs, deployer identities, permissions, private connectivity, certificates, and Chrome signals are shown as API-verified, automatic, manual, or blocking gates.",
-          "Approvals are bound to the exact configuration hash, expire, are single-use, and are invalidated by edits; browser-supplied audit actors are rejected.",
-          "Apply records operation checkpoints and visual progress, permits one active run, detects interruption, and rolls back only owned changes in reverse order while preserving shared resources and exact IAM/Chrome Policy before-images.",
-          "The Deploy tab exposes sanitized Secure Gateway and Nginx log queries, an owned/shared resource inventory, and an exact-confirmation teardown that deletes only recorded ownership in reverse dependency order.",
+          "Trusted discovery builds a desired-state diff and blocks incompatible existing resources.",
+          "Approvals are bound to the configuration hash, expire, are single-use, and revoke on edit.",
+          "Apply records checkpoints and rolls back only owned changes in reverse order while preserving shared before-images.",
         ],
       },
       {
         eyebrow: "Verification and local security",
         title: "Acceptance evidence and operator protections",
         items: [
-          "The durable acceptance matrix records automated system verification (backend response, TLS termination, DNS resolution, Gateway matcher), managed Chrome client evidence, and access denial policy validation, exporting a signed, auditable JSON bundle.",
-          "A SHA-256 audit chain, deployment history, sanitized logs, generated request IDs, and query/credential redaction preserve traceability without recording secrets.",
-          "The extension uses its isolated MV3 origin, strict CSP, affirmative disclosure, session-only ephemeral private keys, and encrypted IndexedDB state; no static secrets or JSON keys are written to disk.",
-          "Google Cloud mutations after bootstrap use the pinned keyless deployer service account. Workspace, Chrome, Cloud Identity, and licensing mutations use the signed-in administrator because those APIs require Workspace user authority. Service-account JSON keys and AWS/Azure credentials are not accepted. The workflow and configuration UI are available in English and Japanese.",
+          "Records automated system checks, managed Chrome client evidence, and access denial tests in a signed JSON bundle with a SHA-256 audit chain.",
+          "Uses an isolated MV3 origin, strict CSP, session-only ephemeral private keys, and encrypted IndexedDB without writing JSON keys to disk.",
+          "Google Cloud mutations after bootstrap use the pinned keyless deployer service account. Workspace, Chrome, Cloud Identity, and licensing mutations use the signed-in administrator. Service-account JSON keys and AWS/Azure credentials are not accepted.",
         ],
       },
     ],
@@ -2722,64 +2715,58 @@ const en: Messages = {
         summary:
           "Define the deployment scope, network strategy, and certificate authority model.",
         actions: [
-          "Keep rapid PoC mode enabled for the lightweight topology, and explicitly select a dedicated non-production project, VPC, and OU. PoC mode does not prove that selected existing resources are non-production.",
-          "All desktop platforms (macOS, Windows, Linux, ChromeOS) are supported; client access is governed dynamically by Context-Aware Access levels.",
-          "Choose between creating a dedicated VPC network or integrating with an existing corporate VPC.",
-          "Select the TLS certificate issuance strategy (Enterprise CA, Public Secret, or Local PoC CA).",
+          "Keep rapid PoC mode enabled and explicitly select a dedicated non-production project, VPC, and OU. PoC mode does not prove that selected existing resources are non-production.",
+          "Choose between creating a dedicated VPC network or routing through an existing corporate VPC.",
+          "Select the TLS certificate source: Enterprise CA, Public Secret, or Local PoC CA.",
         ],
         optionsBehavior: [
           {
             name: "PoC vs. Production Mode",
             behavior:
-              "PoC mode enforces the lightweight single-zone topology and disables this UI's Production topology. It does not isolate an existing project or VPC; the administrator must select dedicated non-production resources and review the plan.",
+              "PoC mode enforces a single-zone topology and disables Production mode; select dedicated non-production resources and review the plan.",
           },
           {
             name: "Dedicated VPC vs. Existing VPC",
             behavior:
-              "Dedicated VPC provisions a new network with a 10.42.0.0/24 subnet; discovery blocks overlaps or resource collisions it can detect rather than guaranteeing a conflict-free range. Existing VPC routes through the selected network (and its owning project for direct HTTPS).",
+              "Dedicated VPC provisions a new network with a 10.42.0.0/24 subnet; discovery blocks overlaps or resource collisions it can detect. Existing VPC routes through the selected network.",
           },
           {
             name: "Certificate Strategy",
             behavior:
-              "Enterprise CA connects to Google Private CA Service; Public Secret uses pre-existing TLS certs; Local PoC CA generates a local self-signed Root CA for testing.",
+              "Enterprise CA uses Google Private CA Service, Public Secret uses an existing secret, and Local PoC CA generates a self-signed Root CA.",
           },
         ],
         apiCalls: [],
-        safetyNote: "Local PoC CA should only be distributed to non-production test Organizational Units.",
+        safetyNote: "Distribute Local PoC CA only to a dedicated non-production test OU.",
       },
       {
         title: "Identities",
         subtitle: "Keyless cloud and workspace authentication",
         summary:
-          "Establish keyless administrator sessions and bootstrap a dedicated product-scoped service account for impersonation.",
+          "Establish keyless administrator sessions and bootstrap the deployer service account.",
         actions: [
-          "Use browser-managed administrator OAuth in the extension; service-account JSON keys are never exported or stored.",
-          "Bootstrap the keyless deployer service account (`secure-gateway-deployer`) with the documented all-supported-path custom role.",
-          "Validate read-only API access to Google Cloud project and Google Workspace Chrome Policy.",
+          "Use browser-managed OAuth without exporting or storing service-account JSON keys.",
+          "Bootstrap the keyless deployer service account `secure-gateway-deployer` and its custom role.",
+          "Validate read access to your [Google Cloud Console](https://console.cloud.google.com) project and [Google Admin Console](https://admin.google.com) Chrome Policy.",
         ],
         optionsBehavior: [
           {
             name: "Google Cloud Project ID",
             behavior:
-              "Identifies the target GCP project where Secure Gateway and network infrastructure are provisioned.",
+              "Target GCP project where Secure Gateway and network resources are provisioned.",
           },
           {
             name: "Google Workspace Customer ID",
             behavior:
-              "Identifies the Workspace tenant (e.g. C012abcde) for Chrome Enterprise policy distribution.",
+              "Target Workspace tenant for Chrome Enterprise policy distribution.",
           },
           {
             name: "Bootstrap Deployer Action",
             behavior:
-              "Automatically provisions the compatibility deployer and role. If an explicitly reviewed 0.2.0 migration fails closed, a separate confirmation can create isolated `secure-gateway-studio-deployer` / `secureGatewayStudioDeployer` names without adopting or modifying the legacy identity.",
+              "Provisions the deployer SA and custom role, granting Token Creator only to the signed-in admin.",
           },
         ],
         apiCalls: [
-          {
-            method: "GET",
-            endpoint: "https://iam.googleapis.com/v1/projects/{projectId}/serviceAccounts/{saEmail}",
-            purpose: "Checks if the deployer service account already exists.",
-          },
           {
             method: "POST",
             endpoint: "https://iam.googleapis.com/v1/projects/{projectId}/serviceAccounts",
@@ -2788,57 +2775,51 @@ const en: Messages = {
           {
             method: "POST",
             endpoint: "https://iam.googleapis.com/v1/projects/{projectId}/roles",
-            purpose: "Creates the compatibility-named custom role with permissions for every supported deployment, rollback, and teardown path; roleId is supplied in the request body.",
+            purpose: "Creates the compatibility-named custom role for deployment, rollback, and teardown; roleId is supplied in the request body.",
           },
           {
             method: "PATCH",
             endpoint: "https://iam.googleapis.com/v1/projects/{projectId}/roles/{roleId}",
-            purpose: "Updates the existing compatibility-named custom role with permissions for every supported deployment, rollback, and teardown path.",
+            purpose: "Updates the existing compatibility-named custom role with required permissions.",
           },
           {
             method: "POST",
             endpoint: "https://cloudresourcemanager.googleapis.com/v1/projects/{projectId}:setIamPolicy",
-            purpose: "Binds custom deployer role, roles/browser, and roles/serviceusage.serviceUsageConsumer to the SA.",
-          },
-          {
-            method: "POST",
-            endpoint: "https://iam.googleapis.com/v1/projects/{projectId}/serviceAccounts/{saEmail}:setIamPolicy",
-            purpose: "Grants roles/iam.serviceAccountTokenCreator to the administrator on the service account.",
+            purpose: "Binds the custom deployer role to the service account.",
           },
           {
             method: "GET",
             endpoint: "https://chromepolicy.googleapis.com/v1/customers/{customerId}/policySchemas",
-            purpose: "Validates Chrome Policy schema read access; target-OU validation then uses policies:resolve.",
+            purpose: "Validates Chrome Policy schema read access.",
           },
         ],
-        safetyNote: "No service-account JSON key is generated or stored; Google OAuth and short-lived impersonated credentials are used instead.",
+        safetyNote: "Uses Google OAuth and short-lived impersonated tokens instead of JSON keys.",
       },
       {
         title: "Environment",
         subtitle: "Data plane architecture and routing specification",
         summary:
-          "Configure the target VPC, regional placement, private hostname, and backend architecture tier. Option B always creates its own private sample backend VM.",
+          "Configure the target VPC, region, private hostname, and architecture path. Option B creates a private sample backend VM.",
         actions: [
-          "In the Chrome extension, Option B creates a private sample VM and regional internal Application Load Balancer through the same approval, ownership, rollback, and teardown workflow as the other paths.",
           "Specify the application private hostname, port, and upstream VPC network.",
-          "For a Shared VPC or any cross-project upstream, before validation/preflight an upstream-project administrator must manually create and grant the deployment-project deployer an upstream-project custom role containing exactly compute.networks.get, compute.networks.use, resourcemanager.projects.get, resourcemanager.projects.getIamPolicy, and resourcemanager.projects.setIamPolicy. Bootstrap is deployment-project-only, and project custom roles cannot be granted outside the project that owns them.",
-          "Option B requires a dedicated proxy-only subnet CIDR and creates a run-owned private sample backend VM. A dedicated VPC adds Router/NAT; an existing VPC requires verified private egress.",
+          "For a Shared VPC or cross-project upstream, grant the deployer SA an upstream custom role with compute.networks.get, compute.networks.use, resourcemanager.projects.get, resourcemanager.projects.getIamPolicy, and resourcemanager.projects.setIamPolicy before preflight.",
+          "Option B configures a proxy-only subnet CIDR and creates a run-owned private sample backend VM.",
         ],
         optionsBehavior: [
           {
-            name: "Option A (Direct HTTPS)",
+            name: "Option A · Direct HTTPS",
             behavior:
-              "Routes traffic directly to an existing private HTTPS endpoint. Bypasses Nginx and Load Balancer creation.",
+              "Routes directly to an existing private HTTPS endpoint without Nginx or an ILB.",
           },
           {
-            name: "Option B (ILB HTTPS Offload)",
+            name: "Option B · ILB HTTPS Offload",
             behavior:
-              "Creates a Regional Internal Application Load Balancer with an Envoy proxy subnet and a run-owned private sample VM, then terminates TLS and forwards HTTP to that VM on port 80. Existing HTTP endpoints are not supported.",
+              "Creates a Regional Internal Application Load Balancer, Envoy proxy subnet, and private sample VM on port 80.",
           },
           {
-            name: "Option C (Nginx HTTPS Offload)",
+            name: "Option C · Nginx HTTPS Offload",
             behavior:
-              "Deploys a dedicated private Compute Engine VM or Managed Instance Group running Nginx reverse proxy.",
+              "Deploys a private Compute Engine VM or MIG running Nginx.",
           },
         ],
         apiCalls: [
@@ -2850,290 +2831,261 @@ const en: Messages = {
           {
             method: "POST",
             endpoint: "https://beyondcorp.googleapis.com/v1/projects/{projectId}/locations/global/securityGateways/{gw}/applications",
-            purpose: "Registers the private application with hostname:port matcher and VPC route.",
+            purpose: "Registers the private application route.",
           },
           {
             method: "POST",
             endpoint: "https://compute.googleapis.com/compute/v1/projects/{projectId}/global/firewalls",
-            purpose: "Creates ingress firewall rule allowing TCP from 136.124.16.0/20 gateway source range.",
+            purpose: "Allows TCP ingress from 136.124.16.0/20.",
           },
           {
             method: "POST",
             endpoint: "https://dns.googleapis.com/dns/v1/projects/{projectId}/managedZones",
-            purpose: "Creates Cloud DNS private zone bound to the target VPC network.",
-          },
-          {
-            method: "POST",
-            endpoint: "https://compute.googleapis.com/compute/v1/projects/{projectId}/regions/{region}/subnetworks",
-            purpose: "Provisions REGIONAL_MANAGED_PROXY subnet for Option B ILB Envoy proxies.",
-          },
-          {
-            method: "POST",
-            endpoint: "https://compute.googleapis.com/compute/v1/projects/{projectId}/zones/{zone}/instances",
-            purpose: "Creates Option B's run-owned private sample backend VM with no external IP.",
-          },
-          {
-            method: "POST",
-            endpoint: "https://compute.googleapis.com/compute/v1/projects/{projectId}/regions/{region}/forwardingRules",
-            purpose: "Creates internal HTTPS forwarding rule for ILB offload tier.",
+            purpose: "Creates the Cloud DNS private zone.",
           },
         ],
-        safetyNote: "Regional ILBs must have Global Access enabled if accessed across regions. Option B mutations use the same approved run and teardown inventory as the other extension paths.",
+        safetyNote: "Enable Global Access on regional ILBs when routing across regions.",
       },
       {
         title: "Certificate",
         subtitle: "TLS ownership and trust propagation",
         summary:
-          "Manage certificate issuance, Secret Manager key encapsulation, and Chrome Root Store connector distribution.",
+          "Configure certificate issuance, Secret Manager storage, and Chrome Root Store trust.",
         actions: [
-          "Choose certificate origin: Enterprise CA Service, existing secret, or browser-generated local PoC CA.",
-          "Store TLS private keys securely in Google Cloud Secret Manager with least-privilege accessor bindings.",
-          "Download generated root CA PEM and link it to Chrome Root Store in Google Admin console.",
+          "Choose Enterprise CA Service, an existing secret, or a local PoC CA.",
+          "Store TLS private keys in Secret Manager with least-privilege accessor IAM.",
+          "Download the public root PEM and add it to Chrome Root Store in [Google Admin Console](https://admin.google.com).",
         ],
         optionsBehavior: [
           {
             name: "Enterprise CA Service",
             behavior:
-              "Issues certificates through an existing Google Cloud CA Service pool and authority.",
+              "Issues certificates from an existing Google Cloud CA pool.",
           },
           {
             name: "Public Secret",
             behavior:
-              "References pre-existing validated server certificates stored in Secret Manager.",
+              "Uses a validated server certificate stored in Secret Manager.",
           },
           {
             name: "Local PoC CA",
             behavior:
-              "Generates ephemeral 3072-bit RSA root and server keys in WebCrypto, then signs the server certificate with the in-memory root key.",
+              "Generates ephemeral 3072-bit RSA keys in WebCrypto and signs the server certificate in memory.",
           },
         ],
         apiCalls: [
           {
             method: "POST",
             endpoint: "https://secretmanager.googleapis.com/v1/projects/{projectId}/secrets",
-            purpose: "Creates encrypted secret container for TLS certificates and private keys.",
+            purpose: "Creates the secret container for TLS certificates and keys.",
           },
           {
             method: "POST",
             endpoint: "https://secretmanager.googleapis.com/v1/projects/{projectId}/secrets/{secretId}:addVersion",
-            purpose: "Uploads certificate payload version with automatic accessor IAM restriction.",
+            purpose: "Uploads the certificate payload version.",
           },
         ],
         safetyNote:
-          "The root CA private key is never exported. The server private key exists only in the active run's in-memory/session bundle, is uploaded to Secret Manager, and is cleared from extension session storage when the run finishes. Public certificate material is encrypted at rest in IndexedDB and may be downloaded; chrome.storage.local is not used after the accepted 0.2.0 migration.",
+          "The root CA private key is never exported, and the server private key is cleared from session storage once uploaded to Secret Manager.",
       },
       {
         title: "Access",
         subtitle: "Zero-Trust policy and user authorization",
         summary:
-          "Bind Context-Aware Access levels and enforce Chrome Enterprise browser policies on the test OU.",
+          "Bind Context-Aware Access levels and push Chrome policies to the test OU.",
         actions: [
-          "Select the target Organizational Unit (OU) from Google Workspace Directory API.",
-          "Apply Context-Aware Access Level condition (e.g. Managed Chrome device/profile required).",
-          "Grant Secure Gateway application access to specific test users, groups, or domains.",
+          "Select the target test OU from the Directory dropdown.",
+          "Attach an optional Context-Aware Access level.",
+          "Grant Secure Gateway application access to test users, groups, or domains.",
         ],
         optionsBehavior: [
           {
-            name: "Target Organizational Unit (OU)",
+            name: "Target Organizational Unit",
             behavior:
-              "Scopes Chrome policy push so only managed browsers in the dedicated test OU receive gateway configuration.",
+              "Pushes gateway policies only to managed browsers in the selected test OU.",
           },
           {
             name: "Managed Chrome Access Level",
             behavior:
-              "Restricts application access at the gateway level to devices/profiles satisfying BeyondCorp posture.",
+              "Restricts gateway access to profiles or devices meeting your posture policy.",
           },
           {
-            name: "Principal Types (User, Group, Domain)",
+            name: "Principals",
             behavior:
-              "Binds `roles/beyondcorp.sgApplicationUser` to authorized test identities in IAM.",
+              "Binds `roles/beyondcorp.sgApplicationUser` to authorized test identities.",
           },
         ],
         apiCalls: [
           {
-            method: "GET",
-            endpoint: "https://admin.googleapis.com/admin/directory/v1/customer/{customerId}/orgunits",
-            purpose: "Retrieves organizational unit hierarchy from Google Workspace.",
-          },
-          {
-            method: "GET",
-            endpoint: "https://accesscontextmanager.googleapis.com/v1/accessPolicies/{policyId}/accessLevels",
-            purpose: "Lists available Context-Aware Access Levels.",
-          },
-          {
             method: "POST",
             endpoint: "https://chromepolicy.googleapis.com/v1/customers/{customerId}/policies/orgunits:batchModify",
-            purpose: "Force-installs Secure Enterprise Browser & Endpoint Verification extensions and sets routing policy.",
+            purpose: "Force-installs extensions and configures gateway routing on the test OU.",
           },
           {
             method: "POST",
             endpoint: "https://beyondcorp.googleapis.com/v1/projects/{projectId}/locations/global/securityGateways/{gw}/applications/{app}:setIamPolicy",
-            purpose: "Binds application user roles and access level conditions to test principals.",
+            purpose: "Binds application IAM roles and access levels.",
           },
         ],
-        safetyNote: "Existing PAC policies on parent OUs are overridden only within the target test OU.",
+        safetyNote: "Inherited parent PAC policies are overridden only on the selected test OU.",
       },
       {
         title: "Review",
         subtitle: "Deterministic preflight and cryptographic approval",
         summary:
-          "Perform comprehensive read-only discovery, evaluate all safety gates, and bind approval to a SHA-256 hash.",
+          "Run read-only discovery, evaluate all safety gates, and bind approval to a SHA-256 hash.",
         actions: [
-          "Scan existing Google Cloud and Workspace assets to build an exact desired-state diff.",
-          "Evaluate safety gates (APIs, permissions, CIDR conflicts, licenses, existing certificates).",
-          "Confirm human approval bound cryptographically to the exact configuration payload hash.",
+          "Scan Cloud and Workspace resources to build a desired-state diff.",
+          "Evaluate safety gates for APIs, permissions, CIDRs, licenses, and certificates.",
+          "Approve the exact configuration hash.",
         ],
         optionsBehavior: [
           {
             name: "Preflight Discovery",
             behavior:
-              "Runs non-mutating scans across all required APIs to detect resource conflicts before execution.",
+              "Runs read-only probes to detect resource conflicts before execution.",
           },
           {
-            name: "Safety Gates Verification",
+            name: "Safety Gates",
             behavior:
-              "Enforces prerequisites (Billing, CEP license, Private DNS, Firewalls) with Pass / Planned / Blocked status.",
+              "Checks billing, CEP licenses, DNS, and IAM prerequisites.",
           },
           {
             name: "SHA-256 Approval Binding",
             behavior:
-              "Calculates a deterministic canonical hash of the plan. Any subsequent modification immediately revokes the approval.",
+              "Binds approval to the canonical plan hash and revokes it on any edit.",
           },
         ],
         apiCalls: [
           {
             method: "GET",
             endpoint: "https://serviceusage.googleapis.com/v1/projects/{projectId}/services",
-            purpose: "Audits enabled Google Cloud APIs.",
+            purpose: "Checks enabled Google Cloud APIs.",
           },
           {
             method: "POST",
             endpoint: "https://cloudresourcemanager.googleapis.com/v1/projects/{projectId}:testIamPermissions",
-            purpose: "Validates caller possesses all necessary IAM permissions for planned changes.",
+            purpose: "Verifies required IAM permissions.",
           },
         ],
-        safetyNote: "Approval cannot be granted while any blocking safety gate remains unresolved.",
+        safetyNote: "Approval is disabled while any blocking safety gate remains unresolved.",
       },
       {
         title: "Apply",
         subtitle: "Ordered orchestration, rollback, and evidence capture",
         summary:
-          "Execute approved mutations in topological dependency order with ownership tracking, then persist the applicable acceptance matrix for separate verification.",
+          "Execute approved changes in dependency order with ownership tracking and acceptance verification.",
         actions: [
-          "Provision the selected runtime path sequentially: subnets -> certificates -> backend (Nginx VM/MIG or ILB HTTPS sample VM) -> gateway -> DNS -> Chrome policies.",
-          "Track resource ownership in IndexedDB audit store; reverse-rollback only owned assets on failure.",
-          "After Apply, run the automated system checks from Operations and record operator evidence from managed Chrome testing. Verify access denial and log correlation before exporting the auditable JSON bundle.",
+          "Provision subnets, certificates, backend, gateway, DNS, and Chrome policies in dependency order.",
+          "Track resource ownership and reverse-rollback owned changes on failure.",
+          "Run automated system checks and record managed Chrome verification in Operations.",
         ],
         optionsBehavior: [
           {
             name: "Dependency-Ordered Execution",
             behavior:
-              "Ensures prerequisite infrastructure (VPC, Subnets, Secrets) exists before higher-level services bind to them.",
+              "Provisions network and secret prerequisites before binding higher-level services.",
           },
           {
             name: "Automated Reverse Rollback",
             behavior:
-              "If any step fails, undoes previously created resources in strict reverse order while preserving pre-existing shared assets.",
+              "Rolls back owned resources in reverse order on failure while preserving shared assets.",
           },
           {
             name: "Separate acceptance verification and evidence",
             behavior:
-              "Apply only persists the matrix. Operations runs automated system verification (connectivity, TLS, DNS); the operator records managed Chrome verification and unauthorized/unmanaged denial cases.",
+              "Apply only persists the matrix. Run automated system checks and record client evidence in Operations.",
           },
         ],
         apiCalls: [],
         safetyNote:
-          "MV3 worker suspension resumes from durable checkpoints. If the browser session loses an ephemeral TLS private key, the run fails closed into ownership-bounded rollback; operator reconciliation is required only if cleanup cannot complete.",
+          "Resumes from durable checkpoints if suspended, or rolls back owned resources if an ephemeral TLS key is lost.",
       },
     ],
-    faqTitle: "Frequently Asked Questions & Troubleshooting (FAQ)",
+    faqTitle: "Frequently Asked Questions & Troubleshooting",
     faqIntro:
-      "Essential guides, troubleshooting procedures, certificate trust mechanisms, and operational best practices derived from real-world Secure Gateway deployments.",
-    faqEyebrow: "Troubleshooting & best practices",
-    faqChecklistLabel: "Verification checklist & resolution steps",
+      "Troubleshooting steps for routing, certificates, OAuth distribution, and teardown.",
+    faqEyebrow: "Troubleshooting & operations",
+    faqChecklistLabel: "Verification checklist",
     faqs: [
       {
         id: "faq-503-unavailable",
         category: "Routing & Data Path",
-        question: "Why does Chrome show '503 Service Unavailable' or connection failure when accessing private applications?",
+        question: "Why does Chrome show '503 Service Unavailable' when accessing a private app?",
         answer:
-          "A 503 error indicates that BeyondCorp Security Gateway cannot establish a TCP/TLS connection with the approved run-scoped backend hostname and reserved private address. Verify the selected or run-owned Compute target, firewall, private DNS, and—only when the approved architecture requires it—Cloud NAT.",
+          "BeyondCorp Security Gateway cannot reach the approved run-scoped backend hostname and reserved private address over TCP/TLS. Check the Compute target, firewall, private DNS, and Cloud NAT.",
         checklist: [
-          "Open this run's Resources and Logs panels, then run automated system verification; use only the run-scoped inventory and sanitized evidence when comparing live resources.",
-          "Verify the approved firewall rule allows the required backend port from the Secure Gateway source range 136.124.16.0/20, never from 0.0.0.0/0.",
+          "Run automated system checks from the run's Resources and Logs panels.",
+          "Confirm the firewall rule allows the backend port from 136.124.16.0/20.",
           "Verify Cloud Router and Cloud NAT, when required by the approved network strategy, are configured for the created subnet in the VPC selected in this run.",
-          "Ensure the run-scoped Cloud DNS private zone maps the approved hostname to the exact reserved private address shown in that run's resource inventory.",
+          "Confirm the Cloud DNS private zone maps the approved hostname to the reserved private IP.",
         ],
       },
       {
         id: "faq-cert-authority-invalid",
         category: "Certificates & Root CA",
-        question: "Why does Chrome report 'net::ERR_CERT_AUTHORITY_INVALID' or 'Not Secure' with a certificate warning?",
+        question: "Why does Chrome report 'net::ERR_CERT_AUTHORITY_INVALID'?",
         answer:
-          "This occurs when the TLS server certificate is not covered by the root configured for the dedicated test OU in Chrome Root Store, or when the managed work profile has not received the updated policy yet.",
+          "The server certificate's root CA is not linked to the test OU in Chrome Root Store, or the managed profile has not reloaded policies yet.",
         checklist: [
-          "Download the latest public PoC root PEM from Apply (Step 7) or Deployment Manager and verify its fingerprint.",
-          "In Google Admin console, add the PEM at Chrome > Connectors > Chrome Root Store and connect that configuration only to the dedicated test OU.",
-          "In the same managed work profile, open chrome://policy and click 'Reload policies', then restart Chrome if the policy has not refreshed.",
-          "Retry the approved private HTTPS hostname in that same managed profile; do not bypass the certificate warning or use Incognito as a trust test.",
+          "Download the public PoC root PEM from Apply or Deployment Manager.",
+          "In [Google Admin Console](https://admin.google.com), add the PEM at Chrome > Connectors > Chrome Root Store and bind it to the test OU.",
+          "Open `chrome://policy` in the managed profile and click 'Reload policies'.",
         ],
       },
       {
         id: "faq-oauth-external-mode",
         category: "OAuth & Distribution",
-        question: "How should the Google Cloud OAuth Consent Screen be configured when sharing the extension with external testers?",
+        question: "How should the OAuth Consent Screen be configured for external testers?",
         answer:
-          "Use External / Testing only for explicitly named testers outside your Workspace domain. This extension requests sensitive scopes, so external production distribution requires Google OAuth branding and scope verification; Production status does not make an unverified app unrestricted.",
+          "Use External / Testing for named testers outside your domain. Because this extension requests sensitive scopes, external production distribution requires Google OAuth branding and scope verification.",
         checklist: [
-          "In Google Cloud Console -> APIs & Services -> OAuth consent screen, set User Type to External.",
-          "In Testing mode, add each tester under Test users. The unverified-app user cap still applies, and grants for sensitive scopes may expire after seven days.",
-          "Before external production use, complete the repository's OAuth branding/scope-verification checklist. Workspace administrator access policies can still block authorization.",
+          "In [Google Cloud Console](https://console.cloud.google.com) > APIs & Services > OAuth consent screen, set User Type to External.",
+          "Add each tester under Test users while in Testing mode.",
         ],
       },
       {
         id: "faq-extension-id-mismatch",
         category: "OAuth & Distribution",
-        question: "How do we prevent 'OAuth2 request failed: Bad Client ID' errors on testers' computers?",
+        question: "How do we prevent 'OAuth2 request failed: Bad Client ID' on tester machines?",
         answer:
-          "Unpacked extensions calculate their Extension ID from local directory paths unless a fixed public key ('key') is specified in manifest.json. Ensure the extension ID matches the Item ID configured in GCP OAuth 2.0 Client Credentials.",
+          "Ensure the `key` in `manifest.json` keeps the Extension ID identical to the Item ID registered on your GCP OAuth 2.0 Client ID.",
         checklist: [
-          "Verify the Item ID in GCP Credentials -> OAuth 2.0 Client IDs matches the extension ID on chrome://extensions.",
-          "The versioned secure-gateway-studio ZIP includes a fixed key to guarantee the exact same extension ID on every tester machine.",
+          "Compare the extension ID on `chrome://extensions` with the Item ID in [Google Cloud Console](https://console.cloud.google.com).",
+          "Use the packaged ZIP, which embeds the fixed public key.",
         ],
       },
       {
         id: "faq-access-level-cel",
         category: "Zero Trust & Security",
-        question: "How does Access Context Manager (CEL) enforce Managed Chrome device/profile requirements?",
+        question: "How does Access Context Manager enforce Managed Chrome requirements?",
         answer:
-          "BeyondCorp Application IAM bindings reference an Access Context Manager level whose CEL uses device.chrome.management_state (for example, PROFILE_MANAGED or BROWSER_MANAGED). Requests that do not satisfy that verified level are denied at Google's edge.",
+          "BeyondCorp Application IAM bindings evaluate `device.chrome.management_state` via Access Context Manager and deny non-compliant requests at Google's edge.",
         checklist: [
-          "In Deployment Manager, select NONE or an existing full accessPolicies/.../accessLevels/... resource returned by Google.",
-          "The manager updates the application's conditional IAM binding and principals; it never creates an Access Context Manager level.",
+          "Select NONE or an existing `accessPolicies/.../accessLevels/...` resource in Deployment Manager.",
           "All modifications are logged to the tamper-evident cryptographic audit trail.",
         ],
       },
       {
         id: "faq-owned-teardown",
         category: "Operations & Teardown",
-        question: "How do we safely remove the resources created by a deployment?",
+        question: "How do we safely remove resources created by a deployment?",
         answer:
-          "Use Teardown in Deployment Manager. It deletes only resources recorded as owned by that run, in reverse dependency order. Shared IAM and Chrome policy before-images are restored only when the current value safely matches that run's recorded managed-after state; drift or a write with an unknown result is retained for manual reconciliation. Other pre-existing resources are retained.",
+          "Run Teardown in Deployment Manager to delete owned resources in reverse dependency order. Shared IAM and Chrome policies are restored only when the current value safely matches that run's recorded managed-after state; drift or an unknown write is retained.",
         checklist: [
-          "In Deployment Manager -> Teardown, type the exact confirmation phrase to execute the run-scoped teardown.",
-          "Review the owned, restored, and retained resource lists before confirming the run-scoped operation.",
+          "Review the owned, restored, and retained resource lists in Deployment Manager > Teardown.",
+          "Type the exact confirmation phrase to start teardown.",
         ],
       },
       {
         id: "faq-existing-default-gateway",
         category: "Shared Gateway Coexistence",
-        question: "What happens if our Google Cloud project already has an existing 'default' BeyondCorp Security Gateway?",
+        question: "What happens if our project already has an existing 'default' Security Gateway?",
         answer:
-          "Google Cloud BeyondCorp requires the Security Gateway resource ID to be 'default' (1 per project). When an active 'default' Security Gateway already exists in the project, Preflight Discovery automatically marks it for non-destructive reuse (action: reuse, owned_after_apply: false) rather than failing or recreating it. Apply then creates an isolated Application route under that shared gateway, merges IAM bindings without removing existing principals, and retains the shared 'default' gateway during Rollback or Teardown.",
+          "Preflight automatically marks an active compatible `default` gateway for non-destructive reuse (`action: reuse`, `owned_after_apply: false`), adds only the new Application route, and retains the gateway during Teardown.",
         checklist: [
-          "Confirm that the existing 'default' Security Gateway in your project is in the RUNNING state and does not use incompatible proxyProtocolConfig or custom serviceDiscovery settings.",
-          "Use a unique Private Application Hostname for your PoC so its derived application ID does not collide with an existing application on the shared gateway.",
-          "During Teardown, only the run-owned Application route, backend resources, and IAM additions are removed; the pre-existing 'default' Security Gateway remains untouched.",
+          "Confirm the existing `default` gateway is RUNNING without custom `serviceDiscovery` or `proxyProtocolConfig`.",
+          "Use a unique Private Application Hostname to avoid application ID collisions.",
         ],
       },
     ],
