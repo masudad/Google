@@ -443,6 +443,37 @@ export interface GuideMessages {
   portalEyebrow: string;
   portalTitle: string;
   portalIntro: string;
+  beginnerNavLabel: string;
+  beginnerEyebrow: string;
+  beginnerTitle: string;
+  beginnerIntro: string;
+  beginnerPillars: readonly {
+    badge: string;
+    title: string;
+    analogy: string;
+    description: string;
+    whereUrl: string;
+  }[];
+  stepZeroEyebrow: string;
+  stepZeroTitle: string;
+  stepZeroIntro: string;
+  stepZeroChecklist: readonly {
+    stepBadge: string;
+    title: string;
+    summary: string;
+    details: readonly string[];
+  }[];
+  glossaryEyebrow: string;
+  glossaryTitle: string;
+  glossaryIntro: string;
+  glossaryTermHeader: string;
+  glossaryAnalogyHeader: string;
+  glossaryMeaningHeader: string;
+  glossaryItems: readonly {
+    term: string;
+    analogy: string;
+    meaning: string;
+  }[];
   sharedAuthTitle: string;
   sharedAuthIntro: string;
   sharedAuthItems: readonly {
@@ -1977,7 +2008,144 @@ const en: Messages = {
     portalEyebrow: "Chrome Enterprise Premium PoC Deployer · Documentation & Operations Guide",
     portalTitle: "Documentation & Step-by-Step PoC Guide",
     portalIntro:
-      "This extension combines two complementary Chrome Enterprise Premium (CEP) workflows in one browser-resident tool: (1) Easy PoC for agentless browser DLP, malware/phishing inspection, GenAI governance, SaaS tenant restrictions, and Gemini Zero Trust controls, and (2) Secure Gateway Deployer for VPN-less private web application access. Use the tabs below to switch between the two guides.",
+      "This extension combines two complementary Chrome Enterprise Premium (CEP) workflows in one browser-resident tool: (1) Easy PoC for agentless browser DLP, malware/phishing inspection, GenAI governance, SaaS tenant restrictions, and Gemini Zero Trust controls, and (2) Secure Gateway Deployer for VPN-less private web application access. Even if you have never used Google Workspace or Google Cloud before, start with the 5-minute primer below.",
+    beginnerNavLabel: "New to Google? Start Here",
+    beginnerEyebrow: "First-Time Administrator Primer · No Prior Google Experience Required",
+    beginnerTitle: "New to Google Workspace or Google Cloud? Understand the 3 Building Blocks",
+    beginnerIntro:
+      "If you normally manage Microsoft Entra ID (Azure AD), Active Directory, Intune, AWS, or Zscaler, Google's management consoles use slightly different names for familiar concepts. Here are the three building blocks this tool interacts with:",
+    beginnerPillars: [
+      {
+        badge: "1. Identity & Browser Console",
+        title: "Google Admin Console (admin.google.com)",
+        analogy: "Equivalent to Microsoft Entra ID (Azure AD) + Intune",
+        description:
+          "The central web console where user accounts, organizational folders (OUs), groups, and Chrome browser security policies live. You do not need paid Gmail/Docs licenses to use it—even free Cloud Identity accounts use the exact same console. Easy PoC runs entirely against this console.",
+        whereUrl: "https://admin.google.com",
+      },
+      {
+        badge: "2. Who Receives the Policy",
+        title: "Organizational Units (OUs) & Google Groups",
+        analogy: "Equivalent to Active Directory OUs & Security Groups",
+        description:
+          "Decides which users get your PoC settings. The top-level folder is the Root OU (/), which affects everyone in your company—so this tool blocks changes to the Root OU (/) for safety. Always pick a child test folder (e.g., /CEP-PoC) or a Google Group (which lets you test policies on specific users without moving them out of their current department folder).",
+        whereUrl: "admin.google.com > Directory > Organizational units / Groups",
+      },
+      {
+        badge: "3. Cloud Infrastructure (Optional for Easy PoC)",
+        title: "Google Cloud Project (console.cloud.google.com)",
+        analogy: "Equivalent to an AWS Account or Azure Subscription",
+        description:
+          "A container for cloud resources such as virtual machines, networks, and gateways. You do NOT need a Google Cloud Project for basic Easy PoC browser DLP and URL controls. It is only used when running Secure Gateway Deployer (for VPN-less access to private internal websites) or when creating device-trust rules (Context-Aware Access / VPC-SC).",
+        whereUrl: "https://console.cloud.google.com",
+      },
+    ],
+    stepZeroEyebrow: "Step 0 · 5-Minute Preparation Before Clicking Deploy",
+    stepZeroTitle: "Three Quick Preparation Steps Before You Start",
+    stepZeroIntro:
+      "Complete these three preparation steps once so your PoC policies apply cleanly to your test browser:",
+    stepZeroChecklist: [
+      {
+        stepBadge: "Prep 1 · Admin Console",
+        title: "Create one test Child OU (folder) or test Google Group in admin.google.com",
+        summary:
+          "Because the Root OU (/) is protected from modification, prepare an isolated container for your pilot users first.",
+        details: [
+          "To test by OU (folder): Open admin.google.com > Directory > Organizational units, click the '+' icon under your top-level organization to create a child OU such as 'CEP-PoC', and move 1–2 test user accounts into it.",
+          "To test by Group (no folder move needed): Open admin.google.com > Directory > Groups, create a group such as 'cep-poc@yourdomain.com', and add your test user account as a member.",
+          "To create DLP rules in Easy PoC Tab 3, sign in with an administrator account that holds the Google Workspace Super Admin role.",
+        ],
+      },
+      {
+        stepBadge: "Prep 2 · Top-Right Sign-In",
+        title: "Click 'Google Workspace' (and 'Google Cloud' if needed) at the top right of this extension",
+        summary:
+          "Both Easy PoC and Secure Gateway Deployer share the two login buttons in the top-right header bar (next to the language switcher).",
+        details: [
+          "Click 'Google Workspace' in the top-right header and click 'Sign in with Google & Verify'. The extension automatically discovers your Customer ID (starting with 'C...'), your OU folders, and your Google Groups—you never have to look up raw IDs manually.",
+          "If you plan to use Secure Gateway Deployer (or Context-Aware Access device posture), also click 'Google Cloud' at the top right, paste your Google Cloud Project ID (e.g., 'my-poc-project-123' from console.cloud.google.com), and click Verify.",
+        ],
+      },
+      {
+        stepBadge: "Prep 3 · Test Chrome Browser",
+        title: "Sign in to a Chrome profile with your test user and reload policies at chrome://policy",
+        summary:
+          "Chrome Enterprise policies travel through the signed-in Chrome profile (or enrolled browser) in real time.",
+        details: [
+          "On your test computer, click the profile icon at the top right of Chrome and sign in with the Google account that belongs to your test OU or test Group (accept 'Turn on sync' or 'Managed profile' when prompted).",
+          "After deploying policies in this tool, open a tab to chrome://policy in that Chrome window and click 'Reload policies' at the top left. Your new policies and DLP rules take effect within seconds.",
+        ],
+      },
+    ],
+    glossaryEyebrow: "Plain-Language Reference · Google Terms vs. General IT / Microsoft Terms",
+    glossaryTitle: "Quick Glossary of Google Terms Appearing in This Tool",
+    glossaryIntro:
+      "Click to expand or review the plain-language meaning of every Google term used in Easy PoC and Secure Gateway Deployer:",
+    glossaryTermHeader: "Term in This Tool",
+    glossaryAnalogyHeader: "Microsoft / General IT Equivalent",
+    glossaryMeaningHeader: "What It Means in Plain Language",
+    glossaryItems: [
+      {
+        term: "Customer ID (C0123... / my_customer)",
+        analogy: "Microsoft Entra Tenant ID",
+        meaning:
+          "Your organization's unique ID in Google Workspace / Cloud Identity (always starts with 'C'). The alias 'my_customer' automatically resolves to your real Customer ID when you sign in.",
+      },
+      {
+        term: "Organizational Unit (OU)",
+        analogy: "Active Directory OU (Department Folder)",
+        meaning:
+          "A folder hierarchy in admin.google.com used to group users or browsers. The top-level folder '/' is the Root OU (all employees). Always select a sub-folder (Child OU) for PoC testing.",
+      },
+      {
+        term: "Google Group Target",
+        analogy: "Entra ID / AD Security Group",
+        meaning:
+          "Allows you to apply Chrome policies and DLP rules to members of a specific group (e.g., cep-poc@example.com) without moving those users out of their existing department OU.",
+      },
+      {
+        term: "Chrome Enterprise Connectors",
+        analogy: "Built-in Browser Inspection Sensor (Agentless)",
+        meaning:
+          "Capabilities built directly into standard Chrome that inspect file uploads, downloads, clipboard pastes, print jobs, and security events in real time—without installing any endpoint agent on the PC.",
+      },
+      {
+        term: "Cloud Identity DLP Rule",
+        analogy: "Purview Endpoint DLP / CASB Policy Rule",
+        meaning:
+          "The rule engine paired with Chrome Connectors that defines what happens (Audit Only, Warn User, or Block) when sensitive data (credit cards, national IDs) or restricted actions occur.",
+      },
+      {
+        term: "Context-Aware Access (CAA / Access Level)",
+        analogy: "Entra ID Conditional Access Policy",
+        meaning:
+          "Evaluates whether the user is connecting from a corporate-managed Chrome browser or an unmanaged personal device (BYOD), allowing stricter DLP rules on BYOD.",
+      },
+      {
+        term: "Endpoint Verification",
+        analogy: "Lightweight Device Posture Helper Extension",
+        meaning:
+          "An official Google Chrome extension that reports OS version, disk encryption, and device state to the Admin Console so Context-Aware Access can verify device posture.",
+      },
+      {
+        term: "BeyondCorp Security Gateway (SGW)",
+        analogy: "Zscaler Private Access (ZPA) / Entra Private Access",
+        meaning:
+          "Google Cloud's zero-trust reverse proxy that lets authorized Chrome browsers open internal private web apps over HTTPS without installing a VPN client on user devices.",
+      },
+      {
+        term: "Google Cloud Project (Project ID)",
+        analogy: "AWS Account / Azure Subscription",
+        meaning:
+          "The billing and resource boundary in Google Cloud (e.g., 'secgw-poc-01') where Secure Gateway Deployer creates the gateway, VPC network, and optional sample VM.",
+      },
+      {
+        term: "Keyless Service Account (SA)",
+        analogy: "AWS IAM Role / Azure Managed Identity",
+        meaning:
+          "A dedicated automation identity created inside your Google Cloud project in Step 2 of Secure Gateway Deployer so infrastructure changes run with least-privilege permissions and no downloadable key files.",
+      },
+    ],
     sharedAuthTitle: "Unified Top-Right Authentication & Shared Credentials",
     sharedAuthIntro:
       "Both Easy PoC and Secure Gateway Deployer share the Google Workspace and Google Cloud connection controls in the top-right header (to the left of the language menu). Sign in once at the top right and both workflows reuse your verified session:",
@@ -4296,7 +4464,144 @@ const ja: Messages = {
     portalEyebrow: "Chrome Enterprise Premium PoC Deployer · 統合ドキュメント & 運用ガイド",
     portalTitle: "機能別ドキュメント & ステップバイステップ PoC ガイド",
     portalIntro:
-      "本拡張機能は、Chrome Enterprise Premium（CEP）の2つの主要ワークフローを1つのブラウザ拡張機能に統合しています。(1) インフラ構築不要でブラウザのDLP（情報漏洩対策）、マルウェア・フィッシング深層検査、生成AIガバナンス、SaaSテナント制限（HTTPヘッダー注入）、Gemini Enterprise ゼロトラスト制御を即時構成する「Easy PoC」、および (2) VPNなしで社内Webアプリへゼロトラスト接続する「Secure Gateway Deployer」です。下のタブを切り替えて各機能のガイドを確認できます。",
+      "本拡張機能は、Chrome Enterprise Premium（CEP）の2つの主要ワークフローを1つのブラウザ拡張機能に統合しています。(1) インフラ構築不要でブラウザのDLP（情報漏洩対策）、マルウェア・フィッシング深層検査、生成AIガバナンス、SaaSテナント制限（HTTPヘッダー注入）、Gemini Enterprise ゼロトラスト制御を即時構成する「Easy PoC」、および (2) VPNなしで社内Webアプリへゼロトラスト接続する「Secure Gateway Deployer」です。Google Workspace や Google Cloud を初めて触る管理者の方は、まず下の「5分でわかる基本ガイド」からご覧ください。",
+    beginnerNavLabel: "GWS・Google が初めての方へ",
+    beginnerEyebrow: "Google Workspace / Google Cloud 初心者向けガイド · 事前知識ゼロでわかる基本構造",
+    beginnerTitle: "Google の管理画面が初めての方へ：まず押さえるべき「3つの基本要素」",
+    beginnerIntro:
+      "普段 Microsoft Entra ID（旧 Azure AD）、Active Directory、Intune、AWS、Zscaler などを管理されている方に向けて、本ツールが操作する Google の3つの管理単位を一般的な IT 用語と対比して解説します。",
+    beginnerPillars: [
+      {
+        badge: "1. ユーザーとブラウザの司令塔",
+        title: "Google 管理コンソール (admin.google.com)",
+        analogy: "Microsoft Entra ID (旧 Azure AD) ＋ Intune に相当",
+        description:
+          "社員のアカウント、部署フォルダ（OU）、グループ、および Chrome ブラウザのセキュリティ設定を一括管理する Web 管理画面です。有料の Gmail / Docs（Google Workspace）を使っていなくても、無料の ID 基盤「Cloud Identity Free」があれば同じ管理画面を利用できます。Easy PoC（情報漏洩対策・生成AI制御）はこの管理コンソールだけで完結します。",
+        whereUrl: "https://admin.google.com",
+      },
+      {
+        badge: "2. ルールを「誰に」効かせるか",
+        title: "組織部門（OU）と Google グループ",
+        analogy: "Active Directory の OU（部署フォルダ）とセキュリティグループに相当",
+        description:
+          "セキュリティ設定を適用する「対象の範囲」です。一番上の親フォルダは「ルート OU（/）」と呼ばれ全社員に影響するため、本ツールでは安全保護としてルート OU（/）への書き込みをブロックしています。検証時は「検証用の子フォルダ（子 OU）」を選ぶか、ユーザーを現在の部署から移動させずに済む「Google グループ」を選択します。",
+        whereUrl: "admin.google.com > ディレクトリ > 組織部門 / グループ",
+      },
+      {
+        badge: "3. クラウド基盤（Easy PoC の基本機能では不要）",
+        title: "Google Cloud プロジェクト (console.cloud.google.com)",
+        analogy: "AWS アカウント / Azure サブスクリプションに相当",
+        description:
+          "仮想マシン（VM）やネットワーク、ゲートウェイを作成するクラウド環境です。Easy PoC の基本機能（ブラウザ DLP・URL 制御・SaaS テナント制限）では Google Cloud プロジェクトは不要です。Secure Gateway Deployer（VPN なしで社内 Web サイトへ接続する機能）や、端末状態判定（Context-Aware Access / VPC-SC）を使う場合のみ使用します。",
+        whereUrl: "https://console.cloud.google.com",
+      },
+    ],
+    stepZeroEyebrow: "ステップ 0 · ツールを操作する前の「5分間 事前準備チェックリスト」",
+    stepZeroTitle: "デプロイを始める前に行う 3 つの準備",
+    stepZeroIntro:
+      "Google Workspace を初めて触る場合でも、以下の 3 ステップを順番に行うだけで安全に PoC 環境を準備できます。",
+    stepZeroChecklist: [
+      {
+        stepBadge: "準備 1 · 管理コンソール",
+        title: "Google 管理コンソール（admin.google.com）で検証用の「子 OU」または「グループ」を1つ作成する",
+        summary:
+          "全社（ルート OU `/`）への誤適用を防ぐため、最初にテスト対象ユーザーを入れる「検証用の箱」を1つ用意します。",
+        details: [
+          "【方法A：組織部門（OU）で試す場合】admin.google.com の左メニュー［ディレクトリ］>［組織部門］を開き、最上位フォルダにカーソルを合わせて「＋（新しい組織部門を作成）」から『CEP-PoC』などの子フォルダを作成し、テスト用ユーザーを1〜2名移動します。",
+          "【方法B：Google グループで試す場合（部署移動が不要で手軽）】左メニュー［ディレクトリ］>［グループ］から『cep-poc@自社ドメイン』のようなグループを作成し、テストしたいユーザーアカウントをメンバーに追加します。",
+          "【管理者権限の確認】Easy PoC のタブ 3（DLP ルール作成）を実行する際は、Google 管理コンソールで「特権管理者（Super Admin）」権限を持つ管理者アカウントを使用してください。",
+        ],
+      },
+      {
+        stepBadge: "準備 2 · 画面右上でログイン",
+        title: "この拡張機能の右上にある「Google Workspace」（必要に応じて「Google Cloud」）をクリックしてログインする",
+        summary:
+          "画面右上（言語切替メニューの左隣）にある 2 つのボタンが、Easy PoC と Secure Gateway Deployer 共通のログイン窓口です。",
+        details: [
+          "画面右上の［Google Workspace］をクリックし、［Google でログインして確認］を押します。ログインするだけで、自社の顧客ID（C から始まるテナントID）、作成した OU 一覧、グループ一覧がすべて自動で読み込まれます（ID を自分で調べて手入力する必要はありません）。",
+          "Secure Gateway Deployer（社内 Web 接続）や端末判定（Context-Aware Access）も試す場合は、右上の［Google Cloud］をクリックし、Google Cloud コンソール（console.cloud.google.com）上部に表示される「プロジェクト ID」（例: my-poc-project-123）を入力して確認ボタンを押します。",
+        ],
+      },
+      {
+        stepBadge: "準備 3 · テスト用 Chrome",
+        title: "検証用 PC の Chrome にテスト用アカウントでログインし、chrome://policy で反映を確認する",
+        summary:
+          "本ツールで投入したポリシーは、テスト用アカウントでログインした Chrome ブラウザへ数秒で配信されます。",
+        details: [
+          "検証用 PC の Chrome ブラウザ右上にある「人型アイコン（プロファイル）」をクリックし、準備 1 でテスト用 OU またはグループに入れた Google アカウントでログインします（「同期を有効にする」または「管理対象プロファイルの作成」を承認します）。",
+          "本ツールで設定をデプロイした後、その Chrome のアドレスバーに『chrome://policy』と入力して開き、左上の［ポリシーを再読み込み］をクリックすると、新しいセキュリティ設定が即座に反映されます。",
+        ],
+      },
+    ],
+    glossaryEyebrow: "用語早見表 · Google 専門用語と Microsoft / 一般 IT 用語の対訳",
+    glossaryTitle: "画面に出てくる Google 用語のかんたん解説表",
+    glossaryIntro:
+      "本ツールの画面やガイドに登場する Google 固有の用語を、一般的な IT・セキュリティ用語に置き換えて解説しています。",
+    glossaryTermHeader: "画面上の用語",
+    glossaryAnalogyHeader: "Microsoft / 一般 IT での相当用語",
+    glossaryMeaningHeader: "初心者向けのわかりやすい意味",
+    glossaryItems: [
+      {
+        term: "顧客ID（Customer ID: C0123... / my_customer）",
+        analogy: "Microsoft Entra の「テナント ID」",
+        meaning:
+          "Google Workspace / Cloud Identity の契約ごとに割り当てられる『C』から始まる固有 ID です。右上からログインするか『my_customer』解決ボタンを押せば自動取得されます。",
+      },
+      {
+        term: "組織部門（OU: Organizational Unit）",
+        analogy: "Active Directory の「OU（階層フォルダ）」",
+        meaning:
+          "ユーザーや端末を階層分けするフォルダです。一番上の『/』（ルート OU）は全社員を指すため、本ツールでは 1 階層下の検証用フォルダ（子 OU）を選択します。",
+      },
+      {
+        term: "Google グループ（Target Group）",
+        analogy: "Entra ID / AD の「セキュリティグループ」",
+        meaning:
+          "ユーザーの所属部署（OU）を変更せずに、グループに参加しているメンバーだけに Chrome ポリシーや DLP ルールをピンポイント適用できる仕組みです。",
+      },
+      {
+        term: "Chrome Enterprise Connectors",
+        analogy: "ブラウザ内蔵の「検問センサー（エージェントレス）」",
+        meaning:
+          "PC に専用ソフト（DLP エージェント等）を入れなくても、通常の Chrome ブラウザだけでファイルのアップロード・ダウンロード・コピペ・印刷・セキュリティイベントをリアルタイム検査する機能です。",
+      },
+      {
+        term: "Cloud Identity DLP ルール",
+        analogy: "Purview Endpoint DLP / CASB の「保護ルール」",
+        meaning:
+          "Chrome の検問センサーと連動し、『クレジットカード番号やマイナンバーが含まれていたらブロック／警告する』『社内サイトに透かし（Watermark）を表示する』といった動作を決めるルールです。",
+      },
+      {
+        term: "Context-Aware Access（CAA / アクセスレベル）",
+        analogy: "Entra ID の「条件付きアクセス（Conditional Access）」",
+        meaning:
+          "『会社が管理している Chrome か、私物 PC（BYOD）か』『OS が最新か』といった接続元の端末状態（ポスチャ）を判定する条件パーツです。",
+      },
+      {
+        term: "Endpoint Verification（エンドポイントの確認）",
+        analogy: "Intune 等へ端末状態を送る軽量ヘルパー拡張機能",
+        meaning:
+          "PC の OS バージョンやディスク暗号化（BitLocker / FileVault）の状態を管理コンソールへ報告する Google 公式の Chrome 拡張機能です。",
+      },
+      {
+        term: "BeyondCorp Security Gateway（SGW）",
+        analogy: "Zscaler ZPA / Entra Private Access（VPN 不要の社内接続）",
+        meaning:
+          "PC に VPN クライアントソフトを入れなくても、Chrome ブラウザだけでクラウドや社内の非公開 Web アプリへ安全にアクセスできるゼロトラスト中継ゲートウェイです。",
+      },
+      {
+        term: "Google Cloud プロジェクト（Project ID）",
+        analogy: "AWS アカウント / Azure サブスクリプション",
+        meaning:
+          "Google Cloud 上でゲートウェイやテスト用仮想マシン（VM）を作成する単位です。表示名ではなく英数字とハイフンの『プロジェクト ID』（例: secgw-poc-01）を指定します。",
+      },
+      {
+        term: "キーレス サービスアカウント（SA）",
+        analogy: "AWS IAM ロール / Azure マネージド ID",
+        meaning:
+          "管理者の代わりにクラウド環境を自動構築するプログラム専用の作業 ID です。鍵ファイルを PC に保存しない安全な方式で、Secure Gateway Deployer のステップ 2 で自動作成されます。",
+      },
+    ],
     sharedAuthTitle: "右上ヘッダーでの共通ログイン・クレデンシャル連携",
     sharedAuthIntro:
       "Easy PoC と Secure Gateway Deployer は、画面右上（言語メニューの左側）にある「Google Workspace」および「Google Cloud」の認証コントロールを共通利用します。右上で一度ログイン・検証すれば、両方の機能で認証情報と設定IDがそのまま共有されます。",

@@ -1628,6 +1628,19 @@ describe("Secure Gateway Studio mode screen", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", {
+        name: "New to Google Workspace or Google Cloud? Understand the 3 Building Blocks",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        name: "Three Quick Preparation Steps Before You Start",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Quick Glossary of Google Terms Appearing in This Tool/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
         name: "Unified Top-Right Authentication & Shared Credentials",
       }),
     ).toBeInTheDocument();
@@ -1661,6 +1674,19 @@ describe("Secure Gateway Studio mode screen", () => {
       screen.getByRole("heading", {
         name: "機能別ドキュメント & ステップバイステップ PoC ガイド",
       }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        name: "Google の管理画面が初めての方へ：まず押さえるべき「3つの基本要素」",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        name: "デプロイを始める前に行う 3 つの準備",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/画面に出てくる Google 用語のかんたん解説表/),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", {

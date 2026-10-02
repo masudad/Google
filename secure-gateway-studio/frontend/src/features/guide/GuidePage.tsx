@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Messages } from "../../i18n/messages";
-import { CheckIcon, CodeIcon, InfoIcon, LockIcon, NetworkIcon, ShieldIcon } from "../../components/Icons";
+import { BookIcon, CheckIcon, CodeIcon, InfoIcon, LockIcon, NetworkIcon, ShieldIcon } from "../../components/Icons";
 import { runtimeCapabilities } from "../../lib/api";
 
 interface GuidePageProps {
@@ -58,6 +58,97 @@ export function GuidePage({ messages, onNavigate }: GuidePageProps) {
         <h1>{guide.portalTitle}</h1>
         <p className="guide-portal-intro">{guide.portalIntro}</p>
       </header>
+
+      {/* Beginner Primer: 3 Building Blocks + Step 0 Preparation + Plain-Language Glossary */}
+      <section
+        className="guide-beginner-section"
+        id="beginner-primer-section"
+        aria-labelledby="guide-beginner-title"
+      >
+        <header className="guide-beginner-header">
+          <p className="eyebrow">{guide.beginnerEyebrow}</p>
+          <h2 id="guide-beginner-title">{guide.beginnerTitle}</h2>
+          <p>{guide.beginnerIntro}</p>
+        </header>
+
+        <div className="guide-pillars-grid">
+          {guide.beginnerPillars.map((pillar) => (
+            <article className="guide-pillar-card" key={pillar.title}>
+              <span className="guide-pillar-badge">{pillar.badge}</span>
+              <h3>{pillar.title}</h3>
+              <p className="guide-pillar-analogy">{pillar.analogy}</p>
+              <p className="guide-pillar-desc">{pillar.description}</p>
+              <code className="guide-pillar-url">{pillar.whereUrl}</code>
+            </article>
+          ))}
+        </div>
+
+        <div className="guide-step-zero-box">
+          <header className="guide-step-zero-header">
+            <p className="eyebrow">{guide.stepZeroEyebrow}</p>
+            <h3>{guide.stepZeroTitle}</h3>
+            <p>{guide.stepZeroIntro}</p>
+          </header>
+
+          <div className="guide-step-zero-grid">
+            {guide.stepZeroChecklist.map((prep, index) => (
+              <article className="guide-step-zero-card" key={prep.title}>
+                <div className="guide-step-zero-top">
+                  <span className="guide-step-zero-number" aria-hidden="true">
+                    {index + 1}
+                  </span>
+                  <div>
+                    <span className="guide-step-zero-badge">{prep.stepBadge}</span>
+                    <h4>{prep.title}</h4>
+                  </div>
+                </div>
+                <p className="guide-step-zero-summary">{prep.summary}</p>
+                <ul className="guide-step-zero-list">
+                  {prep.details.map((detail) => (
+                    <li key={detail}>
+                      <CheckIcon size={15} />
+                      <span>{detail}</span>
+                    </li>
+                  ))}
+                </ul>
+              </article>
+            ))}
+          </div>
+        </div>
+
+        <details className="guide-glossary-details" open>
+          <summary className="guide-glossary-summary">
+            <span className="guide-glossary-summary-title">
+              <BookIcon size={18} />
+              <span>{guide.glossaryTitle}</span>
+            </span>
+            <small className="guide-glossary-summary-hint">{guide.glossaryEyebrow}</small>
+          </summary>
+          <div className="guide-glossary-body">
+            <p className="guide-glossary-intro">{guide.glossaryIntro}</p>
+            <div className="guide-glossary-table-wrap">
+              <table className="guide-glossary-table">
+                <thead>
+                  <tr>
+                    <th scope="col">{guide.glossaryTermHeader}</th>
+                    <th scope="col">{guide.glossaryAnalogyHeader}</th>
+                    <th scope="col">{guide.glossaryMeaningHeader}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {guide.glossaryItems.map((item) => (
+                    <tr key={item.term}>
+                      <td className="guide-glossary-term">{item.term}</td>
+                      <td className="guide-glossary-analogy">{item.analogy}</td>
+                      <td className="guide-glossary-meaning">{item.meaning}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </details>
+      </section>
 
       {/* Shared Header Login & Credential Architecture Callout */}
       <section className="guide-shared-auth-card" aria-labelledby="guide-shared-auth-title">
@@ -163,6 +254,9 @@ export function GuidePage({ messages, onNavigate }: GuidePageProps) {
         </header>
 
         <nav className="guide-sticky-nav" aria-label="Guide navigation">
+          <a className="guide-nav-pill" href="#beginner-primer-section">
+            {guide.beginnerNavLabel}
+          </a>
           <a className="guide-nav-pill" href="#architecture-section">
             {activeGuide.quickOverviewTitle}
           </a>
