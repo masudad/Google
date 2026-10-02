@@ -1610,6 +1610,76 @@ describe("Secure Gateway Studio mode screen", () => {
     expect(screen.queryByText(/安全ではないページ/)).not.toBeInTheDocument();
   });
 
+  it("separates Easy PoC Guide and Secure Gateway Deployer Guide inside the top-level Guide tab", () => {
+    render(<App />);
+
+    const primaryNavigation = screen.getByRole("navigation", {
+      name: "Primary navigation",
+    });
+    // Guide is a top-level button in Primary navigation without needing to expand Secure Gateway Deployer first
+    fireEvent.click(
+      within(primaryNavigation).getByRole("button", { name: "Guide" }),
+    );
+
+    expect(
+      screen.getByRole("heading", {
+        name: "Documentation & Step-by-Step PoC Guide",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        name: "Unified Top-Right Authentication & Shared Credentials",
+      }),
+    ).toBeInTheDocument();
+
+    // Switch to Easy PoC Guide tab
+    const easyPocTab = screen.getByRole("tab", { name: /Easy PoC Guide/i });
+    const sgwTab = screen.getByRole("tab", {
+      name: /Secure Gateway Deployer Guide/i,
+    });
+    fireEvent.click(easyPocTab);
+    expect(easyPocTab).toHaveAttribute("aria-selected", "true");
+    expect(sgwTab).toHaveAttribute("aria-selected", "false");
+
+    expect(
+      screen.getByRole("heading", {
+        name: "How Easy PoC Configures Chrome Enterprise Premium",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        name: "Three Core Evaluation Scenarios in Easy PoC",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText(/^Tab [1-4]$/)).toHaveLength(4);
+
+    // Switch to Japanese and verify both guide tabs
+    fireEvent.click(screen.getByRole("button", { name: /English/ }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "日本語" }));
+
+    expect(
+      screen.getByRole("heading", {
+        name: "機能別ドキュメント & ステップバイステップ PoC ガイド",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        name: "Easy PoC の機能構成と各タブで実行すること",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText(/^タブ [1-4]$/)).toHaveLength(4);
+
+    // Switch back to Secure Gateway Deployer Guide tab in Japanese
+    fireEvent.click(
+      screen.getByRole("tab", { name: /Secure Gateway Deployer ガイド/i }),
+    );
+    expect(
+      screen.getByRole("heading", {
+        name: "各セットアップ手順で実行すること",
+      }),
+    ).toBeInTheDocument();
+  });
+
   it("includes production Nginx autoscaling limits in the desired state", () => {
     const desired = toDeploymentSpec(
       {

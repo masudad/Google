@@ -398,7 +398,64 @@ export interface GuideStep {
   safetyNote?: string;
 }
 
+export interface EasyPocGuideMessages {
+  eyebrow: string;
+  title: string;
+  intro: string;
+  pocNoticeTitle: string;
+  pocNoticeBody: string;
+  quickOverviewTitle: string;
+  scenariosTitle: string;
+  scenariosIntro: string;
+  scopeTag: string;
+  targetLabel: string;
+  authRequirementLabel: string;
+  scenarios: readonly {
+    eyebrow: string;
+    title: string;
+    summary: string;
+    estimatedTime: string;
+    targetScope: string;
+    authRequirement: string;
+    nodes: readonly { label: string; detail: string; costBadge?: string }[];
+    supports: readonly { label: string; detail: string }[];
+  }[];
+  implementationTitle: string;
+  implementationIntro: string;
+  implementationEyebrow: string;
+  implementationGroups: readonly {
+    eyebrow: string;
+    title: string;
+    items: readonly string[];
+  }[];
+  stepLabel: (step: number) => string;
+  technicalDeepDiveTitle: string;
+  technicalDeepDiveIntro: string;
+  technicalEyebrow: string;
+  steps: readonly GuideStep[];
+  faqTitle: string;
+  faqIntro: string;
+  faqEyebrow: string;
+  faqs: readonly GuideFaqItem[];
+}
+
 export interface GuideMessages {
+  portalEyebrow: string;
+  portalTitle: string;
+  portalIntro: string;
+  sharedAuthTitle: string;
+  sharedAuthIntro: string;
+  sharedAuthItems: readonly {
+    label: string;
+    detail: string;
+  }[];
+  easyPocTabLabel: string;
+  easyPocTabSubtitle: string;
+  sgwTabLabel: string;
+  sgwTabSubtitle: string;
+  openEasyPocCta: string;
+  openSgwDeployerCta: string;
+  easyPocGuide: EasyPocGuideMessages;
   eyebrow: string;
   title: string;
   intro: string;
@@ -1917,6 +1974,480 @@ const en: Messages = {
     ],
   },
   guide: {
+    portalEyebrow: "Chrome Enterprise Premium PoC Deployer · Documentation & Operations Guide",
+    portalTitle: "Documentation & Step-by-Step PoC Guide",
+    portalIntro:
+      "This extension combines two complementary Chrome Enterprise Premium (CEP) workflows in one browser-resident tool: (1) Easy PoC for agentless browser DLP, malware/phishing inspection, GenAI governance, SaaS tenant restrictions, and Gemini Zero Trust controls, and (2) Secure Gateway Deployer for VPN-less private web application access. Use the tabs below to switch between the two guides.",
+    sharedAuthTitle: "Unified Top-Right Authentication & Shared Credentials",
+    sharedAuthIntro:
+      "Both Easy PoC and Secure Gateway Deployer share the Google Workspace and Google Cloud connection controls in the top-right header (to the left of the language menu). Sign in once at the top right and both workflows reuse your verified session:",
+    sharedAuthItems: [
+      {
+        label: "Google Workspace (Top-Right Header)",
+        detail:
+          "Required for both workflows. Click the top-right Google Workspace button to authenticate via Chrome Identity OAuth and automatically resolve your canonical Customer ID (C...), Organizational Units (OUs), and Google Groups.",
+      },
+      {
+        label: "Google Cloud (Top-Right Header)",
+        detail:
+          "Optional for Easy PoC (used only when provisioning Context-Aware Access levels or Gemini Enterprise VPC Service Controls; runs directly under your administrator OAuth token without requiring service-account bootstrap). Required for Secure Gateway Deployer to validate the target GCP project and bootstrap the keyless deployer service account.",
+      },
+      {
+        label: "Dropdown-Only Target Selection",
+        detail:
+          "Select your target non-root Organizational Unit or Google Group directly from the dropdown. No manual path or email re-typing is required.",
+      },
+    ],
+    easyPocTabLabel: "Easy PoC Guide",
+    easyPocTabSubtitle: "Browser DLP · Threat Protection · GenAI & SaaS Controls · Licensing & Roles",
+    sgwTabLabel: "Secure Gateway Deployer Guide",
+    sgwTabSubtitle: "Zero-Trust Private Web Apps · Direct HTTPS / ILB / Nginx · Preflight & Teardown",
+    openEasyPocCta: "Open Easy PoC",
+    openSgwDeployerCta: "Open Secure Gateway Deployer",
+    easyPocGuide: {
+      eyebrow: "Easy PoC · Core CEP Protections",
+      title: "How Easy PoC Configures Chrome Enterprise Premium",
+      intro:
+        "Easy PoC deploys Chrome Enterprise Premium (CEP) data loss prevention (DLP), real-time malware and phishing deep scanning, clipboard data boundaries, SaaS tenant restrictions, and Gemini Enterprise Zero Trust controls into an isolated pilot Organizational Unit (OU) or Google Group—without provisioning VMs or network infrastructure.",
+      pocNoticeTitle: "Pilot Scope Isolation & Non-Destructive Execution",
+      pocNoticeBody:
+        "The Root Organizational Unit (/) is blocked in code so tenant-wide production policies cannot be overwritten. Target a dedicated pilot OU or a specific Google Group, deploy each tab independently, and use the 1-click Rollback in Tab 4 to restore inherited defaults after testing.",
+      quickOverviewTitle: "Core Protection Scenarios",
+      scenariosTitle: "Three Core Evaluation Scenarios in Easy PoC",
+      scenariosIntro:
+        "Easy PoC covers end-to-end browser security across data exfiltration prevention, GenAI and SaaS governance, and Google Cloud Gemini Zero Trust access.",
+      scopeTag: "Agentless Browser Control",
+      targetLabel: "Target scope",
+      authRequirementLabel: "Required authentication",
+      scenarios: [
+        {
+          eyebrow: "Scenario 1 · Data Loss Prevention & Deep Scanning",
+          title: "Real-Time File, Clipboard, Print, and Watermark Controls",
+          summary:
+            "Inspects file uploads, downloads, bulk clipboard pastes, and print actions through Chrome Enterprise Connectors and Cloud Identity DLP rules. Differentiates corporate managed browsers from BYOD profiles using Context-Aware Access.",
+          estimatedTime: "Deployment time: ~30 seconds (no GCP infrastructure required)",
+          targetScope: "Pilot Organizational Unit (OU) or Google Group (zero-touch without moving users across OUs).",
+          authRequirement: "Google Workspace Administrator (Super Admin required for Cloud Identity DLP rules; GCP Project ID optional for Context-Aware Access).",
+          nodes: [
+            { label: "Managed Chrome", detail: "OU or Group policy sync + Endpoint Verification", costBadge: "Profile or Device" },
+            { label: "Enterprise Connectors", detail: "Upload, download, bulk paste, print & event reporting", costBadge: "Real-time inspection" },
+            { label: "Cloud Identity DLP", detail: "PCI card, National ID, & universal file/paste rules", costBadge: "Audit / Warn / Block" },
+            { label: "Protected Workspace", detail: "Screen watermark on internal URLs + Security Investigation log", costBadge: "Cloud Logging / Admin Audit" },
+          ],
+          supports: [
+            { label: "7-Row Threat Matrix", detail: "Configure Upload, Download, Paste, Print, and Watermark per threat row" },
+            { label: "BYOD-Only Scope", detail: "Enforce stricter rules on unmanaged devices via !access_levels.meets_access_requirements" },
+            { label: "Clipboard Boundary", detail: "Block copy/paste from internal corporate URLs to external websites" },
+            { label: "Custom End-User Message", detail: "Display localized remediation guidance on Warn or Block dialogs" },
+            { label: "Deep Malware Scanning", detail: "Enable Safe Browsing Enhanced Protection and archive inspection" },
+            { label: "1-Click Test Payloads", detail: "Built-in Luhn credit card, National ID, and source code test strings" },
+          ],
+        },
+        {
+          eyebrow: "Scenario 2 · Shadow AI & SaaS Tenant Governance",
+          title: "Consumer GenAI Blocking + HTTP Header SaaS Tenant Restrictions",
+          summary:
+            "Blocks unapproved consumer AI sites while permitting corporate Gemini, inspects prompts for sensitive data, and injects HTTP headers at the browser layer to block sign-in to personal or unauthorized SaaS tenants.",
+          estimatedTime: "Deployment time: ~20 seconds (Chrome Policy API batchModify)",
+          targetScope: "Pilot Organizational Unit (OU) or Google Group.",
+          authRequirement: "Google Workspace Administrator (Chrome Policy API access).",
+          nodes: [
+            { label: "Managed Chrome", detail: "Incognito & Guest modes disabled to prevent header bypass", costBadge: "Bypass prevention" },
+            { label: "URL Governance", detail: "URLBlocklist blocks consumer AI; URLAllowlist permits gemini.google.com", costBadge: "Shadow AI control" },
+            { label: "HttpHeaderInjection", detail: "Injects tenant-restriction X-Headers on matching SaaS domains", costBadge: "6 SaaS presets + custom" },
+            { label: "Corporate SaaS & AI", detail: "Only authorized Workspace, Slack, GitHub, Box, ChatGPT, or M365 tenants load", costBadge: "Personal accounts blocked" },
+          ],
+          supports: [
+            { label: "Google Workspace", detail: "X-GoogApps-Allowed-Domains restricts sign-in to corporate domains" },
+            { label: "Slack & GitHub", detail: "X-Slack-Allowed-Workspaces-Requester & X-GitHub-Allowed-Organizations" },
+            { label: "Box & ChatGPT Enterprise", detail: "X-Box-Allowed-Enterprise-Id & ChatGPT-Allowed-Workspace-Id" },
+            { label: "Microsoft 365 / Entra ID", detail: "Restrict-Access-To-Tenants + Restrict-Access-Context header pair" },
+            { label: "GenAI Prompt DLP", detail: "Blocks or warns when uploading files or pasting sensitive text into AI tools" },
+            { label: "Custom Header Rules", detail: "Add arbitrary URL patterns and custom HTTP header name/value pairs" },
+          ],
+        },
+        {
+          eyebrow: "Scenario 3 · Gemini Enterprise 3-Layer Zero Trust",
+          title: "Context-Aware Access + Restricted Client Access + VPC Service Controls",
+          summary:
+            "Protects Google Cloud Gemini and Vertex AI endpoints across three concentric security layers: verified Chrome posture, Cloud Identity Group Restricted Client Access (RCA) bindings, and an organization VPC Service Controls perimeter.",
+          estimatedTime: "Deployment time: ~45 seconds (Access Context Manager LRO + Cloud Identity)",
+          targetScope: "Google Cloud Project + Organization Access Policy + Cloud Identity Group.",
+          authRequirement: "Google Cloud Organization / Access Context Manager Admin + Workspace Admin.",
+          nodes: [
+            { label: "Layer 1 · Chrome Posture", detail: "ACM Access Level requiring managed Chrome profile/browser", costBadge: "Device verification" },
+            { label: "Layer 2 · Restricted Client", detail: "Cloud Identity Group accessPolicyBindings for session enforcement", costBadge: "Identity binding" },
+            { label: "Layer 3 · VPC-SC Perimeter", detail: "Restricts discoveryengine & aiplatform APIs to the perimeter", costBadge: "Dry-Run or Enforced" },
+            { label: "Gemini Enterprise", detail: "Blocks API and token exfiltration from unmanaged endpoints", costBadge: "Zero Trust AI" },
+          ],
+          supports: [
+            { label: "Folder Hierarchy Discovery", detail: "Automatically walks up to 20 nested GCP folder hops to resolve Organization ID" },
+            { label: "Dry-Run Default", detail: "Provisions VPC-SC in Dry-Run (spec) mode by default for safe audit verification" },
+            { label: "Lockout Prevention", detail: "Validates project confirmation and preserves existing perimeter members" },
+          ],
+        },
+      ],
+      implementationTitle: "What Is Implemented in Easy PoC",
+      implementationIntro:
+        "Every module in Easy PoC communicates directly with official Google Workspace, Chrome Enterprise, Cloud Identity, and Google Cloud REST APIs from your browser session.",
+      implementationEyebrow: "Feature & capability inventory",
+      implementationGroups: [
+        {
+          eyebrow: "Authentication & Targeting",
+          title: "Unified Header Auth & OU / Group Scope",
+          items: [
+            "Shares top-right Google Workspace and Google Cloud authentication state with Secure Gateway Deployer.",
+            "Resolves 'my_customer' to your canonical Customer ID (C...) in one click and automatically loads Organizational Units, Google Groups, and Access Levels.",
+            "Supports both Organizational Unit (OU) targeting and zero-touch Google Group targeting without requiring users to be moved between OUs.",
+            "Validates dropdown selections directly without requiring redundant manual path or email re-typing, while strictly blocking the Root OU (/).",
+          ],
+        },
+        {
+          eyebrow: "Risk Assessment",
+          title: "15-Point Security Assessment & Policy Selector",
+          items: [
+            "Interactive 15-question assessment across 4 categories: GenAI & Shadow AI, Device & Browser Posture, SaaS & Identity Boundary, and Audit & Operations.",
+            "Includes quick-select scenario filters (GenAI Protection, Remote/BYOD Security, Audit & Visibility) that map selected risks to concrete Chrome policies and DLP rules.",
+            "Automatically configures the 7-row DLP Threat Matrix, clipboard data boundaries, and SaaS HTTP header presets when applied.",
+          ],
+        },
+        {
+          eyebrow: "Browser Posture & SaaS",
+          title: "Core Chrome Policies & HTTP Header Injection",
+          items: [
+            "Verifies live tenant policy schemas via Chrome Policy API before writing and partitions batchModify calls by policyTargetKey signature.",
+            "Configures Safe Browsing Enhanced Protection, Password Reuse Alert, Ephemeral Profiles, DNS-over-HTTPS, and Secondary Google Account Sign-in restrictions.",
+            "Force-installs the Google Endpoint Verification extension (callobklhcbilhphinckomhgkigmfocg) on the selected OU or Group.",
+            "Configures chrome.users.HttpHeaderInjection with built-in presets for Google Workspace, Slack, GitHub, Box, ChatGPT Enterprise, and Microsoft 365, paired with Incognito/Guest mode blocking.",
+          ],
+        },
+        {
+          eyebrow: "Content Analysis & DLP",
+          title: "Enterprise Connectors & Cloud Identity DLP Matrix",
+          items: [
+            "Enables Chrome Enterprise Connectors for file upload, file download, bulk text paste, print, and realtime security event reporting.",
+            "Provisions custom regex detectors (Payment Card numbers, Japan MyNumber / National ID) and 7 matrix rules in Cloud Identity (settings/rule.dlp).",
+            "Uses Cloud Identity's supported CEL function access_levels.meets_access_requirements(['...']) for managed browser checks and !access_levels.meets_access_requirements(['...']) for BYOD-only rules.",
+            "Supports custom end-user remediation messages (unsafeHtmlMessageBody) and confidential screen watermarking on internal URL prefixes.",
+          ],
+        },
+        {
+          eyebrow: "Administration",
+          title: "CEP Pilot Licensing & Delegated Admin Roles",
+          items: [
+            "Assigns Chrome Enterprise Premium licenses (productId Chrome-Enterprise-Premium, skuId 1010310003) to up to 10 direct users in the selected pilot OU within a bounded 5-second deadline.",
+            "Creates least-privilege custom Workspace Admin roles (CEP Security Admin and CEP Auditor / Viewer) by intersecting requested privileges against the tenant's live roleprivileges catalog.",
+            "Provides direct Google Admin Console deep-links and step-by-step instructions for OU-scoped role assignment.",
+          ],
+        },
+        {
+          eyebrow: "Verification & Cleanup",
+          title: "Independent Per-Tab Execution, Trace & Rollback",
+          items: [
+            "Each tab deploys only its own scope: Tab 1 deploys browser policies and connectors, Tab 2 runs license/role actions, and Tab 3 deploys DLP matrix rules.",
+            "Exports a standalone, auditable bash script (provision-cep-poc.sh) reproducing the exact curl API payloads for change-management review.",
+            "Records a full HTTP method/URL/status execution trace for every API call and provides diagnostic remediation cards on permission or schema errors.",
+            "1-click Rollback resets managed Chrome policy schemas to inherited defaults (policies:inherit) and removes only CEP PoC DLP rules and owned Access Levels.",
+          ],
+        },
+      ],
+      stepLabel: (step) => `Tab ${step}`,
+      technicalDeepDiveTitle: "4-Tab Workflow Deep Dive & REST API Reference",
+      technicalDeepDiveIntro:
+        "Easy PoC is organized into four focused tabs (plus an optional 'View All Sections' mode). Each tab executes only its own operations so you can test and validate incrementally.",
+      technicalEyebrow: "Tab-by-tab workflow & REST APIs",
+      steps: [
+        {
+          title: "1. Setup Wizard",
+          subtitle: "Target scope, baseline Chrome policies, connectors, CAA, and SaaS X-Headers",
+          summary:
+            "Select your pilot Organizational Unit or Google Group, optionally run the 15-point Security Assessment, and apply baseline Chrome Enterprise policies, Endpoint Verification, Enterprise Connectors, Context-Aware Access levels, clipboard boundaries, and SaaS HTTP header restrictions.",
+          actions: [
+            "Verify Google Workspace in the top-right header (or click Verify in the banner) to load your canonical Customer ID (C...), OUs, and Groups.",
+            "Choose Organizational Unit (OU) or Google Group as the deployment target from the dropdown.",
+            "Select a quick preset or toggle individual modules (Core Browser Policies, Endpoint Verification Extension, Enterprise Connectors).",
+            "Optionally configure Context-Aware Access Level (auto-create Profile/Browser Managed or select existing), Clipboard Data Boundary mode, and SaaS HTTP Header Injection rules, then click 'Deploy Selected Policies' to apply Tab 1 settings.",
+          ],
+          optionsBehavior: [
+            {
+              name: "Target Scope: OU vs. Google Group",
+              behavior:
+                "OU mode applies policies via orgunits:batchModify (inherited by child OUs unless overridden). Group mode applies policies via groups:batchModify directly to group members without moving users across OUs.",
+            },
+            {
+              name: "Context-Aware Access (Optional GCP Project)",
+              behavior:
+                "When a GCP Project ID is provided, creates or reuses 'secgw_chrome_managed' in Access Context Manager. If Project ID is left blank, Context-Aware Access is cleanly skipped while all Workspace/Chrome policies proceed.",
+            },
+            {
+              name: "SaaS HTTP Header Injection",
+              behavior:
+                "Writes chrome.users.HttpHeaderInjection for selected SaaS presets (Workspace, Slack, GitHub, Box, ChatGPT, M365) and automatically disables Incognito and Guest modes to prevent uninjected browser sessions.",
+            },
+          ],
+          apiCalls: [
+            {
+              method: "GET",
+              endpoint: "https://admin.googleapis.com/admin/directory/v1/customers/my_customer",
+              purpose: "Resolves 'my_customer' to the tenant's canonical Customer ID (C...).",
+            },
+            {
+              method: "GET",
+              endpoint: "https://admin.googleapis.com/admin/directory/v1/customer/{customerId}/orgunits?type=all",
+              purpose: "Loads all non-root Organizational Units for target dropdown selection.",
+            },
+            {
+              method: "GET",
+              endpoint: "https://admin.googleapis.com/admin/directory/v1/groups?customer={customerId}",
+              purpose: "Loads Google Groups for zero-touch group-scoped policy deployment.",
+            },
+            {
+              method: "POST",
+              endpoint: "https://chromepolicy.googleapis.com/v1/customers/{customerId}/policies/orgunits:batchModify",
+              purpose: "Applies core Chrome security policies, Enterprise Connectors, clipboard restrictions, and HTTP header injection to the selected OU.",
+            },
+            {
+              method: "POST",
+              endpoint: "https://chromepolicy.googleapis.com/v1/customers/{customerId}/policies/groups:batchModify",
+              purpose: "Applies group-compatible Chrome policies and Enterprise Connectors when targeting a Google Group.",
+            },
+            {
+              method: "POST",
+              endpoint: "https://accesscontextmanager.googleapis.com/v1/accessPolicies/{policyId}/accessLevels",
+              purpose: "Provisions the managed-Chrome Context-Aware Access level when auto-creation is selected.",
+            },
+          ],
+          safetyNote:
+            "Deploying from Tab 1 applies only browser posture, connectors, and boundary policies (dlp_rules: false). It never mutates the Root OU (/).",
+        },
+        {
+          title: "2. License & Roles",
+          subtitle: "Bounded CEP pilot license assignment and least-privilege Admin roles",
+          summary:
+            "Assign Chrome Enterprise Premium licenses to users in your pilot OU and provision custom delegated Google Workspace Admin roles for security administrators and auditors.",
+          actions: [
+            "Select the target pilot Organizational Unit from the dropdown in the License Assignment card.",
+            "Click 'Assign CEP Licenses to Selected OU' to assign Chrome Enterprise Premium (SKU 1010310003) to direct members of that OU.",
+            "In the Delegated Admin Roles card, select whether to create CEP Security Admin, CEP Auditor, or both, optionally enter an assignee email, and click 'Create / Verify Custom Roles'.",
+          ],
+          optionsBehavior: [
+            {
+              name: "Direct-OU Pilot License Guardrail",
+              behavior:
+                "Queries users with orgUnitPath matching the exact selected OU (non-recursive), caps assignment at 10 unique users across at most 4 Directory pages within a 5-second deadline, and treats existing 409/412 license assignments as idempotent skips.",
+            },
+            {
+              name: "Custom Role Privilege Intersection",
+              behavior:
+                "Queries the tenant's live roleprivileges catalog first and intersects requested privilege IDs so role creation succeeds across different Google Workspace editions.",
+            },
+          ],
+          apiCalls: [
+            {
+              method: "GET",
+              endpoint: "https://admin.googleapis.com/admin/directory/v1/users?customer={customerId}&query=orgUnitPath='{ouPath}'",
+              purpose: "Lists active users directly inside the selected pilot OU (up to 10 users).",
+            },
+            {
+              method: "POST",
+              endpoint: "https://licensing.googleapis.com/apps/licensing/v1/product/Chrome-Enterprise-Premium/sku/1010310003/user",
+              purpose: "Assigns a Chrome Enterprise Premium license to each discovered pilot user.",
+            },
+            {
+              method: "GET",
+              endpoint: "https://admin.googleapis.com/admin/directory/v1/customer/{customerId}/roleprivileges",
+              purpose: "Fetches available Admin Console privilege IDs for custom role construction.",
+            },
+            {
+              method: "POST",
+              endpoint: "https://admin.googleapis.com/admin/directory/v1/customer/{customerId}/roles",
+              purpose: "Creates the custom CEP Security Admin and CEP Auditor roles.",
+            },
+            {
+              method: "POST",
+              endpoint: "https://admin.googleapis.com/admin/directory/v1/customer/{customerId}/roleassignments",
+              purpose: "Assigns the created custom role to the specified administrator email.",
+            },
+          ],
+          safetyNote:
+            "License assignment is strictly non-recursive (child OUs are excluded) and bounded to 10 users so a large OU cannot trigger mass license consumption.",
+        },
+        {
+          title: "3. DLP & Threat Matrix",
+          subtitle: "Cloud Identity DLP rules, BYOD-only conditions, watermarking, and Gemini Zero Trust",
+          summary:
+            "Configure per-trigger actions (Off, Audit, Warn, Block) across 7 threat protection rows, customize end-user warning messages and watermark URLs, and optionally provision 3-Layer Gemini Enterprise Zero Trust controls.",
+          actions: [
+            "Choose a DLP preset (Standard PoC, Strict Zero Trust, GenAI Protection, or Audit Only) or customize Upload, Download, Paste, Print, and Watermark actions per row.",
+            "Set Device Scope per row ('All Devices' or 'BYOD Only' to enforce restrictions only when the browser does not satisfy the managed Chrome Access Level).",
+            "Enter Protected Internal Site URLs (required for the Confidential Watermark rule and Clipboard Data Boundary exemptions) and an optional Custom End-User Message.",
+            "Click 'Deploy Selected Policies' to provision the custom regex detectors and Cloud Identity DLP rules for Tab 3, or use the Gemini Enterprise card below to provision 3-Layer VPC-SC + RCA + CAA controls.",
+          ],
+          optionsBehavior: [
+            {
+              name: "Cloud Identity CEL Access Level Syntax",
+              behavior:
+                "Cloud Identity DLP disables standard CEL macros like .exists(). Easy PoC automatically compiles positive device checks as access_levels.meets_access_requirements(['...']) and BYOD-only checks as !access_levels.meets_access_requirements(['...']).",
+            },
+            {
+              name: "Semantic DLP Rule Reuse (dlpRuleMatches)",
+              behavior:
+                "Before creating a rule, inspects existing settings/rule.dlp policies and reuses matching rules non-destructively instead of creating duplicates.",
+            },
+            {
+              name: "Gemini Enterprise 3-Layer Zero Trust",
+              behavior:
+                "Walks the GCP folder hierarchy to locate the Organization Access Policy, creates/updates the managed Chrome Access Level, binds Restricted Client Access on the target Cloud Identity Group, and configures a Dry-Run or Enforced VPC-SC perimeter for discoveryengine.googleapis.com and aiplatform.googleapis.com.",
+            },
+          ],
+          apiCalls: [
+            {
+              method: "GET",
+              endpoint: "https://cloudidentity.googleapis.com/v1beta1/policies?filter=customer==\"customers/{customerId}\"&&setting.type.matches(\"detector.*\")",
+              purpose: "Lists existing custom regex detectors in Cloud Identity to avoid duplicates.",
+            },
+            {
+              method: "POST",
+              endpoint: "https://cloudidentity.googleapis.com/v1beta1/policies (setting.type: settings/detector.custom_regex)",
+              purpose: "Creates Payment Card (PCI) and National ID (PII) custom regex detectors.",
+            },
+            {
+              method: "GET",
+              endpoint: "https://cloudidentity.googleapis.com/v1beta1/policies?filter=customer==\"customers/{customerId}\"&&setting.type.matches(\"rule.dlp\")",
+              purpose: "Lists existing Cloud Identity DLP rules across all pages for semantic reuse checks.",
+            },
+            {
+              method: "POST",
+              endpoint: "https://cloudidentity.googleapis.com/v1beta1/policies (setting.type: settings/rule.dlp)",
+              purpose: "Creates each active DLP rule with policyQuery (orgUnit or group), triggers, contentCondition, and chromeAction.",
+            },
+            {
+              method: "PATCH",
+              endpoint: "https://accesscontextmanager.googleapis.com/v1/accessPolicies/{policyId}/servicePerimeters/{perimeterName}",
+              purpose: "Configures the Gemini Enterprise VPC Service Controls perimeter (Dry-Run spec or Enforced status).",
+            },
+          ],
+          safetyNote:
+            "If the Watermark rule is enabled without internal URL prefixes, it is recorded as an informational skip without failing the rest of the DLP rule deployment.",
+        },
+        {
+          title: "4. Audit & Cleanup",
+          subtitle: "End-to-end verification test data, execution trace, script export, and 1-click Rollback",
+          summary:
+            "Validate your deployed policies using safe dummy PII/PCI/source-code payloads, inspect the raw REST API execution trace, export a standalone bash script, or roll back all PoC settings in one click.",
+          actions: [
+            "In a Chrome browser signed into a test account in the target OU or Group, open chrome://policy and click 'Reload policies', then verify chrome://connectors-internals.",
+            "Use the 1-click Copy buttons to copy dummy National ID, Luhn-valid test credit card, or confidential source code (>100 characters) and test pasting/uploading to external sites or consumer GenAI.",
+            "Review the Execution Trace table to inspect every HTTP method, endpoint, and status code recorded during deployment.",
+            "When evaluation is complete, click 'Rollback PoC Policies' to reset Chrome policies to inherited defaults and delete the PoC DLP rules.",
+          ],
+          optionsBehavior: [
+            {
+              name: "100-Character Clipboard Inspection Threshold",
+              behavior:
+                "Chrome's OnBulkDataEntryEnterpriseConnector inspects pastes of roughly 100 characters or more. The built-in dummy source code payload is pre-sized above 100 characters so paste DLP triggers immediately.",
+            },
+            {
+              name: "Scoped Non-Destructive Rollback",
+              behavior:
+                "Resets only the specific Chrome policy schemas managed by Easy PoC on the selected target OU/Group, deletes only DLP rules prefixed with 'CEP PoC - ' targeting that scope, and deletes 'secgw_chrome_managed' only if owned by this extension's lease.",
+            },
+          ],
+          apiCalls: [
+            {
+              method: "POST",
+              endpoint: "https://chromepolicy.googleapis.com/v1/customers/{customerId}/policies/orgunits:inherit",
+              purpose: "Reverts managed Chrome policies on the target OU back to parent inheritance during Rollback.",
+            },
+            {
+              method: "POST",
+              endpoint: "https://chromepolicy.googleapis.com/v1/customers/{customerId}/policies/groups:delete",
+              purpose: "Removes group-scoped Chrome policy overrides on the target Google Group during Rollback.",
+            },
+            {
+              method: "DELETE",
+              endpoint: "https://cloudidentity.googleapis.com/v1beta1/policies/{policyName}",
+              purpose: "Deletes 'CEP PoC - *' Cloud Identity DLP rules matching the target OU or Group during Rollback.",
+            },
+          ],
+          safetyNote:
+            "Pre-existing DLP rules, custom detectors shared with other rules, and Access Levels not created by this extension lease are never deleted during Rollback.",
+        },
+      ],
+      faqTitle: "Easy PoC Frequently Asked Questions & Troubleshooting",
+      faqIntro:
+        "Solutions to common questions around Workspace administrator privileges, OU vs. Group scoping, clipboard paste thresholds, Context-Aware Access CEL expressions, and SaaS tenant restrictions.",
+      faqEyebrow: "Easy PoC troubleshooting & best practices",
+      faqs: [
+        {
+          id: "cep-faq-super-admin",
+          category: "Permissions & Admin Roles",
+          question: "Why do Cloud Identity DLP rules or Custom Admin Roles return HTTP 403 Permission Denied unless I use a Super Admin account?",
+          answer:
+            "Google's Cloud Identity Policies API (cloudidentity.googleapis.com/v1beta1/policies for settings/rule.dlp and settings/detector.custom_regex) and Directory Role Management API (admin.googleapis.com/admin/directory/v1/customer/.../roles) enforce a platform-level check requiring Google Workspace Super Administrator privileges. Delegated administrators can view and apply Chrome Policy API settings in Tab 1, but creating DLP rules in Tab 3 or custom admin roles in Tab 2 requires signing in with a Super Admin account.",
+          checklist: [
+            "Click the Google Workspace button in the top-right header and sign in with a Workspace Super Admin account before deploying Tab 3 (DLP Matrix) or Tab 2 (Custom Roles).",
+            "Confirm that Cloud Identity API, Chrome Policy API, and Admin SDK API are enabled in your Google Cloud project if using custom OAuth credentials.",
+          ],
+        },
+        {
+          id: "cep-faq-ou-vs-group",
+          category: "Target Scope",
+          question: "Should I select an Organizational Unit (OU) or a Google Group as the target scope?",
+          answer:
+            "Both are supported. An Organizational Unit (OU) is ideal when you have a dedicated pilot OU with test users and want to test all user/browser policies plus 1-click pilot CEP license assignment. A Google Group is ideal for a 'zero-touch' PoC where pilot users must remain in their production OUs (for example, synced from Active Directory or Okta); group-scoped Chrome policies and Cloud Identity DLP rules apply directly to members of the group.",
+          checklist: [
+            "Use Organizational Unit (OU) if you want to use Tab 2's automated CEP License Assignment or create sub-OUs.",
+            "Use Google Group if you cannot move pilot users out of their current OUs; note that browser-wide machine policies that Chrome only supports at the OU level are automatically filtered and reported in Skipped Items.",
+          ],
+        },
+        {
+          id: "cep-faq-paste-threshold",
+          category: "DLP Verification",
+          question: "Why didn't the Clipboard Paste DLP rule trigger when I pasted a single 16-digit credit card number?",
+          answer:
+            "Chrome's bulk text inspection connector (OnBulkDataEntryEnterpriseConnector) has a built-in browser threshold of approximately 100 bytes/characters before sending pasted text to the Cloud Identity DLP engine for content analysis. Pasting a short 16-character number alone does not invoke the bulk text connector.",
+          checklist: [
+            "Go to Tab 4 (Audit & Cleanup) and click 'Copy' on the Dummy Source Code or multi-line test payload (which is pre-formatted above 100 characters), or paste the credit card number together with a paragraph of surrounding text.",
+            "Alternatively, test the Payment Card or National ID rule by uploading a .txt file containing the number (OnFileAttachedEnterpriseConnector inspects files of any length).",
+            "In the test Chrome profile, open chrome://connectors-internals to verify that OnBulkDataEntry and OnFileAttached connectors are active.",
+          ],
+        },
+        {
+          id: "cep-faq-cel-access-level",
+          category: "Zero Trust & BYOD",
+          question: "How do Context-Aware Access levels and BYOD-only DLP rules work in Cloud Identity DLP?",
+          answer:
+            "Cloud Identity's DLP rule compiler disables standard CEL list macros such as access_levels.exists(...) (which causes Error 7016). Easy PoC automatically formats Access Level conditions using Cloud Identity's supported function: access_levels.meets_access_requirements(['accessPolicies/{policyId}/accessLevels/{levelName}']) for managed Chrome checks, and !access_levels.meets_access_requirements([...]) when a DLP matrix row is set to 'BYOD Only'.",
+          checklist: [
+            "To use Access Level conditions or 'BYOD Only' device scope in Tab 3, enter a Google Cloud Project ID in the top-right Google Cloud popover (or in Tab 1) that belongs to your Google Cloud Organization.",
+            "If you do not need device-posture differentiation, leave Access Level set to 'None' and Device Scope set to 'All Devices'—no GCP Project ID is required.",
+          ],
+        },
+        {
+          id: "cep-faq-saas-headers",
+          category: "SaaS & Shadow AI",
+          question: "How does SaaS Tenant Restriction via HTTP Header Injection prevent sign-in to personal accounts?",
+          answer:
+            "When chrome.users.HttpHeaderInjection is configured on a managed Chrome profile, Chrome attaches corporate restriction headers (such as X-GoogApps-Allowed-Domains, X-Slack-Allowed-Workspaces-Requester, X-GitHub-Allowed-Organizations, X-Box-Allowed-Enterprise-Id, ChatGPT-Allowed-Workspace-Id, or Microsoft 365's Restrict-Access-To-Tenants) to matching HTTPS requests. The receiving SaaS provider inspects the header and blocks login to personal or external workspaces.",
+          checklist: [
+            "In Tab 1 under SaaS Tenant Restrictions (HTTP Header Injection), click a SaaS preset button and enter your corporate domain or tenant/workspace ID.",
+            "When Core Browser Policies are enabled, Easy PoC also disables Incognito and Guest modes so users cannot open an unmanaged window to bypass header injection.",
+          ],
+        },
+        {
+          id: "cep-faq-rollback-safety",
+          category: "Rollback & Cleanup",
+          question: "What does 'Rollback PoC Policies' in Tab 4 delete, and will it affect existing production DLP rules?",
+          answer:
+            "Rollback is strictly scoped to the selected target OU or Google Group and the resources created by Easy PoC. It resets only the managed Chrome policy schemas on that OU/Group back to inherited values, deletes only Cloud Identity DLP rules whose displayName starts with 'CEP PoC - ' and whose policyQuery targets that exact OU or Group, and deletes the 'secgw_chrome_managed' Access Level only if this extension holds an active ownership lease for it.",
+          checklist: [
+            "Select the exact OU or Google Group you tested with before clicking 'Rollback PoC Policies' in Tab 4.",
+            "Review the Applied and Skipped items log after rollback to confirm all pilot policies and DLP rules were removed.",
+          ],
+        },
+      ],
+    },
     eyebrow: "New setup guide",
     title: "What happens in each setup step",
     intro:
@@ -2496,6 +3027,18 @@ const en: Messages = {
         checklist: [
           "In Deployment Manager -> Teardown, type the exact confirmation phrase to execute the run-scoped teardown.",
           "Review the owned, restored, and retained resource lists before confirming the run-scoped operation.",
+        ],
+      },
+      {
+        id: "faq-existing-default-gateway",
+        category: "Shared Gateway Coexistence",
+        question: "What happens if our Google Cloud project already has an existing 'default' BeyondCorp Security Gateway?",
+        answer:
+          "Google Cloud BeyondCorp requires the Security Gateway resource ID to be 'default' (1 per project). When an active 'default' Security Gateway already exists in the project, Preflight Discovery automatically marks it for non-destructive reuse (action: reuse, owned_after_apply: false) rather than failing or recreating it. Apply then creates an isolated Application route under that shared gateway, merges IAM bindings without removing existing principals, and retains the shared 'default' gateway during Rollback or Teardown.",
+        checklist: [
+          "Confirm that the existing 'default' Security Gateway in your project is in the RUNNING state and does not use incompatible proxyProtocolConfig or custom serviceDiscovery settings.",
+          "Use a unique Private Application Hostname for your PoC so its derived application ID does not collide with an existing application on the shared gateway.",
+          "During Teardown, only the run-owned Application route, backend resources, and IAM additions are removed; the pre-existing 'default' Security Gateway remains untouched.",
         ],
       },
     ],
@@ -3750,6 +4293,479 @@ const ja: Messages = {
     ],
   },
   guide: {
+    portalEyebrow: "Chrome Enterprise Premium PoC Deployer · 統合ドキュメント & 運用ガイド",
+    portalTitle: "機能別ドキュメント & ステップバイステップ PoC ガイド",
+    portalIntro:
+      "本拡張機能は、Chrome Enterprise Premium（CEP）の2つの主要ワークフローを1つのブラウザ拡張機能に統合しています。(1) インフラ構築不要でブラウザのDLP（情報漏洩対策）、マルウェア・フィッシング深層検査、生成AIガバナンス、SaaSテナント制限（HTTPヘッダー注入）、Gemini Enterprise ゼロトラスト制御を即時構成する「Easy PoC」、および (2) VPNなしで社内Webアプリへゼロトラスト接続する「Secure Gateway Deployer」です。下のタブを切り替えて各機能のガイドを確認できます。",
+    sharedAuthTitle: "右上ヘッダーでの共通ログイン・クレデンシャル連携",
+    sharedAuthIntro:
+      "Easy PoC と Secure Gateway Deployer は、画面右上（言語メニューの左側）にある「Google Workspace」および「Google Cloud」の認証コントロールを共通利用します。右上で一度ログイン・検証すれば、両方の機能で認証情報と設定IDがそのまま共有されます。",
+    sharedAuthItems: [
+      {
+        label: "Google Workspace（画面右上ボタン）",
+        detail:
+          "Easy PoC・Secure Gateway Deployer の両方で利用します。右上の［Google Workspace］をクリックしてOAuthログインすると、正規の顧客ID（C...から始まるID）、組織部門（OU）、Google グループ一覧が自動取得されます。",
+      },
+      {
+        label: "Google Cloud（画面右上ボタン）",
+        detail:
+          "Easy PoC では任意です（Context-Aware Access レベルの自動作成や Gemini Enterprise 向け VPC Service Controls を使う場合のみプロジェクトIDを入力し、サービスアカウント作成なしで管理者OAuthのまま実行できます）。Secure Gateway Deployer では対象GCPプロジェクトの検証とキーレスデプロイヤーSAの自動構成に使用します。",
+      },
+      {
+        label: "ドロップダウン選択のみのシンプル操作",
+        detail:
+          "適用先の組織部門（OU）や Google グループはドロップダウンから選択するだけで確定します。パスやメールアドレスの手入力による二重確認は不要です。",
+      },
+    ],
+    easyPocTabLabel: "Easy PoC ガイド",
+    easyPocTabSubtitle: "ブラウザDLP・脅威防御・生成AI / SaaSテナント制御・ライセンス / ロール管理",
+    sgwTabLabel: "Secure Gateway Deployer ガイド",
+    sgwTabSubtitle: "ゼロトラスト社内Web接続・Direct HTTPS / ILB / Nginx・事前確認・撤去",
+    openEasyPocCta: "Easy PoC を開く",
+    openSgwDeployerCta: "Secure Gateway Deployer を開く",
+    easyPocGuide: {
+      eyebrow: "Easy PoC · CEP コア保護機能ガイド",
+      title: "Easy PoC の機能構成と各タブで実行すること",
+      intro:
+        "Easy PoC は、VMやネットワークインフラを一切構築することなく、パイロット用の組織部門（OU）または Google グループに対して Chrome Enterprise Premium（CEP）のデータ損失防止（DLP）、マルウェア・フィッシング深層スキャン、クリップボード境界制御、SaaSテナント制限、Gemini Enterprise ゼロトラスト制御を数分で展開します。",
+      pocNoticeTitle: "パイロット範囲の分離と非破壊設計",
+      pocNoticeBody:
+        "テナント全体への誤適用を防ぐため、ルート組織部門（/）への適用はコード上でブロックされています。検証用の子OUまたは特定の Google グループを選択してタブ単位で段階的に適用でき、検証後はタブ4のロールバック操作で継承元の状態へ戻せます。",
+      quickOverviewTitle: "3つの主要保護シナリオ",
+      scenariosTitle: "Easy PoC で検証できる3つの主要セキュリティシナリオ",
+      scenariosIntro:
+        "情報漏洩対策（DLP）・シャドーAI／個人SaaSアカウント統制・Google Cloud Gemini の3層ゼロトラスト保護を、エージェントレス（Chrome ブラウザ単体）で検証できます。",
+      scopeTag: "エージェントレス・ブラウザ制御",
+      targetLabel: "適用対象スコープ",
+      authRequirementLabel: "必要な管理者権限",
+      scenarios: [
+        {
+          eyebrow: "シナリオ 1 · ブラウザDLP & マルウェア深層検査",
+          title: "ファイル・クリップボード・印刷・透かし（Watermark）のリアルタイム制御",
+          summary:
+            "Chrome Enterprise Connectors と Cloud Identity DLP ルールを連携し、ファイルアップロード／ダウンロード、大量テキストのコピー＆ペースト、印刷をリアルタイム検査します。Context-Aware Access と組み合わせることで、会社管理端末と BYOD 端末で異なる制御を適用できます。",
+          estimatedTime: "所要時間: 約 30 秒（GCP インフラ構築不要）",
+          targetScope: "パイロット用の組織部門（OU）または Google グループ（ユーザーのOU移動なしで検証可能）。",
+          authRequirement: "Google Workspace 管理者（Cloud Identity DLP ルールの作成には特権管理者［Super Admin］が必要。Context-Aware Access 利用時のみ GCP プロジェクトIDを指定）。",
+          nodes: [
+            { label: "管理対象 Chrome", detail: "OU / グループポリシー同期 + Endpoint Verification", costBadge: "プロファイル / 端末管理" },
+            { label: "Enterprise Connectors", detail: "アップロード・ダウンロード・ペースト・印刷・イベント転送", costBadge: "リアルタイム検査" },
+            { label: "Cloud Identity DLP", detail: "クレジットカード・マイナンバー・汎用ファイル/ペースト検査", costBadge: "監査 / 警告 / ブロック" },
+            { label: "保護された業務環境", detail: "社内URLへの画面透かし表示 + セキュリティ調査ツール証跡", costBadge: "Cloud Logging / 監査ログ" },
+          ],
+          supports: [
+            { label: "7行の脅威対策マトリクス", detail: "脅威ごとにアップロード・ダウンロード・ペースト・印刷・透かしを個別設定" },
+            { label: "BYOD端末限定スコープ", detail: "!access_levels.meets_access_requirements により非管理端末だけを厳格制限" },
+            { label: "クリップボードデータ境界", detail: "指定した社内URLから外部サイトへのコピー＆ペースト持ち出しを禁止" },
+            { label: "カスタム警告メッセージ", detail: "警告・ブロック時に社内規定や申請先リンクを含む案内文を表示" },
+            { label: "マルウェア深層スキャン", detail: "セーフブラウジング保護強化モードとパスワード使い回し警告を有効化" },
+            { label: "ワンクリック検証データ", detail: "Luhn検証済みダミーカード番号・マイナンバー・100文字超の機密コードを用意" },
+          ],
+        },
+        {
+          eyebrow: "シナリオ 2 · 生成AIガバナンス & SaaSテナント制限",
+          title: "未承認の消費者向け生成AIブロック + HTTPヘッダー注入による個人SaaSログイン禁止",
+          summary:
+            "未承認の消費者向け生成AIサイトへのアクセスを遮断しつつ法人契約の Gemini を許可し、プロンプト入力時の機密データ送信をDLP検査します。さらに Chrome のネットワーク層で HTTP ヘッダーを注入し、個人用 SaaS アカウントへのログインをブロックします。",
+          estimatedTime: "所要時間: 約 20 秒（Chrome Policy API batchModify）",
+          targetScope: "パイロット用の組織部門（OU）または Google グループ。",
+          authRequirement: "Google Workspace 管理者（Chrome Policy API 権限）。",
+          nodes: [
+            { label: "管理対象 Chrome", detail: "シークレットモード・ゲストモードを無効化して迂回を防止", costBadge: "バイパス防止" },
+            { label: "URL ガバナンス", detail: "URLBlocklist で野良AIを遮断・URLAllowlist で gemini.google.com を許可", costBadge: "シャドーAI統制" },
+            { label: "HttpHeaderInjection", detail: "対象SaaSドメインへの通信にテナント制限ヘッダーを自動付与", costBadge: "6種のSaaSプリセット" },
+            { label: "法人契約 SaaS / AI", detail: "許可された Workspace / Slack / GitHub / Box / ChatGPT / M365 テナントのみ接続", costBadge: "個人アカウント遮断" },
+          ],
+          supports: [
+            { label: "Google Workspace", detail: "X-GoogApps-Allowed-Domains で許可ドメイン以外のログインを遮断" },
+            { label: "Slack & GitHub", detail: "X-Slack-Allowed-Workspaces-Requester / X-GitHub-Allowed-Organizations" },
+            { label: "Box & ChatGPT Enterprise", detail: "X-Box-Allowed-Enterprise-Id / ChatGPT-Allowed-Workspace-Id" },
+            { label: "Microsoft 365 / Entra ID", detail: "Restrict-Access-To-Tenants と Restrict-Access-Context の2ヘッダーを自動設定" },
+            { label: "生成AIプロンプトDLP", detail: "生成AIサイトへの機密ファイル添付・ソースコード貼り付けを警告またはブロック" },
+            { label: "カスタムヘッダー追加", detail: "任意のURLパターンとHTTPヘッダー名・値のペアを自由に追加可能" },
+          ],
+        },
+        {
+          eyebrow: "シナリオ 3 · Gemini Enterprise 3層ゼロトラスト制御",
+          title: "Context-Aware Access + Restricted Client Access + VPC Service Controls",
+          summary:
+            "Google Cloud 上の Gemini / Vertex AI エンドポイント（discoveryengine.googleapis.com / aiplatform.googleapis.com）を、管理対象 Chrome 検証（第1層）、Cloud Identity グループのセッション制御（第2層）、VPC Service Controls 境界（第3層）の3層で保護します。",
+          estimatedTime: "所要時間: 約 45 秒（Access Context Manager LRO + Cloud Identity）",
+          targetScope: "Google Cloud プロジェクト + 組織 Access Policy + Cloud Identity グループ。",
+          authRequirement: "Google Cloud 組織 / Access Context Manager 管理者 + Workspace 管理者。",
+          nodes: [
+            { label: "第1層 · Chrome ポスチャ", detail: "管理対象 Chrome プロファイル / ブラウザを要求する Access Level", costBadge: "端末・ブラウザ検証" },
+            { label: "第2層 · Restricted Client", detail: "Cloud Identity グループの accessPolicyBindings でセッション制御", costBadge: "ID・グループ拘束" },
+            { label: "第3層 · VPC-SC 境界", detail: "discoveryengine / aiplatform API をサービス境界内へ保護", costBadge: "Dry-Run / Enforced 対応" },
+            { label: "Gemini Enterprise", detail: "非管理端末からの API 呼び出しやトークン持ち出しを遮断", costBadge: "ゼロトラストAI" },
+          ],
+          supports: [
+            { label: "フォルダ階層の自動探索", detail: "最大20階層の親フォルダを辿って組織（Organization）IDと Access Policy を自動特定" },
+            { label: "Dry-Run（監査モード）初期値", detail: "既存環境への影響を防ぐため、初期状態では Dry-Run（spec）モードで構成" },
+            { label: "管理者ロックアウト防止", detail: "対象プロジェクトIDの確認入力と既存境界メンバーの保持により誤遮断を防止" },
+          ],
+        },
+      ],
+      implementationTitle: "Easy PoC の実装機能一覧",
+      implementationIntro:
+        "Easy PoC の各モジュールは、ブラウザの管理者セッションから Google Workspace、Chrome Enterprise、Cloud Identity、Google Cloud の公式 REST API を直接呼び出して構成します。",
+      implementationEyebrow: "実装済み機能・モジュール一覧",
+      implementationGroups: [
+        {
+          eyebrow: "認証・ターゲット選択",
+          title: "右上共通ログインと OU / グループ指定",
+          items: [
+            "画面右上の Google Workspace / Google Cloud ポップオーバーでログイン状態を Secure Gateway Deployer と共有します。",
+            "my_customer から正規の顧客ID（C...）をワンクリックで自動検出し、組織部門（OU）・Google グループ・Access Level 一覧を自動取得します。",
+            "組織部門（OU）単位の適用に加え、ユーザーを現在のOUから移動させずに検証できる Google グループ単位のゼロタッチ適用に対応しています。",
+            "ドロップダウンから選択するだけで対象が確定し、ルートOU（/）への変更はコードレベルで拒否します。",
+          ],
+        },
+        {
+          eyebrow: "リスク診断",
+          title: "15項目のセキュリティ診断 & ポリシー構成セレクター",
+          items: [
+            "生成AI・シャドーAI、端末・ブラウザ制御、SaaS・アカウント境界、監査・運用の4領域・15項目のチェックリストから課題を整理できます。",
+            "選択したリスク項目に応じて、必要な Chrome ポリシーモジュールと7行の DLP マトリクス設定を自動構成します。",
+            "ワンクリックで現在の Setup Wizard と DLP マトリクスへ設定値を反映できます。",
+          ],
+        },
+        {
+          eyebrow: "ブラウザ制御・SaaS統制",
+          title: "Chrome 基本ポリシー & HTTP ヘッダー注入",
+          items: [
+            "書き込み前に Chrome Policy API の policySchemas でテナントのライブスキーマを検証し、policyTargetKey 単位にバッチを自動分割して適用します。",
+            "セーフブラウジング保護強化、パスワード使い回し警告（PasswordAlert）、一時プロファイル、DNS-over-HTTPS、セカンダリ Google アカウント制限を設定します。",
+            "Endpoint Verification 拡張機能（callobklhcbilhphinckomhgkigmfocg）を対象 OU またはグループへ強制インストールします。",
+            "chrome.users.HttpHeaderInjection により Google Workspace、Slack、GitHub、Box、ChatGPT Enterprise、Microsoft 365 のテナント制限ヘッダーを設定し、シークレット／ゲストモード禁止と組み合わせて迂回を防ぎます。",
+          ],
+        },
+        {
+          eyebrow: "コンテンツ検査・DLP",
+          title: "Enterprise Connectors & Cloud Identity DLP マトリクス",
+          items: [
+            "ファイル添付、ファイルダウンロード、大量テキスト入力、印刷、セキュリティイベント報告の5つの Enterprise Connectors を構成します。",
+            "Cloud Identity Policies API でカスタム正規表現検出器（クレジットカード番号・マイナンバー等）と7行の DLP ルール（settings/rule.dlp）を作成します。",
+            "Cloud Identity DLP コンパイラでサポートされる access_levels.meets_access_requirements(['...']) とその否定式 !access_levels.meets_access_requirements(['...']) により、管理対象 Chrome 限定および BYOD 限定ルールを正確に構成します。",
+            "警告・ブロック時のカスタムメッセージ（unsafeHtmlMessageBody）や社内URLへの透かし（Watermark）表示に対応しています。",
+          ],
+        },
+        {
+          eyebrow: "ライセンス・権限委任",
+          title: "CEP パイロットライセンス付与 & カスタム管理者ロール",
+          items: [
+            "Enterprise License Manager API を通じて、選択したパイロット OU 直下のユーザー（最大10名・最大4ページ・5秒制限）へ Chrome Enterprise Premium ライセンス（SKU 1010310003）を一括付与します。",
+            "テナントの roleprivileges カタログと照合し、CEP Security Admin（運用管理者）および CEP Auditor（監査閲覧者）の最小権限カスタムロールを作成・割り当てます。",
+            "Google 管理コンソールでカスタムロールを特定 OU スコープに限定する手順と直リンクを提供します。",
+          ],
+        },
+        {
+          eyebrow: "検証・ロールバック",
+          title: "タブ別の独立実行・APIトレース・ワンクリック撤去",
+          items: [
+            "各タブは自身のスコープのみを実行します（タブ1はブラウザポリシーとコネクタ、タブ2はライセンスとロール、タブ3はDLPマトリクスルール）。",
+            "実行される API ペイロードを再現するスタンドアロンのシェルスクリプト（provision-cep-poc.sh）をエクスポートできます。",
+            "すべての REST API 呼び出しの HTTP メソッド・URL・ステータスコードを Execution Trace に記録し、エラー時は原因と対処手順カードを表示します。",
+            "タブ4の［PoC ポリシーをロールバック］により、Chrome ポリシーを親 OU の継承状態へ戻し、本ツールが作成した『CEP PoC - *』DLP ルールと所有 Access Level のみを安全に削除します。",
+          ],
+        },
+      ],
+      stepLabel: (step) => `タブ ${step}`,
+      technicalDeepDiveTitle: "4つの機能タブの技術詳細と Google REST API リファレンス",
+      technicalDeepDiveIntro:
+        "Easy PoC は4つのステップタブ（および全セクション一覧表示）で構成されています。各タブは独立して動作するため、必要な機能だけを段階的に適用・検証できます。",
+      technicalEyebrow: "タブ別の動作仕様と API コール",
+      steps: [
+        {
+          title: "1. セットアップウィザード（1. Setup Wizard）",
+          subtitle: "適用スコープ選択・基本ブラウザポリシー・コネクタ・CAA・SaaS ヘッダー制限",
+          summary:
+            "パイロット対象の組織部門（OU）または Google グループを選択し、Chrome 基本保護ポリシー、Endpoint Verification 拡張機能、Enterprise Connectors、Context-Aware Access レベル、クリップボード境界、SaaS テナント制限ヘッダーを適用します。",
+          actions: [
+            "画面右上の［Google Workspace］ボタン（または画面内の確認ボタン）をクリックし、正規の顧客ID（C...）、OU一覧、グループ一覧を読み込みます。",
+            "適用対象として「組織部門（OU）」または「Google グループ」を選び、ドロップダウンから対象を選択します。",
+            "必要に応じて「15項目のセキュリティ診断」またはクイックプリセットを選択し、有効化するモジュール（基本ポリシー、拡張機能、コネクタ）を切り替えます。",
+            "Context-Aware Access レベル（自動作成または既存選択）、データ境界モード、SaaS テナント制限（HTTPヘッダー注入）を設定し、［選択したポリシーをデプロイ］をクリックしてタブ1の設定を適用します。",
+          ],
+          optionsBehavior: [
+            {
+              name: "組織部門（OU） vs Google グループ",
+              behavior:
+                "OU 指定時は orgunits:batchModify を使用します（配下の子OUにも継承されます）。Google グループ指定時は groups:batchModify を使用し、ユーザーの所属OUを変更せずにグループメンバーへ直接ポリシーを適用します。",
+            },
+            {
+              name: "Context-Aware Access（GCP プロジェクトID任意連携）",
+              behavior:
+                "GCP プロジェクトIDを入力すると Access Context Manager で secgw_chrome_managed を作成・再利用します。プロジェクトIDが空欄の場合は Context-Aware Access をスキップし、Workspace / Chrome ポリシーのみを適用します。",
+            },
+            {
+              name: "SaaS テナント制限（HTTP Header Injection）",
+              behavior:
+                "Workspace、Slack、GitHub、Box、ChatGPT、M365 用のテナント制限ヘッダーを chrome.users.HttpHeaderInjection に設定し、同時にシークレットモードとゲストモードを無効化してヘッダー未付与の通信を防ぎます。",
+            },
+          ],
+          apiCalls: [
+            {
+              method: "GET",
+              endpoint: "https://admin.googleapis.com/admin/directory/v1/customers/my_customer",
+              purpose: "my_customer エイリアスからテナントの正規顧客ID（C...）を解決します。",
+            },
+            {
+              method: "GET",
+              endpoint: "https://admin.googleapis.com/admin/directory/v1/customer/{customerId}/orgunits?type=all",
+              purpose: "ドロップダウン選択用にすべての非ルート組織部門（OU）を取得します。",
+            },
+            {
+              method: "GET",
+              endpoint: "https://admin.googleapis.com/admin/directory/v1/groups?customer={customerId}",
+              purpose: "グループ単位のポリシー適用に使用する Google グループ一覧を取得します。",
+            },
+            {
+              method: "POST",
+              endpoint: "https://chromepolicy.googleapis.com/v1/customers/{customerId}/policies/orgunits:batchModify",
+              purpose: "選択した OU に対して Chrome セキュリティポリシー、Enterprise Connectors、クリップボード制御、HTTP ヘッダー注入を一括設定します。",
+            },
+            {
+              method: "POST",
+              endpoint: "https://chromepolicy.googleapis.com/v1/customers/{customerId}/policies/groups:batchModify",
+              purpose: "Google グループ指定時に、グループ対応の Chrome ポリシーとコネクタを一括設定します。",
+            },
+            {
+              method: "POST",
+              endpoint: "https://accesscontextmanager.googleapis.com/v1/accessPolicies/{policyId}/accessLevels",
+              purpose: "管理対象 Chrome を判定する Context-Aware Access レベルを作成します。",
+            },
+          ],
+          safetyNote:
+            "タブ1からのデプロイはブラウザ基本設定・コネクタ・データ境界のみを適用し、タブ3のDLPルールは勝手に作成しません（dlp_rules: false）。またルートOU（/）は常に保護されます。",
+        },
+        {
+          title: "2. ライセンス・管理者ロール（2. License & Roles）",
+          subtitle: "パイロットOUへのCEPライセンス一括付与と最小権限カスタム管理者ロール作成",
+          summary:
+            "選択したパイロット OU 直下のテストユーザーへ Chrome Enterprise Premium ライセンスを付与し、セキュリティ運用担当・監査担当向けのカスタム Workspace 管理者ロールを作成します。",
+          actions: [
+            "ライセンス付与カードで対象のパイロット OU を確認（または変更）し、［選択した OU のユーザーに CEP ライセンスを一括付与］をクリックします。",
+            "カスタム管理者ロールカードで作成するロール種別（CEP Security Admin / CEP Auditor / 両方）と任意の割り当て先メールアドレスを入力し、［カスタムロールを作成・確認］をクリックします。",
+          ],
+          optionsBehavior: [
+            {
+              name: "パイロットライセンス付与の上限ガードレール",
+              behavior:
+                "Directory API の orgUnitPath が選択 OU と完全一致する直下ユーザーのみを検索し（子OUは除外）、最大4ページ・5秒以内・最大10名までに制限して SKU 1010310003 を付与します。既に付与済みのユーザー（409/412）は安全にスキップします。",
+            },
+            {
+              name: "カスタムロール権限の動的照合",
+              behavior:
+                "テナントの roleprivileges 一覧を事前取得し、利用可能な権限IDとの積集合（Intersection）でロールを構築するため、エディション差によるエラーを防ぎます。",
+            },
+          ],
+          apiCalls: [
+            {
+              method: "GET",
+              endpoint: "https://admin.googleapis.com/admin/directory/v1/users?customer={customerId}&query=orgUnitPath='{ouPath}'",
+              purpose: "選択したパイロット OU 直下のアクティブユーザー（最大10名）を取得します。",
+            },
+            {
+              method: "POST",
+              endpoint: "https://licensing.googleapis.com/apps/licensing/v1/product/Chrome-Enterprise-Premium/sku/1010310003/user",
+              purpose: "対象ユーザーへ Chrome Enterprise Premium ライセンスを割り当てます。",
+            },
+            {
+              method: "GET",
+              endpoint: "https://admin.googleapis.com/admin/directory/v1/customer/{customerId}/roleprivileges",
+              purpose: "テナントで利用可能な管理コンソール権限IDの一覧を取得します。",
+            },
+            {
+              method: "POST",
+              endpoint: "https://admin.googleapis.com/admin/directory/v1/customer/{customerId}/roles",
+              purpose: "CEP Security Admin および CEP Auditor のカスタム管理者ロールを作成します。",
+            },
+            {
+              method: "POST",
+              endpoint: "https://admin.googleapis.com/admin/directory/v1/customer/{customerId}/roleassignments",
+              purpose: "作成したカスタムロールを指定した管理者メールアドレスへ割り当てます。",
+            },
+          ],
+          safetyNote:
+            "誤って大規模 OU に大量のライセンスを消費しないよう、直下 OU のみ・最大10名・5秒タイムアウトの保護制限が組み込まれています。",
+        },
+        {
+          title: "3. DLP・脅威対策マトリクス（3. DLP & Threat Matrix）",
+          subtitle: "7行のCloud Identity DLPルール・BYOD限定制御・透かし・Gemini 3層ゼロトラスト",
+          summary:
+            "7つの脅威対策行ごとに操作別のアクション（オフ・監査・警告・ブロック）と適用端末範囲（全端末 / BYODのみ）を設定し、カスタム検出器と Cloud Identity DLP ルールを展開します。あわせて Gemini Enterprise の3層ゼロトラスト制御もこのタブから構成できます。",
+          actions: [
+            "DLPプリセット（標準PoC、厳格ゼロトラスト、生成AI保護、監査のみ）を選択するか、7行のマトリクスで Upload / Download / Paste / Print / Watermark のアクションを個別に調整します。",
+            "各行の「対象端末スコープ」で『すべての端末』または『BYOD（非管理端末）のみ』を選択します。",
+            "機密透かし（Watermark）を表示する社内サイトURL（例: https://internal.example.com/）と、警告・ブロック時に表示するカスタムメッセージを入力し、［選択したポリシーをデプロイ］をクリックします。",
+            "Google Cloud Gemini / Vertex AI の境界保護も検証する場合は、下部の Gemini Enterprise カードで対象プロジェクトIDを確認入力して自動プロビジョニングを実行します。",
+          ],
+          optionsBehavior: [
+            {
+              name: "Cloud Identity DLP 用 CEL アクセスレベル式",
+              behavior:
+                "Cloud Identity DLP の ConditionCompiler は .exists() マクロを無効化しているため、本ツールは正規サポート構文である access_levels.meets_access_requirements(['...']) および BYOD 限定用の否定式 !access_levels.meets_access_requirements(['...']) を自動生成します。",
+            },
+            {
+              name: "既存 DLP ルールの意味的再利用（dlpRuleMatches）",
+              behavior:
+                "ルール作成前に既存の settings/rule.dlp を全ページ走査し、対象スコープ・トリガー・アクション種別が一致するルールが存在する場合は重複作成せずに再利用します。",
+            },
+            {
+              name: "Gemini Enterprise 3層ゼロトラスト自動構成",
+              behavior:
+                "プロジェクトの親フォルダ階層（最大20階層）から組織の Access Policy を自動検出し、Access Level（第1層）、Cloud Identity グループへの Restricted Client Access バインディング（第2層）、および discoveryengine / aiplatform を保護する VPC-SC サービス境界（第3層・既定は Dry-Run モード）を一括構成します。",
+            },
+          ],
+          apiCalls: [
+            {
+              method: "GET",
+              endpoint: "https://cloudidentity.googleapis.com/v1beta1/policies?filter=customer==\"customers/{customerId}\"&&setting.type.matches(\"detector.*\")",
+              purpose: "既存のカスタム正規表現検出器を検索し、重複作成を防ぎます。",
+            },
+            {
+              method: "POST",
+              endpoint: "https://cloudidentity.googleapis.com/v1beta1/policies (setting.type: settings/detector.custom_regex)",
+              purpose: "クレジットカード番号（PCI）およびマイナンバー／個人識別番号（PII）の正規表現検出器を作成します。",
+            },
+            {
+              method: "GET",
+              endpoint: "https://cloudidentity.googleapis.com/v1beta1/policies?filter=customer==\"customers/{customerId}\"&&setting.type.matches(\"rule.dlp\")",
+              purpose: "既存の Cloud Identity DLP ルールを全ページ取得し、既存ルールとの照合を行います。",
+            },
+            {
+              method: "POST",
+              endpoint: "https://cloudidentity.googleapis.com/v1beta1/policies (setting.type: settings/rule.dlp)",
+              purpose: "対象 OU またはグループに対する DLP ルール（トリガー・コンテンツ条件・警告/ブロック/監査アクション）を作成します。",
+            },
+            {
+              method: "PATCH",
+              endpoint: "https://accesscontextmanager.googleapis.com/v1/accessPolicies/{policyId}/servicePerimeters/{perimeterName}",
+              purpose: "Gemini Enterprise 用の VPC Service Controls サービス境界（Dry-Run または Enforced）を更新します。",
+            },
+          ],
+          safetyNote:
+            "社内URLが未入力のまま透かし（Watermark）ルールが含まれている場合でも、透かしルールだけを情報スキップとして記録し、他のDLPルールの適用は正常に完了します。",
+        },
+        {
+          title: "4. 検証・クリーンアップ（4. Audit & Cleanup）",
+          subtitle: "ワンクリック検証用ダミーデータ・API実行トレース・スクリプト出力・ロールバック",
+          summary:
+            "安全なダミーデータ（マイナンバー、Luhn検証済みテスト用カード番号、100文字超の機密ソースコード）を使って実機ブラウザでDLP動作を検証し、APIトレースの確認やワンクリック撤去（Rollback）を行います。",
+          actions: [
+            "検証対象の OU またはグループに所属するユーザーで Chrome にログインし、chrome://policy で［ポリシーを再読み込み］をクリックした後、chrome://connectors-internals でコネクタ有効化を確認します。",
+            "タブ4の［コピー］ボタンでダミー個人情報・テスト用クレジットカード番号・機密ソースコード（100文字以上）をコピーし、外部サイトや消費者向け生成AIへの貼り付け・ファイルアップロードを試行します。",
+            "Execution Trace（実行ログ）で実際に送信された HTTP リクエストとレスポンスコードを確認します。",
+            "検証終了後は［PoC ポリシーをロールバック］をクリックし、Chrome ポリシーの継承復元と PoC 用 DLP ルールの削除を実行します。",
+          ],
+          optionsBehavior: [
+            {
+              name: "クリップボード検査の最小文字数しきい値（約100文字）",
+              behavior:
+                "Chrome の OnBulkDataEntryEnterpriseConnector は約100文字（バイト）以上のテキスト貼り付け時に DLP 検査を起動します。タブ4のダミーソースコードは100文字を超える長さで用意されているため、そのままコピー＆ペーストするだけでブロック／警告を検証できます。",
+            },
+            {
+              name: "対象スコープ限定の安全なロールバック",
+              behavior:
+                "選択した OU またはグループに設定された Easy PoC 管理対象の Chrome ポリシースキーマだけを継承状態へ戻し、『CEP PoC - 』で始まる該当スコープの DLP ルールと本拡張機能所有の Access Level のみを削除します。",
+            },
+          ],
+          apiCalls: [
+            {
+              method: "POST",
+              endpoint: "https://chromepolicy.googleapis.com/v1/customers/{customerId}/policies/orgunits:inherit",
+              purpose: "ロールバック時に、対象 OU の Chrome ポリシーを親 OU の継承値へ戻します。",
+            },
+            {
+              method: "POST",
+              endpoint: "https://chromepolicy.googleapis.com/v1/customers/{customerId}/policies/groups:delete",
+              purpose: "ロールバック時に、対象 Google グループの Chrome ポリシー設定を削除します。",
+            },
+            {
+              method: "DELETE",
+              endpoint: "https://cloudidentity.googleapis.com/v1beta1/policies/{policyName}",
+              purpose: "ロールバック時に、対象スコープに一致する『CEP PoC - *』DLP ルールを削除します。",
+            },
+          ],
+          safetyNote:
+            "既存の他部門向け DLP ルール、他ルールから参照されるカスタム検出器、および本拡張機能が作成していない既存の Access Level はロールバック時にも一切削除されません。",
+        },
+      ],
+      faqTitle: "Easy PoC よくある質問とトラブルシューティング (FAQ)",
+      faqIntro:
+        "Easy PoC の実行・検証時に質問の多い管理者権限、OUとグループの使い分け、クリップボードDLPの文字数しきい値、Context-Aware Access の CEL 構文、SaaS テナント制限の仕組みをまとめています。",
+      faqEyebrow: "Easy PoC トラブルシューティング & ベストプラクティス",
+      faqs: [
+        {
+          id: "cep-faq-super-admin",
+          category: "権限・管理者ロール",
+          question: "Cloud Identity DLP ルールやカスタム管理者ロールの作成で 403 Permission Denied になる理由は？",
+          answer:
+            "Google の Cloud Identity Policies API（settings/rule.dlp や settings/detector.custom_regex を扱う cloudidentity.googleapis.com/v1beta1/policies）および Directory Role Management API は、Google Workspace の仕様により「特権管理者（Super Admin）」ロールを要求します。委任管理者アカウントでもタブ1の Chrome ポリシー適用は可能ですが、タブ3の DLP ルール作成やタブ2のカスタムロール作成には特権管理者でのログインが必要です。",
+          checklist: [
+            "タブ3（DLPマトリクス）やタブ2（カスタムロール）を実行する前に、画面右上の［Google Workspace］ボタンから特権管理者（Super Admin）アカウントでログイン・検証してください。",
+            "独自プロジェクトの OAuth クライアントを使用している場合は、Cloud Identity API、Chrome Policy API、Admin SDK API が有効化されていることを確認してください。",
+          ],
+        },
+        {
+          id: "cep-faq-ou-vs-group",
+          category: "適用スコープ設計",
+          question: "適用先は「組織部門（OU）」と「Google グループ」のどちらを選ぶべきですか？",
+          answer:
+            "どちらでも検証可能です。専用の検証用OUとテストユーザーを用意できる場合は、すべてのブラウザポリシーとタブ2のCEPライセンス自動付与が使える「組織部門（OU）」が適しています。一方、Active Directory 連携等で本番ユーザーの所属OUを変更できない場合は、ユーザーを移動させずにメンバー単位で Chrome ポリシーと DLP ルールを適用できる「Google グループ」が便利です。",
+          checklist: [
+            "タブ2の「CEP ライセンス一括付与」やサブOU自動作成を使う場合は「組織部門（OU）」を選択してください。",
+            "「Google グループ」を選択した場合、Chrome の仕様上 OU 単位でのみ設定可能な一部のマシン／ブラウザ設定は自動フィルタリングされ、スキップ項目として明示されます。",
+          ],
+        },
+        {
+          id: "cep-faq-paste-threshold",
+          category: "DLP 動作検証",
+          question: "16桁のクレジットカード番号だけをコピー＆ペーストしたときに DLP ルールが反応しないのはなぜですか？",
+          answer:
+            "Chrome ブラウザの大量テキスト入力コネクタ（OnBulkDataEntryEnterpriseConnector）には、約100文字（バイト）以上のテキストが貼り付けられたときに初めて DLP スキャンを起動するブラウザ標準のしきい値があります。16桁のカード番号単体の貼り付けでは文字数が100文字未満のため、ペースト検査が起動しません。",
+          checklist: [
+            "タブ4（検証・クリーンアップ）にある100文字超のダミーテストデータを［コピー］して貼り付けるか、カード番号の前後に説明文を添えて100文字以上にしてペーストしてください。",
+            "または、カード番号やマイナンバーを記載した .txt ファイルをアップロードして検証してください（OnFileAttachedEnterpriseConnector は文字数にかかわらず検査します）。",
+            "テスト用 Chrome で chrome://connectors-internals を開き、OnBulkDataEntry と OnFileAttached が有効になっているか確認してください。",
+          ],
+        },
+        {
+          id: "cep-faq-cel-access-level",
+          category: "ゼロトラスト・BYOD制御",
+          question: "Cloud Identity DLP で「非管理 Chrome アクセス制御」や「BYOD のみ」ルールはどのように判定されますか？",
+          answer:
+            "Cloud Identity DLP の CEL コンパイラは標準の .exists() マクロを無効化しているため（Error 7016 の原因）、Easy PoC では Cloud Identity 専用関数である access_levels.meets_access_requirements(['accessPolicies/{policyId}/accessLevels/{levelName}'])、および BYOD 限定用の否定式 !access_levels.meets_access_requirements([...]) を自動生成して設定します。",
+          checklist: [
+            "アクセスレベル条件や「BYODのみ」スコープを使用する場合は、画面右上の［Google Cloud］（またはタブ1のGCPプロジェクトID欄）に組織配下の GCP プロジェクトIDを入力してください。",
+            "端末種別による出し分けを行わない場合は、アクセスレベルを「なし（None）」、対象端末スコープを「すべての端末」にしておけば GCP プロジェクトIDなしで全 DLP ルールを作成できます。",
+          ],
+        },
+        {
+          id: "cep-faq-saas-headers",
+          category: "SaaS・シャドーAI統制",
+          question: "HTTP ヘッダー注入（HttpHeaderInjection）による SaaS テナント制限はどのように個人アカウント利用を防ぎますか？",
+          answer:
+            "管理対象 Chrome が対象 SaaS ドメインへ HTTPS リクエストを送る際、chrome.users.HttpHeaderInjection によって法人テナント指定ヘッダー（X-GoogApps-Allowed-Domains、X-Slack-Allowed-Workspaces-Requester、X-GitHub-Allowed-Organizations、X-Box-Allowed-Enterprise-Id、ChatGPT-Allowed-Workspace-Id、Microsoft 365 の Restrict-Access-To-Tenants 等）を自動付与します。SaaS 側がそのヘッダーを検証し、許可された法人テナント以外の個人アカウントでのログインを拒否します。",
+          checklist: [
+            "タブ1の「SaaS テナント制限（HTTP ヘッダー注入）」で対象サービスのプリセットボタンを押し、自社のドメインや Enterprise / Workspace ID を入力してください。",
+            "シークレットウィンドウやゲストモードからヘッダー付与を迂回されないよう、基本ブラウザポリシー有効時にはシークレット／ゲストモードも同時に禁止されます。",
+          ],
+        },
+        {
+          id: "cep-faq-rollback-safety",
+          category: "ロールバック・撤去",
+          question: "タブ4の「PoC ポリシーをロールバック」を実行すると、既存の本番 DLP ルールまで消えませんか？",
+          answer:
+            "消えません。ロールバック処理は選択した対象 OU または Google グループに厳密に限定されており、Easy PoC が管理する Chrome ポリシースキーマの継承復元、表示名が『CEP PoC - 』で始まり対象 OU / グループに一致する DLP ルールのみの削除、および本拡張機能の作成リースが記録されている場合の secgw_chrome_managed アクセスレベル削除だけを行います。",
+          checklist: [
+            "タブ4でロールバックを実行する前に、適用時と同じパイロット OU または Google グループが選択されていることを確認してください。",
+            "実行後に表示される適用・スキップ一覧と Execution Trace で、各ポリシーが継承状態に戻ったことを確認できます。",
+          ],
+        },
+      ],
+    },
     eyebrow: "新規セットアップガイド",
     title: "各セットアップ手順で実行すること",
     intro:
@@ -4329,6 +5345,17 @@ const ja: Messages = {
         checklist: [
           "削除タブに表示される所有・復元・保持リソースを確認し、画面の確認文を正確に入力します。",
           "確認後に、そのrunに紐づくTeardownだけを実行します。",
+        ],
+      },
+      {
+        id: "faq-existing-default-gateway",
+        category: "ゼロトラスト・アクセス制御",
+        question: "プロジェクトに既存の BeyondCorp Security Gateway（default）が存在する場合、上書きされたり削除されたりしませんか？",
+        answer:
+          "いいえ。Google Cloud は 1 プロジェクト・1 リージョンあたり 1 つの Security Gateway（ID: default）のみをサポートしています。すでに default ゲートウェイが存在する場合、本ツールはそれを一切変更せずそのまま再利用し、その配下に今回の PoC 用の Application とテスト用 VM だけを追加します。また、既存ゲートウェイは「今回作成した所有リソース（owned）」として記録されないため、Teardown を実行しても既存の default ゲートウェイは削除されず保護されます。",
+        checklist: [
+          "ステップ 6 の事前検証で、既存の default ゲートウェイが検出された場合は再利用として扱われ、ブロックエラーにはなりません。",
+          "同じ Application ID または VM 名がすでに存在する場合は、別の Application ID や VM 名に変更することで競合を回避できます。",
         ],
       },
     ],

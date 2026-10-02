@@ -226,7 +226,9 @@ export function App() {
   const [workflowBusy, setWorkflowBusy] = useState(false);
   const [workflowError, setWorkflowError] = useState("");
   const [workflowRestored, setWorkflowRestored] = useState(false);
-  const [activeView, setActiveView] = useState<AppView>("setup");
+  const [activeView, setActiveView] = useState<AppView>(() =>
+    extensionPersistentState ? "guide" : "setup"
+  );
   const messages = useMemo(() => getMessages(locale), [locale]);
 
   useEffect(() => {
@@ -241,15 +243,19 @@ export function App() {
           return;
         }
         const invalidateWorkflow = requiresCloudConnectionRevalidation(stored.setup);
-        setSetup(
-          constrainSetupStateToRuntime(
-            restoreSetupState(stored.setup),
-            runtimeCapabilities.internalHttpsLbArchitecture,
-          ),
+        const restoredSetup = constrainSetupStateToRuntime(
+          restoreSetupState(stored.setup),
+          runtimeCapabilities.internalHttpsLbArchitecture,
         );
-        setPersistedWorkflow(
-          invalidateWorkflow ? emptyWorkflowRefs : restoreWorkflowRefs(stored.workflow),
-        );
+        const restoredWorkflow = invalidateWorkflow
+          ? emptyWorkflowRefs
+          : restoreWorkflowRefs(stored.workflow);
+        setSetup(restoredSetup);
+        setPersistedWorkflow(restoredWorkflow);
+        const hasActiveSgwProgress =
+          restoredSetup.currentStep > 0 ||
+          Boolean(restoredWorkflow.planId || restoredWorkflow.approvalId || restoredWorkflow.runId);
+        setActiveView(hasActiveSgwProgress ? "setup" : "guide");
         setClientStateHydrated(true);
         setUserDataDisclosureAccepted(true);
       } catch {
@@ -866,10 +872,13 @@ export function App() {
     try {
       const stored = await acceptAndMigrateExtensionState();
       const invalidateWorkflow = requiresCloudConnectionRevalidation(stored.setup);
-      setSetup(restoreSetupState(stored.setup));
-      setPersistedWorkflow(
-        invalidateWorkflow ? emptyWorkflowRefs : restoreWorkflowRefs(stored.workflow),
-      );
+      const restoredSetup = restoreSetupState(stored.setup);
+      const restoredWorkflow = invalidateWorkflow
+        ? emptyWorkflowRefs
+        : restoreWorkflowRefs(stored.workflow);
+      setSetup(restoredSetup);
+      setPersistedWorkflow(restoredWorkflow);
+      setActiveView("guide");
       setClientStateHydrated(true);
       setUserDataDisclosureAccepted(true);
     } catch {
@@ -938,7 +947,7 @@ export function App() {
           {renderCurrentStep()}
         </WizardLayout>
       ) : activeView === "guide" ? (
-        <GuidePage messages={messages} />
+        <GuidePage messages={messages} onNavigate={setActiveView} />
       ) : activeView === "cepDeployer" ? (
         runtimeCapabilities.cepDeployer ? (
           <CepDeployerPage

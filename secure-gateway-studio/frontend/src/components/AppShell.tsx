@@ -71,8 +71,7 @@ export function AppShell({
   const isSgwActive =
     activeView === "setup" ||
     activeView === "deployments" ||
-    activeView === "evidence" ||
-    activeView === "guide";
+    activeView === "evidence";
 
   const [sgwMenuOpen, setSgwMenuOpen] = useState(true);
   const showSgwSubmenu = isSgwActive || sgwMenuOpen;
@@ -111,7 +110,6 @@ export function AppShell({
     { label: messages.nav.deployments, view: "deployments", icon: CubeIcon },
     { label: messages.nav.newSetup, view: "setup", icon: PlusCircleIcon },
     { label: messages.nav.evidence, view: "evidence", icon: DocumentIcon },
-    { label: messages.nav.guide, view: "guide", icon: BookIcon },
   ];
 
   const handleToggleSgw = () => {
@@ -159,6 +157,19 @@ export function AppShell({
           <ShieldNetworkIcon size={44} />
         </div>
         <nav aria-label="Primary navigation" className="primary-nav">
+          {/* 1. Guide (Top-level dedicated documentation tab) */}
+          <button
+            aria-label={messages.nav.guide}
+            aria-current={activeView === "guide" ? "page" : undefined}
+            className={activeView === "guide" ? "nav-item active" : "nav-item"}
+            onClick={() => onNavigate("guide")}
+            type="button"
+          >
+            <BookIcon size={24} />
+            <span>{messages.nav.guide}</span>
+          </button>
+
+          {/* 2. Easy PoC */}
           {showCepDeployer && (
             <button
               aria-label={messages.nav.easyPoc}
@@ -172,7 +183,7 @@ export function AppShell({
             </button>
           )}
 
-          {/* 2. Secure Gateway Deployer (Collapsible dropdown parent) */}
+          {/* 3. Secure Gateway Deployer (Collapsible dropdown parent) */}
           <div className={`nav-dropdown-group ${isSgwActive ? "active-parent" : ""} ${showSgwSubmenu ? "open" : ""}`}>
             <button
               aria-label={messages.nav.sgwDeployer}
@@ -188,7 +199,7 @@ export function AppShell({
               </div>
             </button>
 
-            {/* Submenu containing the 4 SGW tabs */}
+            {/* Submenu containing the 3 SGW tabs */}
             {showSgwSubmenu && (
               <div className="nav-submenu">
                 {sgwSubItems.map((item) => {
