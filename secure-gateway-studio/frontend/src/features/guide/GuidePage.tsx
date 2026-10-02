@@ -1,11 +1,43 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { Messages } from "../../i18n/messages";
-import { BookIcon, CheckIcon, CodeIcon, InfoIcon, LockIcon, NetworkIcon, ShieldIcon } from "../../components/Icons";
+import { BookIcon, CheckIcon, CodeIcon, InfoIcon, NetworkIcon, ShieldIcon } from "../../components/Icons";
 import { runtimeCapabilities } from "../../lib/api";
 
 interface GuidePageProps {
   messages: Messages;
   onNavigate?: (view: "setup" | "evidence" | "guide" | "deployments" | "cepDeployer") => void;
+}
+
+export function renderInlineLinks(text: string): ReactNode {
+  const linkPattern = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+  const parts: ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = linkPattern.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+    const [, label, href] = match;
+    parts.push(
+      <a
+        key={`${href}-${match.index}`}
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        className="guide-inline-link"
+      >
+        {label} ↗
+      </a>,
+    );
+    lastIndex = match.index + match[0].length;
+  }
+  if (parts.length === 0) {
+    return text;
+  }
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+  return parts;
 }
 
 export function GuidePage({ messages, onNavigate }: GuidePageProps) {
@@ -56,10 +88,10 @@ export function GuidePage({ messages, onNavigate }: GuidePageProps) {
       <header className="guide-portal-header">
         <p className="eyebrow">{guide.portalEyebrow}</p>
         <h1>{guide.portalTitle}</h1>
-        <p className="guide-portal-intro">{guide.portalIntro}</p>
+        <p className="guide-portal-intro">{renderInlineLinks(guide.portalIntro)}</p>
       </header>
 
-      {/* SHARED SECTION: 3 Building Blocks + 3 Preparation Steps + Unified Top-Right Auth + Glossary */}
+      {/* SHARED SECTION: 3 Building Blocks + 3 Preparation Steps + Glossary */}
       <section
         className="guide-beginner-section"
         id="beginner-primer-section"
@@ -68,17 +100,19 @@ export function GuidePage({ messages, onNavigate }: GuidePageProps) {
         <header className="guide-beginner-header">
           <p className="eyebrow">{guide.beginnerEyebrow}</p>
           <h2 id="guide-beginner-title">{guide.beginnerTitle}</h2>
-          <p>{guide.beginnerIntro}</p>
+          <p>{renderInlineLinks(guide.beginnerIntro)}</p>
         </header>
 
         <div className="guide-pillars-grid">
           {guide.beginnerPillars.map((pillar) => (
-            <article className="guide-pillar-card" key={pillar.title}>
+            <article className="guide-pillar-card" key={pillar.badge}>
               <span className="guide-pillar-badge">{pillar.badge}</span>
-              <h3>{pillar.title}</h3>
-              <p className="guide-pillar-analogy">{pillar.analogy}</p>
-              <p className="guide-pillar-desc">{pillar.description}</p>
-              <code className="guide-pillar-url">{pillar.whereUrl}</code>
+              <h3>{renderInlineLinks(pillar.title)}</h3>
+              <p className="guide-pillar-analogy">{renderInlineLinks(pillar.analogy)}</p>
+              <p className="guide-pillar-desc">{renderInlineLinks(pillar.description)}</p>
+              {pillar.whereUrl ? (
+                <p className="guide-pillar-where">{renderInlineLinks(pillar.whereUrl)}</p>
+              ) : null}
             </article>
           ))}
         </div>
@@ -87,56 +121,33 @@ export function GuidePage({ messages, onNavigate }: GuidePageProps) {
           <header className="guide-step-zero-header">
             <p className="eyebrow">{guide.stepZeroEyebrow}</p>
             <h3>{guide.stepZeroTitle}</h3>
-            <p>{guide.stepZeroIntro}</p>
+            <p>{renderInlineLinks(guide.stepZeroIntro)}</p>
           </header>
 
           <div className="guide-step-zero-grid">
             {guide.stepZeroChecklist.map((prep, index) => (
-              <article className="guide-step-zero-card" key={prep.title}>
+              <article className="guide-step-zero-card" key={prep.stepBadge}>
                 <div className="guide-step-zero-top">
                   <span className="guide-step-zero-number" aria-hidden="true">
                     {index + 1}
                   </span>
                   <div>
                     <span className="guide-step-zero-badge">{prep.stepBadge}</span>
-                    <h4>{prep.title}</h4>
+                    <h4>{renderInlineLinks(prep.title)}</h4>
                   </div>
                 </div>
-                <p className="guide-step-zero-summary">{prep.summary}</p>
+                <p className="guide-step-zero-summary">{renderInlineLinks(prep.summary)}</p>
                 <ul className="guide-step-zero-list">
                   {prep.details.map((detail) => (
                     <li key={detail}>
                       <CheckIcon size={15} />
-                      <span>{detail}</span>
+                      <span>{renderInlineLinks(detail)}</span>
                     </li>
                   ))}
                 </ul>
               </article>
             ))}
           </div>
-        </div>
-
-        <div className="guide-shared-auth-card" aria-labelledby="guide-shared-auth-title">
-          <div className="guide-shared-auth-header">
-            <span className="guide-shared-auth-icon" aria-hidden="true">
-              <LockIcon size={20} />
-            </span>
-            <div>
-              <h3 id="guide-shared-auth-title">{guide.sharedAuthTitle}</h3>
-              <p>{guide.sharedAuthIntro}</p>
-            </div>
-          </div>
-          <ul className="guide-shared-auth-list">
-            {guide.sharedAuthItems.map((item) => (
-              <li key={item.label}>
-                <CheckIcon size={16} />
-                <div>
-                  <strong>{item.label}: </strong>
-                  <span>{item.detail}</span>
-                </div>
-              </li>
-            ))}
-          </ul>
         </div>
 
         <details className="guide-glossary-details">
@@ -148,7 +159,7 @@ export function GuidePage({ messages, onNavigate }: GuidePageProps) {
             <small className="guide-glossary-summary-hint">{guide.glossaryEyebrow}</small>
           </summary>
           <div className="guide-glossary-body">
-            <p className="guide-glossary-intro">{guide.glossaryIntro}</p>
+            <p className="guide-glossary-intro">{renderInlineLinks(guide.glossaryIntro)}</p>
             <div className="guide-glossary-table-wrap">
               <table className="guide-glossary-table">
                 <thead>
@@ -163,7 +174,7 @@ export function GuidePage({ messages, onNavigate }: GuidePageProps) {
                     <tr key={item.term}>
                       <td className="guide-glossary-term">{item.term}</td>
                       <td className="guide-glossary-analogy">{item.analogy}</td>
-                      <td className="guide-glossary-meaning">{item.meaning}</td>
+                      <td className="guide-glossary-meaning">{renderInlineLinks(item.meaning)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -225,7 +236,7 @@ export function GuidePage({ messages, onNavigate }: GuidePageProps) {
             <div>
               <p className="eyebrow">{activeGuide.eyebrow}</p>
               <h2>{activeGuide.title}</h2>
-              <p>{activeGuide.intro}</p>
+              <p>{renderInlineLinks(activeGuide.intro)}</p>
             </div>
             {onNavigate ? (
               <div className="guide-heading-actions">
@@ -276,7 +287,7 @@ export function GuidePage({ messages, onNavigate }: GuidePageProps) {
           <InfoIcon size={24} />
           <div>
             <strong>{activeGuide.pocNoticeTitle}</strong>
-            <p>{activeGuide.pocNoticeBody}</p>
+            <p>{renderInlineLinks(activeGuide.pocNoticeBody)}</p>
           </div>
         </aside>
 
@@ -289,7 +300,7 @@ export function GuidePage({ messages, onNavigate }: GuidePageProps) {
           <header className="architecture-heading">
             <p className="eyebrow">{activeGuide.technicalEyebrow}</p>
             <h2 id="technical-deep-dive-title">{activeGuide.technicalDeepDiveTitle}</h2>
-            <p>{activeGuide.technicalDeepDiveIntro}</p>
+            <p>{renderInlineLinks(activeGuide.technicalDeepDiveIntro)}</p>
           </header>
 
           <div className="guide-step-jump-bar" aria-label="Step quick navigation">
@@ -310,9 +321,9 @@ export function GuidePage({ messages, onNavigate }: GuidePageProps) {
                   <div className="step-title-group">
                     <span className="step-badge">{activeGuide.stepLabel(index + 1)}</span>
                     <h2>{step.title}</h2>
-                    {step.subtitle && <p className="step-subtitle">{step.subtitle}</p>}
+                    {step.subtitle && <p className="step-subtitle">{renderInlineLinks(step.subtitle)}</p>}
                   </div>
-                  <p className="step-summary-text">{step.summary}</p>
+                  <p className="step-summary-text">{renderInlineLinks(step.summary)}</p>
 
                   <div className="step-section-block">
                     <h4 className="step-subheading">
@@ -323,7 +334,7 @@ export function GuidePage({ messages, onNavigate }: GuidePageProps) {
                       {step.actions.map((action) => (
                         <li key={action}>
                           <CheckIcon size={16} />
-                          <span>{action}</span>
+                          <span>{renderInlineLinks(action)}</span>
                         </li>
                       ))}
                     </ul>
@@ -334,7 +345,7 @@ export function GuidePage({ messages, onNavigate }: GuidePageProps) {
                       <ShieldIcon size={18} />
                       <div>
                         <strong>{guide.safetyGuardrailLabel}</strong>
-                        <p>{step.safetyNote}</p>
+                        <p>{renderInlineLinks(step.safetyNote)}</p>
                       </div>
                     </div>
                   )}
@@ -350,7 +361,7 @@ export function GuidePage({ messages, onNavigate }: GuidePageProps) {
                           {step.optionsBehavior.map((opt) => (
                             <div className="option-behavior-card" key={opt.name}>
                               <strong>{opt.name}</strong>
-                              <p>{opt.behavior}</p>
+                              <p>{renderInlineLinks(opt.behavior)}</p>
                             </div>
                           ))}
                         </div>
@@ -373,7 +384,7 @@ export function GuidePage({ messages, onNavigate }: GuidePageProps) {
                               </span>
                               <div className="api-call-content">
                                 <code className="api-endpoint">{api.endpoint}</code>
-                                <p className="api-purpose">{api.purpose}</p>
+                                <p className="api-purpose">{renderInlineLinks(api.purpose)}</p>
                               </div>
                             </div>
                           ))}
@@ -392,14 +403,14 @@ export function GuidePage({ messages, onNavigate }: GuidePageProps) {
           <header className="architecture-heading">
             <p className="eyebrow">{activeGuide.quickOverviewTitle}</p>
             <h2 id="architecture-title">{architectureTitle}</h2>
-            <p>{architectureIntro}</p>
+            <p>{renderInlineLinks(architectureIntro)}</p>
             {!isEasyPoc && !runtimeCapabilities.internalHttpsLbArchitecture ? (
-              <p>{guide.extensionArchitectureNote}</p>
+              <p>{renderInlineLinks(guide.extensionArchitectureNote)}</p>
             ) : null}
             {!isEasyPoc ? (
               <>
                 <h3>{guide.costOverviewTitle}</h3>
-                <p>{guide.costOverviewIntro}</p>
+                <p>{renderInlineLinks(guide.costOverviewIntro)}</p>
               </>
             ) : null}
           </header>
@@ -409,7 +420,7 @@ export function GuidePage({ messages, onNavigate }: GuidePageProps) {
                 <div className="architecture-card-heading">
                   <span>{architecture.eyebrow}</span>
                   <h3>{architecture.title}</h3>
-                  <p>{architecture.summary}</p>
+                  <p>{renderInlineLinks(architecture.summary)}</p>
                 </div>
 
                 <div className="architecture-cost-box">
@@ -420,11 +431,11 @@ export function GuidePage({ messages, onNavigate }: GuidePageProps) {
                   <div className="architecture-cost-details">
                     <div className="cost-detail-row">
                       <span className="cost-type-fixed">{fixedCostLabel}</span>
-                      <span>{architecture.costFixed}</span>
+                      <span>{renderInlineLinks(architecture.costFixed)}</span>
                     </div>
                     <div className="cost-detail-row">
                       <span className="cost-type-variable">{variableCostLabel}</span>
-                      <span>{architecture.costVariable}</span>
+                      <span>{renderInlineLinks(architecture.costVariable)}</span>
                     </div>
                   </div>
                 </div>
@@ -467,7 +478,7 @@ export function GuidePage({ messages, onNavigate }: GuidePageProps) {
           <header className="architecture-heading">
             <p className="eyebrow">{activeGuide.implementationEyebrow}</p>
             <h2 id="implementation-title">{activeGuide.implementationTitle}</h2>
-            <p>{activeGuide.implementationIntro}</p>
+            <p>{renderInlineLinks(activeGuide.implementationIntro)}</p>
           </header>
           <div className="implementation-grid">
             {activeGuide.implementationGroups.map((group) => (
@@ -480,7 +491,7 @@ export function GuidePage({ messages, onNavigate }: GuidePageProps) {
                   {group.items.map((item) => (
                     <li key={item}>
                       <CheckIcon size={17} />
-                      <span>{item}</span>
+                      <span>{renderInlineLinks(item)}</span>
                     </li>
                   ))}
                 </ul>
@@ -496,7 +507,7 @@ export function GuidePage({ messages, onNavigate }: GuidePageProps) {
               <header className="architecture-heading">
                 <p className="eyebrow">{activeGuide.faqEyebrow}</p>
                 <h2 id="faq-title">{activeGuide.faqTitle}</h2>
-                <p>{activeGuide.faqIntro}</p>
+                <p>{renderInlineLinks(activeGuide.faqIntro)}</p>
               </header>
 
               <div className="faq-grid">
@@ -507,7 +518,7 @@ export function GuidePage({ messages, onNavigate }: GuidePageProps) {
                       <strong className="faq-question">{faq.question}</strong>
                     </summary>
                     <div className="faq-content">
-                      <p className="faq-answer">{faq.answer}</p>
+                      <p className="faq-answer">{renderInlineLinks(faq.answer)}</p>
                       {faq.checklist && faq.checklist.length > 0 && (
                         <div className="faq-checklist-box">
                           <div className="faq-checklist-title">
@@ -517,7 +528,7 @@ export function GuidePage({ messages, onNavigate }: GuidePageProps) {
                           <ul className="faq-checklist">
                             {faq.checklist.map((item, idx) => (
                               <li key={idx}>
-                                <span>{item}</span>
+                                <span>{renderInlineLinks(item)}</span>
                               </li>
                             ))}
                           </ul>

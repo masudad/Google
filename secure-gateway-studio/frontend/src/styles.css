@@ -2636,13 +2636,39 @@ h1 {
   flex: 1 1 auto;
 }
 
-.guide-pillar-url {
+.guide-pillar-url,
+.guide-pillar-where {
+  margin: 0;
   align-self: flex-start;
-  padding: 3px 8px;
-  border-radius: 5px;
+  padding: 4px 9px;
+  border-radius: 6px;
   background: #f1f5f9;
   color: var(--ink-600);
-  font-size: 11px;
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+.guide-inline-link {
+  color: var(--teal-700);
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-color: rgba(15, 118, 110, 0.38);
+  text-underline-offset: 2px;
+  transition: color 0.14s ease, text-decoration-color 0.14s ease;
+}
+
+.guide-inline-link:hover,
+.guide-inline-link:focus-visible {
+  color: var(--navy-800);
+  text-decoration-color: currentColor;
+}
+
+.guide-pillar-card h3 .guide-inline-link {
+  color: var(--navy-800);
+}
+
+.guide-pillar-card h3 .guide-inline-link:hover {
+  color: var(--teal-700);
 }
 
 .guide-step-zero-box {

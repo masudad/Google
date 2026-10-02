@@ -1640,10 +1640,11 @@ describe("Secure Gateway Studio mode screen", () => {
       screen.getByText(/Quick Glossary of Google Terms Appearing in This Tool/),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", {
-        name: "Unified Top-Right Authentication & Shared Credentials",
-      }),
-    ).toBeInTheDocument();
+      screen.getAllByRole("link", { name: /Google Admin Console/i })[0],
+    ).toHaveAttribute("href", "https://admin.google.com");
+    expect(
+      screen.getAllByRole("link", { name: /Google Cloud Console/i })[0],
+    ).toHaveAttribute("href", "https://console.cloud.google.com");
 
     // Switch to Easy PoC Guide tab
     const easyPocTab = screen.getByRole("tab", { name: /Easy PoC Guide/i });
