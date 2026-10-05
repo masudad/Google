@@ -610,6 +610,34 @@ function dlpRuleMatches(
   if (expectedKinds.length === 0 || canonicalJson(expectedKinds) !== canonicalJson(foundKinds)) {
     return false;
   }
+  const conditionSemantics = (value: Record<string, unknown>) => {
+    const raw = value.condition;
+    const cond = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
+    const content = typeof cond.contentCondition === "string"
+      ? cond.contentCondition
+      : typeof cond.content_condition === "string"
+      ? cond.content_condition
+      : "";
+    const context = typeof cond.contextCondition === "string"
+      ? cond.contextCondition
+      : typeof cond.context_condition === "string"
+      ? cond.context_condition
+      : "";
+    const detectors = [...content.matchAll(/matches_predefined_detector\(['"]([^'"]+)['"]\)/g)]
+      .map((m) => m[1]!)
+      .sort();
+    return {
+      hasContext: context !== "",
+      negatedContext: context.trim().startsWith("!"),
+      detectors,
+    };
+  };
+  if (
+    canonicalJson(conditionSemantics(found.value)) !==
+    canonicalJson(conditionSemantics(expectedValue))
+  ) {
+    return false;
+  }
   // An INACTIVE rule with the right name is not the protection that was asked
   // for, so state is part of the match.
   if (found.value.state !== expectedValue.state) return false;
@@ -2794,13 +2822,70 @@ export class CepProvider {
           dlpRuleMatches(sameName[0]!, value, policyQuery);
         if (exact) {
           skipped.push(`Rule "${rule.displayName}" already exists and was reused`);
-        } else {
+          continue;
+        }
+        const existingPolicy = sameName.length === 1 ? sameName[0] : undefined;
+        if (
+          existingPolicy === undefined ||
+          existingPolicy.type !== "settings/rule.dlp" ||
+          existingPolicy.value.state !== "ACTIVE"
+        ) {
           failed = true;
           skipped.push(
             `Rule "${rule.displayName}": reserved-name-conflict; ` +
               `${sameName.length} existing policy record(s) do not match the requested triggers, action, and target`,
           );
+          continue;
         }
+
+        const updateLabel = `Update rule "${rule.displayName}"`;
+        const updateUrl = `${CLOUD_IDENTITY}/${existingPolicy.name}`;
+        const updateBody = {
+          name: existingPolicy.name,
+          customer: `customers/${context.dlpCustomerId}`,
+          policyQuery,
+          setting: { type: "settings/rule.dlp", value },
+        };
+        let updateError: unknown;
+        try {
+          await this.request(this.transport, "PATCH", updateUrl, updateBody);
+          trace.push({ label: updateLabel, method: "PATCH", url: updateUrl, status: 200, ok: true });
+        } catch (error) {
+          updateError = error;
+          trace.push({
+            label: updateLabel,
+            method: "PATCH",
+            url: updateUrl,
+            status: errorStatus(error) ?? 0,
+            ok: false,
+            error: errorMessage(error),
+          });
+        }
+
+        if (updateError !== undefined && isDefiniteCepMutationRejection(updateError)) {
+          failed = true;
+          skipped.push(
+            `Rule "${rule.displayName}": ${errorMessage(updateError)}`,
+          );
+          continue;
+        }
+
+        const confirmedUpdate = await this.waitForDlpPolicy(
+          trace,
+          "rule.dlp",
+          rule.displayName,
+          context.dlpCustomerId,
+          value,
+          policyQuery,
+        );
+        if (confirmedUpdate === null) {
+          throw new CepMutationOutcomeAmbiguous(
+            `Rule "${rule.displayName}" update outcome is ambiguous: ${this.lastDlpError}`,
+          );
+        }
+        existingPolicy.value = confirmedUpdate.value;
+        existingPolicy.policyQuery = confirmedUpdate.policyQuery;
+        created.push(`Updated DLP rule "${rule.displayName}" (${confirmedUpdate.name})`);
         continue;
       }
 

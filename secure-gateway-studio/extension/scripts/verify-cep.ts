@@ -302,6 +302,7 @@ function stubTransport(options: StubOptions = {}): {
   let dlp429Remaining = options.dlp429Count ?? 0;
   let dlpCreateCount = 0;
   let batchInheritCount = 0;
+  const existingDlp: StubDlpPolicy[] = structuredClone(options.existingDlp ?? []);
   const createdDlp: StubDlpPolicy[] = [];
   const pendingDlp: Array<{
     policy: StubDlpPolicy;
@@ -558,7 +559,7 @@ function stubTransport(options: StubOptions = {}): {
           const pageIndex = pageToken?.match(/^page-(\d+)$/)?.[1];
           const explicitPage = pageIndex === undefined ? 0 : Number(pageIndex);
           const source = options.dlpPages === undefined
-            ? [...(options.existingDlp ?? []), ...createdDlp]
+            ? [...existingDlp, ...createdDlp]
             : options.dlpPages[explicitPage] ?? [];
           const matching = source.filter((policy) => policy.type.includes(kind));
           const nextPageToken =
@@ -612,6 +613,27 @@ function stubTransport(options: StubOptions = {}): {
           type?: string;
           value?: Record<string, unknown> & { displayName?: string };
         };
+        if (method === "PATCH") {
+          const targetName =
+            url.match(/\/v1beta1\/(policies\/[^?]+)$/)?.[1] ??
+            (typeof body?.name === "string" ? body.name : "");
+          const target =
+            existingDlp.find((p) => p.name === targetName) ??
+            createdDlp.find((p) => p.name === targetName);
+          if (target === undefined) {
+            return { status: 404, payload: { error: { message: "policy not found" } } };
+          }
+          target.displayName = setting.value?.displayName ?? target.displayName;
+          target.type = setting.type ?? target.type;
+          target.value = { ...(setting.value ?? {}) };
+          target.policyQuery = {
+            ...((body?.policyQuery ?? {}) as Record<string, unknown>),
+          };
+          return {
+            status: 200,
+            payload: { done: true, response: { name: target.name } },
+          };
+        }
         const policy = {
           name: `policies/created-${calls.length}`,
           displayName: setting.value?.displayName ?? "created policy",
@@ -4970,6 +4992,50 @@ for (const mode of ["412-commit", "503-commit", "response-loss-commit"] as const
         s.includes("needs at least one internal URL prefix"),
       ),
     JSON.stringify(noInternalUrlRes),
+  );
+
+  // Re-provisioning an active CEP PoC DLP rule after changing action (e.g. warnUser -> blockContent)
+  // or target OU updates the rule in-place via PATCH instead of failing with reserved-name-conflict
+  const { transport: patchDlpTransport, calls: patchDlpCalls } = stubTransport({
+    existingDlp: [
+      {
+        name: "policies/existing-payment-card-upload",
+        displayName: PAYMENT_CARD_UPLOAD_NAME,
+        type: "settings/rule.dlp",
+        value: structuredClone(PAYMENT_CARD_UPLOAD.value),
+        policyQuery: structuredClone(PAYMENT_CARD_UPLOAD.policyQuery),
+      },
+    ],
+  });
+  const patchDlpRes = (await route(
+    context(patchDlpTransport),
+    "POST",
+    "/api/v1/cep/provision",
+    {
+      ...DLP_CONFIG,
+      internal_urls: [],
+      dlp_matrix: {
+        payment_card: {
+          upload: "blockContent",
+          paste: "warnUser",
+          print: "warnUser",
+          byodOnly: false,
+        },
+      },
+    },
+  )) as ProvisionResult;
+  const patchCall = patchDlpCalls.find(
+    (c) => c.method === "PATCH" && c.url.endsWith("/policies/existing-payment-card-upload"),
+  );
+  check(
+    "Changing an active CEP PoC DLP rule action from warnUser to blockContent updates it via PATCH and succeeds",
+    patchDlpRes.success === true &&
+      patchCall !== undefined &&
+      patchDlpRes.created_items.some((s) =>
+        s.includes(`Updated DLP rule "${PAYMENT_CARD_UPLOAD_NAME}" (policies/existing-payment-card-upload)`),
+      ) &&
+      !patchDlpRes.skipped_items.some((s) => s.includes("reserved-name-conflict")),
+    JSON.stringify(patchDlpRes),
   );
 }
 
