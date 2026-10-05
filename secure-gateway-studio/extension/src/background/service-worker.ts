@@ -634,6 +634,14 @@ function ensureColdStartReconciled(): Promise<void> {
     const db = database ?? await openDatabase();
     const repository = new StateRepository(db);
 
+    const clearedV0254 = await persistentGet("clearedAmbiguousPatchLeaseV0254");
+    if (clearedV0254.clearedAmbiguousPatchLeaseV0254 !== true) {
+      const leaseTx = db.transaction([STORE.cepLeases], "readwrite");
+      await idbRequest(leaseTx.objectStore(STORE.cepLeases).clear());
+      await idbTransactionDone(leaseTx);
+      await persistentSet({ clearedAmbiguousPatchLeaseV0254: true });
+    }
+
     // A teardown route runs synchronously within its message event. If the
     // worker/browser died during it, the remaining inventory is still owned
     // and a new teardown can safely retry it after this honest terminal mark.

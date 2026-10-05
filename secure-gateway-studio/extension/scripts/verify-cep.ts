@@ -5037,6 +5037,105 @@ for (const mode of ["412-commit", "503-commit", "response-loss-commit"] as const
       !patchDlpRes.skipped_items.some((s) => s.includes("reserved-name-conflict")),
     JSON.stringify(patchDlpRes),
   );
+
+  // National ID numbers - upload rule (matches_dlp_detector): updating region (US -> JP) or action
+  // confirms directly from synchronous Operation.response when returned, or retries on stale first list read
+  const nationalIdUploadName = "CEP PoC - National ID numbers - upload";
+  let staleNationalIdReadsRemaining = 1;
+  const { transport: baseNationalIdTransport, calls: nationalIdCalls } = stubTransport({
+    existingDlp: [
+      {
+        name: "policies/existing-national-id-upload",
+        displayName: nationalIdUploadName,
+        type: "settings/rule.dlp",
+        value: {
+          displayName: nationalIdUploadName,
+          description: "Detects US_SOCIAL_SECURITY_NUMBER, US_DRIVERS_LICENSE_NUMBER in Chrome content (United States). Operation: upload.",
+          triggers: ["google.workspace.chrome.file.v1.upload"],
+          state: "ACTIVE",
+          condition: {
+            contentCondition:
+              "all_content.matches_dlp_detector('US_SOCIAL_SECURITY_NUMBER', google.privacy.dlp.v2.Likelihood.LIKELY, {minimum_match_count: 1, minimum_unique_match_count: 1}) || all_content.matches_dlp_detector('US_DRIVERS_LICENSE_NUMBER', google.privacy.dlp.v2.Likelihood.LIKELY, {minimum_match_count: 1, minimum_unique_match_count: 1})",
+          },
+          action: { chromeAction: { warnUser: {} } },
+        },
+        policyQuery: structuredClone(PAYMENT_CARD_UPLOAD.policyQuery),
+      },
+    ],
+  });
+  let sawNationalIdPatch = false;
+  const staleListAfterPatchTransport: Transport = {
+    async requestJson(method, url, options) {
+      if (method === "PATCH" && url.endsWith("/policies/existing-national-id-upload")) {
+        sawNationalIdPatch = true;
+      }
+      const res = await baseNationalIdTransport.requestJson(method, url, options);
+      if (
+        method === "GET" &&
+        url.includes("cloudidentity.googleapis.com") &&
+        sawNationalIdPatch &&
+        staleNationalIdReadsRemaining > 0
+      ) {
+        staleNationalIdReadsRemaining -= 1;
+        return {
+          status: 200,
+          payload: {
+            policies: [
+              {
+                name: "policies/existing-national-id-upload",
+                setting: {
+                  type: "settings/rule.dlp",
+                  value: {
+                    displayName: nationalIdUploadName,
+                    description: "Stale pre-PATCH rule",
+                    triggers: ["google.workspace.chrome.file.v1.upload"],
+                    state: "ACTIVE",
+                    condition: {
+                      contentCondition:
+                        "all_content.matches_dlp_detector('US_SOCIAL_SECURITY_NUMBER', google.privacy.dlp.v2.Likelihood.LIKELY, {minimum_match_count: 1, minimum_unique_match_count: 1})",
+                    },
+                    action: { chromeAction: { warnUser: {} } },
+                  },
+                },
+                policyQuery: structuredClone(PAYMENT_CARD_UPLOAD.policyQuery),
+              },
+            ],
+          },
+        };
+      }
+      return res;
+    },
+  };
+  const nationalIdPatchRes = (await route(
+    context(staleListAfterPatchTransport),
+    "POST",
+    "/api/v1/cep/provision",
+    {
+      ...DLP_CONFIG,
+      dlp_region: "JP",
+      internal_urls: [],
+      dlp_matrix: {
+        national_id: {
+          upload: "blockContent",
+          paste: "off",
+          print: "off",
+          byodOnly: false,
+        },
+      },
+    },
+  )) as ProvisionResult;
+  check(
+    "National ID numbers - upload PATCH retries when the first post-PATCH list poll returns a stale pre-PATCH snapshot and succeeds without locking the durable lease",
+    nationalIdPatchRes.success === true &&
+      nationalIdCalls.some(
+        (c) => c.method === "PATCH" && c.url.endsWith("/policies/existing-national-id-upload"),
+      ) &&
+      nationalIdPatchRes.created_items.some((s) =>
+        s.includes(`Updated DLP rule "${nationalIdUploadName}" (policies/existing-national-id-upload)`),
+      ) &&
+      activeCepLeases.size === 0,
+    JSON.stringify(nationalIdPatchRes),
+  );
 }
 
 // -- Report -------------------------------------------------------------------

@@ -623,7 +623,7 @@ function dlpRuleMatches(
       : typeof cond.context_condition === "string"
       ? cond.context_condition
       : "";
-    const detectors = [...content.matchAll(/matches_predefined_detector\(['"]([^'"]+)['"]\)/g)]
+    const detectors = [...content.matchAll(/matches_(?:predefined|dlp)_detector\(['"]([^'"]+)['"]/g)]
       .map((m) => m[1]!)
       .sort();
     return {
@@ -2294,178 +2294,15 @@ export class CepProvider {
           this.lastDlpError = `response-invalid: ${kind} policy list contains a malformed item`;
           return null;
         }
-        const record = item as Record<string, unknown>;
-        if (
-          typeof record.name !== "string" ||
-          !/^policies\/[A-Za-z0-9._~-]+$/.test(record.name) ||
-          seenPolicyNames.has(record.name)
-        ) {
-          this.lastDlpError = `response-invalid: ${kind} policy list contains an invalid identity`;
-          return null;
-        }
-        seenPolicyNames.add(record.name);
-        if (typeof record.setting !== "object" || record.setting === null ||
-            Array.isArray(record.setting)) {
-          this.lastDlpError = `response-invalid: ${kind} policy list contains an invalid setting`;
-          return null;
-        }
-        const setting = record.setting as {
-          type?: unknown;
-          value?: unknown;
-        };
-        const settingTypeMatches = kind === "rule.dlp"
-          ? setting.type === "settings/rule.dlp"
-          : typeof setting.type === "string" && /^settings\/detector(?:\.|$)/.test(setting.type);
-        if (
-          !settingTypeMatches ||
-          typeof setting.value !== "object" || setting.value === null ||
-          Array.isArray(setting.value)
-        ) {
-          this.lastDlpError = `response-invalid: ${kind} policy list contains an invalid setting`;
-          return null;
-        }
-        const settingValue = setting.value as Record<string, unknown>;
-        // `setting.value` is a free-form struct, so its keys come back exactly
-        // as whoever wrote them spelled them. Reading only camelCase missed
-        // every rule and duplicated the whole set on the second run.
-        const camel = settingValue.displayName;
-        const snake = settingValue.display_name;
-        const raw = camel ?? snake;
-        if (
-          typeof raw !== "string" || raw === "" ||
-          (camel !== undefined && typeof camel !== "string") ||
-          (snake !== undefined && typeof snake !== "string") ||
-          (typeof camel === "string" && typeof snake === "string" && camel !== snake)
-        ) {
-          this.lastDlpError = `response-invalid: ${kind} policy list contains an invalid display name`;
-          return null;
-        }
-        const value = { ...settingValue };
-        // Struct keys are user-defined. Treat the legacy snake-case spelling
-        // as the same display-name field, but keep every other field exact.
-        if (value.displayName === undefined && typeof value.display_name === "string") {
-          value.displayName = value.display_name;
-        }
-        delete value.display_name;
-        if (kind === "rule.dlp") {
-          const outputOnlyFields = [
-            ["createTime", "create_time", "timestamp"],
-            ["updateTime", "update_time", "timestamp"],
-          ] as const;
-          for (const [camelName, snakeName, outputType] of outputOnlyFields) {
-            const camelValue = value[camelName];
-            const snakeValue = value[snakeName];
-            if (
-              camelValue !== undefined && snakeValue !== undefined &&
-              canonicalJson(camelValue) !== canonicalJson(snakeValue)
-            ) {
-              this.lastDlpError =
-                `response-invalid: ${kind} policy list contains conflicting ${camelName} fields`;
-              return null;
-            }
-            const outputValue = camelValue ?? snakeValue;
-            const validOutput = outputValue === undefined ||
-              (outputType === "timestamp" &&
-                typeof outputValue === "string" && outputValue !== "" &&
-                Number.isFinite(Date.parse(outputValue)));
-            if (!validOutput) {
-              this.lastDlpError =
-                `response-invalid: ${kind} policy list contains invalid ${camelName}`;
-              return null;
-            }
-            // Cloud Identity populates timestamps after create. They are not
-            // operator-set rule semantics; every other value key remains exact.
-            delete value[camelName];
-            delete value[snakeName];
-          }
-
-          const normalizeRuleTypeMetadata = (
-            raw: unknown,
-          ): Record<string, unknown> | null => {
-            if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
-            const metadata = raw as Record<string, unknown>;
-            if (Object.keys(metadata).length === 0) return {};
-            if (!Object.keys(metadata).every(
-              (key) => key === "dlpRuleMetadata" || key === "dlp_rule_metadata"
-            )) return null;
-            const camelDlp = metadata.dlpRuleMetadata;
-            const snakeDlp = metadata.dlp_rule_metadata;
-            if (camelDlp === undefined && snakeDlp === undefined) return null;
-            const normalizeDlp = (candidate: unknown): Record<string, unknown> | null => {
-              if (
-                typeof candidate !== "object" || candidate === null ||
-                Array.isArray(candidate)
-              ) return null;
-              const record = candidate as Record<string, unknown>;
-              if (Object.keys(record).length === 0) return {};
-              if (!Object.keys(record).every(
-                (key) => key === "alertSeverity" || key === "alert_severity"
-              )) return null;
-              const camelSeverity = record.alertSeverity;
-              const snakeSeverity = record.alert_severity;
-              if (
-                camelSeverity !== undefined && snakeSeverity !== undefined &&
-                camelSeverity !== snakeSeverity
-              ) return null;
-              const severity = camelSeverity ?? snakeSeverity;
-              if (
-                typeof severity !== "string" ||
-                !["LOW", "MEDIUM", "HIGH", "ALERT_SEVERITY_UNSPECIFIED"].includes(severity)
-              ) return null;
-              return { alertSeverity: severity };
-            };
-            const normalizedCamel = camelDlp === undefined ? undefined : normalizeDlp(camelDlp);
-            const normalizedSnake = snakeDlp === undefined ? undefined : normalizeDlp(snakeDlp);
-            if (
-              normalizedCamel === null || normalizedSnake === null ||
-              (normalizedCamel !== undefined && normalizedSnake !== undefined &&
-                canonicalJson(normalizedCamel) !== canonicalJson(normalizedSnake))
-            ) return null;
-            return { dlpRuleMetadata: normalizedCamel ?? normalizedSnake };
-          };
-          const camelMetadata = value.ruleTypeMetadata;
-          const snakeMetadata = value.rule_type_metadata;
-          if (camelMetadata !== undefined || snakeMetadata !== undefined) {
-            const normalizedCamel = camelMetadata === undefined
-              ? undefined
-              : normalizeRuleTypeMetadata(camelMetadata);
-            const normalizedSnake = snakeMetadata === undefined
-              ? undefined
-              : normalizeRuleTypeMetadata(snakeMetadata);
-            if (
-              normalizedCamel === null || normalizedSnake === null ||
-              (normalizedCamel !== undefined && normalizedSnake !== undefined &&
-                canonicalJson(normalizedCamel) !== canonicalJson(normalizedSnake))
-            ) {
-              this.lastDlpError =
-                `response-invalid: ${kind} policy list contains invalid ruleTypeMetadata`;
-              return null;
-            }
-            value.ruleTypeMetadata = normalizedCamel ?? normalizedSnake;
-            delete value.rule_type_metadata;
-          }
-        }
-        if (
-          typeof record.policyQuery !== "object" || record.policyQuery === null ||
-          Array.isArray(record.policyQuery)
-        ) {
-          this.lastDlpError = `response-invalid: ${kind} policy list contains an invalid policy query`;
-          return null;
-        }
-        const policyQuery = normalizedCloudIdentityPolicyQuery(
-          record.policyQuery as Record<string, unknown>,
+        const normalized = this.normalizeDlpPolicyRecord(
+          item as Record<string, unknown>,
+          kind,
+          seenPolicyNames,
         );
-        if (policyQuery === null) {
-          this.lastDlpError = `response-invalid: ${kind} policy list contains an invalid policy query`;
+        if (normalized === null) {
           return null;
         }
-        result.push({
-          name: record.name,
-          displayName: raw,
-          type: setting.type as string,
-          value,
-          policyQuery,
-        });
+        result.push(normalized);
       }
 
       let next: string | null;
@@ -2495,6 +2332,190 @@ export class CepProvider {
     return result;
   }
 
+  private normalizeDlpPolicyRecord(
+    record: Record<string, unknown>,
+    kind: "rule.dlp" | "detector",
+    seenPolicyNames?: Set<string>,
+  ): {
+    name: string;
+    displayName: string;
+    type: string;
+    value: Record<string, unknown>;
+    policyQuery: Record<string, unknown>;
+  } | null {
+    if (
+      typeof record.name !== "string" ||
+      !/^policies\/[A-Za-z0-9._~-]+$/.test(record.name) ||
+      (seenPolicyNames?.has(record.name) ?? false)
+    ) {
+      this.lastDlpError = `response-invalid: ${kind} policy list contains an invalid identity`;
+      return null;
+    }
+    seenPolicyNames?.add(record.name);
+    if (typeof record.setting !== "object" || record.setting === null ||
+        Array.isArray(record.setting)) {
+      this.lastDlpError = `response-invalid: ${kind} policy list contains an invalid setting`;
+      return null;
+    }
+    const setting = record.setting as {
+      type?: unknown;
+      value?: unknown;
+    };
+    const settingTypeMatches = kind === "rule.dlp"
+      ? setting.type === "settings/rule.dlp"
+      : typeof setting.type === "string" && /^settings\/detector(?:\.|$)/.test(setting.type);
+    if (
+      !settingTypeMatches ||
+      typeof setting.value !== "object" || setting.value === null ||
+      Array.isArray(setting.value)
+    ) {
+      this.lastDlpError = `response-invalid: ${kind} policy list contains an invalid setting`;
+      return null;
+    }
+    const settingValue = setting.value as Record<string, unknown>;
+    // `setting.value` is a free-form struct, so its keys come back exactly
+    // as whoever wrote them spelled them. Reading only camelCase missed
+    // every rule and duplicated the whole set on the second run.
+    const camel = settingValue.displayName;
+    const snake = settingValue.display_name;
+    const raw = camel ?? snake;
+    if (
+      typeof raw !== "string" || raw === "" ||
+      (camel !== undefined && typeof camel !== "string") ||
+      (snake !== undefined && typeof snake !== "string") ||
+      (typeof camel === "string" && typeof snake === "string" && camel !== snake)
+    ) {
+      this.lastDlpError = `response-invalid: ${kind} policy list contains an invalid display name`;
+      return null;
+    }
+    const value = { ...settingValue };
+    // Struct keys are user-defined. Treat the legacy snake-case spelling
+    // as the same display-name field, but keep every other field exact.
+    if (value.displayName === undefined && typeof value.display_name === "string") {
+      value.displayName = value.display_name;
+    }
+    delete value.display_name;
+    if (kind === "rule.dlp") {
+      const outputOnlyFields = [
+        ["createTime", "create_time", "timestamp"],
+        ["updateTime", "update_time", "timestamp"],
+      ] as const;
+      for (const [camelName, snakeName, outputType] of outputOnlyFields) {
+        const camelValue = value[camelName];
+        const snakeValue = value[snakeName];
+        if (
+          camelValue !== undefined && snakeValue !== undefined &&
+          canonicalJson(camelValue) !== canonicalJson(snakeValue)
+        ) {
+          this.lastDlpError =
+            `response-invalid: ${kind} policy list contains conflicting ${camelName} fields`;
+          return null;
+        }
+        const outputValue = camelValue ?? snakeValue;
+        const validOutput = outputValue === undefined ||
+          (outputType === "timestamp" &&
+            typeof outputValue === "string" && outputValue !== "" &&
+            Number.isFinite(Date.parse(outputValue)));
+        if (!validOutput) {
+          this.lastDlpError =
+            `response-invalid: ${kind} policy list contains invalid ${camelName}`;
+          return null;
+        }
+        // Cloud Identity populates timestamps after create. They are not
+        // operator-set rule semantics; every other value key remains exact.
+        delete value[camelName];
+        delete value[snakeName];
+      }
+
+      const normalizeRuleTypeMetadata = (
+        raw: unknown,
+      ): Record<string, unknown> | null => {
+        if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
+        const metadata = raw as Record<string, unknown>;
+        if (Object.keys(metadata).length === 0) return {};
+        if (!Object.keys(metadata).every(
+          (key) => key === "dlpRuleMetadata" || key === "dlp_rule_metadata"
+        )) return null;
+        const camelDlp = metadata.dlpRuleMetadata;
+        const snakeDlp = metadata.dlp_rule_metadata;
+        if (camelDlp === undefined && snakeDlp === undefined) return null;
+        const normalizeDlp = (candidate: unknown): Record<string, unknown> | null => {
+          if (
+            typeof candidate !== "object" || candidate === null ||
+            Array.isArray(candidate)
+          ) return null;
+          const record = candidate as Record<string, unknown>;
+          if (Object.keys(record).length === 0) return {};
+          if (!Object.keys(record).every(
+            (key) => key === "alertSeverity" || key === "alert_severity"
+          )) return null;
+          const camelSeverity = record.alertSeverity;
+          const snakeSeverity = record.alert_severity;
+          if (
+            camelSeverity !== undefined && snakeSeverity !== undefined &&
+            camelSeverity !== snakeSeverity
+          ) return null;
+          const severity = camelSeverity ?? snakeSeverity;
+          if (
+            typeof severity !== "string" ||
+            !["LOW", "MEDIUM", "HIGH", "ALERT_SEVERITY_UNSPECIFIED"].includes(severity)
+          ) return null;
+          return { alertSeverity: severity };
+        };
+        const normalizedCamel = camelDlp === undefined ? undefined : normalizeDlp(camelDlp);
+        const normalizedSnake = snakeDlp === undefined ? undefined : normalizeDlp(snakeDlp);
+        if (
+          normalizedCamel === null || normalizedSnake === null ||
+          (normalizedCamel !== undefined && normalizedSnake !== undefined &&
+            canonicalJson(normalizedCamel) !== canonicalJson(normalizedSnake))
+        ) return null;
+        return { dlpRuleMetadata: normalizedCamel ?? normalizedSnake };
+      };
+      const camelMetadata = value.ruleTypeMetadata;
+      const snakeMetadata = value.rule_type_metadata;
+      if (camelMetadata !== undefined || snakeMetadata !== undefined) {
+        const normalizedCamel = camelMetadata === undefined
+          ? undefined
+          : normalizeRuleTypeMetadata(camelMetadata);
+        const normalizedSnake = snakeMetadata === undefined
+          ? undefined
+          : normalizeRuleTypeMetadata(snakeMetadata);
+        if (
+          normalizedCamel === null || normalizedSnake === null ||
+          (normalizedCamel !== undefined && normalizedSnake !== undefined &&
+            canonicalJson(normalizedCamel) !== canonicalJson(normalizedSnake))
+        ) {
+          this.lastDlpError =
+            `response-invalid: ${kind} policy list contains invalid ruleTypeMetadata`;
+          return null;
+        }
+        value.ruleTypeMetadata = normalizedCamel ?? normalizedSnake;
+        delete value.rule_type_metadata;
+      }
+    }
+    if (
+      typeof record.policyQuery !== "object" || record.policyQuery === null ||
+      Array.isArray(record.policyQuery)
+    ) {
+      this.lastDlpError = `response-invalid: ${kind} policy list contains an invalid policy query`;
+      return null;
+    }
+    const policyQuery = normalizedCloudIdentityPolicyQuery(
+      record.policyQuery as Record<string, unknown>,
+    );
+    if (policyQuery === null) {
+      this.lastDlpError = `response-invalid: ${kind} policy list contains an invalid policy query`;
+      return null;
+    }
+    return {
+      name: record.name,
+      displayName: raw,
+      type: setting.type as string,
+      value,
+      policyQuery,
+    };
+  }
+
   /**
    * Cloud Identity create is a long-running operation. A 2xx response with
    * `done: false` is only an acknowledgement, so do not let a dependent rule
@@ -2509,6 +2530,7 @@ export class CepProvider {
     customerId: string,
     expectedValue: Record<string, unknown>,
     expectedQuery: Record<string, unknown>,
+    options?: { retryOnMismatch?: boolean },
   ): Promise<{
     name: string;
     displayName: string;
@@ -2536,6 +2558,9 @@ export class CepProvider {
             canonicalJson(policyQueryTarget(found.policyQuery)) ===
               canonicalJson(policyQueryTarget(expectedQuery));
         if (!matched) {
+          if (options?.retryOnMismatch === true && attempt < DLP_RECONCILIATION_MAX_ATTEMPTS) {
+            continue;
+          }
           this.lastDlpError =
             `reserved-name-conflict: policy "${displayName}" does not match the requested setting and target`;
           return null;
@@ -2846,9 +2871,10 @@ export class CepProvider {
           policyQuery,
           setting: { type: "settings/rule.dlp", value },
         };
+        let patchPayload: Record<string, unknown> | undefined;
         let updateError: unknown;
         try {
-          await this.request(this.transport, "PATCH", updateUrl, updateBody);
+          patchPayload = await this.request(this.transport, "PATCH", updateUrl, updateBody);
           trace.push({ label: updateLabel, method: "PATCH", url: updateUrl, status: 200, ok: true });
         } catch (error) {
           updateError = error;
@@ -2870,18 +2896,54 @@ export class CepProvider {
           continue;
         }
 
-        const confirmedUpdate = await this.waitForDlpPolicy(
-          trace,
-          "rule.dlp",
-          rule.displayName,
-          context.dlpCustomerId,
-          value,
-          policyQuery,
-        );
-        if (confirmedUpdate === null) {
-          throw new CepMutationOutcomeAmbiguous(
-            `Rule "${rule.displayName}" update outcome is ambiguous: ${this.lastDlpError}`,
+        let confirmedUpdate: {
+          name: string;
+          displayName: string;
+          type: string;
+          value: Record<string, unknown>;
+          policyQuery: Record<string, unknown>;
+        } | null = null;
+        if (
+          updateError === undefined &&
+          patchPayload?.done === true &&
+          typeof patchPayload.response === "object" &&
+          patchPayload.response !== null &&
+          !Array.isArray(patchPayload.response)
+        ) {
+          const previousError = this.lastDlpError;
+          const candidate = this.normalizeDlpPolicyRecord(
+            patchPayload.response as Record<string, unknown>,
+            "rule.dlp",
           );
+          this.lastDlpError = previousError;
+          if (
+            candidate !== null &&
+            candidate.name === existingPolicy.name &&
+            candidate.displayName === rule.displayName &&
+            dlpRuleMatches(candidate, value, policyQuery)
+          ) {
+            confirmedUpdate = candidate;
+          }
+        }
+        if (confirmedUpdate === null) {
+          confirmedUpdate = await this.waitForDlpPolicy(
+            trace,
+            "rule.dlp",
+            rule.displayName,
+            context.dlpCustomerId,
+            value,
+            policyQuery,
+            { retryOnMismatch: true },
+          );
+        }
+        if (confirmedUpdate === null) {
+          failed = true;
+          skipped.push(
+            `Rule "${rule.displayName}": ${
+              updateError !== undefined ? errorMessage(updateError) : this.lastDlpError
+            }`,
+          );
+          continue;
         }
         existingPolicy.value = confirmedUpdate.value;
         existingPolicy.policyQuery = confirmedUpdate.policyQuery;
