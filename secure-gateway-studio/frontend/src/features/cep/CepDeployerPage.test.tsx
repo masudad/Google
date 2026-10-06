@@ -927,7 +927,63 @@ describe("CepDeployerPage", () => {
       screen.getByText('Deleted DLP rule "CEP PoC - Payment card numbers - upload" (policies/rule1)'),
     ).toBeInTheDocument();
   });
+
+  it("auto-configures BYOD vs Corp-Owned and Android vs iOS DLP rules via the Company Device & OS Environment Selector", async () => {
+    const provision = vi.spyOn(api, "provisionCepPolicies").mockResolvedValue(emptyResult());
+    renderPage();
+    await selectPilotOu();
+
+    const nav = screen.getByRole("navigation", { name: "CEP PoC Sections" });
+    fireEvent.click(within(nav).getByRole("button", { name: m.tabDlp }));
+
+    // Verify the Company Device & OS Environment Selector is rendered with all 6 checkboxes
+    const envRegion = screen.getByRole("region", { name: m.dlpEnvBuilderTitle });
+    expect(within(envRegion).getByLabelText(m.dlpEnvCorpPc, { exact: false })).toBeChecked();
+    expect(within(envRegion).getByLabelText(m.dlpEnvByodPc, { exact: false })).toBeChecked();
+    expect(within(envRegion).getByLabelText(m.dlpEnvByodAndroid, { exact: false })).toBeChecked();
+    expect(within(envRegion).getByLabelText(m.dlpEnvByodIos, { exact: false })).toBeChecked();
+
+    // Uncheck PC BYOD so only Android BYOD + iOS BYOD + Corp PC are active, then click auto-configure
+    fireEvent.click(within(envRegion).getByLabelText(m.dlpEnvByodPc, { exact: false }));
+    fireEvent.click(within(envRegion).getByRole("button", { name: m.dlpEnvApplyBtn }));
+
+    // Deploy from Tab 3 (DLP)
+    fireEvent.click(screen.getByText(m.btnDeploy));
+
+    await waitFor(() => {
+      expect(provision).toHaveBeenCalledTimes(1);
+    });
+
+    const payload = provision.mock.calls[0]?.[0];
+    expect(payload?.dlp_rules).toBe(true);
+    expect(payload?.dlp_matrix?.universal_upload).toEqual(
+      expect.objectContaining({
+        upload: "blockContent",
+        deviceScope: "mobile_byod",
+        byodOnly: true,
+      }),
+    );
+    expect(payload?.dlp_matrix?.android_byod).toEqual(
+      expect.objectContaining({
+        upload: "blockContent",
+        download: "blockContent",
+        paste: "warnUser",
+        print: "blockContent",
+        deviceScope: "android_byod",
+      }),
+    );
+    expect(payload?.dlp_matrix?.ios_byod).toEqual(
+      expect.objectContaining({
+        upload: "blockContent",
+        download: "blockContent",
+        paste: "warnUser",
+        print: "blockContent",
+        deviceScope: "ios_byod",
+      }),
+    );
+  });
 });
+
 
 
 

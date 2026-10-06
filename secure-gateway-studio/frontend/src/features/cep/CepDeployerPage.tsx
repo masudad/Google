@@ -93,6 +93,10 @@ const AUTO_CREATE_SENTINELS = [
   AUTO_CREATE_ANY,
   "AUTO_CREATE_PROFILE_MANAGED",
   "AUTO_CREATE_BROWSER_MANAGED",
+  "AUTO_CREATE_CORP_OWNED",
+  "AUTO_CREATE_BYOD",
+  "AUTO_CREATE_ANDROID_BYOD",
+  "AUTO_CREATE_IOS_BYOD",
 ];
 
 const PRESETS: Record<PresetName, ModuleState> = {
@@ -691,15 +695,18 @@ gcloud access-context-manager cloud-bindings create \\
   });
   const dlpNeedsAccessLevel = Object.entries(dlpMatrix).some(([ruleId, cfg]) => {
     if (!cfg) return false;
-    if (ruleId === "access_level") {
-      return (
-        (cfg.upload !== undefined && cfg.upload !== "off") ||
-        (cfg.download !== undefined && cfg.download !== "off") ||
-        (cfg.paste !== undefined && cfg.paste !== "off") ||
-        (cfg.print !== undefined && cfg.print !== "off")
-      );
+    const isRowActive =
+      ruleId === "watermark"
+        ? cfg.watermark === true
+        : (cfg.upload !== undefined && cfg.upload !== "off") ||
+          (cfg.download !== undefined && cfg.download !== "off") ||
+          (cfg.paste !== undefined && cfg.paste !== "off") ||
+          (cfg.print !== undefined && cfg.print !== "off");
+    if (!isRowActive) return false;
+    if (ruleId === "access_level" || ruleId === "android_byod" || ruleId === "ios_byod") {
+      return true;
     }
-    return cfg.byodOnly === true;
+    return cfg.byodOnly === true || (cfg.deviceScope !== undefined && cfg.deviceScope !== "all");
   });
   const anyModuleSelected =
     activeTab === "setup"
@@ -797,6 +804,13 @@ gcloud access-context-manager cloud-bindings create \\
   function currentConfig(): CepProvisionConfig {
     const isSetupOnly = activeTab === "setup";
     const isDlpOnly = activeTab === "dlp";
+    const resolvedAccessLevel = isDlpOnly
+      ? dlpNeedsAccessLevel
+        ? modules.accessLevel !== ACCESS_LEVEL_NONE
+          ? modules.accessLevel
+          : "AUTO_CREATE_CORP_OWNED"
+        : ACCESS_LEVEL_NONE
+      : modules.accessLevel;
     return {
       customer_id: canonicalCustomerId,
       project_id: effectiveProjectId,
@@ -810,9 +824,7 @@ gcloud access-context-manager cloud-bindings create \\
       core_policies: isDlpOnly ? false : modules.corePolicies,
       force_extensions: isDlpOnly ? false : modules.forceExtensions,
       connectors: isDlpOnly ? false : modules.connectors,
-      access_level: isDlpOnly
-        ? (dlpNeedsAccessLevel ? modules.accessLevel : ACCESS_LEVEL_NONE)
-        : modules.accessLevel,
+      access_level: resolvedAccessLevel,
       dlp_detectors: false,
       dlp_rules: isSetupOnly ? false : isDlpOnly ? true : modules.dlpRules,
       dlp_region: modules.dlpRegion,
@@ -1493,6 +1505,10 @@ gcloud access-context-manager cloud-bindings create \\
               <option value="AUTO_CREATE_CHROME_ANY">{m.accessLevelAutoAny}</option>
               <option value="AUTO_CREATE_PROFILE_MANAGED">{m.accessLevelAutoProfile}</option>
               <option value="AUTO_CREATE_BROWSER_MANAGED">{m.accessLevelAutoBrowser}</option>
+              <option value="AUTO_CREATE_CORP_OWNED">{m.accessLevelAutoCorpOwned}</option>
+              <option value="AUTO_CREATE_BYOD">{m.accessLevelAutoByod}</option>
+              <option value="AUTO_CREATE_ANDROID_BYOD">{m.accessLevelAutoAndroidByod}</option>
+              <option value="AUTO_CREATE_IOS_BYOD">{m.accessLevelAutoIosByod}</option>
               {accessLevels.length > 0 && (
                 <optgroup label={m.accessLevelExistingGroup}>
                   {accessLevels.map((level) => (
@@ -1935,6 +1951,11 @@ gcloud access-context-manager cloud-bindings create \\
             messages={messages}
             onChange={setDlpMatrix}
             onCustomMessageChange={setDlpCustomMessage}
+            onEnsureAccessLevel={(sentinel) => {
+              if (modules.accessLevel === ACCESS_LEVEL_NONE) {
+                update("accessLevel", sentinel);
+              }
+            }}
             onRegionChange={(reg) => update("dlpRegion", reg)}
             onSaveContentChange={setDlpSaveContent}
             region={modules.dlpRegion}

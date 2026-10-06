@@ -31,7 +31,11 @@
  * anywhere in the request is rejected outright.
  */
 
-import { ensureManagedChromeAccessLevelDetailed } from "./catalog.ts";
+import {
+  ensureManagedChromeAccessLevelDetailed,
+  MANAGED_CHROME_ACCESS_LEVEL_SPECS,
+  type ManagedChromeAccessLevelKind,
+} from "./catalog.ts";
 import type { Transport } from "./executor.ts";
 import { validateLicenseAssignment } from "./licensing.ts";
 import { canonicalJson } from "../domain/canonical.ts";
@@ -52,6 +56,8 @@ const CEP_DLP_RULE_BASE_NAMES = [
   `${DLP_PREFIX}Payment card numbers`,
   `${DLP_PREFIX}National ID numbers`,
   `${DLP_PREFIX}Unmanaged Chrome access control`,
+  `${DLP_PREFIX}Android BYOD access control`,
+  `${DLP_PREFIX}iOS BYOD access control`,
   `${DLP_PREFIX}Watermark internal pages`,
   `${DLP_PREFIX}Consumer GenAI data protection`,
 ] as const;
@@ -80,6 +86,8 @@ export type CepDlpRuleId =
   | "payment_card"
   | "national_id"
   | "access_level"
+  | "android_byod"
+  | "ios_byod"
   | "watermark"
   | "genai_block";
 
@@ -88,13 +96,74 @@ export type CepDlpAction = "off" | "auditOnly" | "warnUser" | "blockContent";
 
 export type CepDlpOperation = "upload" | "download" | "paste" | "print" | "watermark";
 
+export type CepDlpDeviceScope =
+  | "all"
+  | "byod_only"
+  | "corp_only"
+  | "desktop_byod"
+  | "mobile_byod"
+  | "android_byod"
+  | "ios_byod"
+  | "android_all"
+  | "ios_all";
+
 function selectionToAccessLevelKind(
   selection: string,
-): "profile" | "browser" | "any" | null {
+): ManagedChromeAccessLevelKind | null {
   if (selection === "AUTO_CREATE_CHROME_ANY") return "any";
   if (selection === "AUTO_CREATE_PROFILE_MANAGED") return "profile";
   if (selection === "AUTO_CREATE_BROWSER_MANAGED") return "browser";
+  if (selection === "AUTO_CREATE_CORP_OWNED") return "corp_owned";
+  if (selection === "AUTO_CREATE_BYOD") return "byod";
+  if (selection === "AUTO_CREATE_DESKTOP_BYOD") return "desktop_byod";
+  if (selection === "AUTO_CREATE_MOBILE_BYOD") return "mobile_byod";
+  if (selection === "AUTO_CREATE_ANDROID_BYOD") return "android_byod";
+  if (selection === "AUTO_CREATE_IOS_BYOD") return "ios_byod";
+  if (selection === "AUTO_CREATE_ANDROID_ALL") return "android_all";
+  if (selection === "AUTO_CREATE_IOS_ALL") return "ios_all";
   return null;
+}
+
+function deviceScopeToAccessLevelKind(
+  scope: CepDlpDeviceScope,
+): ManagedChromeAccessLevelKind | null {
+  switch (scope) {
+    case "corp_only":
+      return "corp_owned";
+    case "byod_only":
+      return "byod";
+    case "desktop_byod":
+      return "desktop_byod";
+    case "mobile_byod":
+      return "mobile_byod";
+    case "android_byod":
+      return "android_byod";
+    case "ios_byod":
+      return "ios_byod";
+    case "android_all":
+      return "android_all";
+    case "ios_all":
+      return "ios_all";
+    case "all":
+    default:
+      return null;
+  }
+}
+
+export function effectiveRuleDeviceScope(
+  id: CepDlpRuleId,
+  rule?: CepDlpMatrixRuleConfig,
+): CepDlpDeviceScope {
+  if (id === "android_byod") {
+    return rule?.deviceScope && rule.deviceScope !== "all" ? rule.deviceScope : "android_byod";
+  }
+  if (id === "ios_byod") {
+    return rule?.deviceScope && rule.deviceScope !== "all" ? rule.deviceScope : "ios_byod";
+  }
+  if (rule?.deviceScope !== undefined) {
+    return rule.deviceScope;
+  }
+  return rule?.byodOnly === true ? "byod_only" : "all";
 }
 
 export interface CepDlpMatrixRuleConfig {
@@ -104,6 +173,7 @@ export interface CepDlpMatrixRuleConfig {
   print?: CepDlpAction;
   watermark?: boolean;
   byodOnly?: boolean;
+  deviceScope?: CepDlpDeviceScope;
   customEndUserMessage?: string;
   saveContent?: boolean;
 }
@@ -660,9 +730,13 @@ function dlpRuleMatches(
     const detectors = [...content.matchAll(/matches_(?:predefined|dlp)_detector\(['"]([^'"]+)['"]/g)]
       .map((m) => m[1]!)
       .sort();
+    const accessLevels = [...context.matchAll(/meets_access_requirements\(\[\s*['"]([^'"]+)['"]\s*\]\)/g)]
+      .map((m) => m[1]!)
+      .sort();
     return {
       hasContext: context !== "",
       negatedContext: context.trim().startsWith("!"),
+      accessLevels,
       detectors,
     };
   };
@@ -788,6 +862,8 @@ interface CepContext {
   accessLevelName?: string;
   /** True only when this run created it, which is what rollback may delete. */
   accessLevelIsOurs?: boolean;
+  /** Per-deviceScope resolved ACM Access Level names (`accessPolicies/.../accessLevels/...`). */
+  scopedAccessLevels?: Partial<Record<CepDlpDeviceScope, string>>;
 }
 
 interface CepFieldSpec {
@@ -968,6 +1044,8 @@ const DLP_OPERATIONS_BY_RULE: Record<
   payment_card: ["upload", "paste", "print"],
   national_id: ["upload", "paste", "print"],
   access_level: ["upload", "download", "paste", "print"],
+  android_byod: ["upload", "download", "paste", "print"],
+  ios_byod: ["upload", "download", "paste", "print"],
   genai_block: ["upload", "paste"],
 };
 
@@ -1003,6 +1081,24 @@ function resolveDlpMatrix(config: CepProvisionConfig): CepDlpMatrixState {
     paste: "off",
     print: "off",
     byodOnly: false,
+  };
+  const androidByodAction = config.dlp_rule_actions?.android_byod ?? "off";
+  expanded.android_byod = {
+    upload: androidByodAction,
+    download: androidByodAction,
+    paste: androidByodAction,
+    print: androidByodAction,
+    byodOnly: true,
+    deviceScope: "android_byod",
+  };
+  const iosByodAction = config.dlp_rule_actions?.ios_byod ?? "off";
+  expanded.ios_byod = {
+    upload: iosByodAction,
+    download: iosByodAction,
+    paste: iosByodAction,
+    print: iosByodAction,
+    byodOnly: true,
+    deviceScope: "ios_byod",
   };
   expanded.watermark = { watermark: actionFor("watermark") !== "off", byodOnly: false };
   return expanded;
@@ -2289,11 +2385,7 @@ export class CepProvider {
       return false;
     }
 
-    const kind = selection.includes("BROWSER")
-      ? "browser"
-      : selection.includes("ANY")
-      ? "any"
-      : "profile";
+    const kind = selectionToAccessLevelKind(selection) ?? "profile";
     try {
       const ensured = await ensureManagedChromeAccessLevelDetailed(
         this.cloudTransport,
@@ -2691,6 +2783,67 @@ export class CepProvider {
   }
 
   /**
+   * Resolve the Cloud Identity DLP `contextCondition` CEL expression for a rule:
+   * - `undefined` means the rule targets all devices in the OU/Group (`all`).
+   * - a string is the resolved `access_levels.meets_access_requirements(['...'])`
+   *   (or negated `!access_levels.meets_access_requirements(['...'])`) expression.
+   * - `null` means the rule requested an access-level or device/OS scope that
+   *   could not be resolved, so the rule must fail closed and be skipped.
+   */
+  private resolveRuleContextCondition(
+    id: CepDlpRuleId,
+    matrixRule: CepDlpMatrixRuleConfig,
+    context: CepContext,
+  ): string | undefined | null {
+    if (id === "access_level") {
+      return context.accessLevelName && context.accessLevelName !== "NONE"
+        ? `access_levels.meets_access_requirements([\x27${context.accessLevelName}\x27])`
+        : null;
+    }
+    const scope = effectiveRuleDeviceScope(id, matrixRule);
+    if (scope === "all") {
+      return undefined;
+    }
+    const scopedName = context.scopedAccessLevels?.[scope];
+    if (scopedName) {
+      return `access_levels.meets_access_requirements([\x27${scopedName}\x27])`;
+    }
+    if (scope === "byod_only") {
+      if (context.accessLevelName && context.accessLevelName !== "NONE") {
+        if (
+          context.accessLevelName.endsWith("/secgw_byod_devices") ||
+          context.accessLevelName.endsWith("_byod")
+        ) {
+          return `access_levels.meets_access_requirements([\x27${context.accessLevelName}\x27])`;
+        }
+        return `!access_levels.meets_access_requirements([\x27${context.accessLevelName}\x27])`;
+      }
+      return null;
+    }
+    if (scope === "corp_only") {
+      if (context.accessLevelName && context.accessLevelName !== "NONE") {
+        if (
+          context.accessLevelName.endsWith("/secgw_byod_devices") ||
+          context.accessLevelName.endsWith("_byod")
+        ) {
+          return `!access_levels.meets_access_requirements([\x27${context.accessLevelName}\x27])`;
+        }
+        return `access_levels.meets_access_requirements([\x27${context.accessLevelName}\x27])`;
+      }
+      return null;
+    }
+    const kind = deviceScopeToAccessLevelKind(scope);
+    if (
+      kind !== null &&
+      context.accessLevelName &&
+      context.accessLevelName.endsWith(`/${MANAGED_CHROME_ACCESS_LEVEL_SPECS[kind].suffix}`)
+    ) {
+      return `access_levels.meets_access_requirements([\x27${context.accessLevelName}\x27])`;
+    }
+    return null;
+  }
+
+  /**
    * Starter rules covering the surfaces an evaluation usually wants to show.
    *
    * Two things are the operator's choice rather than ours. The national
@@ -2713,6 +2866,7 @@ export class CepProvider {
     actionParams?: Record<string, unknown>;
     requires?: "internalUrls";
     byodOnly: boolean;
+    deviceScope: CepDlpDeviceScope;
   }> {
     const region = NATIONAL_ID_INFOTYPES[context.region] ?? NATIONAL_ID_INFOTYPES.US;
     const nationalIdCondition = region.infoTypes
@@ -2765,12 +2919,18 @@ export class CepProvider {
         displayName: `${DLP_PREFIX}Unmanaged Chrome access control`,
         description: `Enforces Chrome DLP controls on devices matching Access Level: ${context.accessLevelName ?? ""}.`,
         operations: DLP_OPERATIONS_BY_RULE.access_level,
-        condition:
-          context.accessLevelName && context.accessLevelName !== "NONE"
-            ? {
-                contextCondition: `access_levels.meets_access_requirements([\x27${context.accessLevelName}\x27])`,
-              }
-            : undefined,
+      },
+      {
+        id: "android_byod",
+        displayName: `${DLP_PREFIX}Android BYOD access control`,
+        description: "Enforces Chrome DLP controls on Android BYOD devices.",
+        operations: DLP_OPERATIONS_BY_RULE.android_byod,
+      },
+      {
+        id: "ios_byod",
+        displayName: `${DLP_PREFIX}iOS BYOD access control`,
+        description: "Enforces Chrome DLP controls on iPhone / iOS BYOD devices.",
+        operations: DLP_OPERATIONS_BY_RULE.ios_byod,
       },
       {
         id: "watermark",
@@ -2810,24 +2970,17 @@ export class CepProvider {
       actionParams?: Record<string, unknown>;
       requires?: "internalUrls";
       byodOnly: boolean;
+      deviceScope: CepDlpDeviceScope;
     }> = [];
-
-    const accessLevelCondition =
-      context.accessLevelName && context.accessLevelName !== "NONE"
-        ? `access_levels.meets_access_requirements([\x27${context.accessLevelName}\x27])`
-        : undefined;
-    const byodAccessLevelCondition =
-      accessLevelCondition !== undefined ? `!${accessLevelCondition}` : undefined;
 
     for (const base of bases) {
       const matrixRule = context.dlpMatrix[base.id] ?? {};
-      // When no Access Level is selected, ensureRules reports the BYOD scope as
-      // skipped. Never broaden it silently into an all-device rule.
-      if (matrixRule.byodOnly === true && byodAccessLevelCondition === undefined) continue;
+      const deviceScope = effectiveRuleDeviceScope(base.id, matrixRule);
+      const contextCondition = this.resolveRuleContextCondition(base.id, matrixRule, context);
+      // When no Access Level is resolved for a scoped rule, ensureRules reports
+      // it as skipped. Never broaden it silently into an all-device rule.
+      if (contextCondition === null) continue;
       for (const operation of base.operations) {
-        if (base.id === "access_level" && accessLevelCondition === undefined) {
-          continue;
-        }
         const selectedAction =
           operation === "watermark"
             ? matrixRule.watermark === true
@@ -2853,12 +3006,12 @@ export class CepProvider {
         }
 
         const ruleCondition: Record<string, string> | undefined =
-          matrixRule.byodOnly === true && byodAccessLevelCondition !== undefined && base.id !== "access_level"
+          contextCondition !== undefined
             ? {
                 ...(base.condition ?? {}),
                 contextCondition: base.condition?.contextCondition
-                  ? `(${base.condition.contextCondition}) && (${byodAccessLevelCondition})`
-                  : byodAccessLevelCondition,
+                  ? `(${base.condition.contextCondition}) && (${contextCondition})`
+                  : contextCondition,
               }
             : base.condition;
 
@@ -2876,7 +3029,8 @@ export class CepProvider {
           condition: ruleCondition,
           actionParams: Object.keys(actionParams).length > 0 ? actionParams : undefined,
           requires: base.requires,
-          byodOnly: matrixRule.byodOnly === true,
+          byodOnly: deviceScope !== "all" && deviceScope !== "corp_only",
+          deviceScope,
         });
       }
     }
@@ -2903,6 +3057,14 @@ export class CepProvider {
     }
 
     const operationKeys = ["upload", "download", "paste", "print"] as const;
+    const osSpecificScopes = new Set<CepDlpDeviceScope>([
+      "desktop_byod",
+      "mobile_byod",
+      "android_byod",
+      "ios_byod",
+      "android_all",
+      "ios_all",
+    ]);
     for (const [id, rule] of Object.entries(context.dlpMatrix) as Array<
       [CepDlpRuleId, CepDlpMatrixRuleConfig]
     >) {
@@ -2913,18 +3075,65 @@ export class CepProvider {
           return action !== undefined && action !== "off";
         });
       if (!selected) continue;
-      if (id === "access_level") {
-        if (!context.accessLevelName || context.accessLevelName === "NONE") {
-          failed = true;
+
+      const scope = effectiveRuleDeviceScope(id, rule);
+      if (
+        id !== "access_level" &&
+        osSpecificScopes.has(scope) &&
+        this.resolveRuleContextCondition(id, rule, context) === null &&
+        context.projectId
+      ) {
+        const kind = deviceScopeToAccessLevelKind(scope);
+        if (kind !== null) {
+          context.scopedAccessLevels ??= {};
+          try {
+            const ensured = await ensureManagedChromeAccessLevelDetailed(
+              this.cloudTransport,
+              context.projectId,
+              kind,
+              this.accessPolicyId,
+            );
+            context.scopedAccessLevels[scope] = ensured.name;
+            trace.push({
+              label: `Ensure Context-Aware Access level (${scope})`,
+              method: "POST",
+              url: `${ACM}/${ensured.name}`,
+              status: 200,
+              ok: true,
+            });
+            if (ensured.created) {
+              created.push(`Context-Aware Access level (${ensured.name})`);
+            } else {
+              skipped.push(
+                `Context-Aware Access: ${ensured.name} already existed and was reused; this CEP operation does not own it`,
+              );
+            }
+          } catch (error) {
+            trace.push({
+              label: `Ensure Context-Aware Access level (${scope})`,
+              method: "POST",
+              url: `${ACM}/accessPolicies`,
+              status: error instanceof CepApiError ? error.status : 0,
+              ok: false,
+              error: errorMessage(error),
+            });
+          }
+        }
+      }
+
+      if (this.resolveRuleContextCondition(id, rule, context) === null) {
+        failed = true;
+        if (id === "access_level") {
           skipped.push(
             "DLP unmanaged/BYOD rule: not created because no Access Level is selected in Setup wizard (access-level CEL)",
           );
-        }
-      } else if (rule.byodOnly === true) {
-        if (!context.accessLevelName || context.accessLevelName === "NONE") {
-          failed = true;
+        } else if (scope === "byod_only") {
           skipped.push(
             `DLP ${id} BYOD scope: not created because no Access Level is selected in Setup wizard (access-level CEL)`,
+          );
+        } else {
+          skipped.push(
+            `DLP ${id} (${scope}) scope: not created because no Access Level could be resolved in Setup wizard (access-level CEL)`,
           );
         }
       }
@@ -3780,12 +3989,8 @@ export class CepProvider {
       return;
     }
 
-    const suffix =
-      kind === "profile"
-        ? "secgw_profile_managed"
-        : kind === "browser"
-        ? "secgw_browser_managed"
-        : "secgw_chrome_managed";
+    const spec = MANAGED_CHROME_ACCESS_LEVEL_SPECS[kind];
+    const suffix = spec.suffix;
     const name = `${policyName}/accessLevels/${suffix}`;
 
     const level = await this.call(
@@ -3796,12 +4001,7 @@ export class CepProvider {
       undefined,
       this.cloudTransport,
     );
-    const expectedExpression =
-      kind === "profile"
-        ? "device.chrome.management_state == ChromeManagementState.CHROME_MANAGEMENT_STATE_PROFILE_MANAGED"
-        : kind === "browser"
-        ? "device.chrome.management_state == ChromeManagementState.CHROME_MANAGEMENT_STATE_BROWSER_MANAGED"
-        : "device.chrome.management_state in [ChromeManagementState.CHROME_MANAGEMENT_STATE_BROWSER_MANAGED, ChromeManagementState.CHROME_MANAGEMENT_STATE_PROFILE_MANAGED]";
+    const expectedExpression = spec.expression;
     const expression = (((level?.custom as { expr?: { expression?: unknown } } | undefined)?.expr)
       ?.expression ?? "") as string;
     if (

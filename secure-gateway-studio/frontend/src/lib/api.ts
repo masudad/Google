@@ -694,6 +694,8 @@ export type CepDlpRuleId =
   | "payment_card"
   | "national_id"
   | "access_level"
+  | "android_byod"
+  | "ios_byod"
   | "watermark"
   | "genai_block";
 
@@ -702,6 +704,17 @@ export type CepDlpAction = "off" | "auditOnly" | "warnUser" | "blockContent";
 
 export type CepDlpOperation = "upload" | "download" | "paste" | "print" | "watermark";
 
+export type CepDlpDeviceScope =
+  | "all"
+  | "byod_only"
+  | "corp_only"
+  | "desktop_byod"
+  | "mobile_byod"
+  | "android_byod"
+  | "ios_byod"
+  | "android_all"
+  | "ios_all";
+
 export interface CepDlpMatrixRuleConfig {
   upload?: CepDlpAction;
   download?: CepDlpAction;
@@ -709,6 +722,7 @@ export interface CepDlpMatrixRuleConfig {
   print?: CepDlpAction;
   watermark?: boolean;
   byodOnly?: boolean;
+  deviceScope?: CepDlpDeviceScope;
   customEndUserMessage?: string;
   saveContent?: boolean;
 }

@@ -5332,6 +5332,82 @@ for (const mode of ["412-commit", "503-commit", "response-loss-commit"] as const
       activeCepLeases.size === 0,
     JSON.stringify(nationalIdPatchRes),
   );
+
+  // BYOD vs Corp-Owned and Android vs iOS DLP separation:
+  // AUTO_CREATE_CORP_OWNED creates secgw_corp_owned_device, while android_byod / ios_byod rows
+  // and per-rule deviceScope ("byod_only", "corp_only", "android_byod", "ios_byod") automatically
+  // create and bind their corresponding ACM access levels in Cloud Identity DLP contextCondition.
+  const { transport: byodMobileTransport, calls: byodMobileCalls } = stubTransport();
+  const byodMobileRes = (await route(
+    context(byodMobileTransport, "999"),
+    "POST",
+    "/api/v1/cep/provision",
+    {
+      ...DLP_CONFIG,
+      access_level: "AUTO_CREATE_CORP_OWNED",
+      internal_urls: [],
+      dlp_matrix: {
+        universal_upload: { upload: "blockContent", deviceScope: "byod_only", byodOnly: true },
+        payment_card: { upload: "warnUser", paste: "off", print: "off", deviceScope: "corp_only", byodOnly: false },
+        android_byod: { upload: "blockContent", download: "blockContent", paste: "off", print: "off", deviceScope: "android_byod", byodOnly: true },
+        ios_byod: { upload: "blockContent", download: "off", paste: "warnUser", print: "off", deviceScope: "ios_byod", byodOnly: true },
+      },
+    },
+  )) as ProvisionResult;
+  const dlpPosts = byodMobileCalls
+    .filter((c) => c.method === "POST" && c.url.includes("cloudidentity.googleapis.com"))
+    .map((c) => (c.body?.setting as { value?: Record<string, unknown> } | undefined)?.value ?? {});
+  const findDlpValue = (name: string) => dlpPosts.find((v) => v.displayName === name);
+  const uploadByodRule = findDlpValue("CEP PoC - All file uploads");
+  const paymentCorpRule = findDlpValue("CEP PoC - Payment card numbers - upload");
+  const androidUploadRule = findDlpValue("CEP PoC - Android BYOD access control - upload");
+  const iosPasteRule = findDlpValue("CEP PoC - iOS BYOD access control - paste");
+  check(
+    "AUTO_CREATE_CORP_OWNED + per-rule deviceScope and Android/iOS BYOD rows create ACM access levels and emit exact contextCondition expressions",
+    byodMobileRes.success === true &&
+      (uploadByodRule?.condition as { contextCondition?: string } | undefined)?.contextCondition ===
+        "!access_levels.meets_access_requirements(['accessPolicies/999/accessLevels/secgw_corp_owned_device'])" &&
+      (paymentCorpRule?.condition as { contextCondition?: string } | undefined)?.contextCondition ===
+        "access_levels.meets_access_requirements(['accessPolicies/999/accessLevels/secgw_corp_owned_device'])" &&
+      (androidUploadRule?.condition as { contextCondition?: string } | undefined)?.contextCondition ===
+        "access_levels.meets_access_requirements(['accessPolicies/999/accessLevels/secgw_android_byod'])" &&
+      (iosPasteRule?.condition as { contextCondition?: string } | undefined)?.contextCondition ===
+        "access_levels.meets_access_requirements(['accessPolicies/999/accessLevels/secgw_ios_byod'])",
+    JSON.stringify({
+      success: byodMobileRes.success,
+      uploadByodRule,
+      paymentCorpRule,
+      androidUploadRule,
+      iosPasteRule,
+      skipped: byodMobileRes.skipped_items,
+    }),
+  );
+
+  // Rollback with delete_dlp_rules: true also deletes Android BYOD and iOS BYOD DLP rules
+  const byodMobileRollbackRes = (await route(
+    context(byodMobileTransport, "999"),
+    "POST",
+    "/api/v1/cep/rollback",
+    {
+      customer_id: "C01abcdef",
+      project_id: "secgw-project",
+      target_ou_id: "03pilot",
+      target_ou_path: "/Pilot",
+      rollback_modules: ["dlpRules"],
+      delete_dlp_rules: true,
+    },
+  )) as ProvisionResult;
+  check(
+    "rollback with delete_dlp_rules: true deletes Android BYOD and iOS BYOD DLP rules alongside standard rules",
+    byodMobileRollbackRes.success === true &&
+      byodMobileRollbackRes.created_items.some((s) =>
+        s.includes('Deleted DLP rule "CEP PoC - Android BYOD access control - upload"'),
+      ) &&
+      byodMobileRollbackRes.created_items.some((s) =>
+        s.includes('Deleted DLP rule "CEP PoC - iOS BYOD access control - paste"'),
+      ),
+    JSON.stringify(byodMobileRollbackRes),
+  );
 }
 
 // -- Report -------------------------------------------------------------------

@@ -747,6 +747,10 @@ export interface CepDeployerMessages {
   accessLevelAutoProfile: string;
   accessLevelAutoBrowser: string;
   accessLevelAutoAny: string;
+  accessLevelAutoCorpOwned: string;
+  accessLevelAutoByod: string;
+  accessLevelAutoAndroidByod: string;
+  accessLevelAutoIosByod: string;
   accessLevelExistingGroup: string;
   accessLevelLoadFailed: string;
   moduleDlpDetectors: string;
@@ -866,6 +870,17 @@ export interface CepDeployerMessages {
   dlpColWatermark: string;
   dlpColDeviceScope: string;
 
+  dlpEnvBuilderTitle: string;
+  dlpEnvBuilderSubtitle: string;
+  dlpEnvCorpPc: string;
+  dlpEnvByodPc: string;
+  dlpEnvCorpAndroid: string;
+  dlpEnvCorpIos: string;
+  dlpEnvByodAndroid: string;
+  dlpEnvByodIos: string;
+  dlpEnvApplyBtn: string;
+  dlpEnvSummaryNotice: string;
+
   dlpRowUniversalUpload: string;
   dlpRowUniversalUploadDesc: string;
   dlpRowUniversalDownload: string;
@@ -876,6 +891,10 @@ export interface CepDeployerMessages {
   dlpRowNationalIdDesc: string;
   dlpRowAccessLevel: string;
   dlpRowAccessLevelDesc: string;
+  dlpRowAndroidByod: string;
+  dlpRowAndroidByodDesc: string;
+  dlpRowIosByod: string;
+  dlpRowIosByodDesc: string;
   dlpRowWatermark: string;
   dlpRowWatermarkDesc: string;
   dlpRowGenAiBlock: string;
@@ -883,6 +902,14 @@ export interface CepDeployerMessages {
 
   dlpScopeAll: string;
   dlpScopeByodOnly: string;
+  dlpScopeSelectByodOnly: string;
+  dlpScopeSelectCorpOnly: string;
+  dlpScopeSelectDesktopByod: string;
+  dlpScopeSelectMobileByod: string;
+  dlpScopeSelectAndroidByod: string;
+  dlpScopeSelectIosByod: string;
+  dlpScopeSelectAndroidAll: string;
+  dlpScopeSelectIosAll: string;
   dlpActionBadgeBlock: string;
   dlpActionBadgeWarn: string;
   dlpActionBadgeAudit: string;
@@ -905,6 +932,7 @@ export interface CepDeployerMessages {
   dlpPresetGenAiSecureDesc: string;
   dlpPresetAuditOnly: string;
   dlpPresetAuditOnlyDesc: string;
+  dlpPresetByodMobile: string;
   geminiEnterpriseTitle: string;
   geminiEnterpriseSubtitle: string;
   geminiLayer1Title: string;
@@ -3374,6 +3402,10 @@ const en: Messages = {
     accessLevelAutoProfile: "Create one: managed Chrome profile",
     accessLevelAutoBrowser: "Create one: managed Chrome browser",
     accessLevelAutoAny: "Create one: managed profile or browser",
+    accessLevelAutoCorpOwned: "Create one: company-owned device or managed browser",
+    accessLevelAutoByod: "Create one: BYOD / personal devices",
+    accessLevelAutoAndroidByod: "Create one: Android BYOD devices",
+    accessLevelAutoIosByod: "Create one: iPhone / iOS BYOD devices",
     accessLevelExistingGroup: "Existing access levels",
     accessLevelLoadFailed:
       "Access levels could not be listed. Requires a GCP project under an organization with an Access Context Manager policy.",
@@ -3401,7 +3433,7 @@ const en: Messages = {
     dlpRuleAccessLevel: "Uploads from unmanaged Chrome",
     dlpRuleWatermark: "Watermark internal pages",
     dlpNoticeByodTitle: "Context-Aware Access Level Enforcement",
-    dlpNoticeByodDesc: "BYOD rows use CEL !access_levels.meets_access_requirements(['<ACCESS_LEVEL>']) to target unmanaged devices.",
+    dlpNoticeByodDesc: "BYOD and OS-scoped rows use CEL access_levels.meets_access_requirements to target company-owned, BYOD, Android, or iOS devices.",
     activePresetBadge: "Active",
     dataBoundaryModeTitle: "Data boundary",
     dataBoundaryModeCopyPaste: "Inspect pasted content + block personal accounts",
@@ -3547,7 +3579,7 @@ const en: Messages = {
 
     dlpMatrixTitle: "DLP Control Matrix",
     dlpMatrixSubtitle:
-      "Configure Block, Warn, or Off across Upload, Download, Paste, Print, and Watermark.",
+      "Configure Block, Warn, or Off across Upload, Download, Paste, Print, Watermark, and Device/OS Scope.",
     dlpColThreat: "Data & Threat Category",
     dlpColUpload: "Upload",
     dlpColDownload: "Download",
@@ -3555,6 +3587,19 @@ const en: Messages = {
     dlpColPrint: "Print",
     dlpColWatermark: "Watermark",
     dlpColDeviceScope: "Supported Scope",
+
+    dlpEnvBuilderTitle: "Company Device & OS Environment",
+    dlpEnvBuilderSubtitle:
+      "Select which device ownership types and mobile OS exist in your organization, then auto-configure DLP scopes with one click.",
+    dlpEnvCorpPc: "Company-Owned PC · Windows / Mac / ChromeOS",
+    dlpEnvByodPc: "PC BYOD · Personal Windows / Mac",
+    dlpEnvCorpAndroid: "Company-Owned Android",
+    dlpEnvCorpIos: "Company-Owned iPhone / iPad",
+    dlpEnvByodAndroid: "Android BYOD · Personal Android",
+    dlpEnvByodIos: "iPhone / iOS BYOD · Personal iPhone / iPad",
+    dlpEnvApplyBtn: "Auto-Configure DLP Matrix for Selected Environment",
+    dlpEnvSummaryNotice:
+      "Selected environment rules are applied to per-row device scopes via Access Context Manager CEL conditions.",
 
     dlpRowUniversalUpload: "All file uploads",
     dlpRowUniversalUploadDesc: "Controls all file uploads from Chrome.",
@@ -3566,6 +3611,10 @@ const en: Messages = {
     dlpRowNationalIdDesc: "Detects regional national ID numbers such as My Number or SSN.",
     dlpRowAccessLevel: "Unmanaged / Context-Aware non-compliant devices",
     dlpRowAccessLevelDesc: "Enforces DLP controls via CEL access_levels.meets_access_requirements.",
+    dlpRowAndroidByod: "Android BYOD device controls",
+    dlpRowAndroidByodDesc: "Enforces DLP controls on Android BYOD devices via OsType.ANDROID && !is_corp_owned_device.",
+    dlpRowIosByod: "iPhone / iOS BYOD device controls",
+    dlpRowIosByodDesc: "Enforces DLP controls on iPhone and iPad BYOD devices via OsType.IOS && !is_corp_owned_device.",
     dlpRowWatermark: "Internal sites / Watermark",
     dlpRowWatermarkDesc: "Applies dynamic watermarks and restricts screenshots on internal URLs.",
     dlpRowGenAiBlock: "Unapproved GenAI · allow Gemini",
@@ -3573,6 +3622,14 @@ const en: Messages = {
 
     dlpScopeAll: "All Devices",
     dlpScopeByodOnly: "Access Level · CAA",
+    dlpScopeSelectByodOnly: "BYOD Only · PC & Mobile",
+    dlpScopeSelectCorpOnly: "Company-Owned Only",
+    dlpScopeSelectDesktopByod: "PC BYOD Only · Win / Mac",
+    dlpScopeSelectMobileByod: "Mobile BYOD Only · Android + iOS",
+    dlpScopeSelectAndroidByod: "Android BYOD Only",
+    dlpScopeSelectIosByod: "iPhone / iOS BYOD Only",
+    dlpScopeSelectAndroidAll: "All Android · Corp + BYOD",
+    dlpScopeSelectIosAll: "All iPhone / iOS · Corp + BYOD",
     dlpActionBadgeBlock: "Block",
     dlpActionBadgeWarn: "Warn",
     dlpActionBadgeAudit: "Unsupported",
@@ -3595,6 +3652,7 @@ const en: Messages = {
     dlpPresetGenAiSecureDesc: "Block unapproved AI and allow Gemini with paste inspection.",
     dlpPresetAuditOnly: "Warning First",
     dlpPresetAuditOnlyDesc: "Use warning actions across all selected surfaces.",
+    dlpPresetByodMobile: "BYOD & Mobile Split",
     geminiEnterpriseTitle: "Gemini Enterprise & Vertex AI Search Protection",
     geminiEnterpriseSubtitle:
       "Layered protection across Chrome, Identity, and Google Cloud perimeters.",
@@ -5758,6 +5816,10 @@ const ja: Messages = {
     accessLevelAutoProfile: "新規作成: 管理対象 Chrome プロファイル",
     accessLevelAutoBrowser: "新規作成: 管理対象 Chrome ブラウザ",
     accessLevelAutoAny: "新規作成: 管理対象のプロファイルまたはブラウザ",
+    accessLevelAutoCorpOwned: "新規作成: 会社所有端末 · PC / Android / iOS",
+    accessLevelAutoByod: "新規作成: 私物 BYOD 端末 · 社有以外",
+    accessLevelAutoAndroidByod: "新規作成: Android BYOD 端末 · 私物 Android",
+    accessLevelAutoIosByod: "新規作成: iPhone / iOS BYOD 端末 · 私物 iOS",
     accessLevelExistingGroup: "既存のアクセスレベル",
     accessLevelLoadFailed:
       "既存のアクセスレベルを取得できませんでした。Access Context Managerが有効な組織配下のGCPプロジェクトが必要です。",
@@ -5784,8 +5846,8 @@ const ja: Messages = {
     dlpRulePaymentCard: "アップロードに含まれるカード番号",
     dlpRuleAccessLevel: "管理対象外 Chrome からのアップロード",
     dlpRuleWatermark: "社内ページへの電子透かし",
-    dlpNoticeByodTitle: "コンテキストアウェアアクセス条件の連動",
-    dlpNoticeByodDesc: "アクセスレベル連動に設定した行は CEL 条件式 !access_levels.meets_access_requirements を使用し、未管理端末のみにDLP制御を適用します。",
+    dlpNoticeByodTitle: "BYOD・会社所有・OS別のコンテキストアウェアDLP連動",
+    dlpNoticeByodDesc: "各ルールの端末区分で BYOD のみ・会社所有のみ・Android / iOS BYOD を選ぶと、Access Context Manager の CEL 条件を自動作成・適用して端末・OS ごとに DLP アクションを出し分けます。",
     activePresetBadge: "選択中",
     dataBoundaryModeTitle: "データ境界",
     dataBoundaryModeCopyPaste: "貼り付け内容を検査する ＋ 個人アカウントをブロック",
@@ -5931,7 +5993,19 @@ const ja: Messages = {
 
     dlpMatrixTitle: "DLP コントロール マトリクス",
     dlpMatrixSubtitle:
-      "対象スコープ内の端末に対し、アップロード・ダウンロード・貼り付け・印刷・透かしの動作を設定します。",
+      "対象スコープ内の端末に対し、会社所有 / BYOD や PC / Android / iPhone の構成に合わせてアップロード・ダウンロード・貼り付け・印刷・透かしの動作を設定します。",
+    dlpEnvBuilderTitle: "自社環境の端末・OS構成セレクター",
+    dlpEnvBuilderSubtitle:
+      "社内に存在する端末とOSのチェックを入れるだけで、会社所有とBYOD・Android・iPhoneの分離ルールを自動構成できます。",
+    dlpEnvCorpPc: "会社所有 PC · Windows / Mac / ChromeOS",
+    dlpEnvByodPc: "PC BYOD · 私物 Windows / Mac",
+    dlpEnvCorpAndroid: "会社所有 Android · 社用スマホ・タブレット",
+    dlpEnvCorpIos: "会社所有 iPhone / iPad · 社用 iOS",
+    dlpEnvByodAndroid: "Android BYOD · 私物 Android",
+    dlpEnvByodIos: "iPhone / iOS BYOD · 私物 iPhone・iPad",
+    dlpEnvApplyBtn: "選択した端末・OS構成に合わせてDLPマトリクスを自動設定",
+    dlpEnvSummaryNotice:
+      "各行の右端の「対象スコープ内の端末」プルダウンから、全端末・BYODのみ・会社所有のみ・PC BYODのみ・モバイルBYODのみ・Android BYODのみ・iPhone BYODのみを個別に変更できます。",
     dlpColThreat: "データ・脅威種別",
     dlpColUpload: "アップロード",
     dlpColDownload: "ダウンロード",
@@ -5948,8 +6022,12 @@ const ja: Messages = {
     dlpRowPaymentCardDesc: "アップロード・貼り付け・印刷時のカード番号を検知します。",
     dlpRowNationalId: "マイナンバー・個人識別情報",
     dlpRowNationalIdDesc: "マイナンバーやSSNなどの個人番号送信を検知します。",
-    dlpRowAccessLevel: "未管理端末・コンテキストアウェア非準拠からの操作",
-    dlpRowAccessLevelDesc: "CEL条件 access_levels.meets_access_requirements で未管理端末からの操作を制御します。",
+    dlpRowAccessLevel: "未管理・BYOD端末からの操作一括制御",
+    dlpRowAccessLevelDesc: "会社所有以外のBYODや未管理端末からのアップロード・ダウンロード・貼り付け・印刷を制御します。",
+    dlpRowAndroidByod: "Android BYOD · 私物 Android からの操作制御",
+    dlpRowAndroidByodDesc: "私物Android端末からのファイル転送・貼り付け・印刷を個別に制限します。",
+    dlpRowIosByod: "iPhone / iOS BYOD · 私物 iPhone からの操作制御",
+    dlpRowIosByodDesc: "私物iPhone / iPadからのファイル転送・貼り付け・印刷を個別に制限します。",
     dlpRowWatermark: "社内機密サイト保護・透かし",
     dlpRowWatermarkDesc: "登録した社内サイトに動的透かしを表示し、画面キャプチャを制限します。",
     dlpRowGenAiBlock: "未承認の生成AI利用ブロック · Geminiのみ許可",
@@ -5957,6 +6035,14 @@ const ja: Messages = {
 
     dlpScopeAll: "対象内の全端末",
     dlpScopeByodOnly: "アクセスレベル連動",
+    dlpScopeSelectByodOnly: "BYOD・未管理端末のみ",
+    dlpScopeSelectCorpOnly: "会社所有・管理端末のみ",
+    dlpScopeSelectDesktopByod: "PC BYOD のみ · Win/Mac",
+    dlpScopeSelectMobileByod: "モバイル BYOD のみ · Android/iOS",
+    dlpScopeSelectAndroidByod: "Android BYOD のみ",
+    dlpScopeSelectIosByod: "iPhone / iOS BYOD のみ",
+    dlpScopeSelectAndroidAll: "すべての Android 端末",
+    dlpScopeSelectIosAll: "すべての iPhone / iOS 端末",
     dlpActionBadgeBlock: "ブロック",
     dlpActionBadgeWarn: "警告",
     dlpActionBadgeAudit: "未対応",
@@ -5975,6 +6061,7 @@ const ja: Messages = {
     dlpPresetRecommendedDesc: "機密データ送信時に警告を表示し、未承認AIの遮断と社内サイトへの透かしを適用します。",
     dlpPresetStrictZeroTrust: "厳格なゼロトラスト",
     dlpPresetStrictZeroTrustDesc: "機密データのアップロードと貼り付けをブロックします。",
+    dlpPresetByodMobile: "BYOD・モバイル分離",
     dlpPresetGenAiSecure: "生成AIセキュア活用",
     dlpPresetGenAiSecureDesc: "未承認AIを遮断し、貼り付け検査付きでGeminiの利用を許可します。",
     dlpPresetAuditOnly: "警告ファースト",

@@ -938,10 +938,95 @@ export class GoogleSetupCatalog {
   }
 }
 
+export type ManagedChromeAccessLevelKind =
+  | "profile"
+  | "browser"
+  | "any"
+  | "corp_owned"
+  | "byod"
+  | "desktop_byod"
+  | "mobile_byod"
+  | "android_byod"
+  | "ios_byod"
+  | "android_all"
+  | "ios_all";
+
+export const MANAGED_CHROME_ACCESS_LEVEL_SPECS: Record<
+  ManagedChromeAccessLevelKind,
+  {
+    suffix: string;
+    title: string;
+    expression: string;
+  }
+> = {
+  profile: {
+    suffix: "secgw_profile_managed",
+    title: "Managed Chrome Profile (SGS)",
+    expression:
+      "device.chrome.management_state == ChromeManagementState.CHROME_MANAGEMENT_STATE_PROFILE_MANAGED",
+  },
+  browser: {
+    suffix: "secgw_browser_managed",
+    title: "Managed Chrome Browser (SGS)",
+    expression:
+      "device.chrome.management_state == ChromeManagementState.CHROME_MANAGEMENT_STATE_BROWSER_MANAGED",
+  },
+  any: {
+    suffix: "secgw_chrome_managed",
+    title: "Managed Chrome Profile or Browser (SGS)",
+    expression:
+      "device.chrome.management_state in [ChromeManagementState.CHROME_MANAGEMENT_STATE_BROWSER_MANAGED, ChromeManagementState.CHROME_MANAGEMENT_STATE_PROFILE_MANAGED]",
+  },
+  corp_owned: {
+    suffix: "secgw_corp_owned",
+    title: "Company-Owned or Managed Browser (SGS)",
+    expression:
+      "device.is_corp_owned_device == true || device.chrome.management_state == ChromeManagementState.CHROME_MANAGEMENT_STATE_BROWSER_MANAGED",
+  },
+  byod: {
+    suffix: "secgw_byod_devices",
+    title: "BYOD / Personal Devices (SGS)",
+    expression:
+      "device.is_corp_owned_device == false && device.chrome.management_state != ChromeManagementState.CHROME_MANAGEMENT_STATE_BROWSER_MANAGED",
+  },
+  desktop_byod: {
+    suffix: "secgw_desktop_byod",
+    title: "Desktop BYOD Devices (SGS)",
+    expression:
+      "device.os_type in [OsType.DESKTOP_WINDOWS, OsType.DESKTOP_MAC, OsType.DESKTOP_CHROME_OS, OsType.DESKTOP_LINUX] && device.is_corp_owned_device == false",
+  },
+  mobile_byod: {
+    suffix: "secgw_mobile_byod",
+    title: "Mobile BYOD Devices - Android & iOS (SGS)",
+    expression:
+      "device.os_type in [OsType.ANDROID, OsType.IOS] && device.is_corp_owned_device == false",
+  },
+  android_byod: {
+    suffix: "secgw_android_byod",
+    title: "Android BYOD Devices (SGS)",
+    expression: "device.os_type == OsType.ANDROID && device.is_corp_owned_device == false",
+  },
+  ios_byod: {
+    suffix: "secgw_ios_byod",
+    title: "iPhone / iOS BYOD Devices (SGS)",
+    expression: "device.os_type == OsType.IOS && device.is_corp_owned_device == false",
+  },
+  android_all: {
+    suffix: "secgw_android_all",
+    title: "All Android Devices (SGS)",
+    expression: "device.os_type == OsType.ANDROID",
+  },
+  ios_all: {
+    suffix: "secgw_ios_all",
+    title: "All iPhone / iOS Devices (SGS)",
+    expression: "device.os_type == OsType.IOS",
+  },
+};
+
 export async function ensureManagedChromeAccessLevel(
   transport: Transport,
   projectId: string,
-  kind: "profile" | "browser" | "any",
+  kind: ManagedChromeAccessLevelKind,
   configuredAccessPolicyId?: string,
 ): Promise<string> {
   return (
@@ -992,7 +1077,7 @@ function isExactManagedChromeAccessLevel(
 export async function ensureManagedChromeAccessLevelDetailed(
   transport: Transport,
   projectId: string,
-  kind: "profile" | "browser" | "any",
+  kind: ManagedChromeAccessLevelKind,
   configuredAccessPolicyId?: string,
 ): Promise<ManagedChromeAccessLevelResult> {
   const ACM = "https://accesscontextmanager.googleapis.com/v1";
@@ -1057,27 +1142,13 @@ export async function ensureManagedChromeAccessLevelDetailed(
     `${ACM}/${policyName}`,
   );
   assertApplicableAccessPolicy(policy, policyName, context);
-  const levelNameSuffix =
-    kind === "profile"
-      ? "secgw_profile_managed"
-      : kind === "browser"
-      ? "secgw_browser_managed"
-      : "secgw_chrome_managed";
+  const spec = MANAGED_CHROME_ACCESS_LEVEL_SPECS[kind] ?? MANAGED_CHROME_ACCESS_LEVEL_SPECS.any;
+  const levelNameSuffix = spec.suffix;
   const fullName = `${policyName}/accessLevels/${levelNameSuffix}`;
 
-  const title =
-    kind === "profile"
-      ? "Managed Chrome Profile (SGS)"
-      : kind === "browser"
-      ? "Managed Chrome Browser (SGS)"
-      : "Managed Chrome Profile or Browser (SGS)";
+  const title = spec.title;
   const description = "Created automatically by Secure Gateway Studio";
-  const expression =
-    kind === "profile"
-      ? "device.chrome.management_state == ChromeManagementState.CHROME_MANAGEMENT_STATE_PROFILE_MANAGED"
-      : kind === "browser"
-      ? "device.chrome.management_state == ChromeManagementState.CHROME_MANAGEMENT_STATE_BROWSER_MANAGED"
-      : "device.chrome.management_state in [ChromeManagementState.CHROME_MANAGEMENT_STATE_BROWSER_MANAGED, ChromeManagementState.CHROME_MANAGEMENT_STATE_PROFILE_MANAGED]";
+  const expression = spec.expression;
 
   // Check if it already exists. Only exact NOT_FOUND permits creation; a 403
   // or disabled API must remain visible to the caller.
