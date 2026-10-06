@@ -426,3 +426,172 @@ export function countSelectedPlatforms(
   return Object.values(platforms).filter(Boolean).length;
 }
 import type { DeploymentSpec } from "./api";
+
+export interface NonSensitiveRecallRecord {
+  schema: "secure-gateway-studio/non-sensitive-recall/v1";
+  recalled_at: string;
+  run_id: string | null;
+  configuration_hash: string | null;
+  excluded_sensitive_fields: readonly string[];
+  configuration: {
+    name: string;
+    mode: DeploymentMode;
+    platforms: ChromePlatform[];
+    project_id: string;
+    region: string;
+    zone: string;
+    secondary_zone: string;
+    backend_kind: BackendKind;
+    network_strategy: NetworkStrategy;
+    vpc_name: string | null;
+    subnet_name: string | null;
+    subnet_cidr: string;
+    proxy_subnet_cidr: string;
+    private_hostname: string;
+    gateway_id: string;
+    certificate_strategy: CertificateStrategy;
+    ca_pool: string | null;
+    ca_name: string | null;
+    public_certificate_secret: string | null;
+    customer_id: string;
+    target_ou_id: string;
+    managed_chrome_access_level: string | null;
+    principals: Array<{ type: PrincipalType; value: string }>;
+    existing_backend_url: string | null;
+    existing_backend_location: BackendLocation | null;
+    application_egress_region: string | null;
+    upstream_vpc_project_id: string | null;
+    source_image: string | null;
+  };
+}
+
+export function buildNonSensitiveRecallRecord(
+  spec: DeploymentSpec,
+  metadata?: { runId?: string | null; configurationHash?: string | null },
+): NonSensitiveRecallRecord {
+  return {
+    schema: "secure-gateway-studio/non-sensitive-recall/v1",
+    recalled_at: new Date().toISOString(),
+    run_id: metadata?.runId ?? null,
+    configuration_hash: metadata?.configurationHash ?? null,
+    excluded_sensitive_fields: [
+      "private_key_pem",
+      "oauth_access_token",
+      "secret_manager_payload",
+      "ownership_token",
+      "session_nonce",
+    ],
+    configuration: {
+      name: spec.name,
+      mode: spec.mode,
+      platforms: [...spec.platforms],
+      project_id: spec.project_id,
+      region: spec.region,
+      zone: spec.zone,
+      secondary_zone: spec.secondary_zone,
+      backend_kind: spec.backend_kind,
+      network_strategy: spec.network_strategy,
+      vpc_name: spec.vpc_name,
+      subnet_name: spec.subnet_name,
+      subnet_cidr: spec.subnet_cidr,
+      proxy_subnet_cidr: spec.proxy_subnet_cidr,
+      private_hostname: spec.private_hostname,
+      gateway_id: spec.gateway_id,
+      certificate_strategy: spec.certificate_strategy,
+      ca_pool: spec.ca_pool,
+      ca_name: spec.ca_name,
+      public_certificate_secret: spec.public_certificate_secret,
+      customer_id: spec.customer_id,
+      target_ou_id: spec.target_ou_id,
+      managed_chrome_access_level: spec.managed_chrome_access_level,
+      principals: spec.principals.map((principal) => ({
+        type: principal.type,
+        value: principal.value,
+      })),
+      existing_backend_url: spec.existing_backend_url,
+      existing_backend_location: spec.existing_backend_location,
+      application_egress_region: spec.application_egress_region,
+      upstream_vpc_project_id: spec.upstream_vpc_project_id,
+      source_image: spec.source_image,
+    },
+  };
+}
+
+export function recallSetupStateFromSpec(
+  current: SetupState,
+  spec: DeploymentSpec,
+  targetStep = 2,
+): SetupState {
+  const sameProject = current.projectId.trim() === spec.project_id.trim();
+  const sameCustomer = current.customerId.trim() === spec.customer_id.trim();
+  return {
+    ...current,
+    schemaVersion: 9,
+    currentStep: Math.max(0, Math.min(6, targetStep)),
+    deploymentName: spec.name,
+    mode: "poc",
+    platforms: {
+      macos: spec.platforms.includes("macos"),
+      windows: spec.platforms.includes("windows"),
+      linux: spec.platforms.includes("linux"),
+      chromeos: spec.platforms.includes("chromeos"),
+    },
+    networkStrategy: spec.network_strategy,
+    certificateStrategy: spec.certificate_strategy,
+    projectId: spec.project_id,
+    accessPolicyId: sameProject ? current.accessPolicyId : "",
+    cloudIdentity: sameProject ? current.cloudIdentity : "",
+    cloudConnection:
+      sameProject && current.cloudConnection === "connected"
+        ? "connected"
+        : "not_connected",
+    cloudConnectionError: "",
+    workspaceIdentity: sameCustomer ? current.workspaceIdentity : "",
+    workspaceConnection:
+      sameCustomer && current.workspaceConnection === "connected"
+        ? "connected"
+        : "not_connected",
+    workspaceConnectionError: "",
+    region: spec.region,
+    zone: spec.zone,
+    secondaryZone: spec.secondary_zone,
+    sourceImage: spec.source_image ?? "",
+    offloadMinReplicas: String(spec.offload_min_replicas || 2),
+    offloadMaxReplicas: String(spec.offload_max_replicas || 20),
+    offloadCpuTarget: String(spec.offload_cpu_target || 0.6),
+    vpcName: spec.vpc_name ?? "",
+    subnetName: spec.subnet_name ?? "",
+    proxySubnetCidr: spec.proxy_subnet_cidr || "10.42.1.0/24",
+    backendKind: spec.backend_kind,
+    directHttpsLaunchSampleVm: false,
+    existingBackendUrl: spec.existing_backend_url ?? "",
+    existingBackendLocation: spec.existing_backend_location ?? "gcp",
+    existingBackendConnectivityConfirmed:
+      spec.existing_backend_connectivity_confirmed,
+    applicationEgressRegion: spec.application_egress_region ?? "",
+    upstreamVpcProjectId: spec.upstream_vpc_project_id ?? "",
+    privateHostname: spec.private_hostname,
+    caPool: spec.ca_pool ?? "",
+    caName: spec.ca_name ?? "",
+    publicCertificateSecret: spec.public_certificate_secret ?? "",
+    customerId: spec.customer_id,
+    targetOuId: spec.target_ou_id,
+    managedChromeAccessLevel: spec.managed_chrome_access_level ?? "NONE",
+    chromeEnterprisePremiumLicenseConfirmed:
+      spec.chrome_enterprise_premium_license_confirmed,
+    workspaceServicesConfirmed: spec.workspace_services_confirmed,
+    endpointVerificationConfirmed: spec.endpoint_verification_confirmed,
+    principals:
+      spec.principals.length > 0
+        ? spec.principals.map((principal, index) => ({
+            id: `principal-${index + 1}`,
+            type: principal.type,
+            value: principal.value,
+          }))
+        : defaultSetupState.principals,
+    testOuConfirmed: spec.test_ou_confirmed,
+    approvalConfirmed: false,
+    updatedAt: new Date().toISOString(),
+  };
+}
+

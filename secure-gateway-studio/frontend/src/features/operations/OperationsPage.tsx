@@ -6,6 +6,7 @@ import {
   type AuditEvent,
   type AuditIntegrity,
   type DeploymentRun,
+  type DeploymentSpec,
   exportEvidenceBundle,
   getAcceptanceReadiness,
   getAuditIntegrity,
@@ -21,10 +22,15 @@ export type OperationsView = "deployments" | "evidence";
 
 interface OperationsPageProps {
   messages: Messages;
+  onRecallSpecification?: (spec: DeploymentSpec) => void;
   view: OperationsView;
 }
 
-export function OperationsPage({ messages, view }: OperationsPageProps) {
+export function OperationsPage({
+  messages,
+  onRecallSpecification,
+  view,
+}: OperationsPageProps) {
   const [runs, setRuns] = useState<DeploymentRun[]>([]);
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [integrity, setIntegrity] = useState<AuditIntegrity | null>(null);
@@ -257,6 +263,7 @@ export function OperationsPage({ messages, view }: OperationsPageProps) {
             setSelectedRunId(null);
             void listDeploymentRuns().then(setRuns);
           }}
+          onRecallSpecification={onRecallSpecification}
           runId={selectedRunId}
         />
       ) : null}

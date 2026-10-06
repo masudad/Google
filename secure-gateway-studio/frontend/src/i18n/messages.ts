@@ -252,6 +252,14 @@ export interface WorkflowMessages {
   connectionHandoffTitle: string;
   testUrlLabel: string;
   sebTroubleshootingHint: string;
+  recallCardTitle: string;
+  recallCardIntro: string;
+  recallIntoWizardButton: string;
+  recallCopyJsonButton: string;
+  recallCopiedBadge: string;
+  recallDownloadJsonButton: string;
+  recallExcludedLabel: string;
+  recallExcludedValue: string;
   previous: string;
   next: string;
 }
@@ -282,6 +290,14 @@ export interface OperationsMessages {
   architecture: string;
   ownershipRun: string;
   architectureLabel: (kind: string) => string;
+  recallCardTitle: string;
+  recallCardIntro: string;
+  recallIntoWizardButton: string;
+  recallCopyJsonButton: string;
+  recallCopiedBadge: string;
+  recallDownloadJsonButton: string;
+  recallExcludedLabel: string;
+  recallExcludedValue: string;
   accessLevelControlTitle: string;
   accessLevelControlIntro: string;
   selectAccessLevelLabel: string;
@@ -1933,6 +1949,16 @@ const en: Messages = {
     testUrlLabel: "Private Web App URL",
     sebTroubleshootingHint:
       "If Chrome shows NXDOMAIN, reload the Secure Enterprise Browser extension at chrome://extensions or re-sign in to refresh routes.",
+    recallCardTitle: "Recalled deployment configuration · non-sensitive",
+    recallCardIntro:
+      "Review, copy, download, or reload the deployed non-sensitive parameters into the wizard. Private keys, OAuth tokens, and secret payloads are excluded.",
+    recallIntoWizardButton: "Recall configuration into wizard",
+    recallCopyJsonButton: "Copy configuration JSON",
+    recallCopiedBadge: "✓ Copied non-sensitive configuration JSON",
+    recallDownloadJsonButton: "Download configuration JSON",
+    recallExcludedLabel: "Excluded sensitive data",
+    recallExcludedValue:
+      "TLS private keys, OAuth tokens, Secret Manager payloads, ownership tokens",
     previous: "Back",
     next: "Continue",
   },
@@ -1970,6 +1996,16 @@ const en: Messages = {
         direct_https: "HTTPS App · Direct private HTTPS",
         internal_https_lb: "HTTP App · Internal Application Load Balancer HTTPS offload",
       })[kind] ?? kind,
+    recallCardTitle: "Recalled deployment configuration · non-sensitive",
+    recallCardIntro:
+      "Review, copy, download, or reload the deployed non-sensitive parameters into the wizard. Private keys, OAuth tokens, and secret payloads are excluded.",
+    recallIntoWizardButton: "Recall configuration into wizard",
+    recallCopyJsonButton: "Copy configuration JSON",
+    recallCopiedBadge: "✓ Copied non-sensitive configuration JSON",
+    recallDownloadJsonButton: "Download configuration JSON",
+    recallExcludedLabel: "Excluded sensitive data",
+    recallExcludedValue:
+      "TLS private keys, OAuth tokens, Secret Manager payloads, ownership tokens",
     accessLevelControlTitle: "Access Control & Access Level Policies",
     accessLevelControlIntro:
       "Update the Access Context Manager condition and allowed principals.",
@@ -4290,6 +4326,16 @@ const ja: Messages = {
     testUrlLabel: "プライベート Web アプリ URL",
     sebTroubleshootingHint:
       "接続できない場合は、管理対象Chromeプロファイルから一度サインアウトして再サインインするか、chrome://extensions で Secure Enterprise Browser 拡張機能を再読み込みしてください。",
+    recallCardTitle: "デプロイ構成リコール · 機密情報なし",
+    recallCardIntro:
+      "適用された機密情報以外の構成パラメータを確認・出力、またはウィザードへ再読み込みできます。秘密鍵・OAuthトークン・Secretの実データは含まれません。",
+    recallIntoWizardButton: "この構成をウィザードにリコール",
+    recallCopyJsonButton: "構成JSONをコピー",
+    recallCopiedBadge: "✓ 機密情報なしの構成JSONをコピーしました",
+    recallDownloadJsonButton: "構成JSONをダウンロード",
+    recallExcludedLabel: "除外された機密データ",
+    recallExcludedValue:
+      "TLS秘密鍵 / OAuthアクセストークン / Secret Manager実データ / 所有権トークン",
     previous: "戻る",
     next: "続行",
   },
@@ -4327,6 +4373,16 @@ const ja: Messages = {
         direct_https: "HTTPS アプリ · 直接接続",
         internal_https_lb: "HTTP アプリ · 内部ロードバランサ (Internal ALB) HTTPS化",
       })[kind] ?? kind,
+    recallCardTitle: "デプロイ構成リコール · 機密情報なし",
+    recallCardIntro:
+      "適用された機密情報以外の構成パラメータを確認・出力、またはウィザードへ再読み込みできます。秘密鍵・OAuthトークン・Secretの実データは含まれません。",
+    recallIntoWizardButton: "この構成をウィザードにリコール",
+    recallCopyJsonButton: "構成JSONをコピー",
+    recallCopiedBadge: "✓ 機密情報なしの構成JSONをコピーしました",
+    recallDownloadJsonButton: "構成JSONをダウンロード",
+    recallExcludedLabel: "除外された機密データ",
+    recallExcludedValue:
+      "TLS秘密鍵 / OAuthアクセストークン / Secret Manager実データ / 所有権トークン",
     accessLevelControlTitle: "アクセス制御・アクセスレベル設定",
     accessLevelControlIntro:
       "BeyondCorp Application のアクセスレベル条件と許可プリンシパルを即時更新します。",

@@ -50,6 +50,7 @@ import {
   defaultSetupState,
   loadLocale,
   loadSetupState,
+  recallSetupStateFromSpec,
   restoreSetupState,
   requiresCloudConnectionRevalidation,
   saveLocale,
@@ -764,6 +765,21 @@ export function App() {
     }
   }
 
+  function handleRecallSpecification(spec: DeploymentSpec) {
+    invalidatePreparedWorkflow();
+    setPersistedWorkflow(emptyWorkflowRefs);
+    if (extensionPersistentState) {
+      void saveExtensionClientState({ workflow: emptyWorkflowRefs });
+    }
+    setSetup((current) =>
+      constrainSetupStateToRuntime(
+        recallSetupStateFromSpec(current, spec, 2),
+        runtimeCapabilities.internalHttpsLbArchitecture,
+      ),
+    );
+    setActiveView("setup");
+  }
+
   function renderCurrentStep() {
     switch (setup.currentStep) {
       case 1:
@@ -820,6 +836,7 @@ export function App() {
             busy={workflowBusy}
             error={workflowError}
             messages={messages}
+            onRecall={handleRecallSpecification}
             onResume={handleResumeRun}
             preparedPlan={preparedPlan}
             run={run}
@@ -980,7 +997,11 @@ export function App() {
           />
         ) : null
       ) : (
-        <OperationsPage messages={messages} view={activeView} />
+        <OperationsPage
+          messages={messages}
+          onRecallSpecification={handleRecallSpecification}
+          view={activeView}
+        />
       )}
     </AppShell>
   );

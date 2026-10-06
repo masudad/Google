@@ -208,6 +208,7 @@ export interface DeploymentDetails {
   policy_principals: string[];
   target_group_email?: string | null;
   teardown_available: boolean;
+  specification?: DeploymentSpec | null;
 }
 
 export type GatewayLogCategory = "access" | "connection" | "admin" | "nginx";

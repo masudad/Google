@@ -27,10 +27,12 @@ import {
 } from "./features/setup/ConfigurationSteps";
 import { getMessages } from "./i18n/messages";
 import {
+  buildNonSensitiveRecallRecord,
   defaultSetupState,
   constrainSetupStateToRuntime,
   isPublicTrustedHostnameCandidate,
   loadSetupState,
+  recallSetupStateFromSpec,
   requiresCloudConnectionRevalidation,
   restoreSetupState,
   toDeploymentSpec,
@@ -2544,5 +2546,80 @@ describe("Secure Gateway Studio mode screen", () => {
       expect(createObjectUrlMock).toHaveBeenCalledTimes(1);
     });
   });
+
+  it("renders non-sensitive configuration recall after Apply completes and reloads configuration into the wizard without sensitive credentials", () => {
+    const state: SetupState = {
+      ...defaultSetupState,
+      currentStep: 6,
+      deploymentName: "secgw-recall-poc",
+      certificateStrategy: "local_poc",
+      privateHostname: "recall.secgw.internal",
+      projectId: "enterprise-secgw-01",
+      customerId: "C01234567",
+      targetOuId: "03pilot",
+      principals: [{ id: "p1", type: "group", value: "secgw-pilots@example.com" }],
+    };
+    const spec = toDeploymentSpec(state, "ja");
+    const record = buildNonSensitiveRecallRecord(spec, {
+      runId: "run-recall-1",
+      configurationHash: "c".repeat(64),
+    });
+
+    expect(record.schema).toBe("secure-gateway-studio/non-sensitive-recall/v1");
+    expect(record.excluded_sensitive_fields).toContain("private_key_pem");
+    expect(record.excluded_sensitive_fields).toContain("oauth_access_token");
+    expect(record.excluded_sensitive_fields).toContain("secret_manager_payload");
+    expect(record.configuration.name).toBe("secgw-recall-poc");
+    expect(record.configuration.private_hostname).toBe("recall.secgw.internal");
+
+    const recalledState = recallSetupStateFromSpec(defaultSetupState, spec, 2);
+    expect(recalledState.currentStep).toBe(2);
+    expect(recalledState.deploymentName).toBe("secgw-recall-poc");
+    expect(recalledState.privateHostname).toBe("recall.secgw.internal");
+    expect(recalledState.targetOuId).toBe("03pilot");
+    expect(recalledState.approvalConfirmed).toBe(false);
+
+    const onRecall = vi.fn();
+    render(
+      <ApplyStep
+        approval={{
+          approval_id: "approval-recall-1",
+          configuration_hash: "c".repeat(64),
+          plan_hash: "d".repeat(64),
+          approved_by: "admin@example.com",
+          approved_at: "2026-10-06T00:00:00Z",
+          expires_at: "2099-01-01T00:00:00Z",
+        }}
+        busy={false}
+        error=""
+        messages={getMessages("ja")}
+        onRecall={onRecall}
+        onResume={vi.fn().mockResolvedValue(undefined)}
+        preparedPlan={restoredPlan(spec, "c".repeat(64))}
+        run={{
+          run_id: "run-recall-1",
+          approval_id: "approval-recall-1",
+          configuration_hash: "c".repeat(64),
+          status: "succeeded",
+          started_at: "2026-10-06T00:00:00Z",
+          completed_at: "2026-10-06T00:01:00Z",
+          operations: [],
+        }}
+        state={state}
+      />,
+    );
+
+    expect(screen.getByText("デプロイ構成リコール · 機密情報なし")).toBeInTheDocument();
+    expect(
+      screen.getByText(/TLS秘密鍵 \/ OAuthアクセストークン \/ Secret Manager実データ \/ 所有権トークン/),
+    ).toBeInTheDocument();
+
+    const recallBtn = screen.getByRole("button", {
+      name: "この構成をウィザードにリコール",
+    });
+    fireEvent.click(recallBtn);
+    expect(onRecall).toHaveBeenCalledWith(spec);
+  });
 });
+
 

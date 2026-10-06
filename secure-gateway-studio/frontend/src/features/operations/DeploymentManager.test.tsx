@@ -334,4 +334,68 @@ describe("DeploymentManager", () => {
       "user:stale@example.com",
     );
   });
+
+  it("allows recalling non-sensitive deployment configuration into the wizard from DeploymentManager", async () => {
+    const spec: api.DeploymentSpec = {
+      name: "secure-gateway-http-offload",
+      mode: "poc",
+      platforms: ["macos", "windows"],
+      locale: "ja",
+      project_id: "montreal-436802",
+      region: "asia-northeast1",
+      zone: "asia-northeast1-a",
+      secondary_zone: "asia-northeast1-b",
+      backend_kind: "managed_sample",
+      network_strategy: "dedicated",
+      vpc_name: null,
+      subnet_name: null,
+      subnet_cidr: "10.42.0.0/24",
+      proxy_subnet_cidr: "10.42.1.0/24",
+      private_hostname: "demo.internal",
+      gateway_id: "default",
+      certificate_strategy: "local_poc",
+      ca_pool: null,
+      ca_name: null,
+      public_certificate_secret: null,
+      customer_id: "C01234567",
+      target_ou_id: "03pilot",
+      managed_chrome_access_level: "NONE",
+      chrome_enterprise_premium_license_confirmed: true,
+      workspace_services_confirmed: true,
+      endpoint_verification_confirmed: true,
+      principals: [{ type: "group", value: "run-owner@example.com" }],
+      test_ou_confirmed: true,
+      existing_backend_url: null,
+      existing_backend_location: null,
+      existing_backend_connectivity_confirmed: false,
+      application_egress_region: null,
+      upstream_vpc_project_id: null,
+      source_image: "projects/debian-cloud/global/images/debian-12-bookworm-v20260701",
+      offload_min_replicas: 2,
+      offload_max_replicas: 20,
+      offload_cpu_target: 0.6,
+    };
+    vi.mocked(api.getDeploymentDetails).mockResolvedValue({
+      ...details,
+      specification: spec,
+    });
+    const onRecallSpecification = vi.fn();
+
+    render(
+      <DeploymentManager
+        copy={getMessages("ja").operations}
+        onClose={() => undefined}
+        onRecallSpecification={onRecallSpecification}
+        runId="run-123"
+      />,
+    );
+
+    expect(await screen.findByText("デプロイ構成リコール · 機密情報なし")).toBeInTheDocument();
+    const recallBtn = screen.getByRole("button", {
+      name: "この構成をウィザードにリコール",
+    });
+    fireEvent.click(recallBtn);
+    expect(onRecallSpecification).toHaveBeenCalledWith(spec);
+  });
 });
+

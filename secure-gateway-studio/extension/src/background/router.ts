@@ -1505,6 +1505,7 @@ export async function route(
       target_group_email:
         spec?.principals.find((principal) => principal.type === "group")?.value ?? null,
       teardown_available: teardownPlan?.can_destroy === true,
+      specification: spec ?? null,
     };
   }
 

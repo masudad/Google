@@ -15,6 +15,7 @@ import type {
   DeployerBootstrapResult,
   DeploymentGate,
   DeploymentRun,
+  DeploymentSpec,
   PreparedPlan,
   SetupOption,
 } from "../../lib/api";
@@ -30,10 +31,12 @@ import {
   signInSession,
 } from "../../lib/api";
 import {
+  buildNonSensitiveRecallRecord,
   effectiveBackendKind,
   isPublicTrustedHostnameCandidate,
   isSupportedGoogleCloudProjectId,
   isSupportedManagedChromeAccessLevel,
+  toDeploymentSpec,
   type AccessPrincipal,
   type BackendKind,
   type BackendLocation,
@@ -74,6 +77,7 @@ interface ApplyStepProps {
   busy: boolean;
   error: string;
   messages: Messages;
+  onRecall?: (spec: DeploymentSpec) => void;
   onResume: () => Promise<void>;
   preparedPlan: PreparedPlan | null;
   run: DeploymentRun | null;
@@ -2343,6 +2347,7 @@ export function ApplyStep({
   busy,
   error,
   messages,
+  onRecall,
   onResume,
   preparedPlan,
   run,
@@ -2352,11 +2357,21 @@ export function ApplyStep({
   const backendKind = effectiveBackendKind(state);
   const [downloadBusy, setDownloadBusy] = useState(false);
   const [downloadError, setDownloadError] = useState("");
+  const [recallCopied, setRecallCopied] = useState(false);
   const planReady = preparedPlan !== null;
   const approvalReady = approval !== null;
   const activeRunStatuses = new Set(["pending", "running", "rolling_back"]);
   const runFinished = run !== null && !activeRunStatuses.has(run.status);
   const runFinalized = run?.status === "succeeded" || run?.status === "rolled_back";
+  const recallSpec = preparedPlan?.specification ?? toDeploymentSpec(state);
+  const recallRecord = buildNonSensitiveRecallRecord(recallSpec, {
+    runId: run?.run_id ?? null,
+    configurationHash:
+      preparedPlan?.plan.configuration_hash ??
+      approval?.configuration_hash ??
+      run?.configuration_hash ??
+      null,
+  });
   const hasManagedVmTier = backendKind !== "direct_https";
   const networkProjectId =
     backendKind === "direct_https" && state.upstreamVpcProjectId.trim()
@@ -2451,6 +2466,31 @@ export function ApplyStep({
     } finally {
       setDownloadBusy(false);
     }
+  }
+
+  async function handleCopyRecallJson() {
+    const json = JSON.stringify(recallRecord, null, 2);
+    try {
+      await navigator.clipboard?.writeText(json);
+      setRecallCopied(true);
+      setTimeout(() => setRecallCopied(false), 2500);
+    } catch {
+      // Clipboard API may not be available in all test environments
+    }
+  }
+
+  function handleDownloadRecallJson() {
+    const blob = new Blob([JSON.stringify(recallRecord, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${recallSpec.name}-non-sensitive-config.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 
   return (
@@ -2642,6 +2682,82 @@ export function ApplyStep({
             </a>
           </p>
           <p>{copy.sebTroubleshootingHint}</p>
+        </article>
+      )}
+      {runFinished && run && (
+        <article className="recall-config-card">
+          <div className="recall-config-header">
+            <div>
+              <h3>{copy.recallCardTitle}</h3>
+              <p>{copy.recallCardIntro}</p>
+            </div>
+            {recallCopied && (
+              <span className="recall-copied-badge" role="status">
+                <CheckIcon size={16} /> {copy.recallCopiedBadge}
+              </span>
+            )}
+          </div>
+          <div className="recall-config-grid">
+            <div className="recall-config-item">
+              <small>{copy.deploymentName}</small>
+              <strong>{recallSpec.name}</strong>
+            </div>
+            <div className="recall-config-item">
+              <small>{copy.projectId}</small>
+              <strong>{recallSpec.project_id}</strong>
+            </div>
+            <div className="recall-config-item">
+              <small>{copy.region}</small>
+              <strong>{recallSpec.region} / {recallSpec.zone}</strong>
+            </div>
+            <div className="recall-config-item">
+              <small>{messages.operations.architecture}</small>
+              <strong>{messages.operations.architectureLabel(recallSpec.backend_kind)}</strong>
+            </div>
+            <div className="recall-config-item">
+              <small>{copy.privateHostname}</small>
+              <strong>{recallSpec.private_hostname}</strong>
+            </div>
+            <div className="recall-config-item">
+              <small>{copy.targetOuId}</small>
+              <strong>{recallSpec.target_ou_id}</strong>
+            </div>
+            <div className="recall-config-item">
+              <small>{copy.principals}</small>
+              <strong>
+                {recallSpec.principals.map((p) => `${p.type}:${p.value}`).join(", ") || "—"}
+              </strong>
+            </div>
+            <div className="recall-config-item">
+              <small>{copy.recallExcludedLabel}</small>
+              <small>{copy.recallExcludedValue}</small>
+            </div>
+          </div>
+          <div className="recall-config-actions">
+            {onRecall && (
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={() => onRecall(recallSpec)}
+                type="button"
+              >
+                {copy.recallIntoWizardButton}
+              </button>
+            )}
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() => void handleCopyRecallJson()}
+              type="button"
+            >
+              {copy.recallCopyJsonButton}
+            </button>
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={handleDownloadRecallJson}
+              type="button"
+            >
+              {copy.recallDownloadJsonButton}
+            </button>
+          </div>
         </article>
       )}
       {error && <p className="connection-error" role="alert">{error}</p>}

@@ -3,6 +3,7 @@ import { CheckIcon, CloudIcon, ShieldIcon } from "../../components/Icons";
 import type { OperationsMessages } from "../../i18n/messages";
 import {
   type DeploymentDetails,
+  type DeploymentSpec,
   type GatewayLogCategory,
   type GatewayLogsResponse,
   type SetupOption,
@@ -19,7 +20,10 @@ import {
   startTeardown,
   updateAccessLevel,
 } from "../../lib/api";
-import { isSupportedManagedChromeAccessLevel } from "../../lib/setup-state";
+import {
+  buildNonSensitiveRecallRecord,
+  isSupportedManagedChromeAccessLevel,
+} from "../../lib/setup-state";
 
 type ManagerTab = "overview" | "logs" | "resources" | "delete";
 
@@ -27,6 +31,7 @@ interface DeploymentManagerProps {
   copy: OperationsMessages;
   runId: string;
   onClose: () => void;
+  onRecallSpecification?: (spec: DeploymentSpec) => void;
 }
 
 const LOG_CATEGORIES: GatewayLogCategory[] = [
@@ -36,7 +41,12 @@ const LOG_CATEGORIES: GatewayLogCategory[] = [
   "nginx",
 ];
 
-export function DeploymentManager({ copy, runId, onClose }: DeploymentManagerProps) {
+export function DeploymentManager({
+  copy,
+  runId,
+  onClose,
+  onRecallSpecification,
+}: DeploymentManagerProps) {
   const [details, setDetails] = useState<DeploymentDetails | null>(null);
   const [teardownPlan, setTeardownPlan] = useState<TeardownPlan | null>(null);
   const [tab, setTab] = useState<ManagerTab>("overview");
@@ -57,6 +67,7 @@ export function DeploymentManager({ copy, runId, onClose }: DeploymentManagerPro
   const [teardown, setTeardown] = useState<TeardownRun | null>(null);
   const [teardownBusy, setTeardownBusy] = useState(false);
   const [teardownError, setTeardownError] = useState("");
+  const [recallCopied, setRecallCopied] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -232,6 +243,39 @@ export function DeploymentManager({ copy, runId, onClose }: DeploymentManagerPro
     teardown?.status === "succeeded",
   );
 
+  const recallRecord = details?.specification
+    ? buildNonSensitiveRecallRecord(details.specification, {
+        runId: details.run.run_id,
+        configurationHash: details.run.configuration_hash,
+      })
+    : null;
+
+  async function handleCopyRecallJson() {
+    if (!recallRecord) return;
+    try {
+      await navigator.clipboard?.writeText(JSON.stringify(recallRecord, null, 2));
+      setRecallCopied(true);
+      setTimeout(() => setRecallCopied(false), 2500);
+    } catch {
+      // Clipboard API may not be available in all test environments
+    }
+  }
+
+  function handleDownloadRecallJson() {
+    if (!recallRecord || !details?.specification) return;
+    const blob = new Blob([JSON.stringify(recallRecord, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${details.specification.name}-non-sensitive-config.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+  }
+
   return (
     <section className="deployment-manager" aria-label={copy.manage}>
       <header className="deployment-manager-heading">
@@ -293,6 +337,53 @@ export function DeploymentManager({ copy, runId, onClose }: DeploymentManagerPro
               </article>
             ) : null}
           </div>
+
+          {details.specification ? (
+            <div className="recall-config-card">
+              <div className="recall-config-header">
+                <div>
+                  <h3>{copy.recallCardTitle}</h3>
+                  <p>{copy.recallCardIntro}</p>
+                </div>
+                {recallCopied && (
+                  <span className="recall-copied-badge" role="status">
+                    <CheckIcon size={16} /> {copy.recallCopiedBadge}
+                  </span>
+                )}
+              </div>
+              <div className="recall-config-grid">
+                <div className="recall-config-item">
+                  <small>{copy.recallExcludedLabel}</small>
+                  <small>{copy.recallExcludedValue}</small>
+                </div>
+              </div>
+              <div className="recall-config-actions">
+                {onRecallSpecification ? (
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={() => details.specification && onRecallSpecification(details.specification)}
+                    type="button"
+                  >
+                    {copy.recallIntoWizardButton}
+                  </button>
+                ) : null}
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => void handleCopyRecallJson()}
+                  type="button"
+                >
+                  {copy.recallCopyJsonButton}
+                </button>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={handleDownloadRecallJson}
+                  type="button"
+                >
+                  {copy.recallDownloadJsonButton}
+                </button>
+              </div>
+            </div>
+          ) : null}
 
           {runtimeCapabilities.postDeploymentAccessUpdate ? (
           <div className="access-level-control-panel">
