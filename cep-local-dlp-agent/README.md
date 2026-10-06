@@ -6,9 +6,18 @@ Chrome Enterprise Premium (CEP) の DLP 検証サーバー（**WebProtect**: `ht
 
 1. **Chrome 拡張機能不要・シングルバイナリ完結（macOS / Windows / Linux 対応）**:
    OS 上の Chrome Enterprise Core (CBCM) DM Token（Windows レジストリ、macOS `Chrome Cloud Enrollment`、Linux Enrollment ディレクトリ）および Chrome Profile メタデータを自動検出し、エージェントから直接 Scotty Multipart プロトコル（`ContentAnalysisRequest` / `ContentAnalysisResponse` Protobuf）で CEP サーバーへ問い合わせます。
-2. **2層ハイブリッドフック**:
-   - **【第1層】OS クリップボード ＆ アクティブアプリ監視 (`pkg/oshook`)**: TLS 復号不要で、ネイティブアプリへの機密テキスト貼り付けを検知・遮断（`BLOCK` 時はクリップボードを即座にクリアし OS ネイティブ警告を表示）。Windows は `user32.dll` / `kernel32.dll` の Win32 API（`GetClipboardSequenceNumber`, `OpenClipboard`/`GetClipboardData`, `GetForegroundWindow`/`QueryFullProcessImageNameW`）を直接呼び出し、PowerShell 子プロセスを一切起動せずに 0.1ms 未満で監視。重複判定はクリップボード内容ハッシュ基準のため、ウィンドウ切り替え（Alt+Tab）による不要な再スキャンは発生しません。
-   - **【第2層】スマート HTTPS プロキシ (`pkg/proxy`)**: Cursor 等のバックグラウンドでのソースコード自動送信や、ネイティブアプリからのファイルアップロード（`multipart/form-data`）・API 送信（`POST` / `PUT` / `PATCH`）を捕捉・遮断。
+2. **3層ハイブリッドフック（HTTP/HTTPS 以外の全プロトコル・ストレージにも対応）**:
+   - **【第1層】OS クリップボード（テキスト ＆ ファイルコピー）＆ アクティブアプリ監視 (`pkg/oshook`)**: TLS 復号不要で、ネイティブアプリへの機密テキスト貼り付けやファイルコピー（Windows `CF_HDROP` / macOS `public.file-url`）を検知・遮断（`BLOCK` 時はクリップボードを即座に隔離し、貼り付け操作 `Ctrl+V` / `Cmd+V` 時に OS ネイティブ警告を表示）。Windows は `user32.dll` / `kernel32.dll` の Win32 API（`GetClipboardSequenceNumber`, `OpenClipboard`/`GetClipboardData`, `GetForegroundWindow`/`QueryFullProcessImageNameW`）を直接呼び出し、PowerShell 子プロセスを一切起動せずに 0.1ms 未満で監視。
+   - **【第2層】マルチプロトコル・スマートプロキシ (`pkg/proxy`)**:
+     - **HTTPS / HTTP**: Cursor 等のソースコード自動送信、ネイティブアプリからのファイルアップロード（`multipart/form-data`、JSON 内 Base64 埋め込み PDF/Office/画像）・API 送信（`POST` / `PUT` / `PATCH`）を捕捉・遮断。
+     - **WebSocket (`ws://` / `wss://`, RFC 6455)**: `Upgrade: websocket` ハンドシェイクを検知し、クライアントからサーバーへ送信される Text (`0x1`) / Binary (`0x2`) フレームをアンマスクして CEP WebProtect で検査。`BLOCK` 時は RFC 6455 Close Frame (`1008 Policy Violation`) を返して即時遮断。
+     - **SOCKS5 (`socks5://127.0.0.1:8843`, RFC 1928) 同一ポート多重化**: HTTP プロキシと同一ポート（`127.0.0.1:8843`）の先頭バイト（`0x05`）を自動判別して SOCKS5 トンネルを終端し、トンネル内部の TLS / HTTP / WebSocket / SMTP / FTP / 汎用 TCP ストリームを自動識別して検査。
+     - **SMTP (`25` / `587` / `465`) / FTP (`21`) / 汎用 TCP ストリーム**: メールクライアントの SMTP `DATA` 本文・MIME 添付ファイルを検査し、`BLOCK` 時は `554 5.7.1 Message blocked by Chrome Enterprise Premium DLP` を返して送信を中止。
+   - **【第3層】ストレージ ＆ CLI ファイル持ち出しガード (`pkg/egress`)**:
+     - **SMB ファイル共有 (`\\server\share`, マップドドライブ `Z:`, macOS `/Volumes`, Linux `cifs`/`smb3`) / リムーバブル USB ドライブ / クラウド同期フォルダ (OneDrive, Dropbox, Box, iCloud Drive)**: OS カーネルが直接通信するため HTTP プロキシを通らない SMB（TCP 445）や USB ストレージへのファイル書き出しをリアルタイム監視し、`FILE_ATTACHED` として CEP WebProtect でスキャン。`BLOCK` 判定時は共有先・USB 上のファイルを即座に削除し、`~/.cep-local-dlp-agent/quarantine/` にローカル退避。`--watch-dirs "\\\\fileserver\\share,D:\\Sync"` で任意の UNC パス・フォルダも追加監視可能。
+     - **CLI ファイル転送プロセス監視 (`scp`, `sftp`, `rsync`, `rclone`, `ftp`, `smbclient`, `robocopy`, `curl -T/-F`, `aws`, `gsutil`, `azcopy`)**: SSH ホスト鍵検証のため TLS MITM が不可能な `scp` / `sftp` / `rsync` 等のコマンドライン引数をプロセス起動時に解析し、送信元ローカルファイルを CEP WebProtect で即時スキャン。`BLOCK` 時は転送プロセスを強制終了（Kill）して漏洩を阻止。
+   - **管理コンソール URL 条件との統一マッピング (`https://local-protocol.internal/<protocol>/...`)**:
+     非 HTTP プロトコルもすべて正規化 URL（例: `https://local-protocol.internal/smb/fileserver/share`、`https://local-protocol.internal/usb/drive-e`、`https://local-protocol.internal/scp/external.example.com`、`https://local-protocol.internal/smtp/mail.example.com`）に変換して CEP WebProtect へ送信するため、Google 管理コンソールの既存の URL 条件ルールでプロトコル別・宛先別の制御と監査ログ記録が可能です。
 3. **Smart Bypass（Quota 保護・Chrome 二重検査回避・証明書ピニング自動回避）**:
    - **ローカルプロセス識別 (`pkg/proxy/proc_inspector*.go`)**: ループバック接続元のプロセス名を特定し、`Google Chrome` / `chrome.exe`（ブラウザ内蔵 CEP で保護済み）や OS 更新プロセスの通信は自動的に TCP パススルーへバイパス。Windows は Win32 API（`GetExtendedTcpTable` / `QueryFullProcessImageNameW`）を直接呼び出すため 1ms 未満で判定（PowerShell 起動なし）。macOS / Linux は `lsof`。
    - **Chrome / Google インフラ ホストの TLS 非復号 (`chromeInfraSuffixes`)**: `clients4.google.com`（Chrome Sync）、`*.clients6.google.com`、`optimizationguide-pa` / `chromereporting-pa` / `oauthaccountmanager.googleapis.com`、`accounts.google.com`、`*.gvt1.com` などブラウザ内部通信はプロセス判定に失敗しても復号しない（多層防御）。OS プロキシのバイパスリスト（WinInet `ProxyOverride` / macOS `-setproxybypassdomains`）にも同じホストを登録し、そもそもエージェントへ届かないようにする。

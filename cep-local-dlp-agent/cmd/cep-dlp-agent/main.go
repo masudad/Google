@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"cep-local-dlp-agent/pkg/dmtoken"
+	"cep-local-dlp-agent/pkg/egress"
 	"cep-local-dlp-agent/pkg/notifier"
 	"cep-local-dlp-agent/pkg/oshook"
 	"cep-local-dlp-agent/pkg/proxy"
@@ -57,7 +58,7 @@ func main() {
 		runUninstallCmd()
 	case "proxy":
 		runProxyCmd(os.Args[2:], false)
-	case "daemon":
+	case "daemon", "run":
 		runProxyCmd(os.Args[2:], true)
 	default:
 		printUsage()
@@ -78,8 +79,8 @@ Commands:
   ca-install  Generate and automatically install the local Root CA into macOS Keychain or Windows Root Store
   install     Zero-Admin BYOD User-Space Installer (registers login auto-start, Root CA, and cep-dlp:// protocol)
   uninstall   Remove user-space login auto-start and cep-dlp:// protocol handler
-  proxy       Run Layer-2 Smart Local HTTPS Proxy (with Pre-filter, Quota limiter & Pinning Auto-Bypass)
-  daemon      Run Full Hybrid Agent (Layer-1 OS Clipboard Guard + Layer-2 Smart HTTPS Proxy)
+  proxy       Run Layer-2 Smart Multi-Protocol Proxy (HTTPS / WebSocket / SOCKS5 / SMTP / FTP / Raw TCP)
+  daemon      Run Full 3-Layer Hybrid Agent (Layer-1 Clipboard + Layer-2 Multi-Protocol Proxy + Layer-3 SMB/USB/CloudSync/CLI Guard)
 `)
 }
 
@@ -245,15 +246,16 @@ func runCAExportCmd(args []string, install bool) {
 	fmt.Printf("  Linux:   sudo cp %q /usr/local/share/ca-certificates/cep-local-root-ca.crt && sudo update-ca-certificates\n", ca.CertPath)
 }
 
-func runProxyCmd(args []string, enableClipboardGuard bool) {
+func runProxyCmd(args []string, enableOSGuards bool) {
 	fs := flag.NewFlagSet("daemon", flag.ExitOnError)
-	listenAddr := fs.String("listen", "127.0.0.1:8843", "Local HTTP/HTTPS proxy listen address")
+	listenAddr := fs.String("listen", "127.0.0.1:8843", "Local HTTP/HTTPS/SOCKS5 proxy listen address")
 	dmTokenFlag := fs.String("dm-token", "", "Explicit DM token override (or set CEP_DM_TOKEN)")
 	endpointFlag := fs.String("endpoint", webprotect.EndpointProdGlobal, "CEP WebProtect endpoint URL")
 	minBytesFlag := fs.Int("min-bytes", proxy.DefaultMinPayloadBytes, "Minimum POST/PUT payload bytes to trigger CEP scan")
 	qpsFlag := fs.Float64("max-qps", proxy.DefaultDeviceQPS, "Max per-device QPS rate limit to protect enterprise quota")
 	configDir := fs.String("config-dir", "", "Directory to store Root CA certificate and key")
 	sysProxyFlag := fs.Bool("system-proxy", false, "Automatically enable OS-wide system proxy on macOS/Windows and restore on exit")
+	watchDirsFlag := fs.String("watch-dirs", "", "Comma-separated list of additional SMB UNC paths (\\\\server\\share) or folders to watch for file egress")
 	headlessFlag := fs.Bool("headless", false, "Disable native OS GUI modal alerts")
 	_ = fs.Parse(args)
 
@@ -296,10 +298,23 @@ func runProxyCmd(args []string, enableClipboardGuard bool) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	if enableClipboardGuard {
+	if enableOSGuards {
 		clipGuard := oshook.NewClipboardGuard(wpClient, info, notif, 1)
 		go func() {
 			_ = clipGuard.Run(ctx)
+		}()
+
+		var extraDirs []string
+		if strings.TrimSpace(*watchDirsFlag) != "" {
+			for _, p := range strings.Split(*watchDirsFlag, ",") {
+				if trimmed := strings.TrimSpace(p); trimmed != "" {
+					extraDirs = append(extraDirs, trimmed)
+				}
+			}
+		}
+		egressGuard := egress.NewGuard(wpClient, info, notif, extraDirs)
+		go func() {
+			_ = egressGuard.Run(ctx)
 		}()
 	}
 
@@ -314,8 +329,9 @@ func runProxyCmd(args []string, enableClipboardGuard bool) {
 		_ = httpSrv.Close()
 	}()
 
-	log.Printf("[agent] Layer-2 Smart HTTPS Proxy + Control Plane (/healthz) listening on http://%s", *listenAddr)
-	if err := httpSrv.Serve(ln); err != nil && err != http.ErrServerClosed {
+	muxLn := proxy.NewMultiplexedListener(ln, proxySrv)
+	log.Printf("[agent] Layer-2 Multi-Protocol Proxy (HTTP/HTTPS/WSS/SOCKS5/SMTP/FTP/TCP) + Control Plane (/healthz) listening on %s", *listenAddr)
+	if err := httpSrv.Serve(muxLn); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("Proxy server error: %v", err)
 	}
 }

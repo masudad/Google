@@ -112,7 +112,7 @@ func (s *Server) handleControlPlane(w http.ResponseWriter, r *http.Request) {
 			"ok":               true,
 			"status":           status,
 			"agent":            "cep-local-dlp-agent",
-			"version":          "1.4.0",
+			"version":          "1.5.0",
 			"dm_token_present": hasToken,
 			"has_token":        hasToken,
 			"token_source":     tokSource,
@@ -206,6 +206,25 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[proxy] inspecting %s (client=%q)", targetHostPort, clientProc)
 	}
 
+	// If the CONNECT target is a non-443 port (e.g. SMTP 25/587, FTP 21, custom TCP),
+	// route through our protocol-aware stream sniffer (which still upgrades to TLS MITM if the client sends a TLS ClientHello).
+	if !strings.HasSuffix(targetHostPort, ":443") {
+		port := 0
+		if _, pStr, splitErr := net.SplitHostPort(targetHostPort); splitErr == nil {
+			_, _ = fmt.Sscanf(pStr, "%d", &port)
+		}
+		var streamConn net.Conn = clientConn
+		if clientBuf != nil && clientBuf.Reader.Buffered() > 0 {
+			streamConn = &peekConn{Conn: clientConn, r: clientBuf.Reader}
+		}
+		s.inspectTunnelStream(streamConn, targetHostPort, port, clientProc)
+		return
+	}
+
+	s.handleTLSInTunnel(clientConn, targetHostPort, clientProc)
+}
+
+func (s *Server) handleTLSInTunnel(clientConn net.Conn, targetHostPort string, clientProc string) {
 	leafCert, err := s.CA.GetCertificateForHost(targetHostPort)
 	if err != nil {
 		log.Printf("[proxy] mint cert error for %s: %v", targetHostPort, err)
@@ -225,6 +244,7 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tlsConn.Close()
 
+	hostHeader := strings.TrimSuffix(targetHostPort, ":443")
 	reader := bufio.NewReader(tlsConn)
 	for {
 		req, err := http.ReadRequest(reader)
@@ -232,8 +252,13 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		req.URL.Scheme = "https"
-		req.URL.Host = r.Host
+		req.URL.Host = hostHeader
 		req.RequestURI = ""
+
+		if IsWebSocketUpgrade(req) {
+			_ = s.handleWebSocketUpgrade(&peekConn{Conn: tlsConn, r: reader}, req, true, clientProc)
+			return
+		}
 
 		closeConn, err := s.handleHTTPSConnRequest(tlsConn, req, clientProc)
 		if err != nil || closeConn || req.Close {
