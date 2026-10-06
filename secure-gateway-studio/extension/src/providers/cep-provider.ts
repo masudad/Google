@@ -46,6 +46,34 @@ const CLOUD_IDENTITY = "https://cloudidentity.googleapis.com/v1beta1";
 /** Display-name prefix used only for reporting candidates; it is not ownership proof. */
 const DLP_PREFIX = "CEP PoC - ";
 
+const CEP_DLP_RULE_BASE_NAMES = [
+  `${DLP_PREFIX}Universal file upload protection`,
+  `${DLP_PREFIX}Universal file download protection`,
+  `${DLP_PREFIX}Payment card numbers`,
+  `${DLP_PREFIX}National ID numbers`,
+  `${DLP_PREFIX}Unmanaged Chrome access control`,
+  `${DLP_PREFIX}Watermark internal pages`,
+  `${DLP_PREFIX}Consumer GenAI data protection`,
+] as const;
+
+const CEP_DLP_RULE_OPERATION_LABELS = [
+  "upload",
+  "download",
+  "paste",
+  "print",
+  "navigation",
+] as const;
+
+export function isManagedCepDlpRuleDisplayName(displayName: string): boolean {
+  return CEP_DLP_RULE_BASE_NAMES.some(
+    (baseName) =>
+      displayName === baseName ||
+      CEP_DLP_RULE_OPERATION_LABELS.some(
+        (opLabel) => displayName === `${baseName} - ${opLabel}`,
+      ),
+  );
+}
+
 export type CepDlpRuleId =
   | "universal_upload"
   | "universal_download"
@@ -338,6 +366,12 @@ export interface CepRollbackConfig {
    */
   access_level?: string;
   project_id?: string;
+  /**
+   * When true, delete canonical `CEP PoC - ...` `settings/rule.dlp` rules
+   * whose policyQuery targets the selected OU (or its CEP sub-OUs) or Google
+   * Group while retaining any custom/other-scope rules.
+   */
+  delete_dlp_rules?: boolean;
 }
 
 export interface CepTraceItem {
@@ -3132,6 +3166,93 @@ export class CepProvider {
   }
 
   /**
+   * Delete canonical `CEP PoC - ...` `settings/rule.dlp` policies targeting the
+   * selected OU (or its CEP sub-OUs) or Google Group while retaining any
+   * custom/other-scope rules.
+   */
+  private async rollbackDlpRules(
+    trace: CepTraceItem[],
+    context: CepContext,
+    inspectionContexts: CepContext[],
+    removed: string[],
+    skipped: string[],
+  ): Promise<{ retained: boolean; deleteFailed: boolean }> {
+    if (context.dlpCustomerId === undefined) {
+      skipped.push(
+        "DLP rollback: Directory customers.get did not return a canonical customer id beginning with C; no DLP policy was listed or deleted",
+      );
+      return { retained: true, deleteFailed: false };
+    }
+    const existing = await this.listDlpPolicies(trace, "rule.dlp", context.dlpCustomerId);
+    if (existing === null) {
+      skipped.push(
+        `rule.dlp: ownership could not be verified because the policy API could not be read ` +
+          `(${this.lastDlpError}); no DLP policy was deleted`,
+      );
+      return { retained: true, deleteFailed: false };
+    }
+
+    const allowedTargets = new Set<string>();
+    for (const targetContext of inspectionContexts) {
+      allowedTargets.add(canonicalJson(policyQueryTarget(this.policyQuery(targetContext))));
+      if (targetContext.targetType !== "group") {
+        const usersId = targetContext.ouIds.users.replace(/^id:/, "");
+        const browsersId = targetContext.ouIds.browsers.replace(/^id:/, "");
+        if (usersId !== "") allowedTargets.add(canonicalJson({ orgUnit: usersId }));
+        if (browsersId !== "") allowedTargets.add(canonicalJson({ orgUnit: browsersId }));
+      }
+    }
+
+    let retained = false;
+    let deleteFailed = false;
+    for (const policy of existing) {
+      if (!policy.displayName.startsWith(DLP_PREFIX)) continue;
+      if (!policy.type.includes("rule.dlp")) continue;
+
+      const targetFp = canonicalJson(policyQueryTarget(policy.policyQuery));
+      if (
+        !isManagedCepDlpRuleDisplayName(policy.displayName) ||
+        !allowedTargets.has(targetFp)
+      ) {
+        retained = true;
+        skipped.push(
+          `Retained DLP rule "${policy.displayName}" (${policy.name}): rule name or target scope does not match the selected PoC target`,
+        );
+        continue;
+      }
+
+      const deleteLabel = `Delete DLP rule "${policy.displayName}"`;
+      const deleteUrl = `${CLOUD_IDENTITY}/${policy.name}`;
+      try {
+        await this.request(this.transport, "DELETE", deleteUrl);
+        trace.push({
+          label: deleteLabel,
+          method: "DELETE",
+          url: deleteUrl,
+          status: 200,
+          ok: true,
+        });
+        removed.push(`Deleted DLP rule "${policy.displayName}" (${policy.name})`);
+      } catch (error) {
+        retained = true;
+        deleteFailed = true;
+        trace.push({
+          label: deleteLabel,
+          method: "DELETE",
+          url: deleteUrl,
+          status: errorStatus(error) ?? 0,
+          ok: false,
+          error: errorMessage(error),
+        });
+        skipped.push(
+          `DLP rule "${policy.displayName}" (${policy.name}): ${errorMessage(error)}`,
+        );
+      }
+    }
+    return { retained, deleteFailed };
+  }
+
+  /**
    * Turn the selected policy definitions into batchModify requests, dropping
    * any whose schema does not resolve.
    */
@@ -3438,15 +3559,10 @@ export class CepProvider {
   // -- Rollback ---------------------------------------------------------------
 
   /**
-   * Inspect rollback candidates without mutating tenant state.
-   *
-   * CEP provision predates the run inventory and does not durably persist an
-   * exact before/managed-after image per OU/schema/app target. Inheriting a
-   * policy here could therefore erase a direct value that existed before CEP,
-   * or a value another administrator wrote after provision. Until CEP has the
-   * same three-way ownership ledger as deployment Apply, rollback is a
-   * fail-closed inventory operation: resolve exact targets and retain them for
-   * manual review.
+   * Inspect rollback candidates without mutating tenant state unless
+   * `delete_dlp_rules: true` is requested, in which case canonical `CEP PoC - ...`
+   * DLP rules targeting the selected OU/Group are deleted via the Cloud Identity
+   * Policies API while retaining non-matching or custom policies.
    */
   async rollback(config: CepRollbackConfig): Promise<CepProvisionResult> {
     const trace: CepTraceItem[] = [];
@@ -3507,20 +3623,43 @@ export class CepProvider {
       );
     }
 
-    // Inventory DLP candidates in dependency order. No DELETE is issued
-    // without a durable CEP run ownership record.
-    const dlpKinds: Array<"rule.dlp" | "detector"> = [];
-    if (wanted("dlpRules")) dlpKinds.push("rule.dlp");
-    if (wanted("dlpDetectors")) dlpKinds.push("detector");
-    const retainedDlp =
-      dlpKinds.length > 0
-        ? await this.retainUnownedDlpPolicies(
-            trace,
-            skipped,
-            dlpKinds,
-            context.dlpCustomerId,
-          )
-        : false;
+    let retainedDlp = false;
+    let dlpDeleteFailed = false;
+    if (config.delete_dlp_rules === true) {
+      if (wanted("dlpRules")) {
+        const dlpOutcome = await this.rollbackDlpRules(
+          trace,
+          context,
+          inspectionContexts,
+          removed,
+          skipped,
+        );
+        retainedDlp = dlpOutcome.retained;
+        dlpDeleteFailed = dlpOutcome.deleteFailed;
+      }
+      if (wanted("dlpDetectors")) {
+        const retainedDetectors = await this.retainUnownedDlpPolicies(
+          trace,
+          skipped,
+          ["detector"],
+          context.dlpCustomerId,
+        );
+        retainedDlp = retainedDlp || retainedDetectors;
+      }
+    } else {
+      const dlpKinds: Array<"rule.dlp" | "detector"> = [];
+      if (wanted("dlpRules")) dlpKinds.push("rule.dlp");
+      if (wanted("dlpDetectors")) dlpKinds.push("detector");
+      retainedDlp =
+        dlpKinds.length > 0
+          ? await this.retainUnownedDlpPolicies(
+              trace,
+              skipped,
+              dlpKinds,
+              context.dlpCustomerId,
+            )
+          : false;
+    }
 
     const selectedLevel = config.access_level ?? "";
     if (wanted("contextAwareAccess") && selectedLevel.startsWith("AUTO_CREATE_")) {
@@ -3548,6 +3687,17 @@ export class CepProvider {
 
     const retained = retainedChrome || retainedDlp ||
       (wanted("contextAwareAccess") && selectedLevel.startsWith("AUTO_CREATE_") && Boolean(context.projectId));
+    if (config.delete_dlp_rules === true && removed.length > 0 && !dlpDeleteFailed) {
+      return {
+        success: true,
+        message: retained
+          ? `Deleted ${removed.length} CEP PoC DLP rule${removed.length === 1 ? "" : "s"} from the target scope. Remaining Chrome policy or access-level candidates were retained for review.`
+          : `Deleted ${removed.length} CEP PoC DLP rule${removed.length === 1 ? "" : "s"} from the target scope.`,
+        created_items: removed,
+        skipped_items: skipped,
+        debug_trace: trace,
+      };
+    }
     return {
       success: !retained,
       message: retained

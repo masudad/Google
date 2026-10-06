@@ -783,6 +783,8 @@ export interface CepRollbackConfig {
   target_group_confirmation?: string;
   verify_match?: boolean;
   rollback_modules?: CepModule[];
+  /** When true, deletes matching CEP PoC DLP rules for the selected target OU or Google Group. */
+  delete_dlp_rules?: boolean;
   /** AUTO_CREATE candidates are inspected but retained without durable ownership. */
   access_level?: string;
 }

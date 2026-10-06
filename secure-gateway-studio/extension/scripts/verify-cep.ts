@@ -646,6 +646,26 @@ function stubTransport(options: StubOptions = {}): {
           type?: string;
           value?: Record<string, unknown> & { displayName?: string };
         };
+        if (method === "DELETE") {
+          const targetName = url.match(/\/v1beta1\/(policies\/[^?]+)$/)?.[1] ?? "";
+          const existingIdx = existingDlp.findIndex((p) => p.name === targetName);
+          if (existingIdx !== -1) {
+            existingDlp.splice(existingIdx, 1);
+            return {
+              status: 200,
+              payload: { done: true, response: {} },
+            };
+          }
+          const createdIdx = createdDlp.findIndex((p) => p.name === targetName);
+          if (createdIdx !== -1) {
+            createdDlp.splice(createdIdx, 1);
+            return {
+              status: 200,
+              payload: { done: true, response: {} },
+            };
+          }
+          return { status: 404, payload: { error: { message: "policy not found" } } };
+        }
         if (method === "PATCH") {
           const targetName =
             url.match(/\/v1beta1\/(policies\/[^?]+)$/)?.[1] ??
@@ -3091,6 +3111,80 @@ for (const mode of ["response-loss-commit", "503-commit"] as const) {
       (call, index) => call.at - (policyCalls[index]?.at ?? call.at) >= 1_000,
     ),
     policyCalls.map((call) => `${call.method}@${call.at}`).join(", "),
+  );
+}
+
+{
+  // When delete_dlp_rules: true is requested, managed CEP PoC DLP rules targeting
+  // the selected OU (or CEP PoC sub-OUs) are deleted via DELETE, while custom
+  // rules, detectors, and rules targeting other OUs are retained.
+  const { transport, calls } = stubTransport({
+    existingDlp: [
+      {
+        name: "policies/rule1",
+        displayName: "CEP PoC - Payment card numbers - upload",
+        type: "settings/rule.dlp",
+        policyQuery: structuredClone(PAYMENT_CARD_UPLOAD.policyQuery),
+      },
+      {
+        name: "policies/rule2",
+        displayName: "CEP PoC - Consumer GenAI data protection - navigation",
+        type: "settings/rule.dlp",
+        policyQuery: structuredClone(PAYMENT_CARD_UPLOAD.policyQuery),
+      },
+      {
+        name: "policies/other-ou-rule",
+        displayName: "CEP PoC - Payment card numbers - paste",
+        type: "settings/rule.dlp",
+        policyQuery: {
+          orgUnit: "orgUnits/03other",
+          query: "true",
+          sortOrder: 1,
+        },
+      },
+      {
+        name: "policies/detector1",
+        displayName: "CEP PoC - Internal Sites",
+        type: "settings/detector.url_list",
+        policyQuery: structuredClone(PAYMENT_CARD_UPLOAD.policyQuery),
+      },
+      {
+        name: "policies/other",
+        displayName: "CEP PoC - Another administrator's custom rule",
+        type: "settings/rule.dlp",
+        policyQuery: structuredClone(PAYMENT_CARD_UPLOAD.policyQuery),
+      },
+    ],
+  });
+  const result = (await route(context(transport), "POST", "/api/v1/cep/rollback", {
+    project_id: "secgw-project",
+    customer_id: "C01abcdef",
+    target_ou_id: "03pilot",
+    target_ou_path: "/Pilot",
+    rollback_modules: ["dlpRules"],
+    delete_dlp_rules: true,
+  })) as ProvisionResult;
+
+  const deletes = calls
+    .filter((call) => call.method === "DELETE" && call.url.includes("cloudidentity"))
+    .map((call) => call.url);
+  check(
+    "delete_dlp_rules deletes managed CEP PoC DLP rules for the selected target OU",
+    result.success &&
+      deletes.length === 2 &&
+      deletes.some((url) => url.endsWith("/policies/rule1")) &&
+      deletes.some((url) => url.endsWith("/policies/rule2")) &&
+      result.created_items.some((item) => item.includes("Deleted DLP rule") && item.includes("policies/rule1")) &&
+      result.created_items.some((item) => item.includes("Deleted DLP rule") && item.includes("policies/rule2")),
+    `${result.message} | created: ${result.created_items.join(" | ")} | deletes: ${deletes.join(", ")}`,
+  );
+  check(
+    "delete_dlp_rules retains custom DLP rules, detectors, and rules targeting other OUs",
+    !deletes.some((url) => url.endsWith("/policies/other-ou-rule")) &&
+      !deletes.some((url) => url.endsWith("/policies/detector1")) &&
+      !deletes.some((url) => url.endsWith("/policies/other")) &&
+      result.skipped_items.some((item) => item.includes("policies/other")),
+    result.skipped_items.join(" | "),
   );
 }
 

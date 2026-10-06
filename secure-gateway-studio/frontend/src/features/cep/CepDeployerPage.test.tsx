@@ -892,6 +892,42 @@ describe("CepDeployerPage", () => {
       }),
     );
   });
+
+  it("rolls back CEP PoC DLP rules with delete_dlp_rules: true and scopes rollback_modules on the DLP tab", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const rollback = vi.spyOn(api, "rollbackCepPolicies").mockResolvedValue(
+      emptyResult({
+        message: "Deleted 2 CEP PoC DLP rule(s).",
+        created_items: ['Deleted DLP rule "CEP PoC - Payment card numbers - upload" (policies/rule1)'],
+      }),
+    );
+
+    renderPage();
+    await selectPilotOu();
+
+    // Switch to Tab 3 (DLP & Threat Matrix) and click rollback
+    const nav = screen.getByRole("navigation", { name: "CEP PoC Sections" });
+    fireEvent.click(within(nav).getByRole("button", { name: m.tabDlp }));
+    fireEvent.click(screen.getByText(m.btnRollback));
+
+    await waitFor(() => {
+      expect(rollback).toHaveBeenCalledWith(
+        expect.objectContaining({
+          customer_id: "C012345",
+          project_id: "my-test-proj",
+          target_type: "ou",
+          target_ou_id: "03pilot",
+          target_ou_path: "/Pilot",
+          rollback_modules: ["dlpRules"],
+          delete_dlp_rules: true,
+        }),
+      );
+    });
+    expect(
+      screen.getByText('Deleted DLP rule "CEP PoC - Payment card numbers - upload" (policies/rule1)'),
+    ).toBeInTheDocument();
+  });
 });
+
 
 

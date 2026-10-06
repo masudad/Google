@@ -915,6 +915,8 @@ gcloud access-context-manager cloud-bindings create \\
         target_ou_path: targetType === "group" ? undefined : selectedUnit?.label,
         target_group_key: targetType === "group" ? selectedGroup.trim() : undefined,
         target_group_confirmation: targetType === "group" ? selectedGroup.trim() : undefined,
+        rollback_modules: activeTab === "dlp" ? ["dlpRules"] : undefined,
+        delete_dlp_rules: true,
         access_level: modules.accessLevel,
       });
       clearTimeout(t1);
