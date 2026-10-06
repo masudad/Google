@@ -2344,5 +2344,113 @@ describe("Secure Gateway Studio mode screen", () => {
       expect(validateCloud).toHaveBeenCalledWith("my-shared-proj");
     });
   });
+
+  it("localizes Chrome Root Store safety gate detail into Japanese with guide and Admin Console links and supports post-Preflight deployer SA connection", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const state: SetupState = {
+      ...defaultSetupState,
+      currentStep: 5,
+      projectId: "enterprise-secgw-01",
+      customerId: "C01234567",
+      cloudConnection: "connected",
+      cloudIdentity: "admin@example.com",
+      workspaceConnection: "connected",
+      workspaceIdentity: "admin@example.com",
+      targetOuId: "03-test-ou",
+      managedChromeAccessLevel: "NONE",
+      testOuConfirmed: true,
+      principals: [{ id: "p1", type: "user", value: "user@example.com" }],
+    };
+    const spec = toDeploymentSpec(state, "ja");
+    const plan = restoredPlan(spec, "a".repeat(64));
+    plan.plan.gates = [
+      {
+        gate_id: "chrome-root-store",
+        title: "Chrome Root Store trust",
+        status: "pending",
+        blocking: false,
+        detail:
+          "Could not inspect Chrome Root Store policy; after Apply, upload the local PoC root CA in Google Admin Console for the test OU before running T02/T07.",
+      },
+      {
+        gate_id: "human-approval",
+        title: "Approval",
+        status: "pending",
+        blocking: true,
+        detail: "Requires explicit operator approval bound to the configuration hash.",
+      },
+    ];
+
+    const onBootstrapCloud = vi.fn().mockResolvedValue({
+      project_id: "enterprise-secgw-01",
+      operator_email: "admin@example.com",
+      service_account_email:
+        "sgw-studio-deployer@enterprise-secgw-01.iam.gserviceaccount.com",
+      service_account_unique_id: "123456789012345678901",
+      custom_role: "projects/enterprise-secgw-01/roles/secureGatewayStudioDeployer",
+      access_policy_id: "285159511080",
+      adc_command: "",
+    });
+    const onValidateCloud = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <ReviewStep
+        approval={null}
+        busy={false}
+        error=""
+        messages={getMessages("ja")}
+        onApprove={vi.fn().mockResolvedValue(undefined)}
+        onBootstrapCloud={onBootstrapCloud}
+        onPatch={vi.fn()}
+        onPrepare={vi.fn().mockResolvedValue(undefined)}
+        onValidateCloud={onValidateCloud}
+        preparedPlan={plan}
+        state={state}
+      />,
+    );
+
+    // 1. Verify Chrome Root Store gate detail is localized in Japanese (no raw English string)
+    expect(
+      screen.getByText(/Chrome Root Store ポリシーの状態をAPIで確認できませんでした/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Could not inspect Chrome Root Store policy/),
+    ).not.toBeInTheDocument();
+
+    // 2. Verify guide and Admin Console links are rendered inside the Chrome Root Store gate row
+    const guideLink = screen.getByRole("link", {
+      name: /GoogleのCA設定ガイドを開く/,
+    });
+    expect(guideLink).toHaveAttribute(
+      "href",
+      "https://support.google.com/chrome/a/answer/16073278",
+    );
+    const consoleLink = screen.getByRole("link", {
+      name: /Google管理コンソール Chrome Root Store を開く/,
+    });
+    expect(consoleLink).toHaveAttribute(
+      "href",
+      "https://admin.google.com/ac/chrome/connectors",
+    );
+
+    // 3. Verify post-Preflight deployer SA connection button in Step 6 (ReviewStep)
+    expect(
+      screen.getByText(/現在はサインイン中の管理者アカウントで事前確認を表示しています/),
+    ).toBeInTheDocument();
+    const bootstrapBtn = screen.getByRole("button", {
+      name: "サービスアカウントを作成して接続",
+    });
+    fireEvent.click(bootstrapBtn);
+
+    await waitFor(() => {
+      expect(onBootstrapCloud).toHaveBeenCalledWith(false);
+      expect(onValidateCloud).toHaveBeenCalledWith(true);
+    });
+    expect(
+      await screen.findByText(
+        "sgw-studio-deployer@enterprise-secgw-01.iam.gserviceaccount.com",
+      ),
+    ).toBeInTheDocument();
+  });
 });
 

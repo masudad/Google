@@ -63,7 +63,9 @@ interface ReviewStepProps extends StepProps {
   busy: boolean;
   error: string;
   onApprove: (approved: boolean) => Promise<void>;
+  onBootstrapCloud?: IdentitiesStepProps["onBootstrapCloud"];
   onPrepare: () => Promise<void>;
+  onValidateCloud?: IdentitiesStepProps["onValidateCloud"];
   preparedPlan: PreparedPlan | null;
 }
 
@@ -388,6 +390,9 @@ export function IdentitiesStep({
           )}
           <small className="connection-help-hint">
             <strong>{copy.cloudStep2Label}</strong>
+          </small>
+          <small className="connection-help-hint">
+            {copy.cloudStep2DeferHint}
           </small>
           <button
             className="connection-action secondary"
@@ -1840,7 +1845,9 @@ export function ReviewStep({
   error,
   messages,
   onApprove,
+  onBootstrapCloud,
   onPrepare,
+  onValidateCloud,
   preparedPlan,
   state,
 }: ReviewStepProps) {
@@ -1855,6 +1862,81 @@ export function ReviewStep({
 
   const [preflightProgress, setPreflightProgress] = useState(0);
   const [preflightStage, setPreflightStage] = useState(1);
+  const [bootstrapBusy, setBootstrapBusy] = useState(false);
+  const [bootstrapError, setBootstrapError] = useState("");
+  const [bootstrapResult, setBootstrapResult] =
+    useState<DeployerBootstrapResult | null>(null);
+
+  const deployerSaReady =
+    state.cloudIdentity.endsWith(".iam.gserviceaccount.com") ||
+    bootstrapResult !== null;
+
+  async function handleReviewBootstrap() {
+    if (!onBootstrapCloud || !onValidateCloud) {
+      return;
+    }
+    if (!globalThis.confirm(copy.bootstrapConfirm)) {
+      return;
+    }
+    setBootstrapBusy(true);
+    setBootstrapError("");
+    setBootstrapResult(null);
+    try {
+      let result: DeployerBootstrapResult;
+      try {
+        result = await onBootstrapCloud(false);
+      } catch (err) {
+        if (
+          err instanceof ApiError &&
+          err.code === "service-account-pinned-identity-missing" &&
+          globalThis.confirm(copy.bootstrapDeletedDeployerConfirm)
+        ) {
+          result = await onBootstrapCloud(false, false, true);
+          setBootstrapResult(result);
+          await onValidateCloud(true);
+          return;
+        }
+        if (
+          !(err instanceof ApiError) ||
+          err.code !== "service-account-identity-unpinned" ||
+          !globalThis.confirm(copy.bootstrapLegacyMigrationConfirm)
+        ) {
+          throw err;
+        }
+        try {
+          result = await onBootstrapCloud(true);
+        } catch (migrationError) {
+          if (
+            !(migrationError instanceof ApiError) ||
+            !migrationError.code.startsWith("legacy-deployer-") ||
+            !globalThis.confirm(copy.bootstrapReplacementConfirm)
+          ) {
+            throw migrationError;
+          }
+          result = await onBootstrapCloud(false, true);
+        }
+      }
+      setBootstrapResult(result);
+      await onValidateCloud(true);
+    } catch (err) {
+      if (err instanceof ApiError && err.code === "consent-required") {
+        setBootstrapError(copy.signInRequired);
+      } else if (
+        err instanceof ApiError &&
+        err.code === "operator-identity-changed"
+      ) {
+        setBootstrapError(copy.signInOperatorChanged);
+      } else {
+        setBootstrapError(
+          err instanceof ApiError || err instanceof Error
+            ? `${copy.bootstrapFailed}: ${err.message}`
+            : copy.bootstrapFailed,
+        );
+      }
+    } finally {
+      setBootstrapBusy(false);
+    }
+  }
 
   useEffect(() => {
     if (!busy || preparedPlan) {
@@ -1967,7 +2049,11 @@ export function ReviewStep({
       );
     }
     if (gate.status !== "pass" && gate.detail) {
-      return gate.detail;
+      return copy.gateDetail(
+        gate.gate_id,
+        isAutomaticOnApply(gate) ? "planned" : gate.status,
+        gate.detail,
+      );
     }
     return copy.gateDescriptions[gate.gate_id] ?? gate.detail;
   }
@@ -2027,6 +2113,26 @@ export function ReviewStep({
                   <span className="review-gate-copy">
                     <span>{gateLabel(gate)}</span>
                     <small>{gateDescription(gate)}</small>
+                    {gate.gate_id === "chrome-root-store" && gate.status !== "pass" && (
+                      <span className="review-gate-links">
+                        <a
+                          className="review-gate-link"
+                          href="https://support.google.com/chrome/a/answer/16073278"
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          {copy.openAdminConsoleGuide} ↗
+                        </a>
+                        <a
+                          className="review-gate-link"
+                          href="https://admin.google.com/ac/chrome/connectors"
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          {copy.openChromeRootStoreConsole} ↗
+                        </a>
+                      </span>
+                    )}
                   </span>
                   <strong>{presentation.label}</strong>
                 </li>
@@ -2175,6 +2281,41 @@ export function ReviewStep({
         )}
       </div>
       {error && <p className="connection-error" role="alert">{error}</p>}
+      {onBootstrapCloud && onValidateCloud && (
+        <article
+          className={`review-deployer-card ${deployerSaReady ? "is-ready" : "is-pending"}`}
+        >
+          <div className="review-deployer-copy">
+            <strong>{copy.reviewDeployerSaTitle}</strong>
+            <small>
+              {deployerSaReady
+                ? copy.reviewDeployerSaReadyDesc
+                : copy.reviewDeployerSaPendingDesc}
+            </small>
+            {(bootstrapResult?.service_account_email || state.cloudIdentity) && (
+              <code>
+                {bootstrapResult?.service_account_email || state.cloudIdentity}
+              </code>
+            )}
+          </div>
+          <button
+            className={`connection-action ${deployerSaReady ? "secondary" : ""}`}
+            disabled={!state.projectId.trim() || bootstrapBusy || busy}
+            onClick={() => void handleReviewBootstrap()}
+            type="button"
+          >
+            {deployerSaReady ? <CheckIcon size={18} /> : <ShieldIcon size={18} />}
+            {bootstrapBusy
+              ? (bootstrapResult ? copy.bootstrapValidating : copy.bootstrapWorking)
+              : copy.bootstrapDeployer}
+          </button>
+          {bootstrapError && (
+            <p className="connection-error" role="alert">
+              {bootstrapError}
+            </p>
+          )}
+        </article>
+      )}
       <label className="approval-card">
         <input
           checked={approval !== null}

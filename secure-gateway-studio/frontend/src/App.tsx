@@ -80,7 +80,11 @@ import {
 } from "./lib/extension-state";
 
 const NON_CONFIGURATION_SETUP_KEYS = new Set<keyof SetupState>([
+  "accessPolicyId",
   "approvalConfirmed",
+  "cloudConnection",
+  "cloudConnectionError",
+  "cloudIdentity",
   "currentStep",
   "updatedAt",
 ]);
@@ -801,8 +805,10 @@ export function App() {
             error={workflowError}
             messages={messages}
             onApprove={handleApprove}
+            onBootstrapCloud={handleBootstrapCloud}
             onPatch={patchSetup}
             onPrepare={handlePreparePlan}
+            onValidateCloud={handleValidateCloud}
             preparedPlan={preparedPlan}
             state={setup}
           />

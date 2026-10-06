@@ -43,6 +43,7 @@ export interface WorkflowMessages {
   signInOperatorChanged: string;
   cloudStep1Label: string;
   cloudStep2Label: string;
+  cloudStep2DeferHint: string;
   cloudStep3Label: string;
   customerIdAutoHint: string;
   resolveSampleImageQuick: string;
@@ -182,6 +183,11 @@ export interface WorkflowMessages {
   reviewGateLegend: string;
   gateLabels: Record<string, string>;
   gateDescriptions: Record<string, string>;
+  gateDetail: (gateId: string, status: string, detail: string) => string;
+  openChromeRootStoreConsole: string;
+  reviewDeployerSaTitle: string;
+  reviewDeployerSaPendingDesc: string;
+  reviewDeployerSaReadyDesc: string;
   managedProfileEvidence: (total: number, profileOnly: number, sync: string | null) => string;
   clientExtensionEvidence: (name: string, version: string | null, installed: boolean) => string;
   missingPermissions: (count: number) => string;
@@ -1302,6 +1308,119 @@ function formatDiagnosticRemediation(
   return fallback ?? "";
 }
 
+function formatGateDetail(
+  locale: Locale,
+  gateId: string,
+  status: string,
+  detail: string,
+): string {
+  if (locale !== "ja") {
+    return detail;
+  }
+  if (gateId === "chrome-root-store") {
+    if (detail.includes("Could not inspect Chrome Root Store policy")) {
+      return "Chrome Root Store ポリシーの状態をAPIで確認できませんでした。Apply完了後に公開ルートPEMをダウンロードし、Google管理コンソール [Chrome] > [コネクタ] > [Chrome Root Store] でテスト用OUへ手動登録してください。";
+    }
+    if (detail.includes("Direct HTTPS uses a private CA")) {
+      return "直接HTTPS接続でプライベートCA証明書を使用します。発行元ルートCAの公開PEMを、Google管理コンソール [Chrome] > [コネクタ] > [Chrome Root Store] でテスト用OUへ登録してください。";
+    }
+    return "ローカルPoC CAを使用します。Apply完了後にステップ7で公開ルートPEMをダウンロードし、Google管理コンソール [Chrome] > [コネクタ] > [Chrome Root Store] でテスト用OUへ手動登録してください。";
+  }
+  if (gateId === "endpoint-verification") {
+    if (status === "planned") {
+      return "対象テストOUで Endpoint Verification が未設定のため、承認済みApplyで自動配信します。";
+    }
+    return "対象テストOUで Endpoint Verification の収集を有効化するよう手動確認が必要です。";
+  }
+  if (gateId === "required-apis") {
+    const match = detail.match(/:\s*(.+)$/);
+    const apis = match?.[1] ?? "";
+    if (status === "planned") {
+      return apis
+        ? `未有効の必須APIを承認済みApplyで自動有効化します: ${apis}`
+        : "未有効の必須APIを承認済みApplyで自動有効化します。";
+    }
+    return apis
+      ? `必須APIが不足しています: ${apis}`
+      : "必須APIの有効状態を確認できませんでした。";
+  }
+  if (gateId === "apply-permissions") {
+    if (detail.startsWith("Verified after required API enablement")) {
+      return "必須APIの自動有効化後にIAM権限を検証します。";
+    }
+    if (detail.startsWith("Requires active Google Cloud identity")) {
+      return "Google Cloud の認証情報が必要です。";
+    }
+  }
+  if (gateId === "enterprise-license") {
+    if (detail.includes("Confirmed manually by administrator")) {
+      return "Chrome Enterprise Premium の利用権を管理者が手動確認しました。";
+    }
+    return "対象ユーザーへの Chrome Enterprise Premium ライセンス割り当てを確認できませんでした。ステップ5で割り当て状況を確認してください。";
+  }
+  if (gateId === "workspace-services") {
+    return "対象ユーザーの追加GoogleサービスとGoogle Cloudアクセスが有効であることをステップ5で確認してください。";
+  }
+  if (gateId === "managed-chrome-profile") {
+    if (detail.startsWith("Target test OU is configured")) {
+      return "対象テストOUは設定済みです。管理対象Chromeプロファイルの初回ポリシー同期を待っています。";
+    }
+    return "対象テストOUで管理対象Chromeプロファイルのポリシー同期を確認できませんでした。";
+  }
+  if (gateId === "secure-enterprise-browser-client") {
+    if (status === "planned") {
+      return "承認済みApplyで対象テストOUへ Secure Enterprise Browser 拡張機能を強制インストールします。";
+    }
+    if (detail.includes("Group policy conflict")) {
+      return "グループポリシーの拡張機能設定が対象テストOUの Secure Enterprise Browser 設定と競合しています。";
+    }
+    return "対象テストOUの Secure Enterprise Browser 拡張機能設定を確認してください。";
+  }
+  if (gateId === "global-access") {
+    if (status === "planned") {
+      return "承認済みApplyで対象テストOUの Global Access ルーティングを有効化します。";
+    }
+    return "対象テストOUの Global Access 設定を確認してください。";
+  }
+  if (gateId === "private-egress") {
+    if (status === "planned") {
+      return "承認済みApplyで専用VPCに Cloud Router と Cloud NAT を自動作成します。";
+    }
+    return "既存VPCから対象サブネットのプライベート送信経路 Cloud NAT または カスタムデフォルトルート を確認できませんでした。";
+  }
+  if (gateId === "backend-connectivity") {
+    return "既存バックエンドへのプライベート経路、DNS解決、ファイアウォール許可の設定確認が必要です。";
+  }
+  if (gateId === "immutable-image") {
+    return "サンプルVM用のバージョン固定 Compute Engine OSイメージを確認できませんでした。";
+  }
+  if (gateId === "billing-enabled") {
+    return "対象プロジェクトで有効な Cloud Billing 請求先アカウントを確認できませんでした。";
+  }
+  if (gateId === "test-ou") {
+    return "非本番の専用テストOUを選択し、ステップ5で確認チェックを入れてください。";
+  }
+  if (gateId === "group-policy-discovery") {
+    return "Chrome グループポリシーの読み取り結果を確認してください。";
+  }
+  if (gateId === "cloud-identity") {
+    return "Google Cloud の認証情報が未接続です。";
+  }
+  if (gateId === "workspace-identity") {
+    return "Google Workspace 管理者アカウントが未接続です。";
+  }
+  if (gateId === "public-certificate-binding") {
+    return "Secret Manager の公開TLS証明書バンドルと秘密鍵の整合性を確認してください。";
+  }
+  if (gateId === "resource-conflicts") {
+    return "計画されたリソースと競合する既存リソースが検出されました。下の検出状態を確認してください。";
+  }
+  if (gateId === "human-approval") {
+    return "変更内容を確認し、デプロイ実行計画を承認してください。";
+  }
+  return detail;
+}
+
 const en: Messages = {
   mainTitle: "Chrome Enterprise Premium PoC Deployer",
   productName: "Administrator deployment console",
@@ -1472,8 +1591,10 @@ const en: Messages = {
     signInOperatorChanged:
       "The signed-in account differs from the bound operator. Sign in with the original account or create a replacement deployer.",
     cloudStep1Label: "Step 1: Sign in with Google",
-    cloudStep2Label: "Step 2: Create & connect keyless deployer SA",
-    cloudStep3Label: "Step 3: Validate project connection",
+    cloudStep2Label: "Step 2: Validate project connection (or create deployer SA in Step 6 after Preflight)",
+    cloudStep2DeferHint:
+      "To run read-only Preflight first, click 'Validate connection' below. You can create and connect the dedicated deployer Service Account in Step 6 (Review) after Preflight.",
+    cloudStep3Label: "Step 3: Create & connect keyless deployer SA (optional before Preflight)",
     customerIdAutoHint:
       "Leave as my_customer to auto-detect your Customer ID.",
     resolveSampleImageQuick: "Auto-fill Debian 12 PoC image",
@@ -1674,14 +1795,17 @@ const en: Messages = {
       "managed-chrome-profile": "Managed Chrome profile",
       "secure-enterprise-browser-client": "Secure Enterprise Browser client",
       "endpoint-verification": "Endpoint Verification",
+      "global-access": "Chrome Global Access routing",
       "no-external-ips": "No external IPs",
       "private-egress": "Cloud NAT",
       "backend-connectivity": "Existing backend connectivity",
       "test-ou": "Target OU",
+      "group-policy-discovery": "Chrome group policy discovery",
       "cloud-identity": "Google Cloud deployer",
       "workspace-identity": "Workspace and Chrome administrator",
       "required-apis": "Required APIs",
       "apply-permissions": "Apply permissions",
+      "public-certificate-binding": "Public certificate bundle",
       "resource-conflicts": "Resource conflicts",
       "human-approval": "Approval",
     },
@@ -1694,17 +1818,27 @@ const en: Messages = {
       "managed-chrome-profile": "Checks active Chrome profiles in the selected OU.",
       "secure-enterprise-browser-client": "Checks the Secure Enterprise Browser extension.",
       "endpoint-verification": "Checks or force-installs Endpoint Verification on Apply.",
+      "global-access": "Verifies or enables Chrome Global Access routing on the test OU.",
       "no-external-ips": "Created VMs omit external IPs.",
       "private-egress": "A dedicated-VPC path with private VMs creates Cloud NAT; an existing VPC must provide verified private egress.",
       "backend-connectivity": "Verifies private routing to the target backend.",
       "test-ou": "Confirms a non-production test OU is selected.",
+      "group-policy-discovery": "Verifies that Chrome group policies do not conflict with the test OU.",
       "cloud-identity": "Google Cloud deployer validated.",
       "workspace-identity": "Workspace administrator validated.",
       "required-apis": "Enables missing required APIs during Apply.",
       "apply-permissions": "Checks required deployer IAM permissions.",
+      "public-certificate-binding": "Verifies the public certificate bundle in Secret Manager.",
       "resource-conflicts": "Checks existing resources for conflicts.",
       "human-approval": "Binds operator approval to the configuration hash.",
     },
+    gateDetail: (gateId, status, detail) => formatGateDetail("en", gateId, status, detail),
+    openChromeRootStoreConsole: "Open Google Admin Console (Chrome Root Store)",
+    reviewDeployerSaTitle: "Connect Deployer Service Account before Approval & Apply",
+    reviewDeployerSaPendingDesc:
+      "Preflight ran using your signed-in administrator account. Before approving and applying changes, click below to create and connect the dedicated keyless deployer Service Account.",
+    reviewDeployerSaReadyDesc:
+      "Dedicated keyless deployer Service Account is connected and ready for Approval & Apply.",
     managedProfileEvidence: (total, profileOnly, sync) =>
       `${total} profile(s) (${profileOnly} BYOD). Last sync: ${sync ?? "none"}.`,
     clientExtensionEvidence: (name, version, installed) =>
@@ -3818,8 +3952,10 @@ const ja: Messages = {
     signInOperatorChanged:
       "サインイン中のアカウントがデプロイヤーの運用者と異なります。元のアカウントを使うか、デプロイヤーを再作成してください。",
     cloudStep1Label: "手順 1: Google アカウントの承認 · 初回のみ",
-    cloudStep2Label: "手順 2: デプロイ用サービスアカウントの作成と自動接続",
-    cloudStep3Label: "手順 3: 接続状態の再確認",
+    cloudStep2Label: "手順 2: プロジェクト接続を確認 · 事前確認のみ先に実行する場合",
+    cloudStep2DeferHint:
+      "先に事前確認だけを実行する場合は、下の「接続を確認」を押せばそのまま進めます。デプロイ用サービスアカウントの作成と接続は、ステップ6で事前確認を実行した後に行えます。",
+    cloudStep3Label: "手順 3: デプロイ用サービスアカウントの作成と自動接続 · 事前確認後でも実行可能",
     customerIdAutoHint:
       "my_customer のまま接続を確認すると、C で始まる顧客IDを自動取得します。",
     resolveSampleImageQuick: "Debian 12 PoC イメージを自動取得",
@@ -4019,14 +4155,17 @@ const ja: Messages = {
       "managed-chrome-profile": "管理対象Chromeプロファイル",
       "secure-enterprise-browser-client": "Secure Enterprise Browserクライアント",
       "endpoint-verification": "Endpoint Verification",
+      "global-access": "Chrome Global Access ルーティング",
       "no-external-ips": "外部IPなし",
       "private-egress": "Cloud NAT",
       "backend-connectivity": "既存バックエンド接続",
       "test-ou": "対象OU",
+      "group-policy-discovery": "Chrome グループポリシー競合確認",
       "cloud-identity": "Google Cloudデプロイヤー",
       "workspace-identity": "Workspace／Chrome管理者",
       "required-apis": "必須API",
       "apply-permissions": "Apply実行権限",
+      "public-certificate-binding": "パブリック証明書バンドル検証",
       "resource-conflicts": "既存リソース競合",
       "human-approval": "承認",
     },
@@ -4039,17 +4178,27 @@ const ja: Messages = {
       "managed-chrome-profile": "対象OUの管理対象Chromeプロファイルとポリシー同期を確認します。",
       "secure-enterprise-browser-client": "クライアント拡張機能のインストール状態を確認します。",
       "endpoint-verification": "Endpoint Verificationの状態を確認し、未導入ならApplyで配信します。",
+      "global-access": "対象テストOUの Global Access ルーティング状態を確認し、未設定ならApplyで有効化します。",
       "no-external-ips": "作成するVMに外部IPを付与しないことを検証します。",
       "private-egress": "プライベートVMを持つ専用VPC方式はCloud NATを作成します。既存VPC方式は検証済みのプライベート送信経路が必要です。",
       "backend-connectivity": "バックエンドへのプライベート経路、DNS、ファイアウォールを確認します。",
       "test-ou": "選択したOUが非本番テスト用であることを確認済みです。",
+      "group-policy-discovery": "ChromeグループポリシーがテストOUの設定と競合していないか確認します。",
       "cloud-identity": "Google Cloudデプロイヤーを検証済みです。",
       "workspace-identity": "Workspace／Chrome管理者IDを検証済みです。",
       "required-apis": "不足しているAPIはApply中に自動で有効化します。",
       "apply-permissions": "計画した操作に必要なIAM権限が揃っているか確認します。",
+      "public-certificate-binding": "Secret Manager内のパブリック証明書チェーンと秘密鍵を検証します。",
       "resource-conflicts": "既存リソースとの競合がないか確認します。",
       "human-approval": "Apply前に構成ハッシュへ紐付いたプランを承認します。",
     },
+    gateDetail: (gateId, status, detail) => formatGateDetail("ja", gateId, status, detail),
+    openChromeRootStoreConsole: "Google管理コンソール Chrome Root Store を開く",
+    reviewDeployerSaTitle: "Apply実行用のサービスアカウント接続 · 事前確認後の接続",
+    reviewDeployerSaPendingDesc:
+      "現在はサインイン中の管理者アカウントで事前確認を表示しています。計画を承認してApplyを実行する前に、下のボタンを押してデプロイ専用サービスアカウントを作成・接続してください。",
+    reviewDeployerSaReadyDesc:
+      "デプロイ専用サービスアカウントが接続済みです。このまま計画を承認してApplyへ進めます。",
     managedProfileEvidence: (total, profileOnly, sync) =>
       `検出プロファイル: ${total}件 · BYOD: ${profileOnly}件 · 最終同期: ${sync ?? "未同期"}`,
     clientExtensionEvidence: (name, version, installed) =>

@@ -1714,6 +1714,73 @@ h1 {
   line-height: 1.35;
 }
 
+.review-gate-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.review-gate-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid #d4b47c;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.review-gate-link:hover {
+  background: #fef3c7;
+  text-decoration: underline;
+}
+
+.review-deployer-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.review-deployer-card.is-pending {
+  border-color: #d4b47c;
+  background: #fffbeb;
+}
+
+.review-deployer-card.is-ready {
+  border-color: #9bc6c2;
+  background: #f2fbfa;
+}
+
+.review-deployer-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 240px;
+  flex: 1 1 320px;
+}
+
+.review-deployer-copy strong {
+  color: var(--ink-900);
+  font-size: 13px;
+}
+
+.review-deployer-copy small {
+  color: var(--ink-600);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
 .review-gates strong {
   font-size: 11px;
 }

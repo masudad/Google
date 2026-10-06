@@ -874,18 +874,45 @@ export async function route(
     return { success: true };
   }
 
+  async function hasPinnedProjectDeployer(
+    checkDeployer: () => Promise<unknown>,
+  ): Promise<boolean> {
+    try {
+      await checkDeployer();
+      return true;
+    } catch (error) {
+      if (
+        error instanceof AuthenticationError &&
+        error.code !== "consent-required" &&
+        error.code !== "operator-identity-unavailable"
+      ) {
+        return false;
+      }
+      throw error;
+    }
+  }
+
   async function cloudCatalog(
     projectId: string,
     policyId?: string,
   ): Promise<GoogleSetupCatalog> {
     const configuredPolicyId =
       policyId ?? await context.accessPolicyId(projectId);
-    return new GoogleSetupCatalog(context.discoveryTransport, {
-      principalHint: await context.cloudIdentity(),
-      credentialKind:
-        (await context.cloudCredentialKind?.()) ?? "cloud_credential",
-      accessPolicyId: configuredPolicyId,
-    });
+    const useDeployer =
+      projectId.trim() !== "" &&
+      (await hasPinnedProjectDeployer(() => context.requireDeployer(projectId)));
+    return new GoogleSetupCatalog(
+      useDeployer ? context.discoveryTransport : context.administratorTransport,
+      {
+        principalHint: useDeployer
+          ? await context.cloudIdentity()
+          : await context.operatorEmail(),
+        credentialKind: useDeployer
+          ? ((await context.cloudCredentialKind?.()) ?? "cloud_credential")
+          : "administrator",
+        accessPolicyId: configuredPolicyId,
+      },
+    );
   }
 
   async function administratorCloudCatalog(
@@ -1147,14 +1174,24 @@ export async function route(
     );
     const db = await openDatabase();
     const repository = new StateRepository(db);
-    const provider = new GoogleDiscoveryProvider(context.discoveryTransport, {
-      cloudIdentity: await context.cloudIdentity(),
-      workspaceTransport: context.administratorTransport,
-      ownershipProofs: discoveryOwnershipProofs(
-        await repository.ownershipProofResources(spec),
-        spec,
-      ),
-    });
+    const useDeployer =
+      spec.project_id.trim() !== "" &&
+      (await hasPinnedProjectDeployer(() =>
+        context.requireDeployer(spec.project_id),
+      ));
+    const provider = new GoogleDiscoveryProvider(
+      useDeployer ? context.discoveryTransport : context.administratorTransport,
+      {
+        cloudIdentity: useDeployer
+          ? await context.cloudIdentity()
+          : await context.operatorEmail(),
+        workspaceTransport: context.administratorTransport,
+        ownershipProofs: discoveryOwnershipProofs(
+          await repository.ownershipProofResources(spec),
+          spec,
+        ),
+      },
+    );
     return provider.preflight(spec);
   }
 
@@ -1164,14 +1201,24 @@ export async function route(
     );
     const db = await openDatabase();
     const repository = new StateRepository(db);
-    const provider = new GoogleDiscoveryProvider(context.discoveryTransport, {
-      cloudIdentity: await context.cloudIdentity(),
-      workspaceTransport: context.administratorTransport,
-      ownershipProofs: discoveryOwnershipProofs(
-        await repository.ownershipProofResources(spec),
-        spec,
-      ),
-    });
+    const useDeployer =
+      spec.project_id.trim() !== "" &&
+      (await hasPinnedProjectDeployer(() =>
+        context.requireDeployer(spec.project_id),
+      ));
+    const provider = new GoogleDiscoveryProvider(
+      useDeployer ? context.discoveryTransport : context.administratorTransport,
+      {
+        cloudIdentity: useDeployer
+          ? await context.cloudIdentity()
+          : await context.operatorEmail(),
+        workspaceTransport: context.administratorTransport,
+        ownershipProofs: discoveryOwnershipProofs(
+          await repository.ownershipProofResources(spec),
+          spec,
+        ),
+      },
+    );
     const preflight = await provider.preflight(spec);
     const plan = buildPlan(spec, preflight.snapshot);
     const planId = crypto.randomUUID();
@@ -2277,30 +2324,6 @@ export async function route(
       acceptance: acceptanceRecords.map(acceptanceResultDto),
       audit_events: events.map(auditEventDto),
     };
-  }
-
-  /**
-   * Workspace APIs first, Cloud APIs second. The CEP deployer straddles both,
-   * and only the Workspace half has to run as the administrator. When Easy PoC
-   * runs without a bootstrapped Secure Gateway deployer for `projectId`, Cloud
-   * calls fall back to the signed-in administrator's `cloud-platform` token.
-   */
-  async function hasPinnedProjectDeployer(
-    checkDeployer: () => Promise<unknown>,
-  ): Promise<boolean> {
-    try {
-      await checkDeployer();
-      return true;
-    } catch (error) {
-      if (
-        error instanceof AuthenticationError &&
-        error.code !== "consent-required" &&
-        error.code !== "operator-identity-unavailable"
-      ) {
-        return false;
-      }
-      throw error;
-    }
   }
 
   async function cepProvider(
