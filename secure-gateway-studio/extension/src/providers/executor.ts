@@ -3664,13 +3664,14 @@ export class GoogleResourceExecutor {
 }
 
 /**
- * Hand an artefact to the operator as a download.
+ * Retain the issued PoC root certificate for on-demand download in ApplyStep
+ * without automatically triggering a browser file download during Apply.
  *
- * The local application wrote it to disk at `0600`. An extension has no
- * filesystem, so the operator saves it deliberately -- which also makes the
- * Root Store handoff a visible step rather than a file that silently appeared.
+ * The public root PEM is persisted under `certificate:name:${spec.name}` by
+ * `rememberCertificateBundle` and served via
+ * `GET /api/v1/certificates/local-poc/{deploymentName}` only when the operator
+ * clicks the explicit Download Root CA button on the final step.
  */
-async function defaultExportArtifact(filename: string, contents: string): Promise<void> {
-  const url = `data:application/x-pem-file;base64,${btoa(contents)}`;
-  await chrome.downloads.download({ url, filename, saveAs: true });
+async function defaultExportArtifact(_filename: string, _contents: string): Promise<void> {
+  return;
 }

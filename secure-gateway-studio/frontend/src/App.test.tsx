@@ -2452,5 +2452,97 @@ describe("Secure Gateway Studio mode screen", () => {
       ),
     ).toBeInTheDocument();
   });
+
+  it("does not auto-download the PoC Root CA on ApplyStep completion and downloads only when the button is clicked", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).endsWith("/api/v1/health")) {
+        return new Response(JSON.stringify({ session_nonce: "ca-download-test" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      if (String(input).includes("/api/v1/certificates/local-poc/")) {
+        return new Response("-----BEGIN CERTIFICATE-----\nTEST\n-----END CERTIFICATE-----\n", {
+          status: 200,
+          headers: { "Content-Type": "application/x-pem-file" },
+        });
+      }
+      throw new Error(`Unexpected request: ${String(input)}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const createObjectUrlMock = vi.fn().mockReturnValue("blob:test-root-ca");
+    const revokeObjectUrlMock = vi.fn();
+    Object.defineProperty(URL, "createObjectURL", {
+      value: createObjectUrlMock,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      value: revokeObjectUrlMock,
+      configurable: true,
+      writable: true,
+    });
+
+    const state: SetupState = {
+      ...defaultSetupState,
+      currentStep: 6,
+      deploymentName: "secgw-poc",
+      certificateStrategy: "local_poc",
+      privateHostname: "app.secgw.internal",
+      projectId: "enterprise-secgw-01",
+      targetOuId: "03pilot",
+    };
+
+    render(
+      <ApplyStep
+        approval={{
+          approval_id: "approval-1",
+          configuration_hash: "a".repeat(64),
+          plan_hash: "b".repeat(64),
+          approved_by: "admin@example.com",
+          approved_at: "2026-10-06T00:00:00Z",
+          expires_at: "2099-01-01T00:00:00Z",
+        }}
+        busy={false}
+        error=""
+        messages={getMessages("ja")}
+        onResume={vi.fn().mockResolvedValue(undefined)}
+        preparedPlan={restoredPlan(toDeploymentSpec(state, "ja"), "a".repeat(64))}
+        run={{
+          run_id: "run-1",
+          approval_id: "approval-1",
+          configuration_hash: "a".repeat(64),
+          status: "succeeded",
+          started_at: "2026-10-06T00:00:00Z",
+          completed_at: "2026-10-06T00:01:00Z",
+          operations: [],
+        }}
+        state={state}
+      />,
+    );
+
+    // Ensure no automatic certificate download occurs upon rendering ApplyStep
+    expect(
+      fetchMock.mock.calls.some(([input]) =>
+        String(input).includes("/api/v1/certificates/local-poc/"),
+      ),
+    ).toBe(false);
+    expect(createObjectUrlMock).not.toHaveBeenCalled();
+
+    // Only when the operator explicitly clicks the button does the download start
+    const downloadBtn = screen.getByRole("button", {
+      name: "公開ルートCAをダウンロード",
+    });
+    fireEvent.click(downloadBtn);
+
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(([input]) =>
+          String(input).includes("/api/v1/certificates/local-poc/secgw-poc"),
+        ),
+      ).toBe(true);
+      expect(createObjectUrlMock).toHaveBeenCalledTimes(1);
+    });
+  });
 });
 

@@ -2617,6 +2617,13 @@ export function ApplyStep({
             >
               {copy.openAdminConsoleGuide}
             </a>
+            <a
+              href="https://admin.google.com/ac/chrome/connectors"
+              rel="noreferrer"
+              target="_blank"
+            >
+              {copy.openChromeRootStoreConsole}
+            </a>
           </div>
           {downloadError && (
             <p className="connection-error" role="alert">
