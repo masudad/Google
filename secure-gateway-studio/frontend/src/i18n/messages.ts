@@ -72,6 +72,8 @@ export interface WorkflowMessages {
   cpuTarget: string;
   autoscalingHint: string;
   network: string;
+  networkHttpsCategoryLabel: string;
+  networkHttpCategoryLabel: string;
   vpcName: string;
   vpcSameProjectHint: string;
   vpcOptionsFailed: string;
@@ -1508,7 +1510,11 @@ const en: Messages = {
     cpuTarget: "Autoscaling CPU target (0.1–0.9)",
     autoscalingHint:
       "Two-zone regional MIG with CPU autoscaling.",
-    network: "Deployment architecture",
+    network: "Connection method by destination app protocol (HTTPS / HTTP)",
+    networkHttpsCategoryLabel:
+      "1. Destination app speaks HTTPS (or launch a standalone sample VM — recommended · $0 LB)",
+    networkHttpCategoryLabel:
+      "2. Destination app speaks HTTP only (HTTPS offload via Internal ALB or Nginx VM)",
     vpcName: "Existing VPC name",
     vpcSameProjectHint:
       "Loaded from the deployment project. Set Upstream project ID only for Shared VPC.",
@@ -1519,19 +1525,19 @@ const en: Messages = {
       "Leave empty unless using a Shared or cross-project VPC.",
     upstreamVpcCrossProjectPrerequisite:
       "Cross-project prerequisite: before validation or preflight, grant compute.networks.get, compute.networks.use, resourcemanager.projects.get, resourcemanager.projects.getIamPolicy, and resourcemanager.projects.setIamPolicy in the upstream project. Bootstrap configures only the deployment project. A project custom role created in the deployment project cannot be granted in the upstream project.",
-    managedSample: "Managed sample backend (Nginx)",
+    managedSample: "Sample HTTP backend + Nginx VM (Option C)",
     managedSampleDescription:
-      "Create a private HTTP sample backend VM.",
-    existingBackend: "Existing HTTP backend (Nginx)",
+      "Create a private HTTP sample backend VM and an Nginx HTTPS proxy VM.",
+    existingBackend: "Existing HTTP app (http://) + Nginx VM (Option C)",
     existingBackendDescription:
-      "Route to an existing private HTTP endpoint.",
-    directHttps: "Option A — Connect directly to an existing HTTPS app",
+      "Terminate HTTPS on an Nginx VM and forward to an existing private HTTP endpoint.",
+    directHttps: "HTTPS App — Direct connection / Sample VM (Option A)",
     directHttpsDescription:
-      "Route Secure Gateway directly to an existing HTTPS endpoint in your VPC.",
+      "Connect directly to an existing HTTPS endpoint (https://), or check 'Launch a private sample VM' below ($0 LB cost).",
     internalHttpsLb:
-      "Option B — HTTPS offload with Internal Application Load Balancer",
+      "HTTP App — HTTPS offload with Internal Application Load Balancer (Option B)",
     internalHttpsLbDescription:
-      "Terminate HTTPS on a regional Internal ALB and forward HTTP to a private sample VM.",
+      "For HTTP-only apps: terminates HTTPS on a regional Internal ALB and forwards HTTP to a private sample VM.",
     configureSampleVm: "Create a private sample VM during approved Apply",
     configureSampleVmDescription:
       "Configures Option B defaults and creates the private sample VM during Apply.",
@@ -1539,17 +1545,17 @@ const en: Messages = {
       "Launch a private sample VM during Apply (auto-creates HTTPS VM, Private DNS, and firewall)",
     directLaunchSampleVmDescription:
       "Creates a private HTTPS sample VM on TCP 443, Private DNS, and firewall rules during Apply without an Internal ALB.",
-    directSampleVmAction: "Use Option B's private sample VM",
+    directSampleVmAction: "Switch to HTTP App + Internal ALB (Option B)",
     directSampleVmDescription:
-      "Option A requires an existing private HTTPS application. Switch to Option B to create a private sample VM during approved Apply.",
+      "Option A requires an existing private HTTPS application. Check 'Launch a private sample VM' below or switch to Option B to create a sample VM during approved Apply.",
     managedSampleVmAction: "Create the private sample VM during Apply",
     managedSampleVmDescription:
       "Creates a private HTTP sample VM and Option C Nginx tier during Apply.",
     existingSampleVmDescription:
-      "Requires a reachable private HTTP backend, or switch to Managed Sample.",
-    legacyNginxTitle: "Option C — Legacy Nginx method / advanced settings",
+      "Requires a reachable private HTTP backend, or switch to Sample HTTP backend + Nginx VM.",
+    legacyNginxTitle: "HTTP App — HTTPS offload with Nginx VM (Option C · Low-cost proxy)",
     legacyNginxDescription:
-      "Use only when an HTTP app or Nginx offload is required.",
+      "For HTTP-only apps without an Internal ALB: terminates HTTPS on a lightweight Nginx VM and forwards to an HTTP backend.",
     proxySubnetCidr: "ILB proxy-only subnet CIDR",
     backendUrl: "Backend URL (http://)",
     directHttpsUrl: "Private HTTPS endpoint (https://host[:port])",
@@ -1825,10 +1831,10 @@ const en: Messages = {
     ownershipRun: "Resource ownership run",
     architectureLabel: (kind) =>
       ({
-        managed_sample: "Nginx HTTP offload · managed sample",
-        existing_http: "Nginx HTTP offload · existing backend",
-        direct_https: "Direct private HTTPS",
-        internal_https_lb: "Internal Application Load Balancer HTTPS offload",
+        managed_sample: "HTTP App · Nginx HTTPS offload (Sample VM)",
+        existing_http: "HTTP App · Nginx HTTPS offload (Existing HTTP app)",
+        direct_https: "HTTPS App · Direct private HTTPS",
+        internal_https_lb: "HTTP App · Internal Application Load Balancer HTTPS offload",
       })[kind] ?? kind,
     accessLevelControlTitle: "Access Control & Access Level Policies",
     accessLevelControlIntro:
@@ -2583,7 +2589,7 @@ const en: Messages = {
     variableCostLabel: "Usage drivers",
     architectures: [
       {
-        eyebrow: "Option A · Direct HTTPS",
+        eyebrow: "HTTPS App · Direct Connection (Option A)",
         title: "Secure Gateway + existing private HTTPS app",
         summary:
           "Routes Secure Gateway directly to an existing HTTPS app in your VPC without creating VMs, NAT, or offload certificates.",
@@ -2603,7 +2609,7 @@ const en: Messages = {
         ],
       },
       {
-        eyebrow: "Option B · ILB HTTPS offload",
+        eyebrow: "HTTP App · Internal ALB HTTPS Offload (Option B)",
         title: "Secure Gateway + internal HTTPS load balancer + private sample VM",
         summary:
           "Creates a regional Internal Application Load Balancer and one run-owned private sample VM on port 80.",
@@ -2626,7 +2632,7 @@ const en: Messages = {
         ],
       },
       {
-        eyebrow: "Option C · Legacy Nginx / advanced",
+        eyebrow: "HTTP App · Nginx VM HTTPS Offload (Option C)",
         title: "Secure Gateway + Nginx + HTTP app",
         summary:
           "Use only when an HTTP app or Nginx offload is required. PoC uses one private Nginx VM.",
@@ -3850,7 +3856,11 @@ const ja: Messages = {
     cpuTarget: "オートスケーリングCPU目標値 · 0.1〜0.9",
     autoscalingHint:
       "本番では2ゾーンのリージョンMIGを使用し、CPU使用率で自動スケールします。",
-    network: "デプロイ方式",
+    network: "接続先アプリのプロトコルで選ぶ接続方式 (HTTPS / HTTP)",
+    networkHttpsCategoryLabel:
+      "① 接続先が HTTPS アプリの場合 (またはサンプルVMで最短・最安検証 — 推奨・LB費用 $0)",
+    networkHttpCategoryLabel:
+      "② 接続先が HTTP のみのアプリの場合 (前段の LB または Nginx VM で HTTPS 化)",
     vpcName: "既存VPC名",
     vpcSameProjectHint:
       "対象プロジェクトのVPCを取得します。Shared VPCの場合のみアップストリームプロジェクトを入力してください。",
@@ -3861,19 +3871,19 @@ const ja: Messages = {
       "同一プロジェクト内のVPCでは空欄にします。Shared VPCの場合のみネットワーク所有プロジェクトIDを入力します。",
     upstreamVpcCrossProjectPrerequisite:
       "クロスプロジェクトの前提条件: 事前確認より前に、アップストリームプロジェクトで compute.networks.get、compute.networks.use、resourcemanager.projects.get、resourcemanager.projects.getIamPolicy、resourcemanager.projects.setIamPolicy をデプロイヤーSAに付与してください。初回準備が構成するのはデプロイ先プロジェクトだけです。",
-    managedSample: "管理対象サンプルバックエンド · Nginx",
+    managedSample: "サンプルHTTPアプリ + Nginx VMを作成 (Option C)",
     managedSampleDescription:
-      "検証用のプライベートHTTPバックエンドを作成します。",
-    existingBackend: "既存HTTPバックエンド · Nginx",
+      "検証用のプライベートHTTPバックエンドVMとNginx HTTPSプロキシVMを作成します。",
+    existingBackend: "既存HTTPアプリ (http://) + Nginx VMを作成 (Option C)",
     existingBackendDescription:
-      "既存のプライベートHTTPエンドポイントへ転送します。",
-    directHttps: "Option A — 既存HTTPSアプリへ直接接続",
+      "Nginx VMでHTTPSを終端し、既存のプライベートHTTPエンドポイントへ転送します。",
+    directHttps: "HTTPS アプリ — 直接接続 / サンプルVM起動 (Option A · 推奨)",
     directHttpsDescription:
-      "Secure Gatewayから既存HTTPSエンドポイントへ直接接続します。VMやロードバランサは作成しません。",
+      "既存のHTTPSアプリ (https://) へ直接接続します。下の「サンプルVMをローンチする」にチェックを入れるとテスト用VMも自動作成できます。",
     internalHttpsLb:
-      "Option B — Internal Application Load BalancerでHTTPSオフロード",
+      "HTTP アプリ — 内部ロードバランサ (Internal ALB) でHTTPS化 (Option B)",
     internalHttpsLbDescription:
-      "専用VPC内で内部HTTPSロードバランサがTLSを終端し、非公開サンプルVMへHTTP転送します。",
+      "HTTPのみのアプリの前段にGoogle Cloudの内部HTTPSロードバランサを配置してTLSを終端し、非公開サンプルVMへHTTP転送します。",
     configureSampleVm: "サンプルVMのOSイメージを自動設定 · Debian 12",
     configureSampleVmDescription:
       "Option Bでは、適用時に外部IPなしの非公開サンプルVMを1台自動作成します。",
@@ -3881,17 +3891,17 @@ const ja: Messages = {
       "サンプルVMをローンチする (HTTPSテスト用VM・Private DNS・FWを自動作成)",
     directLaunchSampleVmDescription:
       "内部ロードバランサを使わずに、HTTPSテスト用VM・Private DNS・ファイアウォールを承認済みApplyで自動作成します。",
-    directSampleVmAction: "Option Bへ切り替える",
+    directSampleVmAction: "HTTP アプリ + 内部ALB (Option B) へ切り替える",
     directSampleVmDescription:
-      "Option Aは既存HTTPSアプリへ直接接続するためテスト用VMを作成しません。サンプルVMも自動作成する場合はOption Bへ切り替えてください。",
+      "既存HTTPSアプリがない場合は、下の「サンプルVMをローンチする」にチェックを入れるか、内部ALB方式 (Option B) へ切り替えてください。",
     managedSampleVmAction: "サンプルVMのOSイメージを自動設定 · Debian 12",
     managedSampleVmDescription:
       "管理対象サンプルでは、Option CのNginx層とプライベートHTTPバックエンドVMを最終承認済みApplyで作成します。",
     existingSampleVmDescription:
-      "既存HTTP方式には到達可能なプライベートHTTPバックエンドが必要です。サンプルVMを作成する場合は管理対象サンプルへ切り替えてください。",
-    legacyNginxTitle: "Option C — 旧Nginx方式 / 詳細設定",
+      "既存HTTP方式には到達可能なプライベートHTTPバックエンドが必要です。サンプルVMを作成する場合は「サンプルHTTPアプリ + Nginx VMを作成」へ切り替えてください。",
+    legacyNginxTitle: "HTTP アプリ — Nginx リバースプロキシVMでHTTPS化 (Option C · 低コスト構成)",
     legacyNginxDescription:
-      "従来のNginxベース構成が必要な場合のみ選択します。",
+      "ロードバランサ費用を抑え、小規模なNginx VMでTLSを終端して既存HTTPアプリまたはサンプルVMへ転送します。",
     proxySubnetCidr: "ILB Proxy-onlyサブネットCIDR",
     backendUrl: "バックエンドURL · http://",
     directHttpsUrl: "プライベートHTTPSエンドポイント · https://host[:port]",
@@ -4163,10 +4173,10 @@ const ja: Messages = {
     ownershipRun: "リソース所有権を記録した実行",
     architectureLabel: (kind) =>
       ({
-        managed_sample: "Nginx HTTPオフロード・管理サンプル",
-        existing_http: "Nginx HTTPオフロード・既存バックエンド",
-        direct_https: "プライベートHTTPS直接接続",
-        internal_https_lb: "Internal Application Load Balancer HTTPSオフロード",
+        managed_sample: "HTTP アプリ · Nginx HTTPS化 (サンプルVM)",
+        existing_http: "HTTP アプリ · Nginx HTTPS化 (既存HTTPアプリ)",
+        direct_https: "HTTPS アプリ · 直接接続",
+        internal_https_lb: "HTTP アプリ · 内部ロードバランサ (Internal ALB) HTTPS化",
       })[kind] ?? kind,
     accessLevelControlTitle: "アクセス制御・アクセスレベル設定",
     accessLevelControlIntro:
@@ -4930,10 +4940,10 @@ const ja: Messages = {
     variableCostLabel: "従量要因",
     architectures: [
       {
-        eyebrow: "Option A · 既存HTTPSへ直接接続",
-        title: "Secure Gateway + 既存プライベートHTTPSアプリ",
+        eyebrow: "① HTTPS アプリ · 直接接続 / サンプルVM (Option A)",
+        title: "接続先が HTTPS アプリ: Secure Gateway から直接接続 (またはサンプルVM起動)",
         summary:
-          "アプリが既にHTTPSを提供する場合に使います。Secure Gatewayが選択VPC経由で直接ルーティングし、Nginx、VM、NAT、オフロード証明書は作成しません。",
+          "アプリが既にHTTPSを提供する場合、またはサンプルVMで最短検証する場合に使います。既存HTTPSアプリ接続時はNginx、VM、NAT、オフロード証明書を作成しません。",
         estimatedCost: "月額概算: 新規インフラ USD 0",
         costFixed: "新しいVM、ロードバランサー、Cloud NAT、オフロード証明書、管理対象DNSレコードは作成しません。",
         costVariable: "既存DNS、ネットワークデータ転送、アプリ側のインフラ料金。",
@@ -4950,8 +4960,8 @@ const ja: Messages = {
         ],
       },
       {
-        eyebrow: "Option B · ILB HTTPSオフロード",
-        title: "Secure Gateway + 内部HTTPSロードバランサー + 非公開サンプルVM",
+        eyebrow: "② HTTP アプリ · 内部ロードバランサでHTTPS化 (Option B)",
+        title: "接続先が HTTP アプリ: 内部HTTPSロードバランサ (Internal ALB) でTLS終端",
         summary:
           "承認済みrunがRegional Internal Application Load Balancerとrun所有の非公開サンプルバックエンドVM 1台を作成します。ILBがサーバー証明書を提示し、復号後のHTTPをそのVMのTCP 80へ転送します。",
         estimatedCost: "月額概算: 約 USD 80～90",
@@ -4973,8 +4983,8 @@ const ja: Messages = {
         ],
       },
       {
-        eyebrow: "Option C · 旧Nginx方式 / Legacy・詳細設定",
-        title: "Secure Gateway + Nginx + HTTPアプリ",
+        eyebrow: "② HTTP アプリ · Nginx VMでHTTPS化 (Option C)",
+        title: "接続先が HTTP アプリ: Nginx リバースプロキシVMでTLS終端",
         summary:
           "HTTPしか提供しないプライベートアプリ、または従来のNginx構成が必要な場合だけ使用します。PoCは非公開Nginx VM 1台を使用します。",
         estimatedCost: "月額概算: 約 USD 45～60",

@@ -740,104 +740,119 @@ export function EnvironmentStep({ messages, onPatch, state }: StepProps) {
         )}
       </div>
       <h3 className="subsection-title">{copy.network}</h3>
-      <div className="mode-grid backend-grid">
-        <ChoiceCard
-          description={copy.directHttpsDescription}
-          cost={messages.guide.architectures[0].estimatedCost}
-          icon={<ShieldIcon size={27} />}
-          onSelect={() => {
-            if (state.directHttpsLaunchSampleVm) {
+      <div className="protocol-category-block">
+        <div className="protocol-category-header is-https">
+          <span className="protocol-badge is-https">HTTPS</span>
+          <strong>{copy.networkHttpsCategoryLabel}</strong>
+        </div>
+        <div className="mode-grid backend-grid single-column">
+          <ChoiceCard
+            description={copy.directHttpsDescription}
+            cost={messages.guide.architectures[0].estimatedCost}
+            icon={<ShieldIcon size={27} />}
+            onSelect={() => {
+              if (state.directHttpsLaunchSampleVm) {
+                onPatch({
+                  backendKind: "direct_https",
+                  networkStrategy:
+                    state.vpcName.trim() && state.subnetName.trim()
+                      ? "existing"
+                      : "dedicated",
+                  privateHostname:
+                    state.privateHostname || "secgw-backend.internal",
+                  region: state.region || "asia-northeast1",
+                  deploymentName:
+                    state.deploymentName === "secure-gateway-ilb-https-offload" ||
+                    state.deploymentName === "secure-gateway-private-https"
+                      ? "secure-gateway-http-offload"
+                      : state.deploymentName,
+                  existingBackendConnectivityConfirmed: false,
+                });
+                return;
+              }
               onPatch({
                 backendKind: "direct_https",
-                networkStrategy:
-                  state.vpcName.trim() && state.subnetName.trim()
-                    ? "existing"
-                    : "dedicated",
-                privateHostname:
-                  state.privateHostname || "secgw-backend.internal",
+                networkStrategy: "existing",
+                privateHostname: "secgw-backend.internal",
                 region: state.region || "asia-northeast1",
+                applicationEgressRegion:
+                  state.applicationEgressRegion || state.region || "asia-northeast1",
                 deploymentName:
-                  state.deploymentName === "secure-gateway-ilb-https-offload" ||
-                  state.deploymentName === "secure-gateway-private-https"
-                    ? "secure-gateway-http-offload"
+                  state.deploymentName === "secure-gateway-http-offload" ||
+                  state.deploymentName === "secure-gateway-ilb-https-offload"
+                    ? "secure-gateway-private-https"
                     : state.deploymentName,
                 existingBackendConnectivityConfirmed: false,
-              });
-              return;
-            }
-            onPatch({
-              backendKind: "direct_https",
-              networkStrategy: "existing",
-              privateHostname: "secgw-backend.internal",
-              region: state.region || "asia-northeast1",
-              applicationEgressRegion:
-                state.applicationEgressRegion || state.region || "asia-northeast1",
-              deploymentName:
-                state.deploymentName === "secure-gateway-http-offload" ||
-                state.deploymentName === "secure-gateway-ilb-https-offload"
-                  ? "secure-gateway-private-https"
-                  : state.deploymentName,
-              existingBackendConnectivityConfirmed: false,
-              existingBackendUrl: state.existingBackendUrl.startsWith("https://")
-                ? state.existingBackendUrl
-                : "https://secgw-backend.internal",
-            });
-          }}
-          selected={state.backendKind === "direct_https"}
-          title={copy.directHttps}
-        />
-        {runtimeCapabilities.internalHttpsLbArchitecture && state.mode === "poc" ? (
-          <ChoiceCard
-            description={copy.internalHttpsLbDescription}
-            cost={messages.guide.architectures[1].estimatedCost}
-            icon={<ShieldIcon size={27} />}
-            onSelect={selectInternalSampleVm}
-            selected={state.backendKind === "internal_https_lb"}
-            title={copy.internalHttpsLb}
-          />
-        ) : null}
-      </div>
-
-      <details className="legacy-options" open={legacyNginxSelected || undefined}>
-        <summary>
-          <span>
-            <strong>{copy.legacyNginxTitle}</strong>
-            <small>{copy.legacyNginxDescription}</small>
-          </span>
-        </summary>
-        <div className="mode-grid legacy-backend-grid">
-          <ChoiceCard
-            description={copy.managedSampleDescription}
-            cost={messages.guide.architectures[2].estimatedCost}
-            icon={<NetworkIcon size={27} />}
-            onSelect={selectManagedSampleVm}
-            selected={state.backendKind === "managed_sample"}
-            title={copy.managedSample}
-          />
-          <ChoiceCard
-            description={copy.existingBackendDescription}
-            cost={messages.guide.architectures[2].estimatedCost}
-            icon={<NetworkIcon size={27} />}
-            onSelect={() =>
-              onPatch({
-                backendKind: "existing_http",
-                directHttpsLaunchSampleVm: false,
-                deploymentName:
-                  state.deploymentName === "secure-gateway-ilb-https-offload" ||
-                  state.deploymentName === "secure-gateway-private-https"
-                    ? "secure-gateway-http-offload"
-                    : state.deploymentName,
-                existingBackendUrl: state.existingBackendUrl.startsWith("http://")
+                existingBackendUrl: state.existingBackendUrl.startsWith("https://")
                   ? state.existingBackendUrl
-                  : "",
-                existingBackendConnectivityConfirmed: false,
-              })
-            }
-            selected={state.backendKind === "existing_http"}
-            title={copy.existingBackend}
+                  : "https://secgw-backend.internal",
+              });
+            }}
+            selected={state.backendKind === "direct_https"}
+            title={copy.directHttps}
           />
         </div>
-      </details>
+      </div>
+
+      <div className="protocol-category-block">
+        <div className="protocol-category-header is-http">
+          <span className="protocol-badge is-http">HTTP → HTTPS</span>
+          <strong>{copy.networkHttpCategoryLabel}</strong>
+        </div>
+        {runtimeCapabilities.internalHttpsLbArchitecture && state.mode === "poc" ? (
+          <div className="mode-grid backend-grid single-column">
+            <ChoiceCard
+              description={copy.internalHttpsLbDescription}
+              cost={messages.guide.architectures[1].estimatedCost}
+              icon={<ShieldIcon size={27} />}
+              onSelect={selectInternalSampleVm}
+              selected={state.backendKind === "internal_https_lb"}
+              title={copy.internalHttpsLb}
+            />
+          </div>
+        ) : null}
+
+        <details className="legacy-options" open={legacyNginxSelected || undefined}>
+          <summary>
+            <span>
+              <strong>{copy.legacyNginxTitle}</strong>
+              <small>{copy.legacyNginxDescription}</small>
+            </span>
+          </summary>
+          <div className="mode-grid legacy-backend-grid">
+            <ChoiceCard
+              description={copy.managedSampleDescription}
+              cost={messages.guide.architectures[2].estimatedCost}
+              icon={<NetworkIcon size={27} />}
+              onSelect={selectManagedSampleVm}
+              selected={state.backendKind === "managed_sample"}
+              title={copy.managedSample}
+            />
+            <ChoiceCard
+              description={copy.existingBackendDescription}
+              cost={messages.guide.architectures[2].estimatedCost}
+              icon={<NetworkIcon size={27} />}
+              onSelect={() =>
+                onPatch({
+                  backendKind: "existing_http",
+                  directHttpsLaunchSampleVm: false,
+                  deploymentName:
+                    state.deploymentName === "secure-gateway-ilb-https-offload" ||
+                    state.deploymentName === "secure-gateway-private-https"
+                      ? "secure-gateway-http-offload"
+                      : state.deploymentName,
+                  existingBackendUrl: state.existingBackendUrl.startsWith("http://")
+                    ? state.existingBackendUrl
+                    : "",
+                  existingBackendConnectivityConfirmed: false,
+                })
+              }
+              selected={state.backendKind === "existing_http"}
+              title={copy.existingBackend}
+            />
+          </div>
+        </details>
+      </div>
 
       {(() => {
         const activeArchitecture =

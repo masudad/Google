@@ -822,8 +822,14 @@ describe("Secure Gateway Studio mode screen", () => {
     );
 
     expect(
+      screen.getByText(/1\. Destination app speaks HTTPS/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/2\. Destination app speaks HTTP only/),
+    ).toBeInTheDocument();
+    expect(
       screen.getByRole("button", {
-        name: /^Option A — Connect directly to an existing HTTPS app/,
+        name: /^HTTPS App — Direct connection \/ Sample VM \(Option A\)/,
       }),
     ).toHaveAttribute("aria-pressed", "true");
     expect(
@@ -839,7 +845,7 @@ describe("Secure Gateway Studio mode screen", () => {
       screen.getByRole("textbox", { name: "Upstream VPC project ID (optional)" }),
     ).toHaveValue("shared-network-prj");
     expect(
-      screen.getByRole("button", { name: "Use Option B's private sample VM" }),
+      screen.getByRole("button", { name: "Switch to HTTP App + Internal ALB (Option B)" }),
     ).toBeInTheDocument();
 
     expect(toDeploymentSpec(directState, "en")).toMatchObject({
@@ -902,7 +908,7 @@ describe("Secure Gateway Studio mode screen", () => {
 
     expect(
       screen.getByRole("button", {
-        name: /^Option A — Connect directly to an existing HTTPS app/,
+        name: /^HTTPS App — Direct connection \/ Sample VM \(Option A\)/,
       }),
     ).toHaveAttribute("aria-pressed", "true");
     expect(
@@ -934,7 +940,7 @@ describe("Secure Gateway Studio mode screen", () => {
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: /^Option A — Connect directly to an existing HTTPS app/,
+        name: /^HTTPS App — Direct connection \/ Sample VM \(Option A\)/,
       }),
     );
     const selectionPatch = onPatch.mock.calls.at(-1)?.[0];
@@ -1007,7 +1013,7 @@ describe("Secure Gateway Studio mode screen", () => {
 
     expect(
       screen.getByRole("button", {
-        name: /^Option B — HTTPS offload with Internal Application Load Balancer/,
+        name: /^HTTP App — HTTPS offload with Internal Application Load Balancer \(Option B\)/,
       }),
     ).toHaveAttribute("aria-pressed", "true");
     expect(
@@ -1134,12 +1140,12 @@ describe("Secure Gateway Studio mode screen", () => {
     );
 
     const legacy = screen.getByText(
-      "Option C — Legacy Nginx method / advanced settings",
+      "HTTP App — HTTPS offload with Nginx VM (Option C · Low-cost proxy)",
     ).closest("details");
     expect(legacy).toHaveAttribute("open");
     expect(
       within(legacy as HTMLElement).getByRole("button", {
-        name: /^Managed sample backend \(Nginx\)/,
+        name: /^Sample HTTP backend \+ Nginx VM \(Option C\)/,
       }),
     ).toHaveAttribute("aria-pressed", "true");
     expect(
