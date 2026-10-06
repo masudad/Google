@@ -63,6 +63,7 @@ import {
   type SetupState,
   constrainSetupStateToRuntime,
   countSelectedPlatforms,
+  effectiveBackendKind,
   isPublicTrustedHostnameCandidate,
 } from "./lib/setup-state";
 import {
@@ -434,7 +435,9 @@ export function App() {
       ...current,
       networkStrategy,
       backendKind:
-        networkStrategy === "dedicated" && current.backendKind === "direct_https"
+        networkStrategy === "dedicated" &&
+        current.backendKind === "direct_https" &&
+        !current.directHttpsLaunchSampleVm
           ? "managed_sample"
           : current.backendKind,
     }));
@@ -536,7 +539,7 @@ export function App() {
       if (
         runtimeCapabilities.recommendedPocSourceImage &&
         setup.mode === "poc" &&
-        setup.backendKind !== "direct_https" &&
+        effectiveBackendKind(setup) !== "direct_https" &&
         !setup.sourceImage.trim()
       ) {
         const recommendedImage = await getRecommendedPocSourceImage(setup.projectId);

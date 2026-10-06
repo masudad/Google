@@ -1,6 +1,6 @@
 import type { Messages } from "../../i18n/messages";
 import type { SetupState } from "../../lib/setup-state";
-import { countSelectedPlatforms } from "../../lib/setup-state";
+import { countSelectedPlatforms, effectiveBackendKind } from "../../lib/setup-state";
 import {
   CheckIcon,
   ClipboardIcon,
@@ -20,13 +20,14 @@ interface PostureSummaryProps {
 }
 
 export function PostureSummary({ messages, state }: PostureSummaryProps) {
+  const backendKind = effectiveBackendKind(state);
   const mode = state.mode === "production" ? messages.production : messages.poc;
   const network =
     state.networkStrategy === "dedicated"
       ? messages.dedicatedNetwork
       : messages.existingVpc;
   const certificate =
-    state.backendKind === "direct_https"
+    backendKind === "direct_https"
       ? messages.applicationOwnedTls
       : state.certificateStrategy === "enterprise_ca"
       ? messages.enterpriseCa
@@ -84,7 +85,7 @@ export function PostureSummary({ messages, state }: PostureSummaryProps) {
       <div className="gate-section">
         <h3>{messages.deploymentGates}</h3>
         <ul>
-          {state.backendKind === "direct_https" ? (
+          {backendKind === "direct_https" ? (
             <>
               <li>
                 <NetworkIcon size={19} />

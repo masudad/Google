@@ -121,6 +121,8 @@ const messagesSource = await readFile(
 assert.doesNotMatch(messagesSource, /available only in the separate local loopback app/);
 assert.doesNotMatch(messagesSource, /Chrome 拡張機能ではこのパスを非表示にし、要求されても拒否します/);
 assert.match(messagesSource, /Create a private sample VM during approved Apply/);
+assert.match(messagesSource, /Launch a private sample VM during Apply/);
+assert.match(messagesSource, /サンプルVMをローンチする/);
 assert.match(messagesSource, /Option A requires an existing private HTTPS application/);
 assert.match(messagesSource, /管理対象サンプルでは、Option CのNginx層とプライベートHTTPバックエンドVM/);
 assert.match(messagesSource, /月額概算[^\n]*USD/);

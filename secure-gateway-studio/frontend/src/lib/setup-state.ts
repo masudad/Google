@@ -94,6 +94,7 @@ export interface SetupState {
   subnetName: string;
   proxySubnetCidr: string;
   backendKind: BackendKind;
+  directHttpsLaunchSampleVm?: boolean;
   existingBackendUrl: string;
   existingBackendLocation: BackendLocation;
   existingBackendConnectivityConfirmed: boolean;
@@ -152,6 +153,7 @@ export const defaultSetupState: SetupState = {
   subnetName: "",
   proxySubnetCidr: "10.42.1.0/24",
   backendKind: "internal_https_lb",
+  directHttpsLaunchSampleVm: false,
   existingBackendUrl: "",
   existingBackendLocation: "gcp",
   existingBackendConnectivityConfirmed: false,
@@ -180,6 +182,15 @@ export const defaultSetupState: SetupState = {
   updatedAt: new Date(0).toISOString(),
 };
 
+export function effectiveBackendKind(
+  state: Pick<SetupState, "backendKind" | "directHttpsLaunchSampleVm">,
+): BackendKind {
+  if (state.backendKind === "direct_https" && state.directHttpsLaunchSampleVm) {
+    return "managed_sample";
+  }
+  return state.backendKind;
+}
+
 export function constrainSetupStateToRuntime(
   state: SetupState,
   internalHttpsLbArchitecture: boolean,
@@ -205,6 +216,7 @@ export function toDeploymentSpec(
   setup: SetupState,
   locale: Locale,
 ): DeploymentSpec {
+  const backendKind = effectiveBackendKind(setup);
   return {
     schema_version: 1,
     name: setup.deploymentName,
@@ -227,13 +239,13 @@ export function toDeploymentSpec(
     offload_cpu_target: Number(setup.offloadCpuTarget),
     vpc_name: setup.networkStrategy === "existing" ? setup.vpcName.trim() || null : null,
     subnet_name:
-      setup.networkStrategy === "existing" && setup.backendKind !== "direct_https"
+      setup.networkStrategy === "existing" && backendKind !== "direct_https"
         ? setup.subnetName.trim() || null
         : null,
     subnet_cidr: "10.42.0.0/24",
     proxy_subnet_cidr: setup.proxySubnetCidr.trim() || "10.42.1.0/24",
     private_hostname:
-      setup.backendKind === "direct_https" && setup.existingBackendUrl.trim()
+      backendKind === "direct_https" && setup.existingBackendUrl.trim()
         ? (() => {
             try {
               return new URL(setup.existingBackendUrl.trim()).hostname || setup.privateHostname.trim() || "secgw-backend.internal";
@@ -255,28 +267,28 @@ export function toDeploymentSpec(
     workspace_services_confirmed: setup.workspaceServicesConfirmed,
     endpoint_verification_confirmed: setup.endpointVerificationConfirmed,
     test_ou_confirmed: setup.testOuConfirmed,
-    backend_kind: setup.backendKind,
+    backend_kind: backendKind,
     existing_backend_url:
-      setup.backendKind === "managed_sample" ||
-      setup.backendKind === "internal_https_lb"
+      backendKind === "managed_sample" ||
+      backendKind === "internal_https_lb"
         ? null
         : setup.existingBackendUrl.trim() || null,
     existing_backend_location:
-      setup.backendKind === "managed_sample" ||
-      setup.backendKind === "internal_https_lb"
+      backendKind === "managed_sample" ||
+      backendKind === "internal_https_lb"
         ? null
         : setup.existingBackendLocation,
     application_egress_region:
-      setup.backendKind === "direct_https" && setup.applicationEgressRegion.trim()
+      backendKind === "direct_https" && setup.applicationEgressRegion.trim()
         ? setup.applicationEgressRegion.trim()
         : null,
     upstream_vpc_project_id:
-      setup.backendKind === "direct_https" && setup.upstreamVpcProjectId.trim()
+      backendKind === "direct_https" && setup.upstreamVpcProjectId.trim()
         ? setup.upstreamVpcProjectId.trim()
         : null,
     existing_backend_connectivity_confirmed:
-      setup.backendKind !== "managed_sample" &&
-      setup.backendKind !== "internal_https_lb" &&
+      backendKind !== "managed_sample" &&
+      backendKind !== "internal_https_lb" &&
       setup.existingBackendConnectivityConfirmed,
     ca_pool: setup.certificateStrategy === "enterprise_ca" ? setup.caPool : null,
     ca_name: setup.certificateStrategy === "enterprise_ca" ? setup.caName : null,

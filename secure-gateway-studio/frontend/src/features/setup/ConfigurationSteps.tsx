@@ -30,6 +30,7 @@ import {
   signInSession,
 } from "../../lib/api";
 import {
+  effectiveBackendKind,
   isPublicTrustedHostnameCandidate,
   isSupportedGoogleCloudProjectId,
   isSupportedManagedChromeAccessLevel,
@@ -541,6 +542,7 @@ export function IdentitiesStep({
 
 export function EnvironmentStep({ messages, onPatch, state }: StepProps) {
   const copy = messages.workflow;
+  const backendKind = effectiveBackendKind(state);
   const [vpcNetworks, setVpcNetworks] = useState<CatalogState>(emptyCatalog);
   const [sampleImageBusy, setSampleImageBusy] = useState(false);
   const [sampleImageError, setSampleImageError] = useState("");
@@ -549,7 +551,7 @@ export function EnvironmentStep({ messages, onPatch, state }: StepProps) {
     state.backendKind,
   );
   const usesDeploymentProjectVpc =
-    state.backendKind !== "direct_https" || !state.upstreamVpcProjectId.trim();
+    backendKind !== "direct_https" || !state.upstreamVpcProjectId.trim();
 
   const loadVpcNetworks = useCallback(async () => {
     if (
@@ -624,6 +626,7 @@ export function EnvironmentStep({ messages, onPatch, state }: StepProps) {
   async function selectInternalSampleVm() {
     onPatch({
       backendKind: "internal_https_lb",
+      directHttpsLaunchSampleVm: false,
       networkStrategy: "dedicated",
       proxySubnetCidr: state.proxySubnetCidr || "10.42.1.0/24",
       privateHostname: state.privateHostname || "secgw-backend.internal",
@@ -641,6 +644,7 @@ export function EnvironmentStep({ messages, onPatch, state }: StepProps) {
   async function selectManagedSampleVm() {
     onPatch({
       backendKind: "managed_sample",
+      directHttpsLaunchSampleVm: false,
       privateHostname: state.privateHostname || "secgw-backend.internal",
       deploymentName:
         state.deploymentName === "secure-gateway-ilb-https-offload" ||
@@ -741,7 +745,26 @@ export function EnvironmentStep({ messages, onPatch, state }: StepProps) {
           description={copy.directHttpsDescription}
           cost={messages.guide.architectures[0].estimatedCost}
           icon={<ShieldIcon size={27} />}
-          onSelect={() =>
+          onSelect={() => {
+            if (state.directHttpsLaunchSampleVm) {
+              onPatch({
+                backendKind: "direct_https",
+                networkStrategy:
+                  state.vpcName.trim() && state.subnetName.trim()
+                    ? "existing"
+                    : "dedicated",
+                privateHostname:
+                  state.privateHostname || "secgw-backend.internal",
+                region: state.region || "asia-northeast1",
+                deploymentName:
+                  state.deploymentName === "secure-gateway-ilb-https-offload" ||
+                  state.deploymentName === "secure-gateway-private-https"
+                    ? "secure-gateway-http-offload"
+                    : state.deploymentName,
+                existingBackendConnectivityConfirmed: false,
+              });
+              return;
+            }
             onPatch({
               backendKind: "direct_https",
               networkStrategy: "existing",
@@ -758,8 +781,8 @@ export function EnvironmentStep({ messages, onPatch, state }: StepProps) {
               existingBackendUrl: state.existingBackendUrl.startsWith("https://")
                 ? state.existingBackendUrl
                 : "https://secgw-backend.internal",
-            })
-          }
+            });
+          }}
           selected={state.backendKind === "direct_https"}
           title={copy.directHttps}
         />
@@ -798,6 +821,7 @@ export function EnvironmentStep({ messages, onPatch, state }: StepProps) {
             onSelect={() =>
               onPatch({
                 backendKind: "existing_http",
+                directHttpsLaunchSampleVm: false,
                 deploymentName:
                   state.deploymentName === "secure-gateway-ilb-https-offload" ||
                   state.deploymentName === "secure-gateway-private-https"
@@ -880,18 +904,94 @@ export function EnvironmentStep({ messages, onPatch, state }: StepProps) {
         <article className="sample-backend-box">
           <div className="sample-backend-header">
             <div>
-              <strong>{copy.directSampleVmAction}</strong>
-              <p>{copy.directSampleVmDescription}</p>
+              <strong>
+                {state.directHttpsLaunchSampleVm
+                  ? copy.configureSampleVm
+                  : copy.directSampleVmAction}
+              </strong>
+              <p>
+                {state.directHttpsLaunchSampleVm
+                  ? copy.directLaunchSampleVmDescription
+                  : copy.directSampleVmDescription}
+              </p>
+              {state.directHttpsLaunchSampleVm && state.sourceImage.trim() ? (
+                <small className="field-hint">
+                  ✓ {copy.sampleImageResolved}: <code>{state.sourceImage}</code>
+                </small>
+              ) : null}
             </div>
             <button
               className="connection-action"
               disabled={sampleImageBusy}
-              onClick={() => void selectInternalSampleVm()}
+              onClick={() =>
+                void (state.directHttpsLaunchSampleVm
+                  ? resolveSampleImage(true)
+                  : selectInternalSampleVm())
+              }
               type="button"
             >
-              {sampleImageBusy ? copy.sampleImageResolving : copy.directSampleVmAction}
+              {state.directHttpsLaunchSampleVm &&
+              state.sourceImage.trim() &&
+              !sampleImageBusy ? (
+                <CheckIcon size={18} />
+              ) : null}
+              {sampleImageBusy
+                ? copy.sampleImageResolving
+                : state.directHttpsLaunchSampleVm
+                  ? copy.configureSampleVm
+                  : copy.directSampleVmAction}
             </button>
           </div>
+          <label className="confirmation-row">
+            <input
+              checked={Boolean(state.directHttpsLaunchSampleVm)}
+              onChange={(event) => {
+                const checked = event.target.checked;
+                if (checked) {
+                  onPatch({
+                    directHttpsLaunchSampleVm: true,
+                    networkStrategy:
+                      state.vpcName.trim() && state.subnetName.trim()
+                        ? "existing"
+                        : "dedicated",
+                    privateHostname:
+                      state.privateHostname || "secgw-backend.internal",
+                    certificateStrategy:
+                      state.mode === "poc" &&
+                      state.certificateStrategy === "enterprise_ca" &&
+                      !state.caPool.trim()
+                        ? "local_poc"
+                        : state.certificateStrategy,
+                    deploymentName:
+                      state.deploymentName === "secure-gateway-ilb-https-offload" ||
+                      state.deploymentName === "secure-gateway-private-https"
+                        ? "secure-gateway-http-offload"
+                        : state.deploymentName,
+                    existingBackendConnectivityConfirmed: false,
+                  });
+                  void resolveSampleImage(true);
+                } else {
+                  onPatch({
+                    directHttpsLaunchSampleVm: false,
+                    networkStrategy: "existing",
+                    deploymentName:
+                      state.deploymentName === "secure-gateway-http-offload" ||
+                      state.deploymentName === "secure-gateway-ilb-https-offload"
+                        ? "secure-gateway-private-https"
+                        : state.deploymentName,
+                    existingBackendUrl: state.existingBackendUrl.startsWith(
+                      "https://",
+                    )
+                      ? state.existingBackendUrl
+                      : "https://secgw-backend.internal",
+                    existingBackendConnectivityConfirmed: false,
+                  });
+                }
+              }}
+              type="checkbox"
+            />
+            <span>{copy.directLaunchSampleVmCheckbox}</span>
+          </label>
         </article>
       ) : null}
       {state.backendKind === "managed_sample" ? (
@@ -940,7 +1040,7 @@ export function EnvironmentStep({ messages, onPatch, state }: StepProps) {
         </p>
       ) : null}
 
-      {state.backendKind !== "direct_https" && (
+      {backendKind !== "direct_https" && (
         <div className="field-grid one">
           <Field
             label={copy.sourceImage}
@@ -962,7 +1062,9 @@ export function EnvironmentStep({ messages, onPatch, state }: StepProps) {
                 onClick={() =>
                   void (state.backendKind === "internal_https_lb"
                     ? selectInternalSampleVm()
-                    : selectManagedSampleVm())
+                    : state.backendKind === "direct_https"
+                      ? resolveSampleImage(true)
+                      : selectManagedSampleVm())
                 }
                 type="button"
               >
@@ -974,7 +1076,7 @@ export function EnvironmentStep({ messages, onPatch, state }: StepProps) {
         </div>
       )}
       {state.mode === "production" &&
-        !["direct_https", "internal_https_lb"].includes(state.backendKind) && (
+        !["direct_https", "internal_https_lb"].includes(backendKind) && (
         <>
           <div className="field-grid three">
             <Field
@@ -1021,7 +1123,7 @@ export function EnvironmentStep({ messages, onPatch, state }: StepProps) {
                 loadingLabel={copy.optionsLoading}
                 onChange={(vpcName) =>
                   onPatch(
-                    state.backendKind === "direct_https"
+                    backendKind === "direct_https"
                       ? { vpcName, existingBackendConnectivityConfirmed: false }
                       : { vpcName },
                   )
@@ -1040,7 +1142,7 @@ export function EnvironmentStep({ messages, onPatch, state }: StepProps) {
                 value={state.vpcName}
               />
             )}
-            {state.backendKind === "direct_https" ? (
+            {backendKind === "direct_https" ? (
               <Field
                 label={copy.upstreamVpcProjectId}
                 onChange={(upstreamVpcProjectId) =>
@@ -1060,13 +1162,13 @@ export function EnvironmentStep({ messages, onPatch, state }: StepProps) {
               />
             )}
           </div>
-          {state.backendKind === "direct_https" ? (
+          {backendKind === "direct_https" ? (
             <small className="field-hint">{copy.upstreamVpcProjectIdHint}</small>
           ) : null}
           {usesDeploymentProjectVpc && runtimeCapabilities.vpcNetworkCatalog ? (
             <small className="field-hint">{copy.vpcSameProjectHint}</small>
           ) : null}
-          {state.backendKind === "direct_https" &&
+          {backendKind === "direct_https" &&
           state.upstreamVpcProjectId.trim() ? (
             <Notice tone="security">
               {copy.upstreamVpcCrossProjectPrerequisite}
@@ -1076,14 +1178,14 @@ export function EnvironmentStep({ messages, onPatch, state }: StepProps) {
       )}
 
       <div className="field-grid two">
-        {state.backendKind !== "direct_https" ? (
+        {backendKind !== "direct_https" ? (
           <Field
             label={copy.hostname}
             onChange={(privateHostname) => onPatch({ privateHostname })}
             value={state.privateHostname}
           />
         ) : null}
-        {!["managed_sample", "internal_https_lb"].includes(state.backendKind) ? (
+        {!["managed_sample", "internal_https_lb"].includes(backendKind) ? (
           <label className="field">
             <span>{copy.backendLocation}</span>
             <select
@@ -1167,7 +1269,7 @@ export function EnvironmentStep({ messages, onPatch, state }: StepProps) {
       {sampleImageError ? (
         <p className="connection-error" role="alert">{sampleImageError}</p>
       ) : null}
-      {state.backendKind === "direct_https" ? (
+      {backendKind === "direct_https" ? (
         <>
           <div className="field-grid two">
             <Field
@@ -1207,7 +1309,7 @@ export function EnvironmentStep({ messages, onPatch, state }: StepProps) {
         </>
       ) : null}
 
-      {state.backendKind !== "direct_https" ? (
+      {backendKind !== "direct_https" ? (
         <Notice tone="security">{copy.noExternalIpNotice}</Notice>
       ) : null}
     </section>
@@ -1216,14 +1318,15 @@ export function EnvironmentStep({ messages, onPatch, state }: StepProps) {
 
 export function CertificateStep({ messages, onPatch, state }: StepProps) {
   const copy = messages.workflow;
+  const backendKind = effectiveBackendKind(state);
 
   return (
     <section className="workflow-step">
       <StepHeading
         description={
-          state.backendKind === "direct_https"
+          backendKind === "direct_https"
             ? copy.directCertificateIntro
-            : state.backendKind === "internal_https_lb"
+            : backendKind === "internal_https_lb"
               ? copy.internalLbCertificateIntro
             : copy.certificateIntro
         }
@@ -1234,7 +1337,7 @@ export function CertificateStep({ messages, onPatch, state }: StepProps) {
         <span>
           <small>{messages.certificateStrategy}</small>
           <strong>
-            {state.backendKind === "direct_https" &&
+            {backendKind === "direct_https" &&
             state.certificateStrategy !== "public_trusted"
               ? copy.directPrivateCertificate
               : state.certificateStrategy === "enterprise_ca"
@@ -1245,10 +1348,10 @@ export function CertificateStep({ messages, onPatch, state }: StepProps) {
           </strong>
         </span>
       </div>
-      {state.backendKind === "direct_https" ? (
+      {backendKind === "direct_https" ? (
         <Notice tone="security">{copy.directCertificateNotice}</Notice>
       ) : null}
-      {state.backendKind !== "direct_https" &&
+      {backendKind !== "direct_https" &&
         state.certificateStrategy === "enterprise_ca" && (
         <div className="field-grid two">
           <Field
@@ -1265,7 +1368,7 @@ export function CertificateStep({ messages, onPatch, state }: StepProps) {
           />
         </div>
       )}
-      {state.backendKind !== "direct_https" &&
+      {backendKind !== "direct_https" &&
         state.certificateStrategy === "public_trusted" && (
         <>
           <div className="field-grid one">
@@ -1281,13 +1384,13 @@ export function CertificateStep({ messages, onPatch, state }: StepProps) {
           <Notice tone="security">{messages.publicCertificateDescription}</Notice>
         </>
       )}
-      {state.backendKind !== "direct_https" &&
+      {backendKind !== "direct_https" &&
         state.certificateStrategy === "local_poc" && (
         <Notice>{messages.localPocCaDescription}</Notice>
       )}
-      {state.backendKind !== "direct_https" ? (
+      {backendKind !== "direct_https" ? (
         <Notice tone="security">
-          {state.backendKind === "internal_https_lb"
+          {backendKind === "internal_https_lb"
             ? copy.internalLbCertificateNotice
             : copy.certificateNotice}
         </Notice>
@@ -1633,6 +1736,7 @@ export function isEnvironmentReady(
   state: SetupState,
   internalHttpsLbArchitecture = true,
 ): boolean {
+  const backendKind = effectiveBackendKind(state);
   const minimumReplicas = Number(state.offloadMinReplicas);
   const maximumReplicas = Number(state.offloadMaxReplicas);
   const cpuTarget = Number(state.offloadCpuTarget);
@@ -1646,42 +1750,43 @@ export function isEnvironmentReady(
     cpuTarget <= 0.9;
 
   return (
-    (internalHttpsLbArchitecture || state.backendKind !== "internal_https_lb") &&
-    !(state.mode === "production" && state.backendKind === "internal_https_lb") &&
+    (internalHttpsLbArchitecture || backendKind !== "internal_https_lb") &&
+    !(state.mode === "production" && backendKind === "internal_https_lb") &&
     Boolean(
       state.deploymentName &&
         state.region &&
         state.zone &&
-        (state.backendKind === "direct_https" ||
+        (backendKind === "direct_https" ||
           (state.sourceImage &&
             (state.mode === "poc" ||
               (state.secondaryZone &&
                 state.secondaryZone !== state.zone &&
                 scalingIsValid)))) &&
-        (state.backendKind === "direct_https" || state.privateHostname),
+        (backendKind === "direct_https" || state.privateHostname),
     ) &&
-    (state.backendKind !== "internal_https_lb" || Boolean(state.proxySubnetCidr)) &&
-    (state.backendKind === "direct_https"
+    (backendKind !== "internal_https_lb" || Boolean(state.proxySubnetCidr)) &&
+    (backendKind === "direct_https"
       ? state.networkStrategy === "existing" &&
         Boolean(state.vpcName) &&
         (!state.upstreamVpcProjectId.trim() ||
           isSupportedGoogleCloudProjectId(state.upstreamVpcProjectId))
       : state.networkStrategy === "dedicated" ||
         Boolean(state.vpcName && state.subnetName)) &&
-    (state.backendKind === "managed_sample" ||
-      state.backendKind === "internal_https_lb" ||
-      (state.backendKind === "existing_http" &&
+    (backendKind === "managed_sample" ||
+      backendKind === "internal_https_lb" ||
+      (backendKind === "existing_http" &&
         state.existingBackendUrl.startsWith("http://") &&
         state.existingBackendConnectivityConfirmed) ||
-      (state.backendKind === "direct_https" &&
+      (backendKind === "direct_https" &&
         state.existingBackendUrl.startsWith("https://") &&
         state.existingBackendConnectivityConfirmed))
   );
 }
 
 export function isCertificateReady(state: SetupState): boolean {
+  const backendKind = effectiveBackendKind(state);
   return (
-    state.backendKind === "direct_https" ||
+    backendKind === "direct_https" ||
     state.certificateStrategy === "local_poc" ||
     (state.certificateStrategy === "enterprise_ca"
       ? Boolean(state.caPool && state.caName)
@@ -1875,7 +1980,7 @@ export function ReviewStep({
                   : state.vpcName || messages.existingVpc}
               </dd>
             </div>
-            {state.backendKind === "direct_https" ? (
+            {effectiveBackendKind(state) === "direct_https" ? (
               <div>
                 <dt>{copy.upstreamVpcProjectId}</dt>
                 <dd>{state.upstreamVpcProjectId || state.projectId || "—"}</dd>
@@ -2088,6 +2193,7 @@ export function ApplyStep({
   state,
 }: ApplyStepProps) {
   const copy = messages.workflow;
+  const backendKind = effectiveBackendKind(state);
   const [downloadBusy, setDownloadBusy] = useState(false);
   const [downloadError, setDownloadError] = useState("");
   const planReady = preparedPlan !== null;
@@ -2095,9 +2201,9 @@ export function ApplyStep({
   const activeRunStatuses = new Set(["pending", "running", "rolling_back"]);
   const runFinished = run !== null && !activeRunStatuses.has(run.status);
   const runFinalized = run?.status === "succeeded" || run?.status === "rolled_back";
-  const hasManagedVmTier = state.backendKind !== "direct_https";
+  const hasManagedVmTier = backendKind !== "direct_https";
   const networkProjectId =
-    state.backendKind === "direct_https" && state.upstreamVpcProjectId.trim()
+    backendKind === "direct_https" && state.upstreamVpcProjectId.trim()
       ? state.upstreamVpcProjectId.trim()
       : state.projectId;
   const effectiveVpcName =

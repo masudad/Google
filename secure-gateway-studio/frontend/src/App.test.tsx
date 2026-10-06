@@ -20,7 +20,9 @@ import {
   ApplyStep,
   EnvironmentStep,
   IdentitiesStep,
+  isCertificateReady,
   isConfigurationReady,
+  isEnvironmentReady,
   ReviewStep,
 } from "./features/setup/ConfigurationSteps";
 import { getMessages } from "./i18n/messages";
@@ -846,6 +848,77 @@ describe("Secure Gateway Studio mode screen", () => {
       existing_backend_url: "https://app.corp.internal:8443",
       application_egress_region: "asia-east1",
       upstream_vpc_project_id: "shared-network-prj",
+    });
+  });
+
+  it("allows launching a private sample VM directly from Option A", () => {
+    const onPatch = vi.fn();
+    const directState = {
+      ...defaultSetupState,
+      backendKind: "direct_https" as const,
+      networkStrategy: "existing" as const,
+      deploymentName: "secure-gateway-private-https",
+    };
+    const { rerender } = render(
+      <EnvironmentStep
+        messages={getMessages("en")}
+        onPatch={onPatch}
+        state={directState}
+      />,
+    );
+
+    const checkbox = screen.getByRole("checkbox", {
+      name: /Launch a private sample VM during Apply/,
+    });
+    expect(checkbox).not.toBeChecked();
+    fireEvent.click(checkbox);
+
+    expect(onPatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        directHttpsLaunchSampleVm: true,
+        networkStrategy: "dedicated",
+        certificateStrategy: "local_poc",
+        deploymentName: "secure-gateway-http-offload",
+      }),
+    );
+
+    const sampleVmOptionAState = {
+      ...directState,
+      directHttpsLaunchSampleVm: true,
+      networkStrategy: "dedicated" as const,
+      certificateStrategy: "local_poc" as const,
+      deploymentName: "secure-gateway-http-offload",
+      privateHostname: "secgw-backend.internal",
+      sourceImage: "projects/debian-cloud/global/images/debian-12-bookworm-v20260730",
+    };
+
+    rerender(
+      <EnvironmentStep
+        messages={getMessages("en")}
+        onPatch={onPatch}
+        state={sampleVmOptionAState}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", {
+        name: /^Option A — Connect directly to an existing HTTPS app/,
+      }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(
+      screen.getByRole("textbox", { name: "Immutable VM image" }),
+    ).toHaveValue("projects/debian-cloud/global/images/debian-12-bookworm-v20260730");
+    expect(
+      screen.getByRole("textbox", { name: "Private application hostname" }),
+    ).toHaveValue("secgw-backend.internal");
+    expect(isEnvironmentReady(sampleVmOptionAState)).toBe(true);
+    expect(isCertificateReady(sampleVmOptionAState)).toBe(true);
+    expect(toDeploymentSpec(sampleVmOptionAState, "en")).toMatchObject({
+      backend_kind: "managed_sample",
+      network_strategy: "dedicated",
+      certificate_strategy: "local_poc",
+      private_hostname: "secgw-backend.internal",
+      existing_backend_url: null,
     });
   });
 

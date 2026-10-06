@@ -89,6 +89,8 @@ export interface WorkflowMessages {
   internalHttpsLbDescription: string;
   configureSampleVm: string;
   configureSampleVmDescription: string;
+  directLaunchSampleVmCheckbox: string;
+  directLaunchSampleVmDescription: string;
   directSampleVmAction: string;
   directSampleVmDescription: string;
   managedSampleVmAction: string;
@@ -1533,6 +1535,10 @@ const en: Messages = {
     configureSampleVm: "Create a private sample VM during approved Apply",
     configureSampleVmDescription:
       "Configures Option B defaults and creates the private sample VM during Apply.",
+    directLaunchSampleVmCheckbox:
+      "Launch a private sample VM during Apply (auto-creates HTTPS VM, Private DNS, and firewall)",
+    directLaunchSampleVmDescription:
+      "Creates a private HTTPS sample VM on TCP 443, Private DNS, and firewall rules during Apply without an Internal ALB.",
     directSampleVmAction: "Use Option B's private sample VM",
     directSampleVmDescription:
       "Option A requires an existing private HTTPS application. Switch to Option B to create a private sample VM during approved Apply.",
@@ -3871,6 +3877,10 @@ const ja: Messages = {
     configureSampleVm: "サンプルVMのOSイメージを自動設定 · Debian 12",
     configureSampleVmDescription:
       "Option Bでは、適用時に外部IPなしの非公開サンプルVMを1台自動作成します。",
+    directLaunchSampleVmCheckbox:
+      "サンプルVMをローンチする (HTTPSテスト用VM・Private DNS・FWを自動作成)",
+    directLaunchSampleVmDescription:
+      "内部ロードバランサを使わずに、HTTPSテスト用VM・Private DNS・ファイアウォールを承認済みApplyで自動作成します。",
     directSampleVmAction: "Option Bへ切り替える",
     directSampleVmDescription:
       "Option Aは既存HTTPSアプリへ直接接続するためテスト用VMを作成しません。サンプルVMも自動作成する場合はOption Bへ切り替えてください。",
