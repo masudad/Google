@@ -982,8 +982,58 @@ describe("CepDeployerPage", () => {
       }),
     );
   });
+
+  it("defaults Context-Aware Access level to NONE across presets and displays the Manual CEL Setup Guide when Cloud Project ID is empty", async () => {
+    const provision = vi.spyOn(api, "provisionCepPolicies").mockResolvedValue(emptyResult());
+    render(<CepDeployerPage customerId="C012345" messages={messages} projectId="" />);
+    fireEvent.click(screen.getByRole("button", { name: m.verifyGoogleAccount }));
+    await selectPilotOu();
+
+    // Default accessLevel in Full PoC preset is NONE
+    const accessLevelSelect = screen.getByLabelText(m.accessLevelTitle);
+    expect(accessLevelSelect).toHaveValue("NONE");
+
+    // Selecting Endpoint preset also keeps accessLevel as NONE
+    fireEvent.click(screen.getByText(m.presetEndpoint));
+    expect(accessLevelSelect).toHaveValue("NONE");
+
+    // Switch back to Full PoC preset and select an AUTO_CREATE_* option while projectId is empty:
+    // Step 1 immediately displays the Manual CEL Setup Guide Card with the exact CEL expression
+    fireEvent.click(screen.getByText(m.presetFullPoc));
+    fireEvent.change(accessLevelSelect, { target: { value: "AUTO_CREATE_CORP_OWNED" } });
+    expect(screen.getByRole("region", { name: m.manualCelGuideTitle })).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /device\.is_corp_owned_device == true \|\| device\.chrome\.management_state == ChromeManagementState\.CHROME_MANAGEMENT_STATE_BROWSER_MANAGED/,
+      ),
+    ).toBeInTheDocument();
+
+    // Reset accessLevel to NONE, switch to Tab 3 (DLP & Threat Matrix), and apply the Company Device Environment Selector
+    fireEvent.change(accessLevelSelect, { target: { value: "NONE" } });
+    const nav = screen.getByRole("navigation", { name: "CEP PoC Sections" });
+    fireEvent.click(within(nav).getByRole("button", { name: m.tabDlp }));
+
+    const envRegion = screen.getByRole("region", { name: m.dlpEnvBuilderTitle });
+    fireEvent.click(within(envRegion).getByRole("button", { name: m.dlpEnvApplyBtn }));
+
+    // Because projectId is empty, accessLevel remains NONE and the Manual CEL Setup Guide Card automatically appears in Tab 3
+    const manualCelRegion = screen.getByRole("region", { name: m.manualCelGuideTitle });
+    expect(manualCelRegion).toBeInTheDocument();
+    expect(within(manualCelRegion).getByText("secgw_byod_devices")).toBeInTheDocument();
+    expect(within(manualCelRegion).getByText("secgw_android_byod")).toBeInTheDocument();
+    expect(within(manualCelRegion).getByText("secgw_ios_byod")).toBeInTheDocument();
+    expect(
+      within(manualCelRegion).getByRole("link", { name: new RegExp(m.manualCelStep1LinkLabel) }),
+    ).toHaveAttribute("href", "https://admin.google.com/ac/caa/levels");
+    expect(
+      within(manualCelRegion).getByRole("link", { name: new RegExp(m.manualCelStep2LinkLabel) }),
+    ).toHaveAttribute("href", "https://admin.google.com/ac/dp");
+
+    fireEvent.click(screen.getByText(m.btnDeploy));
+    await waitFor(() => {
+      expect(provision).toHaveBeenCalledTimes(1);
+    });
+    expect(provision.mock.calls[0]?.[0]?.access_level).toBe("NONE");
+    expect(provision.mock.calls[0]?.[0]?.project_id).toBe("");
+  });
 });
-
-
-
-

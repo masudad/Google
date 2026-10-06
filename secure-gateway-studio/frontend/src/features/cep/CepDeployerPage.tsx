@@ -99,12 +99,50 @@ const AUTO_CREATE_SENTINELS = [
   "AUTO_CREATE_IOS_BYOD",
 ];
 
+const SENTINEL_CEL_MAP: Record<string, { levelName: string; accessLevelCel: string }> = {
+  AUTO_CREATE_CHROME_ANY: {
+    levelName: "secgw_chrome_managed",
+    accessLevelCel:
+      "device.chrome.management_state == ChromeManagementState.CHROME_MANAGEMENT_STATE_PROFILE_MANAGED || device.chrome.management_state == ChromeManagementState.CHROME_MANAGEMENT_STATE_BROWSER_MANAGED",
+  },
+  AUTO_CREATE_PROFILE_MANAGED: {
+    levelName: "secgw_chrome_profile_managed",
+    accessLevelCel:
+      "device.chrome.management_state == ChromeManagementState.CHROME_MANAGEMENT_STATE_PROFILE_MANAGED",
+  },
+  AUTO_CREATE_BROWSER_MANAGED: {
+    levelName: "secgw_chrome_browser_managed",
+    accessLevelCel:
+      "device.chrome.management_state == ChromeManagementState.CHROME_MANAGEMENT_STATE_BROWSER_MANAGED",
+  },
+  AUTO_CREATE_CORP_OWNED: {
+    levelName: "secgw_corp_owned",
+    accessLevelCel:
+      "device.is_corp_owned_device == true || device.chrome.management_state == ChromeManagementState.CHROME_MANAGEMENT_STATE_BROWSER_MANAGED",
+  },
+  AUTO_CREATE_BYOD: {
+    levelName: "secgw_byod_devices",
+    accessLevelCel:
+      "device.is_corp_owned_device == false && device.chrome.management_state != ChromeManagementState.CHROME_MANAGEMENT_STATE_BROWSER_MANAGED",
+  },
+  AUTO_CREATE_ANDROID_BYOD: {
+    levelName: "secgw_android_byod",
+    accessLevelCel:
+      "device.os_type == OsType.ANDROID && device.is_corp_owned_device == false",
+  },
+  AUTO_CREATE_IOS_BYOD: {
+    levelName: "secgw_ios_byod",
+    accessLevelCel:
+      "device.os_type == OsType.IOS && device.is_corp_owned_device == false",
+  },
+};
+
 const PRESETS: Record<PresetName, ModuleState> = {
   full: {
     corePolicies: true,
     forceExtensions: true,
     connectors: true,
-    accessLevel: AUTO_CREATE_ANY,
+    accessLevel: ACCESS_LEVEL_NONE,
     dlpDetectors: false,
     dlpRules: true,
     dlpRegion: "JP",
@@ -134,7 +172,7 @@ const PRESETS: Record<PresetName, ModuleState> = {
     corePolicies: true,
     forceExtensions: true,
     connectors: true,
-    accessLevel: AUTO_CREATE_ANY,
+    accessLevel: ACCESS_LEVEL_NONE,
     dlpDetectors: false,
     dlpRules: false,
     dlpRegion: "JP",
@@ -808,7 +846,9 @@ gcloud access-context-manager cloud-bindings create \\
       ? dlpNeedsAccessLevel
         ? modules.accessLevel !== ACCESS_LEVEL_NONE
           ? modules.accessLevel
-          : "AUTO_CREATE_CORP_OWNED"
+          : effectiveProjectId !== ""
+            ? "AUTO_CREATE_CORP_OWNED"
+            : ACCESS_LEVEL_NONE
         : ACCESS_LEVEL_NONE
       : modules.accessLevel;
     return {
@@ -1521,6 +1561,60 @@ gcloud access-context-manager cloud-bindings create \\
             </select>
             <small>{m.accessLevelHint}</small>
           </div>
+          {effectiveProjectId === "" && SENTINEL_CEL_MAP[modules.accessLevel] !== undefined && (
+            <div className="cep-manual-cel-card" role="region" aria-label={m.manualCelGuideTitle}>
+              <div className="cep-manual-cel-head">
+                <h4>📋 {m.manualCelGuideTitle}</h4>
+                <p>{m.manualCelGuideSubtitle}</p>
+              </div>
+              <div className="cep-manual-cel-steps">
+                <div className="cep-manual-cel-step">
+                  <strong>{m.manualCelStep1Title}</strong>
+                  <p>{m.manualCelStep1Desc}</p>
+                  <a
+                    className="cep-license-link"
+                    href="https://admin.google.com/ac/caa/levels"
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    {m.manualCelStep1LinkLabel} ↗
+                  </a>
+                </div>
+              </div>
+              <div className="cep-manual-cel-list">
+                <div className="cep-manual-cel-item">
+                  <div className="cep-manual-cel-item-header">
+                    <strong>{m.accessLevelTitle}</strong>
+                    <code className="cep-manual-cel-level-badge">
+                      {SENTINEL_CEL_MAP[modules.accessLevel].levelName}
+                    </code>
+                  </div>
+                  <div className="cep-manual-cel-code-block">
+                    <div className="cep-manual-cel-code-label">
+                      <span>{m.manualCelAccessLevelExprCol}</span>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        onClick={() =>
+                          handleCopy(
+                            SENTINEL_CEL_MAP[modules.accessLevel].accessLevelCel,
+                            `setup-cel-${modules.accessLevel}`,
+                          )
+                        }
+                        type="button"
+                      >
+                        {copiedSnippet === `setup-cel-${modules.accessLevel}`
+                          ? m.manualCelCopiedBtn
+                          : m.manualCelCopyBtn}
+                      </button>
+                    </div>
+                    <pre className="cep-manual-cel-pre">
+                      <code>{SENTINEL_CEL_MAP[modules.accessLevel].accessLevelCel}</code>
+                    </pre>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
           {accessLevelError && accessLevels.length === 0 && (
             <p className="cep-inline-note">{m.accessLevelLoadFailed}</p>
           )}
@@ -1947,12 +2041,13 @@ gcloud access-context-manager cloud-bindings create \\
 
           <DlpMatrixTable
             customMessage={dlpCustomMessage}
+            hasProjectId={effectiveProjectId !== ""}
             matrix={dlpMatrix}
             messages={messages}
             onChange={setDlpMatrix}
             onCustomMessageChange={setDlpCustomMessage}
             onEnsureAccessLevel={(sentinel) => {
-              if (modules.accessLevel === ACCESS_LEVEL_NONE) {
+              if (modules.accessLevel === ACCESS_LEVEL_NONE && effectiveProjectId !== "") {
                 update("accessLevel", sentinel);
               }
             }}

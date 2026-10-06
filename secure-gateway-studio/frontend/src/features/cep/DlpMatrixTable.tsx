@@ -19,7 +19,80 @@ interface DlpMatrixTableProps {
   saveContent?: boolean;
   onSaveContentChange?: (save: boolean) => void;
   onEnsureAccessLevel?: (suggestedSentinel: string) => void;
+  hasProjectId?: boolean;
 }
+
+interface ManualCelScopeEntry {
+  scope: Exclude<CepDlpDeviceScope, "all">;
+  levelName: string;
+  accessLevelCel: string;
+  dlpConditionCel: string;
+}
+
+const MANUAL_CEL_SCOPE_ENTRIES: readonly ManualCelScopeEntry[] = [
+  {
+    scope: "byod_only",
+    levelName: "secgw_byod_devices",
+    accessLevelCel:
+      "device.is_corp_owned_device == false && device.chrome.management_state != ChromeManagementState.CHROME_MANAGEMENT_STATE_BROWSER_MANAGED",
+    dlpConditionCel:
+      "access_levels.meets_access_requirements(['accessPolicies/<POLICY_ID>/accessLevels/secgw_byod_devices'])",
+  },
+  {
+    scope: "corp_only",
+    levelName: "secgw_corp_owned",
+    accessLevelCel:
+      "device.is_corp_owned_device == true || device.chrome.management_state == ChromeManagementState.CHROME_MANAGEMENT_STATE_BROWSER_MANAGED",
+    dlpConditionCel:
+      "access_levels.meets_access_requirements(['accessPolicies/<POLICY_ID>/accessLevels/secgw_corp_owned'])",
+  },
+  {
+    scope: "desktop_byod",
+    levelName: "secgw_desktop_byod",
+    accessLevelCel:
+      "(device.os_type == OsType.DESKTOP_WINDOWS || device.os_type == OsType.DESKTOP_MAC || device.os_type == OsType.DESKTOP_LINUX || device.os_type == OsType.DESKTOP_CHROME_OS) && device.is_corp_owned_device == false && device.chrome.management_state != ChromeManagementState.CHROME_MANAGEMENT_STATE_BROWSER_MANAGED",
+    dlpConditionCel:
+      "access_levels.meets_access_requirements(['accessPolicies/<POLICY_ID>/accessLevels/secgw_desktop_byod'])",
+  },
+  {
+    scope: "mobile_byod",
+    levelName: "secgw_mobile_byod",
+    accessLevelCel:
+      "(device.os_type == OsType.ANDROID || device.os_type == OsType.IOS) && device.is_corp_owned_device == false",
+    dlpConditionCel:
+      "access_levels.meets_access_requirements(['accessPolicies/<POLICY_ID>/accessLevels/secgw_mobile_byod'])",
+  },
+  {
+    scope: "android_byod",
+    levelName: "secgw_android_byod",
+    accessLevelCel:
+      "device.os_type == OsType.ANDROID && device.is_corp_owned_device == false",
+    dlpConditionCel:
+      "access_levels.meets_access_requirements(['accessPolicies/<POLICY_ID>/accessLevels/secgw_android_byod'])",
+  },
+  {
+    scope: "ios_byod",
+    levelName: "secgw_ios_byod",
+    accessLevelCel:
+      "device.os_type == OsType.IOS && device.is_corp_owned_device == false",
+    dlpConditionCel:
+      "access_levels.meets_access_requirements(['accessPolicies/<POLICY_ID>/accessLevels/secgw_ios_byod'])",
+  },
+  {
+    scope: "android_all",
+    levelName: "secgw_android_all",
+    accessLevelCel: "device.os_type == OsType.ANDROID",
+    dlpConditionCel:
+      "access_levels.meets_access_requirements(['accessPolicies/<POLICY_ID>/accessLevels/secgw_android_all'])",
+  },
+  {
+    scope: "ios_all",
+    levelName: "secgw_ios_all",
+    accessLevelCel: "device.os_type == OsType.IOS",
+    dlpConditionCel:
+      "access_levels.meets_access_requirements(['accessPolicies/<POLICY_ID>/accessLevels/secgw_ios_all'])",
+  },
+];
 
 interface CompanyDeviceEnvState {
   corpPc: boolean;
@@ -68,6 +141,7 @@ export function DlpMatrixTable({
   saveContent,
   onSaveContentChange,
   onEnsureAccessLevel,
+  hasProjectId = true,
 }: DlpMatrixTableProps) {
   const m = messages.cepDeployer;
   const [envState, setEnvState] = useState<CompanyDeviceEnvState>({
@@ -78,6 +152,8 @@ export function DlpMatrixTable({
     byodAndroid: true,
     byodIos: true,
   });
+  const [showManualCelGuide, setShowManualCelGuide] = useState<boolean>(false);
+  const [copiedCelKey, setCopiedCelKey] = useState<string>("");
 
   const currentMatrix = { ...DEFAULT_DLP_MATRIX, ...matrix };
 
@@ -806,8 +882,173 @@ export function DlpMatrixTable({
         <div className="dlp-notice-content">
           <strong>{m.dlpNoticeByodTitle}</strong>
           <p>{m.dlpNoticeByodDesc}</p>
+          <button
+            className="btn btn-secondary btn-sm cep-manual-cel-toggle-btn"
+            onClick={() => setShowManualCelGuide((prev) => !prev)}
+            type="button"
+          >
+            {showManualCelGuide ? m.manualCelToggleHideBtn : m.manualCelToggleShowBtn}
+          </button>
         </div>
       </div>
+
+      {(() => {
+        const hasActiveOp = (rule: CepDlpMatrixRuleConfig | undefined) =>
+          Boolean(
+            rule &&
+              ((rule.upload && rule.upload !== "off") ||
+                (rule.download && rule.download !== "off") ||
+                (rule.paste && rule.paste !== "off") ||
+                (rule.print && rule.print !== "off") ||
+                rule.watermark === true),
+          );
+
+        const activeScopesSet = new Set<Exclude<CepDlpDeviceScope, "all">>();
+        const standardRuleIds: CepDlpRuleId[] = [
+          "universal_upload",
+          "universal_download",
+          "payment_card",
+          "national_id",
+          "watermark",
+          "genai_block",
+        ];
+        for (const ruleId of standardRuleIds) {
+          const rule = currentMatrix[ruleId];
+          if (hasActiveOp(rule)) {
+            const sc = resolveRowScope(rule);
+            if (sc !== "all") {
+              activeScopesSet.add(sc);
+            }
+          }
+        }
+        if (hasActiveOp(currentMatrix.access_level)) {
+          activeScopesSet.add("byod_only");
+        }
+        if (hasActiveOp(currentMatrix.android_byod)) {
+          activeScopesSet.add("android_byod");
+        }
+        if (hasActiveOp(currentMatrix.ios_byod)) {
+          activeScopesSet.add("ios_byod");
+        }
+
+        const isVisible = showManualCelGuide || (!hasProjectId && activeScopesSet.size > 0);
+        if (!isVisible) return null;
+
+        const entriesToShow =
+          activeScopesSet.size > 0
+            ? MANUAL_CEL_SCOPE_ENTRIES.filter((entry) => activeScopesSet.has(entry.scope))
+            : MANUAL_CEL_SCOPE_ENTRIES.filter((entry) =>
+                ["byod_only", "corp_only", "android_byod", "ios_byod"].includes(entry.scope),
+              );
+
+        const scopeLabelFor = (scope: Exclude<CepDlpDeviceScope, "all">): string => {
+          switch (scope) {
+            case "byod_only":
+              return m.dlpScopeSelectByodOnly;
+            case "corp_only":
+              return m.dlpScopeSelectCorpOnly;
+            case "desktop_byod":
+              return m.dlpScopeSelectDesktopByod;
+            case "mobile_byod":
+              return m.dlpScopeSelectMobileByod;
+            case "android_byod":
+              return m.dlpScopeSelectAndroidByod;
+            case "ios_byod":
+              return m.dlpScopeSelectIosByod;
+            case "android_all":
+              return m.dlpScopeSelectAndroidAll;
+            case "ios_all":
+              return m.dlpScopeSelectIosAll;
+          }
+        };
+
+        const handleCopyCel = (key: string, value: string) => {
+          void navigator.clipboard?.writeText(value);
+          setCopiedCelKey(key);
+          setTimeout(() => {
+            setCopiedCelKey((prev) => (prev === key ? "" : prev));
+          }, 2000);
+        };
+
+        return (
+          <div className="cep-manual-cel-card" role="region" aria-label={m.manualCelGuideTitle}>
+            <div className="cep-manual-cel-head">
+              <h4>📋 {m.manualCelGuideTitle}</h4>
+              <p>{m.manualCelGuideSubtitle}</p>
+            </div>
+            <div className="cep-manual-cel-steps">
+              <div className="cep-manual-cel-step">
+                <strong>{m.manualCelStep1Title}</strong>
+                <p>{m.manualCelStep1Desc}</p>
+                <a
+                  className="cep-license-link"
+                  href="https://admin.google.com/ac/caa/levels"
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  {m.manualCelStep1LinkLabel} ↗
+                </a>
+              </div>
+              <div className="cep-manual-cel-step">
+                <strong>{m.manualCelStep2Title}</strong>
+                <p>{m.manualCelStep2Desc}</p>
+                <a
+                  className="cep-license-link"
+                  href="https://admin.google.com/ac/dp"
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  {m.manualCelStep2LinkLabel} ↗
+                </a>
+              </div>
+            </div>
+            <div className="cep-manual-cel-list">
+              {entriesToShow.map((entry) => {
+                const accessKey = `access-${entry.levelName}`;
+                const dlpKey = `dlp-${entry.levelName}`;
+                return (
+                  <div className="cep-manual-cel-item" key={entry.levelName}>
+                    <div className="cep-manual-cel-item-header">
+                      <strong>{scopeLabelFor(entry.scope)}</strong>
+                      <code className="cep-manual-cel-level-badge">{entry.levelName}</code>
+                    </div>
+                    <div className="cep-manual-cel-code-block">
+                      <div className="cep-manual-cel-code-label">
+                        <span>{m.manualCelAccessLevelExprCol}</span>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => handleCopyCel(accessKey, entry.accessLevelCel)}
+                          type="button"
+                        >
+                          {copiedCelKey === accessKey ? m.manualCelCopiedBtn : m.manualCelCopyBtn}
+                        </button>
+                      </div>
+                      <pre className="cep-manual-cel-pre">
+                        <code>{entry.accessLevelCel}</code>
+                      </pre>
+                    </div>
+                    <div className="cep-manual-cel-code-block">
+                      <div className="cep-manual-cel-code-label">
+                        <span>{m.manualCelDlpConditionCol}</span>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => handleCopyCel(dlpKey, entry.dlpConditionCel)}
+                          type="button"
+                        >
+                          {copiedCelKey === dlpKey ? m.manualCelCopiedBtn : m.manualCelCopyBtn}
+                        </button>
+                      </div>
+                      <pre className="cep-manual-cel-pre">
+                        <code>{entry.dlpConditionCel}</code>
+                      </pre>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

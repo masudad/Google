@@ -1126,6 +1126,21 @@ export interface CepDeployerMessages {
   httpHeadersValueLabel: string;
   httpHeadersBoxNote: string;
   httpHeadersM365ContextLabel: string;
+  manualCelGuideTitle: string;
+  manualCelGuideSubtitle: string;
+  manualCelStep1Title: string;
+  manualCelStep1Desc: string;
+  manualCelStep1LinkLabel: string;
+  manualCelStep2Title: string;
+  manualCelStep2Desc: string;
+  manualCelStep2LinkLabel: string;
+  manualCelLevelCol: string;
+  manualCelAccessLevelExprCol: string;
+  manualCelDlpConditionCol: string;
+  manualCelCopyBtn: string;
+  manualCelCopiedBtn: string;
+  manualCelToggleShowBtn: string;
+  manualCelToggleHideBtn: string;
 }
 
 function friendlyDiagnosticTarget(raw: string, locale: Locale): string {
@@ -3880,6 +3895,24 @@ const en: Messages = {
     assessSelectedCountSuffix: "selected",
     dlpRegionJapanLabel: "Japan · My Number / Bank Account",
     dlpPresetsLabel: "Presets:",
+    manualCelGuideTitle: "Manual CEL Setup Guide Without Cloud Project ID",
+    manualCelGuideSubtitle:
+      "When no Google Cloud Project ID is provided, automated API creation of Context-Aware Access levels is skipped. Copy the CEL expressions below into Google Admin Console to configure the same device posture and DLP conditions manually.",
+    manualCelStep1Title: "Step 1: Create Access Level in Google Admin Console",
+    manualCelStep1Desc:
+      "Open Context-Aware Access in Admin Console, click Create access level, switch to Advanced mode, and paste the level name and CEL expression below.",
+    manualCelStep1LinkLabel: "Open Admin Console: Context-Aware Access",
+    manualCelStep2Title: "Step 2: Bind Access Level in Data Protection Rules",
+    manualCelStep2Desc:
+      "Open Data Protection rules in Admin Console and select the Access Level created in Step 1 under the rule's context conditions.",
+    manualCelStep2LinkLabel: "Open Admin Console: Data Protection Rules",
+    manualCelLevelCol: "Target Scope / Access Level Name",
+    manualCelAccessLevelExprCol: "Access Level CEL Expression · Advanced Mode",
+    manualCelDlpConditionCol: "DLP Rule contextCondition Expression",
+    manualCelCopyBtn: "Copy CEL",
+    manualCelCopiedBtn: "✓ Copied",
+    manualCelToggleShowBtn: "Show Manual CEL Expressions & Setup Guide",
+    manualCelToggleHideBtn: "Hide Manual Setup Guide",
   },
 };
 
@@ -6293,6 +6326,24 @@ const ja: Messages = {
     assessSelectedCountSuffix: "項目反映",
     dlpRegionJapanLabel: "Japan · マイナンバー / 銀行口座",
     dlpPresetsLabel: "プリセット:",
+    manualCelGuideTitle: "Cloud Project ID 未設定時の手動 CEL 設定ガイド",
+    manualCelGuideSubtitle:
+      "Google Cloud プロジェクト ID を指定しない場合、Context-Aware Access レベルの API 自動作成はスキップされます。以下の CEL 式をコピーして Google 管理コンソールへ貼り付けることで、同一の端末分離と DLP 条件を手動で設定できます。",
+    manualCelStep1Title: "手順 1: Google 管理コンソールでアクセスレベルを作成",
+    manualCelStep1Desc:
+      "管理コンソールの Context-Aware Access 画面を開き、［アクセスレベルを作成］から［詳細モード］を選択して、以下のレベル名と CEL 式を貼り付けます。",
+    manualCelStep1LinkLabel: "管理コンソール: アクセスレベル設定を開く",
+    manualCelStep2Title: "手順 2: データ保護ルールにアクセスレベルを紐付け",
+    manualCelStep2Desc:
+      "管理コンソールのデータ保護ルール画面を開き、対象ルールのコンテキスト条件で手順 1 のアクセスレベルを選択します。",
+    manualCelStep2LinkLabel: "管理コンソール: データ保護ルールを開く",
+    manualCelLevelCol: "対象スコープ / アクセスレベル名",
+    manualCelAccessLevelExprCol: "アクセスレベル CEL 式 · 詳細モード貼り付け用",
+    manualCelDlpConditionCol: "DLP ルール contextCondition 式",
+    manualCelCopyBtn: "CEL をコピー",
+    manualCelCopiedBtn: "✓ コピー済み",
+    manualCelToggleShowBtn: "手動設定用の CEL 式と手順を表示",
+    manualCelToggleHideBtn: "手動設定ガイドを閉じる",
   },
 };
 

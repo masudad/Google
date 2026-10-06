@@ -5358,7 +5358,7 @@ for (const mode of ["412-commit", "503-commit", "response-loss-commit"] as const
     .filter((c) => c.method === "POST" && c.url.includes("cloudidentity.googleapis.com"))
     .map((c) => (c.body?.setting as { value?: Record<string, unknown> } | undefined)?.value ?? {});
   const findDlpValue = (name: string) => dlpPosts.find((v) => v.displayName === name);
-  const uploadByodRule = findDlpValue("CEP PoC - All file uploads");
+  const uploadByodRule = findDlpValue("CEP PoC - Universal file upload protection - upload");
   const paymentCorpRule = findDlpValue("CEP PoC - Payment card numbers - upload");
   const androidUploadRule = findDlpValue("CEP PoC - Android BYOD access control - upload");
   const iosPasteRule = findDlpValue("CEP PoC - iOS BYOD access control - paste");
@@ -5366,9 +5366,9 @@ for (const mode of ["412-commit", "503-commit", "response-loss-commit"] as const
     "AUTO_CREATE_CORP_OWNED + per-rule deviceScope and Android/iOS BYOD rows create ACM access levels and emit exact contextCondition expressions",
     byodMobileRes.success === true &&
       (uploadByodRule?.condition as { contextCondition?: string } | undefined)?.contextCondition ===
-        "!access_levels.meets_access_requirements(['accessPolicies/999/accessLevels/secgw_corp_owned_device'])" &&
+        "!access_levels.meets_access_requirements(['accessPolicies/999/accessLevels/secgw_corp_owned'])" &&
       (paymentCorpRule?.condition as { contextCondition?: string } | undefined)?.contextCondition ===
-        "access_levels.meets_access_requirements(['accessPolicies/999/accessLevels/secgw_corp_owned_device'])" &&
+        "access_levels.meets_access_requirements(['accessPolicies/999/accessLevels/secgw_corp_owned'])" &&
       (androidUploadRule?.condition as { contextCondition?: string } | undefined)?.contextCondition ===
         "access_levels.meets_access_requirements(['accessPolicies/999/accessLevels/secgw_android_byod'])" &&
       (iosPasteRule?.condition as { contextCondition?: string } | undefined)?.contextCondition ===
@@ -5407,6 +5407,56 @@ for (const mode of ["412-commit", "503-commit", "response-loss-commit"] as const
         s.includes('Deleted DLP rule "CEP PoC - iOS BYOD access control - paste"'),
       ),
     JSON.stringify(byodMobileRollbackRes),
+  );
+
+  // When project_id is empty, resolveAccessLevel and ensureRules emit manual Admin Console steps
+  // and ready-to-copy CEL expressions in skipped_items while still creating unscoped DLP rules.
+  const { transport: noProjectCelTransport } = stubTransport();
+  const noProjectCelRes = (await route(
+    context(noProjectCelTransport, "999"),
+    "POST",
+    "/api/v1/cep/provision",
+    {
+      ...DLP_CONFIG,
+      project_id: "",
+      access_level: "AUTO_CREATE_CORP_OWNED",
+      internal_urls: [],
+      dlp_matrix: {
+        universal_upload: { upload: "blockContent", deviceScope: "byod_only", byodOnly: true },
+        payment_card: { upload: "warnUser", paste: "off", print: "off", deviceScope: "all", byodOnly: false },
+        android_byod: { upload: "blockContent", download: "off", paste: "off", print: "off", deviceScope: "android_byod", byodOnly: true },
+        ios_byod: { upload: "off", download: "off", paste: "warnUser", print: "off", deviceScope: "ios_byod", byodOnly: true },
+      },
+    },
+  )) as ProvisionResult;
+  check(
+    "empty project_id outputs manual Admin Console instructions and CEL expressions in skipped_items while creating unscoped DLP rules",
+    noProjectCelRes.success === true &&
+      noProjectCelRes.created_items.some((s) =>
+        s.includes("CEP PoC - Payment card numbers - upload"),
+      ) &&
+      noProjectCelRes.skipped_items.some(
+        (s) =>
+          s.includes("creating a level needs a Google Cloud project") &&
+          s.includes("https://admin.google.com/ac/caa/levels") &&
+          s.includes("device.is_corp_owned_device == true"),
+      ) &&
+      noProjectCelRes.skipped_items.some(
+        (s) =>
+          s.includes("access_levels.meets_access_requirements(['accessPolicies/<POLICY_ID>/accessLevels/secgw_byod_devices'])") &&
+          s.includes("https://admin.google.com/ac/dp"),
+      ) &&
+      noProjectCelRes.skipped_items.some(
+        (s) =>
+          s.includes("access_levels.meets_access_requirements(['accessPolicies/<POLICY_ID>/accessLevels/secgw_android_byod'])") &&
+          s.includes("device.os_type == OsType.ANDROID && device.is_corp_owned_device == false"),
+      ) &&
+      noProjectCelRes.skipped_items.some(
+        (s) =>
+          s.includes("access_levels.meets_access_requirements(['accessPolicies/<POLICY_ID>/accessLevels/secgw_ios_byod'])") &&
+          s.includes("device.os_type == OsType.IOS && device.is_corp_owned_device == false"),
+      ),
+    JSON.stringify(noProjectCelRes),
   );
 }
 

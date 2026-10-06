@@ -2378,14 +2378,14 @@ export class CepProvider {
       return selection !== "" && selection !== "NONE";
     }
 
+    const kind = selectionToAccessLevelKind(selection) ?? "profile";
     if (!context.projectId) {
+      const spec = MANAGED_CHROME_ACCESS_LEVEL_SPECS[kind];
       skipped.push(
-        "Context-Aware Access: creating a level needs a Google Cloud project. Pick an existing access level instead, or set a project on the setup screen.",
+        `Context-Aware Access: creating a level needs a Google Cloud project. Pick an existing access level instead, or set a project on the setup screen. Manual Admin Console setup: open https://admin.google.com/ac/caa/levels -> Create access level -> Custom mode (CEL), name "${spec.suffix}" (${spec.title}), and paste CEL: ${spec.expression}`,
       );
       return false;
     }
-
-    const kind = selectionToAccessLevelKind(selection) ?? "profile";
     try {
       const ensured = await ensureManagedChromeAccessLevelDetailed(
         this.cloudTransport,
@@ -3122,24 +3122,35 @@ export class CepProvider {
       }
 
       if (this.resolveRuleContextCondition(id, rule, context) === null) {
-        failed = true;
+        if (context.projectId) {
+          failed = true;
+        }
+        const manualKind =
+          deviceScopeToAccessLevelKind(scope === "all" ? "byod_only" : scope) ?? "byod";
+        const spec = MANAGED_CHROME_ACCESS_LEVEL_SPECS[manualKind];
+        const manualGuide = !context.projectId
+          ? ` — Manual setup (no Cloud Project ID): create Access Level "${spec.suffix}" at https://admin.google.com/ac/caa/levels (Custom mode CEL) with expression: ${spec.expression} , then bind it in Data protection rules at https://admin.google.com/ac/dp with contextCondition: access_levels.meets_access_requirements(['accessPolicies/<POLICY_ID>/accessLevels/${spec.suffix}'])`
+          : "";
         if (id === "access_level") {
           skipped.push(
-            "DLP unmanaged/BYOD rule: not created because no Access Level is selected in Setup wizard (access-level CEL)",
+            `DLP unmanaged/BYOD rule: not created because no Access Level is selected in Setup wizard (access-level CEL)${manualGuide}`,
           );
         } else if (scope === "byod_only") {
           skipped.push(
-            `DLP ${id} BYOD scope: not created because no Access Level is selected in Setup wizard (access-level CEL)`,
+            `DLP ${id} BYOD scope: not created because no Access Level is selected in Setup wizard (access-level CEL)${manualGuide}`,
           );
         } else {
           skipped.push(
-            `DLP ${id} (${scope}) scope: not created because no Access Level could be resolved in Setup wizard (access-level CEL)`,
+            `DLP ${id} (${scope}) scope: not created because no Access Level could be resolved in Setup wizard (access-level CEL)${manualGuide}`,
           );
         }
       }
     }
 
     const rules = this.dlpRules(context);
+    if (rules.length === 0 && skipped.some((s) => s.includes("access-level CEL"))) {
+      failed = true;
+    }
     for (const rule of rules) {
       if (rule.requires === "internalUrls" && context.internalUrls.length === 0) {
         skipped.push(`Rule "${rule.displayName}": needs at least one internal URL prefix`);
