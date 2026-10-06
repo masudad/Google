@@ -3753,9 +3753,69 @@ cat >/var/www/html/index.html <<'EOF'
     color: var(--muted);
     display: block;
   }}
+  .node-ip {{
+    margin-top: 6px;
+    padding: 3px 6px;
+    border-radius: 4px;
+    background: #f1f3f4;
+    color: #202124;
+    font-family: monospace;
+    font-size: 10px;
+    font-weight: 600;
+    display: block;
+    word-break: break-all;
+  }}
+  .step-node.current .node-ip {{
+    background: #d2e3fc;
+    color: #174ea6;
+  }}
   .flow-arrow {{
     color: var(--muted);
     font-size: 16px;
+  }}
+  .ip-map-list {{
+    margin: 14px 0 0 0;
+    padding: 12px 14px;
+    background: #ffffff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    list-style: none;
+    display: grid;
+    gap: 8px;
+    font-size: 12px;
+  }}
+  .ip-map-list li {{
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px;
+    line-height: 1.5;
+  }}
+  .ip-step-badge {{
+    display: inline-block;
+    background: #e8f0fe;
+    color: #1a73e8;
+    font-weight: 600;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 12px;
+  }}
+  .ip-code {{
+    font-family: monospace;
+    font-weight: 600;
+    color: #202124;
+    background: #f1f3f4;
+    padding: 1px 6px;
+    border-radius: 4px;
+  }}
+  .field-role {{
+    display: block;
+    margin-top: 3px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI',
+      Roboto, Helvetica, Arial, sans-serif;
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.4;
   }}
   .grid {{
     display: grid;
@@ -3820,28 +3880,50 @@ cat >/var/www/html/index.html <<'EOF'
       <div class="step-node active">
         <span class="node-label">1. Client Browser</span>
         <span class="node-detail">Managed Chrome</span>
+        <span class="node-ip">Host: <!--#echo var="http_host" default="sgsx-backend" --></span>
       </div>
       <span class="flow-arrow">➔</span>
       <div class="step-node active">
         <span class="node-label">2. Secure Web Gateway</span>
         <span class="node-detail">Cloud SWG Proxy</span>
+        <span class="node-ip">Zero-Trust 認可</span>
       </div>
       <span class="flow-arrow">➔</span>
       <div class="step-node active">
         <span class="node-label">3. Cloud ILB / PSC</span>
-        <span class="node-detail">Gateway Forwarding</span>
+        <span class="node-detail">Gateway VPC Egress</span>
+        <span class="node-ip">XFF: <!--#echo var="http_x_forwarded_for" default="None" --></span>
       </div>
       <span class="flow-arrow">➔</span>
       <div class="step-node active">
-        <span class="node-label">4. TLS Offload VM</span>
-        <span class="node-detail">Port 443 (Private CA)</span>
+        <span class="node-label">4. TLS Offload / ILB</span>
+        <span class="node-detail">Port 443 TLS終端</span>
+        <span class="node-ip">Peer: <!--#echo var="remote_addr" default="127.0.0.1" --></span>
       </div>
       <span class="flow-arrow">➔</span>
       <div class="step-node current">
         <span class="node-label">5. Sample Backend</span>
         <span class="node-detail">Port 80 (現在地)</span>
+        <span class="node-ip">Local: <!--#echo var="server_addr" default="Private IP" --></span>
       </div>
     </div>
+    <ul class="ip-map-list">
+      <li>
+        <span class="ip-step-badge">経路 1〜3: X-Forwarded-For</span>
+        <span class="ip-code"><!--#echo var="http_x_forwarded_for" default="None" --></span>
+        <span>クライアントまたは Secure Web Gateway / PSC から TLS終端プロキシへ届いた上流転送元IP</span>
+      </li>
+      <li>
+        <span class="ip-step-badge">経路 4: Direct Peer IP</span>
+        <span class="ip-code"><!--#echo var="remote_addr" default="127.0.0.1" --></span>
+        <span>TLS Port 443 を終端し、このバックエンドVMへ直接HTTP接続した直前のプロキシ内部IP [TLS Offload VM または Internal ALB プロキシサブネット]</span>
+      </li>
+      <li>
+        <span class="ip-step-badge">経路 5: Local Server IP</span>
+        <span class="ip-code"><!--#echo var="server_addr" default="Private IP" --></span>
+        <span>リクエストを受信しているこの Sample Backend VM 自身の VPC プライベートIP [現在地]</span>
+      </li>
+    </ul>
   </div>
 
   <div class="grid">
@@ -3850,11 +3932,17 @@ cat >/var/www/html/index.html <<'EOF'
       <table class="data-table">
         <tr>
           <th>Direct Peer IP</th>
-          <td><!--#echo var="remote_addr" default="127.0.0.1" --></td>
+          <td>
+            <!--#echo var="remote_addr" default="127.0.0.1" -->
+            <span class="field-role">経路 4: TLS Offload VM / Internal ALB プロキシのVPC内部IP</span>
+          </td>
         </tr>
         <tr>
           <th>X-Forwarded-For</th>
-          <td><!--#echo var="http_x_forwarded_for" default="None" --></td>
+          <td>
+            <!--#echo var="http_x_forwarded_for" default="None" -->
+            <span class="field-role">経路 1〜3: クライアント / Secure Web Gateway 転送元IP</span>
+          </td>
         </tr>
         <tr>
           <th>Forwarded Proto</th>
@@ -3880,11 +3968,17 @@ cat >/var/www/html/index.html <<'EOF'
         </tr>
         <tr>
           <th>Target Hostname</th>
-          <td><!--#echo var="http_host" default="sgsx-backend" --></td>
+          <td>
+            <!--#echo var="http_host" default="sgsx-backend" -->
+            <span class="field-role">経路 1→2: ブラウザが要求しSWGが解決したプライベートホスト名</span>
+          </td>
         </tr>
         <tr>
           <th>Local Server IP</th>
-          <td><!--#echo var="server_addr" default="Private IP" --></td>
+          <td>
+            <!--#echo var="server_addr" default="Private IP" -->
+            <span class="field-role">経路 5: このSample Backend VM自身のVPCプライベートIP</span>
+          </td>
         </tr>
       </table>
     </div>
@@ -4049,6 +4143,7 @@ server {{
     proxy_read_timeout 30s;
     proxy_set_header Host $host;
     proxy_set_header Connection "";
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto https;
     proxy_set_header X-Request-ID $request_id;
   }}

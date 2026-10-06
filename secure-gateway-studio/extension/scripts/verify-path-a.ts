@@ -118,6 +118,14 @@ check(
     productionBackendScript.includes("command -v python3") &&
     productionBackendScript.includes("command -v nginx"),
 );
+check(
+  "Sample backend HTML maps each displayed IP address to its hop in the architecture traversal path",
+  productionBackendScript.includes("経路 1〜3: X-Forwarded-For") &&
+    productionBackendScript.includes("経路 4: Direct Peer IP") &&
+    productionBackendScript.includes("経路 5: Local Server IP") &&
+    productionBackendScript.includes('Peer: <!--#echo var="remote_addr"') &&
+    productionBackendScript.includes('Local: <!--#echo var="server_addr"'),
+);
 
 const REQUEST_ID = "123e4567-e89b-42d3-a456-426614174000";
 const SOURCE_IMAGE_BINDING = {
