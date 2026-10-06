@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Messages } from "../../i18n/messages";
-import type { CepDlpMatrixState } from "../../lib/api";
+import type { CepDataBoundaryMode, CepDlpMatrixState } from "../../lib/api";
 import {
   CheckCircleIcon,
   ShieldIcon,
@@ -13,6 +13,7 @@ export interface RecommendedPolicyConfig {
   connectors: boolean;
   accessLevel: string;
   dlpRules: boolean;
+  dataBoundaryMode: CepDataBoundaryMode;
   autoSubOus: boolean;
   dlpMatrix: CepDlpMatrixState;
   geminiEnforceAccessLevel: boolean;
@@ -295,6 +296,11 @@ export function SecurityAssessmentModal({
           : "NONE",
       dlpRules:
         has("genai_paste") || has("pii_dlp") || has("print_watermark") || has("casb_cost"),
+      dataBoundaryMode: has("genai_paste")
+        ? "copy_paste"
+        : hasAny
+          ? "block_non_corp"
+          : "none",
       autoSubOus: hasAny,
       dlpMatrix: matrix,
       geminiEnforceAccessLevel: has("genai_paste") || has("saas_auth"),

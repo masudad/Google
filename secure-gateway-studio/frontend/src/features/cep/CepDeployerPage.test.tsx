@@ -852,6 +852,46 @@ describe("CepDeployerPage", () => {
     expect(pickers[0]).toHaveValue("03ceppoc");
     expect(screen.getByText(m.pilotOuCreatedBanner("/CEP-PoC"))).toBeInTheDocument();
   });
+
+  it("includes personal account blocking (data_boundary_mode: block_non_corp) in Personal Account and Endpoint presets", async () => {
+    const provision = vi.spyOn(api, "provisionCepPolicies").mockResolvedValue(emptyResult());
+    renderPage();
+    await selectPilotOu();
+
+    // Select the dedicated "個人アカウントのブロック" preset
+    fireEvent.click(screen.getByText(m.presetPersonalAccount));
+    fireEvent.click(screen.getByText(m.btnDeploy));
+
+    await waitFor(() => {
+      expect(provision).toHaveBeenCalledTimes(1);
+    });
+    expect(provision.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        core_policies: true,
+        force_extensions: false,
+        connectors: false,
+        dlp_rules: false,
+        data_boundary_mode: "block_non_corp",
+      }),
+    );
+
+    // Select the "端末ハードニング" preset
+    fireEvent.click(screen.getByText(m.presetEndpoint));
+    fireEvent.click(screen.getByText(m.btnDeploy));
+
+    await waitFor(() => {
+      expect(provision).toHaveBeenCalledTimes(2);
+    });
+    expect(provision.mock.calls[1]?.[0]).toEqual(
+      expect.objectContaining({
+        core_policies: true,
+        force_extensions: true,
+        connectors: true,
+        dlp_rules: false,
+        data_boundary_mode: "block_non_corp",
+      }),
+    );
+  });
 });
 
 

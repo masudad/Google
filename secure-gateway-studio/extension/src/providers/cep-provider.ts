@@ -1111,9 +1111,6 @@ const CEP_POLICIES: readonly CepPolicyDefinition[] = [
     // `chrome.users.SecondaryGoogleAccountSignin` paired with
     // `secondaryGoogleAccountSigninAllowed = "TRUE"`.
     schemaMatcher: /SecondaryGoogleAccountSignin|AllowedDomainsForApps/i,
-    // RestrictAccountsToPatterns only applies on Android/iOS. This policy is
-    // supported by managed Chrome on desktop and ChromeOS, which are also in
-    // this product's advertised platform boundary.
     appliesTo: (config) =>
       config.data_boundary_mode === "copy_paste" ||
       config.data_boundary_mode === "block_non_corp",
@@ -1127,6 +1124,91 @@ const CEP_POLICIES: readonly CepPolicyDefinition[] = [
         optional: true,
       },
       { name: /allowedDomainsForApps/i, value: (c) => c.primaryDomain },
+    ],
+  },
+  {
+    module: "dataBoundary",
+    ou: "users",
+    label: "Restrict mobile Google accounts to pattern (RestrictAccountsToPatterns)",
+    schema: "chrome.users.RestrictAccountsToPatterns",
+    schemaMatcher: /RestrictAccountsToPatterns/i,
+    appliesTo: (config) =>
+      config.data_boundary_mode === "copy_paste" ||
+      config.data_boundary_mode === "block_non_corp",
+    requires: requiresDomain,
+    fields: [
+      {
+        name: /^restrictAccountsToPatterns$/i,
+        value: (c) => `*@${c.primaryDomain}`,
+      },
+    ],
+  },
+  {
+    module: "dataBoundary",
+    ou: "users",
+    label: "Restrict Chrome profile sign-in to corporate domain (RestrictSigninToPattern)",
+    schema: "chrome.users.RestrictSigninToPattern",
+    schemaMatcher: /RestrictSigninToPattern/i,
+    appliesTo: (config) =>
+      config.data_boundary_mode === "copy_paste" ||
+      config.data_boundary_mode === "block_non_corp",
+    requires: requiresDomain,
+    fields: [
+      {
+        name: /^restrictSigninToPattern$/i,
+        value: (c) => `.*@${c.primaryDomain!.replace(/\./g, "\\.")}$`,
+      },
+    ],
+  },
+  {
+    module: "dataBoundary",
+    ou: "users",
+    label: "Force Chrome browser sign-in (BrowserSignin)",
+    schema: "chrome.users.BrowserSignin",
+    schemaMatcher: /\.BrowserSignin$/i,
+    appliesTo: (config) =>
+      config.data_boundary_mode === "copy_paste" ||
+      config.data_boundary_mode === "block_non_corp",
+    fields: [
+      {
+        name: /^browserSignin$/i,
+        enumHint: { prefer: /FORCE/i, avoid: /UNSPECIFIED|DISABLE|ENABLE/i },
+        value: () => "BROWSER_SIGNIN_MODE_ENUM_FORCE",
+      },
+    ],
+  },
+  {
+    module: "dataBoundary",
+    ou: "users",
+    label: "Disable Chrome guest mode (BrowserGuestModeEnabled)",
+    schema: "chrome.users.BrowserGuestModeEnabled",
+    schemaMatcher: /BrowserGuestModeEnabled/i,
+    appliesTo: (config) =>
+      config.data_boundary_mode === "copy_paste" ||
+      config.data_boundary_mode === "block_non_corp",
+    fields: [
+      {
+        name: /^browserGuestModeEnabled$/i,
+        enumHint: { prefer: /FALSE|DISABLE/i, avoid: /UNSPECIFIED|TRUE|ENABLE/i },
+        value: () => false,
+      },
+    ],
+  },
+  {
+    module: "dataBoundary",
+    ou: "users",
+    label: "Disable Chrome incognito mode (IncognitoModeAvailability)",
+    schema: "chrome.users.IncognitoModeAvailability",
+    schemaMatcher: /IncognitoModeAvailability/i,
+    appliesTo: (config) =>
+      config.data_boundary_mode === "copy_paste" ||
+      config.data_boundary_mode === "block_non_corp",
+    fields: [
+      {
+        name: /^incognitoModeAvailability$/i,
+        enumHint: { prefer: /UNAVAILABLE|DISABLED|DISALLOW/i, avoid: /UNSPECIFIED|(?:^|_)AVAILABLE$|FORCED/i },
+        value: () => "INCOGNITO_MODE_AVAILABILITY_ENUM_UNAVAILABLE",
+      },
     ],
   },
   {

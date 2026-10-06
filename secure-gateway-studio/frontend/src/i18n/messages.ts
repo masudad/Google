@@ -722,6 +722,8 @@ export interface CepDeployerMessages {
   presetFullPocDesc: string;
   presetAiProtection: string;
   presetAiProtectionDesc: string;
+  presetPersonalAccount: string;
+  presetPersonalAccountDesc: string;
   presetEndpoint: string;
   presetEndpointDesc: string;
   presetAudit: string;
@@ -3339,13 +3341,16 @@ const en: Messages = {
       "Select a baseline preset and adjust individual modules below.",
     presetFullPoc: "Full evaluation",
     presetFullPocDesc:
-      "All modules: threat protection, content inspection, reporting, posture signals, and paste boundaries.",
+      "All modules: threat protection, content inspection, reporting, posture signals, paste inspection, and personal account blocking.",
     presetAiProtection: "Generative AI and data leaks",
     presetAiProtectionDesc:
-      "Paste and upload inspection for external AI tools plus non-corporate account blocking.",
+      "Paste and upload inspection for external AI tools plus personal account blocking.",
+    presetPersonalAccount: "Block personal Google accounts",
+    presetPersonalAccountDesc:
+      "Enforces AllowedDomainsForApps, RestrictAccountsToPatterns, RestrictSigninToPattern, BrowserSignin, and disables Guest and Incognito modes.",
     presetEndpoint: "Endpoint hardening",
     presetEndpointDesc:
-      "Enhanced Safe Browsing, real-time URL checks, Endpoint Verification, and Context-Aware Access.",
+      "Enhanced Safe Browsing, real-time URL checks, Endpoint Verification, Context-Aware Access, and personal account blocking.",
     presetAudit: "Visibility and warnings",
     presetAuditDesc: "Reporting and warning-only Chrome DLP rules without blocking.",
     modulesTitle: "3. Policy modules",
@@ -3399,12 +3404,12 @@ const en: Messages = {
     dlpNoticeByodDesc: "BYOD rows use CEL !access_levels.meets_access_requirements(['<ACCESS_LEVEL>']) to target unmanaged devices.",
     activePresetBadge: "Active",
     dataBoundaryModeTitle: "Data boundary",
-    dataBoundaryModeCopyPaste: "Inspect pasted content",
+    dataBoundaryModeCopyPaste: "Inspect pasted content + block personal accounts",
     dataBoundaryModeCopyPasteDesc:
-      "Inspects pasted text and restricts Google apps to your primary domain.",
-    dataBoundaryModeBlockNonCorp: "Block non-corporate Google accounts",
+      "Inspects pasted text and enforces AllowedDomainsForApps, RestrictAccountsToPatterns, RestrictSigninToPattern, BrowserSignin, and Guest/Incognito blocking.",
+    dataBoundaryModeBlockNonCorp: "Block non-corporate / personal Google accounts",
     dataBoundaryModeBlockNonCorpDesc:
-      "Restricts Google apps to your primary domain and blocks personal Gmail sign-ins.",
+      "Enforces AllowedDomainsForApps, RestrictAccountsToPatterns, RestrictSigninToPattern, BrowserSignin, and disables Guest and Incognito modes.",
     dataBoundaryModeNone: "None",
     dataBoundaryModeNoneDesc:
       "Inherit clipboard and account settings from the parent OU.",
@@ -5720,13 +5725,16 @@ const ja: Messages = {
     presetsSubtitle: "評価パターンの出発点を選択し、下のモジュールで調整します。",
     presetFullPoc: "フル評価",
     presetFullPocDesc:
-      "脅威対策、コンテンツ検査、レポート、端末シグナル、貼り付け制御を一括で有効化します。",
+      "脅威対策、コンテンツ検査、レポート、端末シグナル、貼り付け検査、個人アカウントのブロックを一括で有効化します。",
     presetAiProtection: "生成 AI とデータ漏えい対策",
     presetAiProtectionDesc:
-      "外部AIツールへの貼り付け・アップロード検査と、非社用アカウントの遮断を有効化します。",
+      "外部AIツールへの貼り付け・アップロード検査と、個人Googleアカウントのブロックを有効化します。",
+    presetPersonalAccount: "個人アカウントのブロック",
+    presetPersonalAccountDesc:
+      "AllowedDomainsForApps、RestrictAccountsToPatterns、RestrictSigninToPattern、BrowserSignin、ゲスト・シークレットモード禁止を一括設定します。",
     presetEndpoint: "端末ハードニング",
     presetEndpointDesc:
-      "強化セーフブラウジング、リアルタイムURL検査、Endpoint Verification、アクセス制御を有効化します。",
+      "強化セーフブラウジング、リアルタイムURL検査、Endpoint Verification、アクセス制御、個人アカウントのブロックを有効化します。",
     presetAudit: "可視化・警告",
     presetAuditDesc: "レポートと警告のみのDLPルールを適用し、遮断は行いません。",
     modulesTitle: "3. ポリシーモジュール",
@@ -5780,12 +5788,12 @@ const ja: Messages = {
     dlpNoticeByodDesc: "アクセスレベル連動に設定した行は CEL 条件式 !access_levels.meets_access_requirements を使用し、未管理端末のみにDLP制御を適用します。",
     activePresetBadge: "選択中",
     dataBoundaryModeTitle: "データ境界",
-    dataBoundaryModeCopyPaste: "貼り付け内容を検査する",
+    dataBoundaryModeCopyPaste: "貼り付け内容を検査する ＋ 個人アカウントをブロック",
     dataBoundaryModeCopyPasteDesc:
-      "貼り付けテキストを検査し、Googleアプリでは自社ドメインのアカウントのみを許可します。",
-    dataBoundaryModeBlockNonCorp: "非社用の Google アカウントを遮断する",
+      "貼り付けテキストを検査し、AllowedDomainsForApps、RestrictAccountsToPatterns、RestrictSigninToPattern、BrowserSignin、ゲスト・シークレットモード禁止を設定します。",
+    dataBoundaryModeBlockNonCorp: "個人・非社用の Google アカウントを遮断する",
     dataBoundaryModeBlockNonCorpDesc:
-      "Googleアプリで自社ドメインのみを許可し、個人Gmailへのログインを遮断します。",
+      "AllowedDomainsForApps、RestrictAccountsToPatterns、RestrictSigninToPattern、BrowserSignin、ゲスト・シークレットモード禁止を一括設定します。",
     dataBoundaryModeNone: "なし",
     dataBoundaryModeNoneDesc:
       "親OUの設定をそのまま継承します。",

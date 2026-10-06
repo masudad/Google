@@ -81,7 +81,7 @@ const DLP_REGIONS: Array<{ value: string; label: string }> = [
   { value: "IN", label: "India" },
 ];
 
-type PresetName = "full" | "ai" | "endpoint" | "audit";
+type PresetName = "full" | "ai" | "personal_account" | "endpoint" | "audit";
 
 /**
  * Sentinels the worker understands, shared with the deployment wizard's access
@@ -116,6 +116,16 @@ const PRESETS: Record<PresetName, ModuleState> = {
     dlpRegion: "JP",
     dataBoundaryMode: "block_non_corp",
   },
+  personal_account: {
+    corePolicies: true,
+    forceExtensions: false,
+    connectors: false,
+    accessLevel: ACCESS_LEVEL_NONE,
+    dlpDetectors: false,
+    dlpRules: false,
+    dlpRegion: "JP",
+    dataBoundaryMode: "block_non_corp",
+  },
   endpoint: {
     corePolicies: true,
     forceExtensions: true,
@@ -124,7 +134,7 @@ const PRESETS: Record<PresetName, ModuleState> = {
     dlpDetectors: false,
     dlpRules: false,
     dlpRegion: "JP",
-    dataBoundaryMode: "none",
+    dataBoundaryMode: "block_non_corp",
   },
   audit: {
     corePolicies: true,
@@ -144,6 +154,15 @@ const PRESET_MATRICES: Record<PresetName, CepDlpMatrixState> = {
     ...DEFAULT_DLP_MATRIX,
     genai_block: { ...DEFAULT_DLP_MATRIX.genai_block, paste: "blockContent", upload: "blockContent" },
     national_id: { ...DEFAULT_DLP_MATRIX.national_id, paste: "warnUser" },
+  },
+  personal_account: {
+    universal_upload: { upload: "off" },
+    universal_download: { download: "off" },
+    payment_card: { upload: "off", paste: "off" },
+    national_id: { upload: "off", paste: "off" },
+    access_level: { upload: "off" },
+    watermark: { watermark: false },
+    genai_block: { paste: "off", upload: "off" },
   },
   endpoint: {
     universal_upload: { upload: "off" },
@@ -421,6 +440,7 @@ gcloud access-context-manager cloud-bindings create \\
       connectors: config.connectors,
       accessLevel: config.accessLevel,
       dlpRules: config.dlpRules,
+      dataBoundaryMode: config.dataBoundaryMode,
     }));
     setDlpMatrix(config.dlpMatrix);
     setAutoSubOus(config.autoSubOus);
@@ -1004,6 +1024,7 @@ gcloud access-context-manager cloud-bindings create \\
   const presets: Array<{ name: PresetName; label: string; description: string }> = [
     { name: "full", label: m.presetFullPoc, description: m.presetFullPocDesc },
     { name: "ai", label: m.presetAiProtection, description: m.presetAiProtectionDesc },
+    { name: "personal_account", label: m.presetPersonalAccount, description: m.presetPersonalAccountDesc },
     { name: "endpoint", label: m.presetEndpoint, description: m.presetEndpointDesc },
     { name: "audit", label: m.presetAudit, description: m.presetAuditDesc },
   ];

@@ -168,6 +168,39 @@ const SCHEMA_FIELDS: Record<string, StubField[]> = {
   "chrome.users.AllowedDomainsForApps": [
     { name: "allowedDomainsForApps", type: "TYPE_STRING" },
   ],
+  "chrome.users.RestrictAccountsToPatterns": [
+    { name: "restrictAccountsToPatterns", type: "TYPE_STRING", repeated: true },
+  ],
+  "chrome.users.RestrictSigninToPattern": [
+    { name: "restrictSigninToPattern", type: "TYPE_STRING" },
+  ],
+  "chrome.users.BrowserSignin": [
+    {
+      name: "browserSignin",
+      type: "TYPE_ENUM",
+      enums: [
+        "BROWSER_SIGNIN_MODE_ENUM_UNSPECIFIED",
+        "BROWSER_SIGNIN_MODE_ENUM_DISABLE",
+        "BROWSER_SIGNIN_MODE_ENUM_ENABLE",
+        "BROWSER_SIGNIN_MODE_ENUM_FORCE",
+      ],
+    },
+  ],
+  "chrome.users.BrowserGuestModeEnabled": [
+    { name: "browserGuestModeEnabled", type: "TYPE_BOOL" },
+  ],
+  "chrome.users.IncognitoModeAvailability": [
+    {
+      name: "incognitoModeAvailability",
+      type: "TYPE_ENUM",
+      enums: [
+        "INCOGNITO_MODE_AVAILABILITY_ENUM_UNSPECIFIED",
+        "INCOGNITO_MODE_AVAILABILITY_ENUM_AVAILABLE",
+        "INCOGNITO_MODE_AVAILABILITY_ENUM_UNAVAILABLE",
+        "INCOGNITO_MODE_AVAILABILITY_ENUM_FORCED",
+      ],
+    },
+  ],
   "chrome.users.HttpHeaderInjection": [
     { name: "httpHeaderInjection", type: "TYPE_MESSAGE" },
   ],
@@ -1013,9 +1046,8 @@ for (const [path, payload] of [
     String(triggerValue),
   );
 
-  // Regression: RestrictAccountsToPatterns only covers Android/iOS. The
-  // advertised desktop and ChromeOS boundary uses AllowedDomainsForApps and
-  // its value must be the primary domain, never the Workspace customer id.
+  // Personal account blocking sets AllowedDomainsForApps, RestrictAccountsToPatterns,
+  // RestrictSigninToPattern, BrowserSignin, BrowserGuestModeEnabled, and IncognitoModeAvailability.
   const restrict = requests.find(
     (request) =>
       (request.policyValue as { policySchema?: string }).policySchema ===
@@ -1028,6 +1060,76 @@ for (const [path, payload] of [
     "desktop and ChromeOS Google-app restrictions use the tenant's primary domain",
     allowedDomain === "example.com",
     JSON.stringify(allowedDomain),
+  );
+
+  const restrictMobile = requests.find(
+    (request) =>
+      (request.policyValue as { policySchema?: string }).policySchema ===
+      "chrome.users.RestrictAccountsToPatterns",
+  );
+  const restrictMobilePatterns = (
+    (restrictMobile?.policyValue as { value?: Record<string, unknown> })?.value ?? {}
+  ).restrictAccountsToPatterns;
+  check(
+    "RestrictAccountsToPatterns restricts mobile accounts to *@<primaryDomain>",
+    JSON.stringify(restrictMobilePatterns) === JSON.stringify(["*@example.com"]),
+    JSON.stringify(restrictMobilePatterns),
+  );
+
+  const restrictSignin = requests.find(
+    (request) =>
+      (request.policyValue as { policySchema?: string }).policySchema ===
+      "chrome.users.RestrictSigninToPattern",
+  );
+  const signinPattern = (
+    (restrictSignin?.policyValue as { value?: Record<string, unknown> })?.value ?? {}
+  ).restrictSigninToPattern;
+  check(
+    "RestrictSigninToPattern restricts Chrome profile sign-in to .*@<escapedPrimaryDomain>$",
+    signinPattern === ".*@example\\.com$",
+    JSON.stringify(signinPattern),
+  );
+
+  const browserSigninReq = requests.find(
+    (request) =>
+      (request.policyValue as { policySchema?: string }).policySchema ===
+      "chrome.users.BrowserSignin",
+  );
+  const browserSigninVal = (
+    (browserSigninReq?.policyValue as { value?: Record<string, unknown> })?.value ?? {}
+  ).browserSignin;
+  check(
+    "BrowserSignin forces Chrome browser sign-in (BROWSER_SIGNIN_MODE_ENUM_FORCE)",
+    browserSigninVal === "BROWSER_SIGNIN_MODE_ENUM_FORCE",
+    JSON.stringify(browserSigninVal),
+  );
+
+  const guestModeReq = requests.find(
+    (request) =>
+      (request.policyValue as { policySchema?: string }).policySchema ===
+      "chrome.users.BrowserGuestModeEnabled",
+  );
+  const guestModeVal = (
+    (guestModeReq?.policyValue as { value?: Record<string, unknown> })?.value ?? {}
+  ).browserGuestModeEnabled;
+  check(
+    "BrowserGuestModeEnabled disables guest browsing (false)",
+    guestModeVal === false,
+    JSON.stringify(guestModeVal),
+  );
+
+  const incognitoReq = requests.find(
+    (request) =>
+      (request.policyValue as { policySchema?: string }).policySchema ===
+      "chrome.users.IncognitoModeAvailability",
+  );
+  const incognitoVal = (
+    (incognitoReq?.policyValue as { value?: Record<string, unknown> })?.value ?? {}
+  ).incognitoModeAvailability;
+  check(
+    "IncognitoModeAvailability disables incognito mode (INCOGNITO_MODE_AVAILABILITY_ENUM_UNAVAILABLE)",
+    incognitoVal === "INCOGNITO_MODE_AVAILABILITY_ENUM_UNAVAILABLE",
+    JSON.stringify(incognitoVal),
   );
 
   // Connector policies carry several fields, and each enum has to come from
