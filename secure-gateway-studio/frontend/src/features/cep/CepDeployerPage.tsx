@@ -721,30 +721,31 @@ gcloud access-context-manager cloud-bindings create \\
     modules.accessLevel !== ACCESS_LEVEL_NONE ||
     modules.dataBoundaryMode !== "none" ||
     httpHeaderRules.length > 0;
+  const isRuleRowActive = (ruleId: string, row: CepDlpMatrixRuleConfig | undefined): boolean => {
+    if (!row) return false;
+    if (ruleId === "watermark") return row.watermark === true;
+    return (
+      (row.upload !== undefined && row.upload !== "off") ||
+      (row.download !== undefined && row.download !== "off") ||
+      (row.paste !== undefined && row.paste !== "off") ||
+      (row.print !== undefined && row.print !== "off")
+    );
+  };
   const anyDlpRuleActive = Object.entries(dlpMatrix).some(([ruleId, cfg]) => {
     if (!cfg) return false;
-    if (ruleId === "watermark") return cfg.watermark === true;
-    return (
-      (cfg.upload !== undefined && cfg.upload !== "off") ||
-      (cfg.download !== undefined && cfg.download !== "off") ||
-      (cfg.paste !== undefined && cfg.paste !== "off") ||
-      (cfg.print !== undefined && cfg.print !== "off")
-    );
+    const rows = [cfg, ...(cfg.extraRows ?? [])];
+    return rows.some((row) => isRuleRowActive(ruleId, row));
   });
   const dlpNeedsAccessLevel = Object.entries(dlpMatrix).some(([ruleId, cfg]) => {
     if (!cfg) return false;
-    const isRowActive =
-      ruleId === "watermark"
-        ? cfg.watermark === true
-        : (cfg.upload !== undefined && cfg.upload !== "off") ||
-          (cfg.download !== undefined && cfg.download !== "off") ||
-          (cfg.paste !== undefined && cfg.paste !== "off") ||
-          (cfg.print !== undefined && cfg.print !== "off");
-    if (!isRowActive) return false;
-    if (ruleId === "access_level" || ruleId === "android_byod" || ruleId === "ios_byod") {
-      return true;
-    }
-    return cfg.byodOnly === true || (cfg.deviceScope !== undefined && cfg.deviceScope !== "all");
+    const rows = [cfg, ...(cfg.extraRows ?? [])];
+    return rows.some((row) => {
+      if (!isRuleRowActive(ruleId, row)) return false;
+      if (ruleId === "access_level" || ruleId === "android_byod" || ruleId === "ios_byod") {
+        return true;
+      }
+      return row.byodOnly === true || (row.deviceScope !== undefined && row.deviceScope !== "all");
+    });
   });
   const anyModuleSelected =
     activeTab === "setup"

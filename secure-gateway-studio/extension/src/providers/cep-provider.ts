@@ -75,7 +75,10 @@ export function isManagedCepDlpRuleDisplayName(displayName: string): boolean {
     (baseName) =>
       displayName === baseName ||
       CEP_DLP_RULE_OPERATION_LABELS.some(
-        (opLabel) => displayName === `${baseName} - ${opLabel}`,
+        (opLabel) =>
+          displayName === `${baseName} - ${opLabel}` ||
+          (displayName.startsWith(`${baseName} (`) &&
+            displayName.endsWith(`) - ${opLabel}`)),
       ),
   );
 }
@@ -176,6 +179,8 @@ export interface CepDlpMatrixRuleConfig {
   deviceScope?: CepDlpDeviceScope;
   customEndUserMessage?: string;
   saveContent?: boolean;
+  /** Additional duplicated rows for the same threat category with independent actions and device scopes. */
+  extraRows?: CepDlpMatrixRuleConfig[];
 }
 
 export type CepDlpMatrixState = Partial<Record<CepDlpRuleId, CepDlpMatrixRuleConfig>>;
@@ -1111,8 +1116,11 @@ function dlpRuleHasAction(
 ): boolean {
   const rule = resolveDlpMatrix(config)[id];
   if (rule === undefined) return false;
-  return (["upload", "download", "paste", "print"] as const).some(
-    (operation) => rule[operation] === action,
+  const rows = [rule, ...(rule.extraRows ?? [])];
+  return rows.some((row) =>
+    (["upload", "download", "paste", "print"] as const).some(
+      (operation) => row[operation] === action,
+    ),
   );
 }
 
@@ -2974,65 +2982,84 @@ export class CepProvider {
       deviceScope: CepDlpDeviceScope;
     }> = [];
 
+    const seenDisplayNames = new Set<string>();
     for (const base of bases) {
-      const matrixRule = context.dlpMatrix[base.id] ?? {};
-      const deviceScope = effectiveRuleDeviceScope(base.id, matrixRule);
-      const contextCondition = this.resolveRuleContextCondition(base.id, matrixRule, context);
-      // When no Access Level is resolved for a scoped rule, ensureRules reports
-      // it as skipped. Never broaden it silently into an all-device rule.
-      if (contextCondition === null) continue;
-      for (const operation of base.operations) {
-        const selectedAction =
-          operation === "watermark"
-            ? matrixRule.watermark === true
-              ? "warnUser"
-              : "off"
-            : matrixRule[operation];
-        if (selectedAction === undefined || selectedAction === "off") continue;
-
-        const operationLabel = operation === "watermark" ? "navigation" : operation;
-        const actionParams: Record<string, unknown> = {
-          ...(base.actionParams ?? {}),
-        };
-        const customMessage = matrixRule.customEndUserMessage ?? context.dlpCustomMessage;
-        if (customMessage && customMessage.trim() !== "") {
-          // `ActionParams.custom_end_user_message` is a CustomEndUserMessage
-          // message, not a string: a bare string fails struct-to-proto
-          // conversion and the whole create is rejected as INVALID_ARGUMENT.
-          actionParams.customEndUserMessage = { unsafeHtmlMessageBody: customMessage.trim() };
-        }
-        const saveContent = matrixRule.saveContent ?? context.dlpSaveContent;
-        if (saveContent === true) {
-          actionParams.saveContent = true;
-        }
-
-        const ruleCondition: Record<string, string> | undefined =
-          contextCondition !== undefined
-            ? {
-                ...(base.condition ?? {}),
-                contextCondition: base.condition?.contextCondition
-                  ? `(${base.condition.contextCondition}) && (${contextCondition})`
-                  : contextCondition,
-              }
-            : base.condition;
-
-        resolved.push({
-          id: base.id,
-          operation,
-          displayName: `${base.displayName} - ${operationLabel}`,
-          description: `${base.description} Operation: ${operationLabel}.`,
-          triggers: [
+      const primaryRule = context.dlpMatrix[base.id] ?? {};
+      const rowConfigs = [primaryRule, ...(primaryRule.extraRows ?? [])];
+      for (let rowIndex = 0; rowIndex < rowConfigs.length; rowIndex += 1) {
+        const matrixRule = rowConfigs[rowIndex]!;
+        const deviceScope = effectiveRuleDeviceScope(base.id, matrixRule);
+        const contextCondition = this.resolveRuleContextCondition(base.id, matrixRule, context);
+        // When no Access Level is resolved for a scoped rule, ensureRules reports
+        // it as skipped. Never broaden it silently into an all-device rule.
+        if (contextCondition === null) continue;
+        for (const operation of base.operations) {
+          const selectedAction =
             operation === "watermark"
-              ? "google.workspace.chrome.url.v1.navigation"
-              : DLP_OPERATION_TRIGGERS[operation],
-          ],
-          action: selectedAction,
-          condition: ruleCondition,
-          actionParams: Object.keys(actionParams).length > 0 ? actionParams : undefined,
-          requires: base.requires,
-          byodOnly: deviceScope !== "all" && deviceScope !== "corp_only",
-          deviceScope,
-        });
+              ? matrixRule.watermark === true
+                ? "warnUser"
+                : "off"
+              : matrixRule[operation];
+          if (selectedAction === undefined || selectedAction === "off") continue;
+
+          const operationLabel = operation === "watermark" ? "navigation" : operation;
+          let displayName = `${base.displayName} - ${operationLabel}`;
+          if (rowIndex > 0) {
+            const scopeTag = deviceScope === "all" ? `row #${rowIndex + 1}` : deviceScope;
+            const scopedCandidate = `${base.displayName} (${scopeTag}) - ${operationLabel}`;
+            displayName = seenDisplayNames.has(scopedCandidate)
+              ? `${base.displayName} (${scopeTag} #${rowIndex + 1}) - ${operationLabel}`
+              : scopedCandidate;
+          }
+          seenDisplayNames.add(displayName);
+
+          const actionParams: Record<string, unknown> = {
+            ...(base.actionParams ?? {}),
+          };
+          const customMessage =
+            matrixRule.customEndUserMessage ??
+            primaryRule.customEndUserMessage ??
+            context.dlpCustomMessage;
+          if (customMessage && customMessage.trim() !== "") {
+            // `ActionParams.custom_end_user_message` is a CustomEndUserMessage
+            // message, not a string: a bare string fails struct-to-proto
+            // conversion and the whole create is rejected as INVALID_ARGUMENT.
+            actionParams.customEndUserMessage = { unsafeHtmlMessageBody: customMessage.trim() };
+          }
+          const saveContent =
+            matrixRule.saveContent ?? primaryRule.saveContent ?? context.dlpSaveContent;
+          if (saveContent === true) {
+            actionParams.saveContent = true;
+          }
+
+          const ruleCondition: Record<string, string> | undefined =
+            contextCondition !== undefined
+              ? {
+                  ...(base.condition ?? {}),
+                  contextCondition: base.condition?.contextCondition
+                    ? `(${base.condition.contextCondition}) && (${contextCondition})`
+                    : contextCondition,
+                }
+              : base.condition;
+
+          resolved.push({
+            id: base.id,
+            operation,
+            displayName,
+            description: `${base.description} Operation: ${operationLabel}.`,
+            triggers: [
+              operation === "watermark"
+                ? "google.workspace.chrome.url.v1.navigation"
+                : DLP_OPERATION_TRIGGERS[operation],
+            ],
+            action: selectedAction,
+            condition: ruleCondition,
+            actionParams: Object.keys(actionParams).length > 0 ? actionParams : undefined,
+            requires: base.requires,
+            byodOnly: deviceScope !== "all" && deviceScope !== "corp_only",
+            deviceScope,
+          });
+        }
       }
     }
     return resolved;
@@ -3066,82 +3093,88 @@ export class CepProvider {
       "android_all",
       "ios_all",
     ]);
-    for (const [id, rule] of Object.entries(context.dlpMatrix) as Array<
+    const attemptedScopes = new Set<CepDlpDeviceScope>();
+    for (const [id, primaryRule] of Object.entries(context.dlpMatrix) as Array<
       [CepDlpRuleId, CepDlpMatrixRuleConfig]
     >) {
-      const selected =
-        rule.watermark === true ||
-        operationKeys.some((operation) => {
-          const action = rule[operation];
-          return action !== undefined && action !== "off";
-        });
-      if (!selected) continue;
+      const rowRules = [primaryRule, ...(primaryRule.extraRows ?? [])];
+      for (const rule of rowRules) {
+        const selected =
+          rule.watermark === true ||
+          operationKeys.some((operation) => {
+            const action = rule[operation];
+            return action !== undefined && action !== "off";
+          });
+        if (!selected) continue;
 
-      const scope = effectiveRuleDeviceScope(id, rule);
-      if (
-        id !== "access_level" &&
-        osSpecificScopes.has(scope) &&
-        this.resolveRuleContextCondition(id, rule, context) === null &&
-        context.projectId
-      ) {
-        const kind = deviceScopeToAccessLevelKind(scope);
-        if (kind !== null) {
-          context.scopedAccessLevels ??= {};
-          try {
-            const ensured = await ensureManagedChromeAccessLevelDetailed(
-              this.cloudTransport,
-              context.projectId,
-              kind,
-              this.accessPolicyId,
-            );
-            context.scopedAccessLevels[scope] = ensured.name;
-            trace.push({
-              label: `Ensure Context-Aware Access level (${scope})`,
-              method: "POST",
-              url: `${ACM}/${ensured.name}`,
-              status: 200,
-              ok: true,
-            });
-            if (ensured.created) {
-              created.push(`Context-Aware Access level (${ensured.name})`);
-            } else {
-              skipped.push(
-                `Context-Aware Access: ${ensured.name} already existed and was reused; this CEP operation does not own it`,
+        const scope = effectiveRuleDeviceScope(id, rule);
+        if (
+          id !== "access_level" &&
+          osSpecificScopes.has(scope) &&
+          !attemptedScopes.has(scope) &&
+          this.resolveRuleContextCondition(id, rule, context) === null &&
+          context.projectId
+        ) {
+          attemptedScopes.add(scope);
+          const kind = deviceScopeToAccessLevelKind(scope);
+          if (kind !== null) {
+            context.scopedAccessLevels ??= {};
+            try {
+              const ensured = await ensureManagedChromeAccessLevelDetailed(
+                this.cloudTransport,
+                context.projectId,
+                kind,
+                this.accessPolicyId,
               );
+              context.scopedAccessLevels[scope] = ensured.name;
+              trace.push({
+                label: `Ensure Context-Aware Access level (${scope})`,
+                method: "POST",
+                url: `${ACM}/${ensured.name}`,
+                status: 200,
+                ok: true,
+              });
+              if (ensured.created) {
+                created.push(`Context-Aware Access level (${ensured.name})`);
+              } else {
+                skipped.push(
+                  `Context-Aware Access: ${ensured.name} already existed and was reused; this CEP operation does not own it`,
+                );
+              }
+            } catch (error) {
+              trace.push({
+                label: `Ensure Context-Aware Access level (${scope})`,
+                method: "POST",
+                url: `${ACM}/accessPolicies`,
+                status: error instanceof CepApiError ? error.status : 0,
+                ok: false,
+                error: errorMessage(error),
+              });
             }
-          } catch (error) {
-            trace.push({
-              label: `Ensure Context-Aware Access level (${scope})`,
-              method: "POST",
-              url: `${ACM}/accessPolicies`,
-              status: error instanceof CepApiError ? error.status : 0,
-              ok: false,
-              error: errorMessage(error),
-            });
           }
         }
-      }
 
-      if (this.resolveRuleContextCondition(id, rule, context) === null) {
-        if (context.projectId) {
-          failed = true;
-        }
-        const manualKind =
-          deviceScopeToAccessLevelKind(scope === "all" ? "byod_only" : scope) ?? "byod";
-        const spec = MANAGED_CHROME_ACCESS_LEVEL_SPECS[manualKind];
-        const manualGuide = ` — Manual setup: create Access Level "${spec.suffix}" at https://admin.google.com/ac/caa/levels (Custom mode CEL) with expression: ${spec.expression} , then bind it in Data protection rules at https://admin.google.com/ac/dp with contextCondition: access_levels.meets_access_requirements(['accessPolicies/<POLICY_ID>/accessLevels/${spec.suffix}'])`;
-        if (id === "access_level") {
-          skipped.push(
-            `DLP unmanaged/BYOD rule: not created because no Access Level is selected in Setup wizard (access-level CEL)${manualGuide}`,
-          );
-        } else if (scope === "byod_only") {
-          skipped.push(
-            `DLP ${id} BYOD scope: not created because no Access Level is selected in Setup wizard (access-level CEL)${manualGuide}`,
-          );
-        } else {
-          skipped.push(
-            `DLP ${id} (${scope}) scope: not created because no Access Level could be resolved in Setup wizard (access-level CEL)${manualGuide}`,
-          );
+        if (this.resolveRuleContextCondition(id, rule, context) === null) {
+          if (context.projectId) {
+            failed = true;
+          }
+          const manualKind =
+            deviceScopeToAccessLevelKind(scope === "all" ? "byod_only" : scope) ?? "byod";
+          const spec = MANAGED_CHROME_ACCESS_LEVEL_SPECS[manualKind];
+          const manualGuide = ` — Manual setup: create Access Level "${spec.suffix}" at https://admin.google.com/ac/caa/levels (Custom mode CEL) with expression: ${spec.expression} , then bind it in Data protection rules at https://admin.google.com/ac/dp with contextCondition: access_levels.meets_access_requirements(['accessPolicies/<POLICY_ID>/accessLevels/${spec.suffix}'])`;
+          if (id === "access_level") {
+            skipped.push(
+              `DLP unmanaged/BYOD rule: not created because no Access Level is selected in Setup wizard (access-level CEL)${manualGuide}`,
+            );
+          } else if (scope === "byod_only") {
+            skipped.push(
+              `DLP ${id} BYOD scope: not created because no Access Level is selected in Setup wizard (access-level CEL)${manualGuide}`,
+            );
+          } else {
+            skipped.push(
+              `DLP ${id} (${scope}) scope: not created because no Access Level could be resolved in Setup wizard (access-level CEL)${manualGuide}`,
+            );
+          }
         }
       }
     }

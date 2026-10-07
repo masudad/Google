@@ -5469,6 +5469,118 @@ for (const mode of ["412-commit", "503-commit", "response-loss-commit"] as const
       ),
     JSON.stringify(noProjectCelRes),
   );
+
+  // Duplicated DLP matrix rows (extraRows) allow e.g. Universal Upload = Block on BYOD + Audit on Company-Owned,
+  // creating distinct Cloud Identity DLP rules with collision-free displayNames and rolling both back cleanly.
+  const { transport: extraRowsTransport, calls: extraRowsCalls } = stubTransport();
+  const extraRowsRes = (await route(
+    context(extraRowsTransport, "999"),
+    "POST",
+    "/api/v1/cep/provision",
+    {
+      ...DLP_CONFIG,
+      access_level: "AUTO_CREATE_CORP_OWNED",
+      internal_urls: [],
+      dlp_matrix: {
+        universal_upload: {
+          upload: "blockContent",
+          deviceScope: "byod_only",
+          byodOnly: true,
+          extraRows: [
+            {
+              upload: "auditOnly",
+              deviceScope: "corp_only",
+              byodOnly: false,
+            },
+          ],
+        },
+        payment_card: {
+          upload: "blockContent",
+          paste: "off",
+          print: "off",
+          deviceScope: "android_byod",
+          byodOnly: true,
+          extraRows: [
+            {
+              upload: "warnUser",
+              paste: "off",
+              print: "off",
+              deviceScope: "ios_byod",
+              byodOnly: true,
+            },
+          ],
+        },
+      },
+    },
+  )) as ProvisionResult;
+  const extraDlpPosts = extraRowsCalls
+    .filter((c) => c.method === "POST" && c.url.includes("cloudidentity.googleapis.com"))
+    .map((c) => (c.body?.setting as { value?: Record<string, unknown> } | undefined)?.value ?? {});
+  const primaryUpload = extraDlpPosts.find(
+    (v) => v.displayName === "CEP PoC - Universal file upload protection - upload",
+  );
+  const dupUploadCorp = extraDlpPosts.find(
+    (v) => v.displayName === "CEP PoC - Universal file upload protection (corp_only) - upload",
+  );
+  const primaryPaymentAndroid = extraDlpPosts.find(
+    (v) => v.displayName === "CEP PoC - Payment card numbers - upload",
+  );
+  const dupPaymentIos = extraDlpPosts.find(
+    (v) => v.displayName === "CEP PoC - Payment card numbers (ios_byod) - upload",
+  );
+  check(
+    "extraRows creates separate Cloud Identity DLP rules per duplicated row with distinct displayNames, actions, and contextCondition CEL",
+    extraRowsRes.success === true &&
+      (primaryUpload?.condition as { contextCondition?: string } | undefined)?.contextCondition ===
+        "!access_levels.meets_access_requirements(['accessPolicies/999/accessLevels/secgw_corp_owned'])" &&
+      Boolean(
+        ((primaryUpload?.action as { chromeAction?: Record<string, unknown> } | undefined)?.chromeAction ?? {})
+          .blockContent,
+      ) &&
+      (dupUploadCorp?.condition as { contextCondition?: string } | undefined)?.contextCondition ===
+        "access_levels.meets_access_requirements(['accessPolicies/999/accessLevels/secgw_corp_owned'])" &&
+      Boolean(
+        ((dupUploadCorp?.action as { chromeAction?: Record<string, unknown> } | undefined)?.chromeAction ?? {})
+          .auditOnly,
+      ) &&
+      (primaryPaymentAndroid?.condition as { contextCondition?: string } | undefined)?.contextCondition ===
+        "access_levels.meets_access_requirements(['accessPolicies/999/accessLevels/secgw_android_byod'])" &&
+      (dupPaymentIos?.condition as { contextCondition?: string } | undefined)?.contextCondition ===
+        "access_levels.meets_access_requirements(['accessPolicies/999/accessLevels/secgw_ios_byod'])",
+    JSON.stringify({
+      success: extraRowsRes.success,
+      primaryUpload,
+      dupUploadCorp,
+      primaryPaymentAndroid,
+      dupPaymentIos,
+      skipped: extraRowsRes.skipped_items,
+    }),
+  );
+
+  const extraRowsRollbackRes = (await route(
+    context(extraRowsTransport, "999"),
+    "POST",
+    "/api/v1/cep/rollback",
+    {
+      customer_id: "C01abcdef",
+      project_id: "secgw-project",
+      target_ou_id: "03pilot",
+      target_ou_path: "/Pilot",
+      rollback_modules: ["dlpRules"],
+      delete_dlp_rules: true,
+    },
+  )) as ProvisionResult;
+  check(
+    "rollback with delete_dlp_rules: true also deletes duplicated extraRows DLP rules",
+    extraRowsRollbackRes.success === true &&
+      extraRowsRollbackRes.created_items.some((s) =>
+        s.includes('Deleted DLP rule "CEP PoC - Universal file upload protection (corp_only) - upload"'),
+      ) &&
+      extraRowsRollbackRes.created_items.some((s) =>
+        s.includes('Deleted DLP rule "CEP PoC - Payment card numbers (ios_byod) - upload"'),
+      ),
+    JSON.stringify(extraRowsRollbackRes),
+  );
 }
 
 // -- Report -------------------------------------------------------------------

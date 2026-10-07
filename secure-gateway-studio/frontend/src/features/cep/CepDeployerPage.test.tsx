@@ -1036,4 +1036,60 @@ describe("CepDeployerPage", () => {
     expect(provision.mock.calls[0]?.[0]?.access_level).toBe("NONE");
     expect(provision.mock.calls[0]?.[0]?.project_id).toBe("");
   });
+
+  it("allows duplicating and removing DLP matrix rows to configure e.g. BYOD Block + Company-Owned Audit", async () => {
+    const provision = vi.spyOn(api, "provisionCepPolicies").mockResolvedValue(emptyResult());
+    renderPage();
+    await selectPilotOu();
+
+    const nav = screen.getByRole("navigation", { name: "CEP PoC Sections" });
+    fireEvent.click(within(nav).getByRole("button", { name: m.tabDlp }));
+
+    // Find the Universal File Upload row and click "+ 行を複製"
+    const uploadRow = screen.getByRole("row", {
+      name: new RegExp(m.dlpRowUniversalUpload),
+    });
+    const dupBtn = within(uploadRow).getByRole("button", {
+      name: new RegExp(m.dlpDuplicateRowBtn),
+    });
+    fireEvent.click(dupBtn);
+
+    // A remove button "× 削除" now appears in the duplicated row
+    const removeButtons = screen.getAllByRole("button", {
+      name: new RegExp(m.dlpRemoveRowBtn),
+    });
+    expect(removeButtons).toHaveLength(1);
+
+    // Deploy and verify universal_upload has Row 1 (byod_only: blockContent) and extraRows[0] (corp_only: auditOnly)
+    fireEvent.click(screen.getByText(m.btnDeploy));
+    await waitFor(() => {
+      expect(provision).toHaveBeenCalledTimes(1);
+    });
+
+    const matrix = provision.mock.calls[0]?.[0]?.dlp_matrix;
+    expect(matrix?.universal_upload).toEqual({
+      upload: "blockContent",
+      deviceScope: "byod_only",
+      byodOnly: true,
+      extraRows: [
+        {
+          upload: "auditOnly",
+          deviceScope: "corp_only",
+          byodOnly: false,
+        },
+      ],
+    });
+
+    // Click "× 削除" to remove the duplicated row and re-deploy
+    fireEvent.click(removeButtons[0]);
+    expect(
+      screen.queryByRole("button", { name: new RegExp(m.dlpRemoveRowBtn) }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText(m.btnDeploy));
+    await waitFor(() => {
+      expect(provision).toHaveBeenCalledTimes(2);
+    });
+    expect(provision.mock.calls[1]?.[0]?.dlp_matrix?.universal_upload?.extraRows).toBeUndefined();
+  });
 });

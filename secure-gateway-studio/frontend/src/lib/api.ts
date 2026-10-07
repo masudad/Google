@@ -725,6 +725,7 @@ export interface CepDlpMatrixRuleConfig {
   deviceScope?: CepDlpDeviceScope;
   customEndUserMessage?: string;
   saveContent?: boolean;
+  extraRows?: CepDlpMatrixRuleConfig[];
 }
 
 export type CepDlpMatrixState = Partial<Record<CepDlpRuleId, CepDlpMatrixRuleConfig>>;

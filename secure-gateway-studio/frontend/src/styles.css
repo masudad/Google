@@ -8269,3 +8269,66 @@ h1 {
   white-space: pre-wrap;
   word-break: break-all;
 }
+
+.dlp-row-title-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.dlp-row-dup-btn,
+.dlp-row-remove-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.15rem 0.48rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.3;
+  border-radius: 5px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.dlp-row-dup-btn {
+  color: #1d4ed8;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+.dlp-row-dup-btn:hover {
+  background: #dbeafe;
+  border-color: #60a5fa;
+  color: #1e40af;
+}
+
+.dlp-row-remove-btn {
+  color: #b91c1c;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+}
+
+.dlp-row-remove-btn:hover {
+  background: #fee2e2;
+  border-color: #f87171;
+  color: #991b1b;
+}
+
+.dlp-extra-row th,
+.dlp-extra-row td {
+  background: #f8fafc;
+  border-top: 1px dashed #cbd5e1;
+}
+
+.dlp-extra-row-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding-left: 0.65rem;
+  color: #334155;
+  font-weight: 600;
+}
+

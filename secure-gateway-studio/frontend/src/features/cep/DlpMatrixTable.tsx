@@ -190,6 +190,142 @@ export function DlpMatrixTable({
     }));
   }
 
+  function updateExtraRow(
+    id: CepDlpRuleId,
+    extraIndex: number,
+    updater: (prev: CepDlpMatrixRuleConfig) => CepDlpMatrixRuleConfig,
+  ) {
+    updateRule(id, (prev) => {
+      const existingExtra = prev.extraRows ?? [];
+      const nextExtra = existingExtra.map((row, idx) =>
+        idx === extraIndex ? updater(row) : row,
+      );
+      return { ...prev, extraRows: nextExtra };
+    });
+  }
+
+  function duplicateRow(id: CepDlpRuleId) {
+    onEnsureAccessLevel?.("AUTO_CREATE_CORP_OWNED");
+    updateRule(id, (prev) => {
+      const prevScope = resolveRowScope(prev);
+      const existingExtra = prev.extraRows ?? [];
+      const isInitialAllSplit = prevScope === "all" && existingExtra.length === 0;
+      const effectivePrimaryScope: CepDlpDeviceScope = isInitialAllSplit
+        ? "byod_only"
+        : prevScope;
+
+      const usedScopes = new Set<CepDlpDeviceScope>([
+        effectivePrimaryScope,
+        ...existingExtra.map((r) => resolveRowScope(r)),
+      ]);
+      const candidateScopes: CepDlpDeviceScope[] =
+        effectivePrimaryScope === "corp_only"
+          ? [
+              "byod_only",
+              "corp_only",
+              "android_byod",
+              "ios_byod",
+              "desktop_byod",
+              "mobile_byod",
+              "android_all",
+              "ios_all",
+            ]
+          : [
+              "corp_only",
+              "byod_only",
+              "android_byod",
+              "ios_byod",
+              "desktop_byod",
+              "mobile_byod",
+              "android_all",
+              "ios_all",
+            ];
+      const nextScope: CepDlpDeviceScope =
+        candidateScopes.find((s) => !usedScopes.has(s)) ?? "corp_only";
+
+      const derivePrimaryAction = (act: CepDlpAction | undefined): CepDlpAction | undefined => {
+        if (act === undefined) return undefined;
+        if (!isInitialAllSplit) return act;
+        return "blockContent";
+      };
+
+      const deriveDupAction = (act: CepDlpAction | undefined): CepDlpAction | undefined => {
+        if (act === undefined) return undefined;
+        if (nextScope === "corp_only") return "auditOnly";
+        if (nextScope === "byod_only" || nextScope.endsWith("_byod")) return "blockContent";
+        return act === "blockContent" ? "auditOnly" : "blockContent";
+      };
+
+      const newExtraRow: CepDlpMatrixRuleConfig = {
+        ...(prev.upload !== undefined ? { upload: deriveDupAction(prev.upload) } : {}),
+        ...(prev.download !== undefined ? { download: deriveDupAction(prev.download) } : {}),
+        ...(prev.paste !== undefined ? { paste: deriveDupAction(prev.paste) } : {}),
+        ...(prev.print !== undefined ? { print: deriveDupAction(prev.print) } : {}),
+        ...(prev.watermark !== undefined ? { watermark: true } : {}),
+        deviceScope: nextScope,
+        byodOnly: nextScope !== "all" && nextScope !== "corp_only",
+      };
+
+      return {
+        ...prev,
+        ...(isInitialAllSplit
+          ? {
+              ...(prev.upload !== undefined ? { upload: derivePrimaryAction(prev.upload) } : {}),
+              ...(prev.download !== undefined ? { download: derivePrimaryAction(prev.download) } : {}),
+              deviceScope: effectivePrimaryScope,
+              byodOnly: true,
+            }
+          : {}),
+        extraRows: [...existingExtra, newExtraRow],
+      };
+    });
+  }
+
+  function removeExtraRow(id: CepDlpRuleId, extraIndex: number) {
+    updateRule(id, (prev) => {
+      const nextExtra = (prev.extraRows ?? []).filter((_, idx) => idx !== extraIndex);
+      return {
+        ...prev,
+        extraRows: nextExtra.length > 0 ? nextExtra : undefined,
+      };
+    });
+  }
+
+  function cycleExtraAction(
+    id: CepDlpRuleId,
+    extraIndex: number,
+    op: "upload" | "download" | "paste" | "print",
+  ) {
+    updateExtraRow(id, extraIndex, (prev) => {
+      const current = prev[op] ?? "off";
+      const nextIndex = (ACTION_CYCLE.indexOf(current) + 1) % ACTION_CYCLE.length;
+      const nextAction = ACTION_CYCLE[nextIndex];
+      return { ...prev, [op]: nextAction };
+    });
+  }
+
+  function toggleExtraWatermark(id: CepDlpRuleId, extraIndex: number) {
+    updateExtraRow(id, extraIndex, (prev) => ({
+      ...prev,
+      watermark: !prev.watermark,
+    }));
+  }
+
+  function updateExtraDeviceScope(
+    id: CepDlpRuleId,
+    extraIndex: number,
+    nextScope: CepDlpDeviceScope,
+  ) {
+    if (nextScope !== "all") {
+      onEnsureAccessLevel?.("AUTO_CREATE_CORP_OWNED");
+    }
+    updateExtraRow(id, extraIndex, (prev) => ({
+      ...prev,
+      deviceScope: nextScope,
+      byodOnly: nextScope !== "all" && nextScope !== "corp_only",
+    }));
+  }
+
   function toggleEnvKey(key: keyof CompanyDeviceEnvState) {
     setEnvState((prev) => ({ ...prev, [key]: !prev[key] }));
   }
@@ -222,11 +358,33 @@ export function DlpMatrixTable({
         upload: uploadAction,
         deviceScope: uploadScope,
         byodOnly: uploadScope !== "all" && uploadScope !== "corp_only",
+        ...(hasAnyByod && hasAnyCorp
+          ? {
+              extraRows: [
+                {
+                  upload: "auditOnly",
+                  deviceScope: "corp_only",
+                  byodOnly: false,
+                },
+              ],
+            }
+          : {}),
       },
       universal_download: {
         download: uploadAction,
         deviceScope: uploadScope,
         byodOnly: uploadScope !== "all" && uploadScope !== "corp_only",
+        ...(hasAnyByod && hasAnyCorp
+          ? {
+              extraRows: [
+                {
+                  download: "auditOnly",
+                  deviceScope: "corp_only",
+                  byodOnly: false,
+                },
+              ],
+            }
+          : {}),
       },
       payment_card: {
         upload: "blockContent",
@@ -375,13 +533,16 @@ export function DlpMatrixTable({
     return "all";
   }
 
-  function renderScopeSelect(id: CepDlpRuleId, rowLabel: string) {
-    const scope = resolveRowScope(currentMatrix[id]);
+  function renderScopeSelectElement(
+    scope: CepDlpDeviceScope,
+    ariaLabel: string,
+    onSelect: (next: CepDlpDeviceScope) => void,
+  ) {
     return (
       <select
-        aria-label={`${rowLabel} - ${m.dlpColDeviceScope}`}
+        aria-label={ariaLabel}
         className={`dlp-scope-select ${scope !== "all" ? "scoped" : ""}`}
-        onChange={(e) => updateDeviceScope(id, e.target.value as CepDlpDeviceScope)}
+        onChange={(e) => onSelect(e.target.value as CepDlpDeviceScope)}
         value={scope}
       >
         <option value="all">{m.dlpScopeAll}</option>
@@ -395,6 +556,128 @@ export function DlpMatrixTable({
         <option value="ios_all">{m.dlpScopeSelectIosAll}</option>
       </select>
     );
+  }
+
+  function renderScopeSelect(id: CepDlpRuleId, rowLabel: string) {
+    const scope = resolveRowScope(currentMatrix[id]);
+    return renderScopeSelectElement(scope, `${rowLabel} - ${m.dlpColDeviceScope}`, (next) =>
+      updateDeviceScope(id, next),
+    );
+  }
+
+  function renderExtraScopeSelect(id: CepDlpRuleId, extraIndex: number, rowLabel: string) {
+    const extraRow = currentMatrix[id]?.extraRows?.[extraIndex];
+    const scope = resolveRowScope(extraRow);
+    return renderScopeSelectElement(scope, `${rowLabel} - ${m.dlpColDeviceScope}`, (next) =>
+      updateExtraDeviceScope(id, extraIndex, next),
+    );
+  }
+
+  function renderDuplicateButton(id: CepDlpRuleId, rowLabel: string) {
+    return (
+      <button
+        aria-label={`${rowLabel} - ${m.dlpDuplicateRowBtn}`}
+        className="dlp-row-dup-btn"
+        onClick={() => duplicateRow(id)}
+        title={m.dlpDuplicateRowHint}
+        type="button"
+      >
+        {m.dlpDuplicateRowBtn}
+      </button>
+    );
+  }
+
+  function renderExtraRowsForRule(
+    id: CepDlpRuleId,
+    rowLabel: string,
+    supportedOps: ReadonlyArray<"upload" | "download" | "paste" | "print" | "watermark">,
+  ) {
+    const extraRows = currentMatrix[id]?.extraRows ?? [];
+    if (extraRows.length === 0) return null;
+    const opSet = new Set(supportedOps);
+    return extraRows.map((extraRow, extraIdx) => {
+      const extraLabel = `${rowLabel} #${extraIdx + 2}`;
+      return (
+        <tr className="dlp-extra-row" key={`${id}-extra-${extraIdx}`}>
+          <th scope="row">
+            <div className="dlp-row-title-bar">
+              <strong className="dlp-extra-row-title">↳ {extraLabel}</strong>
+              <button
+                aria-label={`${extraLabel} - ${m.dlpRemoveRowBtn}`}
+                className="dlp-row-remove-btn"
+                onClick={() => removeExtraRow(id, extraIdx)}
+                type="button"
+              >
+                {m.dlpRemoveRowBtn}
+              </button>
+            </div>
+            <small>{m.dlpExtraRowScopeHint}</small>
+          </th>
+          {opSet.has("upload") ? (
+            <td>
+              {renderActionBadge(
+                extraRow.upload,
+                () => cycleExtraAction(id, extraIdx, "upload"),
+                `${extraLabel} ${m.dlpColUpload}`,
+              )}
+            </td>
+          ) : (
+            <td className="cell-na">—</td>
+          )}
+          {opSet.has("download") ? (
+            <td>
+              {renderActionBadge(
+                extraRow.download,
+                () => cycleExtraAction(id, extraIdx, "download"),
+                `${extraLabel} ${m.dlpColDownload}`,
+              )}
+            </td>
+          ) : (
+            <td className="cell-na">—</td>
+          )}
+          {opSet.has("paste") ? (
+            <td>
+              {renderActionBadge(
+                extraRow.paste,
+                () => cycleExtraAction(id, extraIdx, "paste"),
+                `${extraLabel} ${m.dlpColPaste}`,
+              )}
+            </td>
+          ) : (
+            <td className="cell-na">—</td>
+          )}
+          {opSet.has("print") ? (
+            <td>
+              {renderActionBadge(
+                extraRow.print,
+                () => cycleExtraAction(id, extraIdx, "print"),
+                `${extraLabel} ${m.dlpColPrint}`,
+              )}
+            </td>
+          ) : (
+            <td className="cell-na">—</td>
+          )}
+          {opSet.has("watermark") ? (
+            <td>
+              <button
+                className={
+                  extraRow.watermark ? "dlp-badge dlp-badge-warn" : "dlp-badge dlp-badge-off"
+                }
+                onClick={() => toggleExtraWatermark(id, extraIdx)}
+                type="button"
+              >
+                {extraRow.watermark
+                  ? `${m.dlpActionBadgeWarn} + ${m.dlpColWatermark}`
+                  : m.dlpActionBadgeOff}
+              </button>
+            </td>
+          ) : (
+            <td className="cell-na">—</td>
+          )}
+          <td>{renderExtraScopeSelect(id, extraIdx, extraLabel)}</td>
+        </tr>
+      );
+    });
   }
 
   function renderActionBadge(action: CepDlpAction | undefined, onClick: () => void, label: string) {
@@ -561,7 +844,10 @@ export function DlpMatrixTable({
             {/* 1. All File Uploads */}
             <tr>
               <th scope="row">
-                <strong>📤 {m.dlpRowUniversalUpload}</strong>
+                <div className="dlp-row-title-bar">
+                  <strong>📤 {m.dlpRowUniversalUpload}</strong>
+                  {renderDuplicateButton("universal_upload", m.dlpRowUniversalUpload)}
+                </div>
                 <small>{m.dlpRowUniversalUploadDesc}</small>
               </th>
               <td>
@@ -579,11 +865,15 @@ export function DlpMatrixTable({
                 {renderScopeSelect("universal_upload", m.dlpRowUniversalUpload)}
               </td>
             </tr>
+            {renderExtraRowsForRule("universal_upload", m.dlpRowUniversalUpload, ["upload"])}
 
             {/* 2. All File Downloads */}
             <tr>
               <th scope="row">
-                <strong>📥 {m.dlpRowUniversalDownload}</strong>
+                <div className="dlp-row-title-bar">
+                  <strong>📥 {m.dlpRowUniversalDownload}</strong>
+                  {renderDuplicateButton("universal_download", m.dlpRowUniversalDownload)}
+                </div>
                 <small>{m.dlpRowUniversalDownloadDesc}</small>
               </th>
               <td className="cell-na">—</td>
@@ -601,11 +891,15 @@ export function DlpMatrixTable({
                 {renderScopeSelect("universal_download", m.dlpRowUniversalDownload)}
               </td>
             </tr>
+            {renderExtraRowsForRule("universal_download", m.dlpRowUniversalDownload, ["download"])}
 
             {/* 3. Payment Card Data */}
             <tr>
               <th scope="row">
-                <strong>💳 {m.dlpRowPaymentCard}</strong>
+                <div className="dlp-row-title-bar">
+                  <strong>💳 {m.dlpRowPaymentCard}</strong>
+                  {renderDuplicateButton("payment_card", m.dlpRowPaymentCard)}
+                </div>
                 <small>{m.dlpRowPaymentCardDesc}</small>
               </th>
               <td>
@@ -635,11 +929,19 @@ export function DlpMatrixTable({
                 {renderScopeSelect("payment_card", m.dlpRowPaymentCard)}
               </td>
             </tr>
+            {renderExtraRowsForRule("payment_card", m.dlpRowPaymentCard, [
+              "upload",
+              "paste",
+              "print",
+            ])}
 
             {/* 4. National ID / PII Data */}
             <tr>
               <th scope="row">
-                <strong>🪪 {m.dlpRowNationalId}</strong>
+                <div className="dlp-row-title-bar">
+                  <strong>🪪 {m.dlpRowNationalId}</strong>
+                  {renderDuplicateButton("national_id", m.dlpRowNationalId)}
+                </div>
                 <small>{m.dlpRowNationalIdDesc}</small>
               </th>
               <td>
@@ -669,6 +971,11 @@ export function DlpMatrixTable({
                 {renderScopeSelect("national_id", m.dlpRowNationalId)}
               </td>
             </tr>
+            {renderExtraRowsForRule("national_id", m.dlpRowNationalId, [
+              "upload",
+              "paste",
+              "print",
+            ])}
 
             {/* 5. Unmanaged / BYOD Devices */}
             <tr>
@@ -793,7 +1100,10 @@ export function DlpMatrixTable({
             {/* 8. Internal Sites & Watermark */}
             <tr>
               <th scope="row">
-                <strong>🔒 {m.dlpRowWatermark}</strong>
+                <div className="dlp-row-title-bar">
+                  <strong>🔒 {m.dlpRowWatermark}</strong>
+                  {renderDuplicateButton("watermark", m.dlpRowWatermark)}
+                </div>
                 <small>{m.dlpRowWatermarkDesc}</small>
               </th>
               <td className="cell-na">—</td>
@@ -815,11 +1125,15 @@ export function DlpMatrixTable({
                 {renderScopeSelect("watermark", m.dlpRowWatermark)}
               </td>
             </tr>
+            {renderExtraRowsForRule("watermark", m.dlpRowWatermark, ["watermark"])}
 
             {/* 9. Unapproved GenAI Block */}
             <tr>
               <th scope="row">
-                <strong>🤖 {m.dlpRowGenAiBlock}</strong>
+                <div className="dlp-row-title-bar">
+                  <strong>🤖 {m.dlpRowGenAiBlock}</strong>
+                  {renderDuplicateButton("genai_block", m.dlpRowGenAiBlock)}
+                </div>
                 <small>{m.dlpRowGenAiBlockDesc}</small>
               </th>
               <td>
@@ -843,6 +1157,7 @@ export function DlpMatrixTable({
                 {renderScopeSelect("genai_block", m.dlpRowGenAiBlock)}
               </td>
             </tr>
+            {renderExtraRowsForRule("genai_block", m.dlpRowGenAiBlock, ["upload", "paste"])}
           </tbody>
         </table>
       </div>
@@ -914,10 +1229,13 @@ export function DlpMatrixTable({
         ];
         for (const ruleId of standardRuleIds) {
           const rule = currentMatrix[ruleId];
-          if (hasActiveOp(rule)) {
-            const sc = resolveRowScope(rule);
-            if (sc !== "all") {
-              activeScopesSet.add(sc);
+          const allRows = [rule, ...(rule?.extraRows ?? [])];
+          for (const row of allRows) {
+            if (hasActiveOp(row)) {
+              const sc = resolveRowScope(row);
+              if (sc !== "all") {
+                activeScopesSet.add(sc);
+              }
             }
           }
         }

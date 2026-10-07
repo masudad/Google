@@ -915,6 +915,10 @@ export interface CepDeployerMessages {
   dlpActionBadgeAudit: string;
   dlpActionBadgeAuditOnly: string;
   dlpActionBadgeOff: string;
+  dlpDuplicateRowBtn: string;
+  dlpDuplicateRowHint: string;
+  dlpRemoveRowBtn: string;
+  dlpExtraRowScopeHint: string;
 
   dlpActionParamsTitle: string;
   dlpActionParamsSubtitle: string;
@@ -3650,6 +3654,11 @@ const en: Messages = {
     dlpActionBadgeAudit: "Unsupported",
     dlpActionBadgeAuditOnly: "Audit",
     dlpActionBadgeOff: "Off",
+    dlpDuplicateRowBtn: "＋ Duplicate",
+    dlpDuplicateRowHint:
+      "Add another row for this category to split actions across device scopes such as BYOD Block and Company-Owned Audit.",
+    dlpRemoveRowBtn: "× Remove",
+    dlpExtraRowScopeHint: "Additional device-scoped rule for this category.",
 
     dlpActionParamsTitle: "Action Parameters",
     dlpActionParamsSubtitle: "Optional message and evidence settings for triggered DLP rules",
@@ -6081,6 +6090,11 @@ const ja: Messages = {
     dlpActionBadgeAudit: "未対応",
     dlpActionBadgeAuditOnly: "監査のみ",
     dlpActionBadgeOff: "オフ",
+    dlpDuplicateRowBtn: "＋ 行を複製",
+    dlpDuplicateRowHint:
+      "同じ項目で行を追加し、BYODはブロック・会社所有は監査のみといった端末区分別の出し分けを設定します。",
+    dlpRemoveRowBtn: "× 削除",
+    dlpExtraRowScopeHint: "端末区分別の追加ルール行です。",
 
     dlpActionParamsTitle: "追加アクション パラメータ",
     dlpActionParamsSubtitle: "DLPルール発動時の表示メッセージと証拠保存設定",
