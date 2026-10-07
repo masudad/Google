@@ -26,12 +26,13 @@ export function WizardLayout({
   onNext,
   state,
 }: WizardLayoutProps) {
+  const stepperIndex = activeStep >= 2 ? activeStep - 1 : 0;
   return (
     <>
       <main className="workspace">
         <div className="wizard-main">
           <h1>{messages.title}</h1>
-          <Stepper activeStep={activeStep} steps={messages.steps} />
+          <Stepper activeStep={stepperIndex} steps={messages.steps} />
           <div className="step-content">{children}</div>
           <div className="wizard-actions">
             <button

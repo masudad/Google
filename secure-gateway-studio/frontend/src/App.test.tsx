@@ -1786,6 +1786,9 @@ describe("Secure Gateway Studio mode screen", () => {
         name: "各セットアップ手順で実行すること",
       }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(/GCP と Workspace のアカウントが別々の場合の手順/),
+    ).toBeInTheDocument();
   });
 
   it("includes production Nginx autoscaling limits in the desired state", () => {
@@ -1805,7 +1808,7 @@ describe("Secure Gateway Studio mode screen", () => {
     expect(desired.offload_cpu_target).toBe(0.55);
   });
 
-  it("uses the local API before marking administrator connections valid", async () => {
+  it("uses the local API before marking administrator connections valid across inline Environment and Access steps", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
@@ -1820,6 +1823,12 @@ describe("Secure Gateway Studio mode screen", () => {
             }),
             { status: 200, headers: { "Content-Type": "application/json" } },
           );
+        }
+        if (url.includes("/directory/")) {
+          return new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
         }
         const workspace = url.includes("/workspace/");
         return new Response(
@@ -1838,8 +1847,9 @@ describe("Secure Gateway Studio mode screen", () => {
       }),
     );
     render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /Local PoC CA/ }));
     fireEvent.click(
-      screen.getByRole("button", { name: "Continue to identities" }),
+      screen.getByRole("button", { name: "Continue to environment" }),
     );
     fireEvent.change(
       screen.getByRole("textbox", { name: "Google Cloud project ID" }),
@@ -1847,16 +1857,34 @@ describe("Secure Gateway Studio mode screen", () => {
     );
 
     const cloudCard = screen.getByText("Google Cloud deployer").closest("article");
-    const workspaceCard = screen
-      .getByText("Workspace and Chrome administrator")
-      .closest("article");
     expect(cloudCard).not.toBeNull();
-    expect(workspaceCard).not.toBeNull();
     fireEvent.click(
       within(cloudCard as HTMLElement).getByRole("button", {
         name: "Validate connection",
       }),
     );
+
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Immutable VM image" }),
+      {
+        target: {
+          value: "projects/debian-cloud/global/images/debian-12-bookworm-v20260801",
+        },
+      },
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Continue" })).not.toBeDisabled();
+    });
+
+    // Advance from Environment -> Certificate -> Access
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    const workspaceCard = screen
+      .getByText("Workspace and Chrome administrator")
+      .closest("article");
+    expect(workspaceCard).not.toBeNull();
     fireEvent.click(
       within(workspaceCard as HTMLElement).getByRole("button", {
         name: "Validate connection",
@@ -1864,11 +1892,10 @@ describe("Secure Gateway Studio mode screen", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Continue" })).not.toBeDisabled();
+      expect(
+        screen.getByRole("textbox", { name: "Workspace customer ID" }),
+      ).toHaveValue("C012canonical");
     });
-    expect(
-      screen.getByRole("textbox", { name: "Workspace customer ID" }),
-    ).toHaveValue("C012canonical");
     const mutationCalls = vi
       .mocked(fetch)
       .mock.calls.filter(([, options]) => options?.method === "POST");

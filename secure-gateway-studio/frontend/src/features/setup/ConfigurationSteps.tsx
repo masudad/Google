@@ -51,6 +51,14 @@ interface StepProps {
   state: SetupState;
 }
 
+interface EnvironmentStepProps extends StepProps {
+  onValidateCloud?: (retryAfterBootstrap?: boolean) => Promise<void>;
+}
+
+interface AccessStepProps extends StepProps {
+  onValidateWorkspace?: () => Promise<void>;
+}
+
 interface IdentitiesStepProps extends StepProps {
   onBootstrapCloud: (
     migrateExistingDeployer?: boolean,
@@ -609,18 +617,49 @@ export function IdentitiesStep({
   );
 }
 
-export function EnvironmentStep({ messages, onPatch, state }: StepProps) {
+export function EnvironmentStep({
+  messages,
+  onPatch,
+  onValidateCloud,
+  state,
+}: EnvironmentStepProps) {
   const copy = messages.workflow;
   const backendKind = effectiveBackendKind(state);
   const [vpcNetworks, setVpcNetworks] = useState<CatalogState>(emptyCatalog);
   const [sampleImageBusy, setSampleImageBusy] = useState(false);
   const [sampleImageError, setSampleImageError] = useState("");
   const [sampleImageResolved, setSampleImageResolved] = useState("");
+  const [switchCloudBusy, setSwitchCloudBusy] = useState(false);
   const legacyNginxSelected = ["managed_sample", "existing_http"].includes(
     state.backendKind,
   );
   const usesDeploymentProjectVpc =
     backendKind !== "direct_https" || !state.upstreamVpcProjectId.trim();
+
+  function cloudStatusLabel(status: SetupState["cloudConnection"]) {
+    if (status === "connected") return copy.connected;
+    if (status === "checking") return copy.checking;
+    if (status === "error") return copy.connectionFailed;
+    return copy.connect;
+  }
+
+  async function handleSwitchCloudAccountInEnv() {
+    setSwitchCloudBusy(true);
+    try {
+      await signInSession({ switch_account: true, role: "cloud" });
+      if (state.projectId.trim() && onValidateCloud) {
+        await onValidateCloud(false);
+      }
+    } catch (error) {
+      onPatch({
+        cloudConnection: "error",
+        cloudConnectionError:
+          error instanceof Error ? error.message : copy.connectionFailed,
+      });
+    } finally {
+      setSwitchCloudBusy(false);
+    }
+  }
 
   const loadVpcNetworks = useCallback(async () => {
     if (
@@ -729,6 +768,59 @@ export function EnvironmentStep({ messages, onPatch, state }: StepProps) {
   return (
     <section className="workflow-step">
       <StepHeading description={copy.environmentIntro} title={copy.environmentTitle} />
+      {onValidateCloud && (
+        <article className="connection-card">
+          <div className="connection-card-heading">
+            <CloudIcon size={24} />
+            <span>
+              <strong>{copy.cloudAccount}</strong>
+              <small>{state.cloudIdentity || copy.cloudAccountDescription}</small>
+            </span>
+          </div>
+          <Field
+            label={copy.projectId}
+            onChange={(projectId) =>
+              onPatch({
+                projectId,
+                accessPolicyId: "",
+                cloudConnection: "not_connected",
+                cloudConnectionError: "",
+              })
+            }
+            placeholder="enterprise-secgw-01"
+            value={state.projectId}
+          />
+          {runtimeCapabilities.sessionSignIn && (
+            <button
+              className="connection-action secondary"
+              disabled={switchCloudBusy || state.cloudConnection === "checking"}
+              onClick={() => void handleSwitchCloudAccountInEnv()}
+              type="button"
+            >
+              <ShieldIcon size={18} />
+              {switchCloudBusy ? copy.switchingGoogleAccount : copy.switchGoogleAccount}
+            </button>
+          )}
+          <button
+            className="connection-action"
+            disabled={!state.projectId.trim() || state.cloudConnection === "checking"}
+            onClick={() => void onValidateCloud(false)}
+            type="button"
+          >
+            {state.cloudConnection === "connected" ? (
+              <CheckIcon size={18} />
+            ) : (
+              <CodeIcon size={18} />
+            )}
+            {cloudStatusLabel(state.cloudConnection)}
+          </button>
+          {state.cloudConnectionError && (
+            <p className="connection-error" role="alert">
+              {state.cloudConnectionError}
+            </p>
+          )}
+        </article>
+      )}
       <div className="field-grid three">
         <Field
           label={copy.deploymentName}
@@ -1503,13 +1595,44 @@ function catalogError(
     : fallback;
 }
 
-export function AccessStep({ messages, onPatch, state }: StepProps) {
+export function AccessStep({
+  messages,
+  onPatch,
+  onValidateWorkspace,
+  state,
+}: AccessStepProps) {
   const copy = messages.workflow;
   const [organizationalUnits, setOrganizationalUnits] =
     useState<CatalogState>(emptyCatalog);
   const [accessLevels, setAccessLevels] =
     useState<CatalogState>(emptyCatalog);
   const [groups, setGroups] = useState<CatalogState>(emptyCatalog);
+  const [switchWorkspaceBusy, setSwitchWorkspaceBusy] = useState(false);
+
+  function workspaceStatusLabel(status: SetupState["workspaceConnection"]) {
+    if (status === "connected") return copy.connected;
+    if (status === "checking") return copy.checking;
+    if (status === "error") return copy.connectionFailed;
+    return copy.connect;
+  }
+
+  async function handleSwitchWorkspaceAccountInAccess() {
+    setSwitchWorkspaceBusy(true);
+    try {
+      await signInSession({ switch_account: true, role: "workspace" });
+      if (onValidateWorkspace) {
+        await onValidateWorkspace();
+      }
+    } catch (error) {
+      onPatch({
+        workspaceConnection: "error",
+        workspaceConnectionError:
+          error instanceof Error ? error.message : copy.connectionFailed,
+      });
+    } finally {
+      setSwitchWorkspaceBusy(false);
+    }
+  }
 
   const loadOptions = useCallback(async () => {
     if (
@@ -1637,6 +1760,68 @@ export function AccessStep({ messages, onPatch, state }: StepProps) {
   return (
     <section className="workflow-step">
       <StepHeading description={copy.accessIntro} title={copy.accessTitle} />
+      {onValidateWorkspace && (
+        <article className="connection-card">
+          <div className="connection-card-heading">
+            <UsersIcon size={27} />
+            <span>
+              <strong>{copy.workspaceAccount}</strong>
+              <small>{state.workspaceIdentity || copy.workspaceAccountDescription}</small>
+            </span>
+          </div>
+          <Field
+            label={copy.customerId}
+            onChange={(customerId) =>
+              onPatch({
+                customerId,
+                workspaceConnection: "not_connected",
+                workspaceConnectionError: "",
+              })
+            }
+            placeholder="C012abcde"
+            value={state.customerId}
+          />
+          <small className="connection-help-hint">
+            {copy.customerIdAutoHint}
+          </small>
+          {runtimeCapabilities.sessionSignIn && (
+            <button
+              className="connection-action secondary"
+              disabled={
+                switchWorkspaceBusy ||
+                state.workspaceConnection === "checking"
+              }
+              onClick={() => void handleSwitchWorkspaceAccountInAccess()}
+              type="button"
+            >
+              <ShieldIcon size={18} />
+              {switchWorkspaceBusy
+                ? copy.switchingGoogleAccount
+                : copy.switchGoogleAccount}
+            </button>
+          )}
+          <button
+            className="connection-action"
+            disabled={
+              !state.customerId.trim() || state.workspaceConnection === "checking"
+            }
+            onClick={() => void onValidateWorkspace()}
+            type="button"
+          >
+            {state.workspaceConnection === "connected" ? (
+              <CheckIcon size={18} />
+            ) : (
+              <CodeIcon size={18} />
+            )}
+            {workspaceStatusLabel(state.workspaceConnection)}
+          </button>
+          {state.workspaceConnectionError && (
+            <p className="connection-error" role="alert">
+              {state.workspaceConnectionError}
+            </p>
+          )}
+        </article>
+      )}
       <Notice tone="info">{copy.accessOuVsPrincipalNotice}</Notice>
       <small className="field-hint catalog-intro">{copy.optionsLoadedHint}</small>
       <div className="field-grid one">

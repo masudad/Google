@@ -6,12 +6,10 @@ import {
   ApplyStep,
   CertificateStep,
   EnvironmentStep,
-  IdentitiesStep,
   isAccessReady,
   isCertificateReady,
   isConfigurationReady,
   isEnvironmentReady,
-  isIdentitiesReady,
   ReviewStep,
 } from "./features/setup/ConfigurationSteps";
 import { ModeStep } from "./features/setup/ModeStep";
@@ -492,7 +490,6 @@ export function App() {
       case 0:
         return countSelectedPlatforms(setup.platforms) > 0;
       case 1:
-        return isIdentitiesReady(setup);
       case 2:
         return isEnvironmentReady(
           setup,
@@ -512,7 +509,9 @@ export function App() {
   }
 
   function goBack() {
-    patchSetup({ currentStep: Math.max(0, setup.currentStep - 1) });
+    patchSetup({
+      currentStep: setup.currentStep <= 2 ? 0 : Math.max(0, setup.currentStep - 1),
+    });
   }
 
   function goNext() {
@@ -521,7 +520,9 @@ export function App() {
       return;
     }
     if (!isCurrentStepValid() || setup.currentStep >= 6) return;
-    patchSetup({ currentStep: Math.min(6, setup.currentStep + 1) });
+    patchSetup({
+      currentStep: setup.currentStep === 0 ? 2 : Math.min(6, setup.currentStep + 1),
+    });
   }
 
   function localizedWorkflowError(error: unknown): string {
@@ -813,21 +814,12 @@ export function App() {
   function renderCurrentStep() {
     switch (setup.currentStep) {
       case 1:
-        return (
-          <IdentitiesStep
-            messages={messages}
-            onBootstrapCloud={handleBootstrapCloud}
-            onPatch={patchSetup}
-            onValidateCloud={handleValidateCloud}
-            onValidateWorkspace={handleValidateWorkspace}
-            state={setup}
-          />
-        );
       case 2:
         return (
           <EnvironmentStep
             messages={messages}
             onPatch={patchSetup}
+            onValidateCloud={handleValidateCloud}
             state={setup}
           />
         );
@@ -841,7 +833,12 @@ export function App() {
         );
       case 4:
         return (
-          <AccessStep messages={messages} onPatch={patchSetup} state={setup} />
+          <AccessStep
+            messages={messages}
+            onPatch={patchSetup}
+            onValidateWorkspace={() => handleValidateWorkspace()}
+            state={setup}
+          />
         );
       case 5:
         return (

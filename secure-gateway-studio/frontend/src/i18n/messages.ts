@@ -1520,7 +1520,7 @@ const en: Messages = {
     sgwDeployer: "Secure Gateway Deployer",
   },
   title: "New secure gateway setup",
-  steps: ["Mode", "Identities", "Environment", "Certificate", "Access", "Review", "Apply"],
+  steps: ["Mode", "Environment", "Certificate", "Access", "Review", "Apply"],
   modeTitle: "1. Start a Secure Gateway PoC",
   poc: "PoC",
   pocDescription:
@@ -1571,7 +1571,7 @@ const en: Messages = {
   willValidate: "Will validate",
   gateNote: "All gates must pass before Apply.",
   back: "Back",
-  continue: "Continue to identities",
+  continue: "Continue to environment",
   noChanges: "No changes applied",
   draftSaved: "Draft saved",
   lastSaved: "Last saved",
@@ -2317,12 +2317,13 @@ const en: Messages = {
       },
       {
         stepBadge: "Prep 2 · Top-Right Sign-In",
-        title: "Sign in from the top-right header buttons",
+        title: "Sign in from the top-right header buttons (supports separate GCP & Workspace accounts)",
         summary:
-          "Easy PoC and Secure Gateway Deployer share the top-right authentication bar.",
+          "Easy PoC and Secure Gateway Deployer share the top-right authentication bar, and also support separate Google Cloud and Google Workspace administrator accounts.",
         details: [
           "Click 'Google Workspace' at the top right to sign in and auto-load your Customer ID, OUs, and Groups.",
-          "For Secure Gateway or device posture rules, click 'Google Cloud' and enter your Project ID from [Google Cloud Console](https://console.cloud.google.com).",
+          "For Secure Gateway or device posture rules, click 'Google Cloud' at the top right (or in the Environment step) and enter your Project ID from [Google Cloud Console](https://console.cloud.google.com).",
+          "Separate GCP & Workspace accounts: Connect Google Cloud first (and create/connect the Deployer SA when using Secure Gateway Deployer), then click 'Switch Workspace Account' in the top-right Workspace popover or 'Switch Google Account' in the Access / Easy PoC card to sign in with your Workspace admin account while keeping your GCP deployer connection active.",
         ],
       },
       {
@@ -2395,9 +2396,9 @@ const en: Messages = {
         meaning: "Automation identity used via short-lived OAuth impersonation without JSON keys.",
       },
     ],
-    sharedAuthTitle: "Shared Top-Right Sign-In",
+    sharedAuthTitle: "Shared Top-Right Sign-In & Separate Account Support",
     sharedAuthIntro:
-      "Both workflows share the Google Workspace and Google Cloud buttons in the top-right header.",
+      "Both workflows share the Google Workspace and Google Cloud buttons in the top-right header and support switching between separate GCP and Workspace administrator accounts.",
     sharedAuthItems: [
       {
         label: "Google Workspace",
@@ -2406,6 +2407,10 @@ const en: Messages = {
       {
         label: "Google Cloud",
         detail: "Optional for Easy PoC; required for Secure Gateway Deployer.",
+      },
+      {
+        label: "Separate GCP & Workspace Accounts",
+        detail: "Use 'Switch Google Cloud Account' or 'Switch Workspace Account' to switch active OAuth tokens while preserving your verified connection and deployer SA.",
       },
       {
         label: "Dropdown Selection",
@@ -2422,7 +2427,7 @@ const en: Messages = {
       eyebrow: "Easy PoC · Core CEP Protections",
       title: "How Easy PoC Configures Chrome Enterprise Premium",
       intro:
-        "Deploys browser DLP, malware scanning, clipboard boundaries, SaaS tenant restrictions, and Gemini Zero Trust controls to a pilot OU or Google Group without provisioning VMs.",
+        "Deploys browser DLP, malware scanning, clipboard boundaries, personal account blocking, SaaS tenant restrictions, and Gemini Zero Trust controls to a pilot OU or Google Group without provisioning VMs.",
       pocNoticeTitle: "Pilot Scope Isolation & Rollback",
       pocNoticeBody:
         "Root `/` is blocked in code. Deploy each tab independently to a child OU or Group, and use Tab 4 Rollback to restore inherited defaults.",
@@ -2438,7 +2443,7 @@ const en: Messages = {
           eyebrow: "Scenario 1 · Browser DLP & Deep Scanning",
           title: "Real-Time File, Clipboard, Print, and Watermark Controls",
           summary:
-            "Inspects uploads, downloads, bulk pastes, and print actions via Chrome Connectors and Cloud Identity DLP, with optional BYOD-only enforcement.",
+            "Inspects uploads, downloads, bulk pastes, and print actions via Chrome Connectors and Cloud Identity DLP, with granular desktop/mobile BYOD and company-owned device scoping plus row duplication.",
           estimatedTime: "Time: ~30s",
           targetScope: "Pilot OU or Google Group.",
           authRequirement: "Workspace Super Admin.",
@@ -2449,8 +2454,8 @@ const en: Messages = {
             { label: "Protected Workspace", detail: "Screen watermark + audit logs", costBadge: "Admin Audit" },
           ],
           supports: [
-            { label: "7-Row Threat Matrix", detail: "Upload, Download, Paste, Print, and Watermark per row" },
-            { label: "BYOD-Only Scope", detail: "Stricter rules on unmanaged devices" },
+            { label: "9-Row Threat Matrix + Row Duplication", detail: "Click '+ Duplicate Row' to enforce e.g. BYOD Block and Company-Owned Audit on the same threat row" },
+            { label: "6-Option Device & OS Selector", detail: "Select Corp PC, BYOD PC, Corp Android, Corp iOS, BYOD Android, and BYOD iOS to auto-configure 9 device scopes" },
             { label: "Clipboard Boundary", detail: "Block copy/paste from internal URLs to external sites" },
             { label: "Custom User Message", detail: "Custom guidance on Warn/Block dialogs" },
             { label: "Deep Malware Scan", detail: "Safe Browsing Enhanced Protection" },
@@ -2459,20 +2464,20 @@ const en: Messages = {
         },
         {
           eyebrow: "Scenario 2 · Shadow AI & SaaS Governance",
-          title: "Consumer GenAI Blocking + HTTP Header SaaS Tenant Restrictions",
+          title: "Consumer GenAI Blocking + Personal Account Blocking + SaaS Tenant Restrictions",
           summary:
-            "Blocks unapproved consumer AI while permitting corporate Gemini, and injects HTTP headers to block sign-in to personal SaaS accounts.",
+            "Blocks unapproved consumer AI while permitting corporate Gemini, blocks personal Google account sign-ins, and injects HTTP headers to block sign-in to personal SaaS accounts.",
           estimatedTime: "Time: ~20s",
           targetScope: "Pilot OU or Google Group.",
           authRequirement: "Workspace Admin.",
           nodes: [
-            { label: "Managed Chrome", detail: "Incognito & Guest modes disabled", costBadge: "Bypass prevention" },
+            { label: "Managed Chrome", detail: "Personal accounts, Incognito & Guest blocked", costBadge: "Bypass prevention" },
             { label: "URL Governance", detail: "Blocks shadow AI; permits corporate Gemini", costBadge: "AI governance" },
             { label: "HttpHeaderInjection", detail: "Attaches tenant headers on SaaS domains", costBadge: "6 SaaS presets" },
             { label: "Corporate SaaS", detail: "Only authorized corporate tenants load", costBadge: "Personal blocked" },
           ],
           supports: [
-            { label: "Google Workspace", detail: "X-GoogApps-Allowed-Domains" },
+            { label: "Personal Account Blocking", detail: "AllowedDomainsForApps, RestrictAccountsToPatterns, RestrictSigninToPattern, BrowserSignin, Guest & Incognito off" },
             { label: "Slack & GitHub", detail: "Allowed Workspaces & Organizations headers" },
             { label: "Box & ChatGPT", detail: "Allowed Enterprise & Workspace ID headers" },
             { label: "Microsoft 365", detail: "Restrict-Access-To-Tenants + Context headers" },
@@ -2508,9 +2513,9 @@ const en: Messages = {
       implementationGroups: [
         {
           eyebrow: "Auth & Targeting",
-          title: "Shared Auth, 1-Click Pilot OU & Group Scope",
+          title: "Shared Auth, Separate Account Switching, 1-Click Pilot OU & Group Scope",
           items: [
-            "Shares top-right Workspace and Cloud sign-in state with Secure Gateway Deployer.",
+            "Shares top-right Workspace and Cloud sign-in state with Secure Gateway Deployer and supports switching between separate GCP and Workspace accounts.",
             "Auto-resolves Customer ID and loads OUs, Groups, and Access Levels.",
             "Creates `/CEP-PoC` in 1 click or targets a Google Group while blocking Root `/`.",
           ],
@@ -2520,23 +2525,24 @@ const en: Messages = {
           title: "15-Point Security Assessment",
           items: [
             "15-question checklist across GenAI, Browser Posture, SaaS Boundary, and Audit.",
-            "Maps selected risks to Chrome policies, clipboard boundaries, and the 7-row DLP matrix.",
+            "Maps selected risks to Chrome policies, clipboard boundaries, and the DLP matrix.",
           ],
         },
         {
           eyebrow: "Browser & SaaS",
-          title: "Chrome Policies & HTTP Header Injection",
+          title: "Chrome Policies, Personal Account Blocking & HTTP Header Injection",
           items: [
-            "Verifies live policy schemas and applies Safe Browsing, Password Alert, Ephemeral Profiles, and DoH.",
+            "Verifies live policy schemas and applies Safe Browsing, Password Alert, Ephemeral Profiles, DoH, and 6 Personal Account Blocking policies.",
             "Force-installs Endpoint Verification and injects tenant-restriction headers for 6 SaaS presets.",
           ],
         },
         {
           eyebrow: "Content DLP",
-          title: "Connectors & Cloud Identity DLP Matrix",
+          title: "Connectors, 9-Row Cloud Identity DLP Matrix & Row Duplication",
           items: [
             "Enables upload, download, bulk paste, print, and security event connectors.",
-            "Creates regex detectors and 7 matrix rules using `access_levels.meets_access_requirements` CEL syntax.",
+            "Provides a 6-checkbox Company Device & OS Environment Selector, 9 device scopes, and '+ Duplicate Row' so the same threat can enforce e.g. BYOD Block and Company-Owned Audit.",
+            "Updates existing `CEP PoC - *` rules in place via `PATCH` (including reactivating `INACTIVE` rules) and outputs a Manual CEL Setup Guide when GCP Project ID is omitted.",
           ],
         },
         {
@@ -2549,10 +2555,10 @@ const en: Messages = {
         },
         {
           eyebrow: "Audit & Cleanup",
-          title: "Per-Tab Execution, Trace & Rollback",
+          title: "Per-Tab Execution, Trace & Target-Scoped Rollback",
           items: [
             "Deploys each tab independently, logs HTTP traces, and exports `provision-cep-poc.sh`.",
-            "1-click Rollback restores inherited Chrome policies and deletes only PoC DLP rules.",
+            "1-click Rollback restores inherited Chrome policies and deletes only `CEP PoC - *` DLP rules for the selected OU or Group (`delete_dlp_rules: true`).",
           ],
         },
       ],
@@ -2564,13 +2570,13 @@ const en: Messages = {
       steps: [
         {
           title: "1. Setup Wizard",
-          subtitle: "Target scope, core Chrome policies, connectors, CAA, and SaaS headers",
+          subtitle: "Target scope, core Chrome policies, personal account blocking, connectors, CAA, and SaaS headers",
           summary:
-            "Select or create a pilot OU in 1 click, choose modules, and deploy baseline Chrome policies, connectors, clipboard boundaries, and SaaS header rules.",
+            "Select or create a pilot OU in 1 click, choose modules, and deploy baseline Chrome policies, personal account blocking, connectors, clipboard boundaries, and SaaS header rules.",
           actions: [
             "Sign in via 'Google Workspace' at the top right to load your Customer ID, OUs, and Groups.",
             "Select an OU or Group—or click '+ Create & Select Pilot OU' to create `/CEP-PoC`.",
-            "Configure optional Context-Aware Access, Clipboard Boundary, and SaaS HTTP headers, then click 'Deploy Selected Policies'.",
+            "Choose a preset (including 'Block personal Google accounts'), configure optional Context-Aware Access, Clipboard Boundary, and SaaS HTTP headers, then click 'Deploy Selected Policies'.",
           ],
           optionsBehavior: [
             {
@@ -2579,14 +2585,14 @@ const en: Messages = {
                 "OU mode uses `orgunits:batchModify` and supports 1-click `/CEP-PoC` creation. Group mode uses `groups:batchModify` without moving users across OUs.",
             },
             {
-              name: "Context-Aware Access",
+              name: "Context-Aware Access (Default: None)",
               behavior:
-                "Creates or reuses `secgw_chrome_managed` when a GCP Project ID is set; skipped cleanly when blank.",
+                "Defaults to `None` so deployment works out of the box without a GCP Project ID. When an auto-create template is selected with a GCP Project ID, it creates or reuses the Access Level; when GCP Project ID is omitted, the Manual CEL Setup Guide outputs copyable CEL expressions and Admin Console links.",
             },
             {
-              name: "SaaS HTTP Header Injection",
+              name: "Personal Account Blocking & SaaS HTTP Header Injection",
               behavior:
-                "Configures `chrome.users.HttpHeaderInjection` and disables Incognito/Guest modes.",
+                "Configures `AllowedDomainsForApps`, `RestrictAccountsToPatterns`, `RestrictSigninToPattern`, `BrowserSignin`, `chrome.users.HttpHeaderInjection`, and disables Incognito/Guest modes.",
             },
           ],
           apiCalls: [
@@ -2652,24 +2658,24 @@ const en: Messages = {
         },
         {
           title: "3. DLP & Threat Matrix",
-          subtitle: "7-row Cloud Identity DLP matrix, BYOD scope, watermark, and Gemini Zero Trust",
+          subtitle: "9-row Cloud Identity DLP matrix, row duplication, 6-option device selector, watermark, and Gemini Zero Trust",
           summary:
-            "Configure Audit, Warn, or Block across 7 threat rows, set internal watermark URLs, and optionally provision Gemini 3-layer Zero Trust.",
+            "Configure Audit, Warn, or Block across 9 threat rows, duplicate rows for per-device differentiation, set internal watermark URLs, and optionally provision Gemini 3-layer Zero Trust.",
           actions: [
-            "Select a DLP preset or customize Upload, Download, Paste, Print, and Watermark per row.",
-            "Set Device Scope to 'All Devices' or 'BYOD Only' and enter internal URLs for watermarking.",
-            "Click 'Deploy Selected Policies' to provision regex detectors and DLP rules.",
+            "Use the 6-checkbox Company Device & OS Environment Selector or pick a DLP preset.",
+            "Click '+ Duplicate Row' on any threat row when you want different actions by device scope—for example, BYOD Only = Block and Company-Owned Only = Audit on Universal File Upload.",
+            "Click 'Deploy Selected Policies' to create or update regex detectors and Cloud Identity DLP rules.",
           ],
           optionsBehavior: [
             {
-              name: "Cloud Identity CEL Syntax",
+              name: "9 Device Scopes & Row Duplication",
               behavior:
-                "Generates `access_levels.meets_access_requirements(['...'])` and `!access_levels.meets_access_requirements(['...'])`.",
+                "Supports All Devices, BYOD Only, Company-Owned Only, Desktop BYOD Only, Mobile BYOD Only, Android BYOD Only, iOS BYOD Only, Android All, and iOS All, with row duplication (`#2`, `#3`) for multi-tier policies.",
             },
             {
-              name: "Semantic Rule Reuse",
+              name: "In-Place PATCH Updates & Semantic Reuse",
               behavior:
-                "Reuses matching `settings/rule.dlp` rules instead of creating duplicates.",
+                "Reuses identical `settings/rule.dlp` rules and updates modified or `INACTIVE` `CEP PoC - *` rules in place via `PATCH`.",
             },
           ],
           apiCalls: [
@@ -2682,6 +2688,11 @@ const en: Messages = {
               method: "POST",
               endpoint: "https://cloudidentity.googleapis.com/v1beta1/policies (setting.type: settings/rule.dlp)",
               purpose: "Creates Cloud Identity DLP rules for the target OU or Group.",
+            },
+            {
+              method: "PATCH",
+              endpoint: "https://cloudidentity.googleapis.com/v1beta1/policies/{policyName}",
+              purpose: "Updates existing `CEP PoC - *` DLP rules in place when triggers, actions, or device scopes change.",
             },
             {
               method: "PATCH",
@@ -2700,7 +2711,7 @@ const en: Messages = {
           actions: [
             "Open `chrome://policy` in the test browser, click 'Reload policies', and check `chrome://connectors-internals`.",
             "Copy the built-in test credit card, National ID, or >100-char source code and test pasting or uploading.",
-            "Click 'Rollback PoC Policies' after testing to restore inherited defaults.",
+            "Click 'Rollback PoC Policies' after testing to restore inherited defaults and delete `CEP PoC - *` DLP rules for the target scope.",
           ],
           optionsBehavior: [
             {
@@ -2711,7 +2722,7 @@ const en: Messages = {
             {
               name: "Scoped Rollback",
               behavior:
-                "Resets managed Chrome schemas on the target OU/Group and deletes only `CEP PoC - *` DLP rules.",
+                "Resets managed Chrome schemas on the target OU/Group and deletes only `CEP PoC - *` DLP rules matching the target OU or Group.",
             },
           ],
           apiCalls: [
@@ -2742,7 +2753,7 @@ const en: Messages = {
           answer:
             "Google's Cloud Identity Policies API and Role Management API require a Google Workspace Super Admin account.",
           checklist: [
-            "Sign in via the top-right 'Google Workspace' button with a Super Admin account before deploying Tab 2 or Tab 3.",
+            "Sign in via the top-right 'Google Workspace' button (or click 'Switch Workspace Account') with a Super Admin account before deploying Tab 2 or Tab 3.",
           ],
         },
         {
@@ -2767,22 +2778,23 @@ const en: Messages = {
         },
         {
           id: "cep-faq-cel-access-level",
-          category: "BYOD Scope",
-          question: "How do BYOD-only DLP rules work?",
+          category: "BYOD & Row Duplication",
+          question: "How do I block uploads on BYOD while only auditing on company-owned devices, or configure BYOD rules without a GCP Project ID?",
           answer:
-            "Easy PoC compiles device checks with `access_levels.meets_access_requirements` and negates it for BYOD-only rules.",
+            "Click '+ Duplicate Row' on any threat row in Tab 3 to create a second row for the same threat—for example, set Row 1 to 'BYOD Only = Block' and Row 2 to 'Company-Owned Only = Audit'. If you do not enter a GCP Project ID, expand the Manual CEL Setup Guide in Tab 1 or Tab 3 to copy ready-to-paste CEL expressions for Google Admin Console.",
           checklist: [
-            "Enter a GCP Project ID in the top-right 'Google Cloud' button when using Access Levels.",
+            "Use '+ Duplicate Row' in Tab 3 to combine BYOD Block with Company-Owned Audit on the same threat.",
+            "Enter a GCP Project ID in the top-right 'Google Cloud' button for automatic Access Level creation, or use the Manual CEL Setup Guide for Admin Console setup.",
           ],
         },
         {
           id: "cep-faq-saas-headers",
-          category: "SaaS Controls",
-          question: "How does HTTP Header Injection block personal SaaS sign-ins?",
+          category: "SaaS & Personal Accounts",
+          question: "How do Personal Account Blocking and HTTP Header Injection prevent personal sign-ins?",
           answer:
-            "Chrome attaches allowed-tenant headers to HTTPS requests while blocking Incognito and Guest modes.",
+            "The 'Block personal Google accounts' preset configures `AllowedDomainsForApps`, `RestrictAccountsToPatterns`, and `RestrictSigninToPattern` for Google services, while `HttpHeaderInjection` attaches allowed-tenant headers to third-party SaaS requests and disables Incognito and Guest modes.",
           checklist: [
-            "Select a SaaS preset in Tab 1 and enter your corporate domain or workspace ID.",
+            "Select the 'Block personal Google accounts' preset or configure a SaaS preset in Tab 1 with your corporate domain or workspace ID.",
           ],
         },
         {
@@ -2994,28 +3006,29 @@ const en: Messages = {
         safetyNote: "Distribute Local PoC CA only to a dedicated non-production test OU.",
       },
       {
-        title: "Identities",
-        subtitle: "Keyless cloud and workspace authentication",
+        title: "Cloud & Workspace Auth",
+        subtitle: "Top-right header, inline cards, and separate account switching",
         summary:
-          "Establish keyless administrator sessions and bootstrap the deployer service account.",
+          "Connect Google Cloud and Google Workspace via the top-right header or inline cards in Environment and Access—no separate Identities step page required.",
         actions: [
           "Use browser-managed OAuth without exporting or storing service-account JSON keys.",
-          "Bootstrap the keyless deployer service account `secure-gateway-deployer` and its custom role.",
-          "Validate read access to your [Google Cloud Console](https://console.cloud.google.com) project and [Google Admin Console](https://admin.google.com) Chrome Policy.",
+          "Enter your Project ID in the top-right 'Google Cloud' popover or inside the Environment step, and sign in to 'Google Workspace' in the top-right header or inside the Access step.",
+          "If your Google Cloud and Google Workspace accounts are separate, connect Google Cloud first, then click 'Switch Workspace Account' or 'Switch Google Account' on the Workspace card to switch to your Workspace admin account while keeping your GCP deployer active.",
+          "Bootstrap the keyless deployer service account `secure-gateway-deployer` and its custom role either from the top-right header or inside the Review step after running read-only Preflight.",
         ],
         optionsBehavior: [
           {
-            name: "Google Cloud Project ID",
+            name: "Google Cloud Project ID (Top-Right or Environment Step)",
             behavior:
               "Target GCP project where Secure Gateway and network resources are provisioned.",
           },
           {
-            name: "Google Workspace Customer ID",
+            name: "Google Workspace Customer ID (Top-Right or Access Step)",
             behavior:
-              "Target Workspace tenant for Chrome Enterprise policy distribution.",
+              "Target Workspace tenant for Chrome Enterprise policy distribution; supports switching to a separate Workspace account without losing your GCP connection.",
           },
           {
-            name: "Bootstrap Deployer Action",
+            name: "Bootstrap Deployer Action (Top-Right or Review Step)",
             behavior:
               "Provisions the deployer SA and custom role, granting Token Creator only to the signed-in admin.",
           },
@@ -3051,19 +3064,19 @@ const en: Messages = {
       },
       {
         title: "Environment",
-        subtitle: "Data plane architecture and routing specification",
+        subtitle: "Inline Cloud connection, protocol-grouped architecture, and routing specification",
         summary:
-          "Configure the target VPC, region, private hostname, and architecture path. Option B creates a private sample backend VM.",
+          "Validate your Google Cloud Project ID inline, choose an architecture by destination app protocol (HTTPS vs. HTTP-only), and configure the target VPC, region, and private hostname. Option B creates a private sample backend VM.",
         actions: [
-          "Specify the application private hostname, port, and upstream VPC network.",
+          "Validate your Google Cloud Project ID directly in the inline connection card (or switch your Google Cloud account if needed).",
+          "Select the connection method by destination protocol: 1. HTTPS App (Option A direct connection or check 'Launch a private sample VM during Apply' for a $0 LB standalone HTTPS VM) or 2. HTTP-only App (Option B Internal ALB or Option C Nginx VM).",
           "For a Shared VPC or cross-project upstream, grant the deployer SA an upstream custom role with compute.networks.get, compute.networks.use, resourcemanager.projects.get, resourcemanager.projects.getIamPolicy, and resourcemanager.projects.setIamPolicy before preflight.",
-          "Option B configures a proxy-only subnet CIDR and creates a run-owned private sample backend VM.",
         ],
         optionsBehavior: [
           {
-            name: "Option A · Direct HTTPS",
+            name: "Option A · Direct HTTPS (or Standalone Sample VM)",
             behavior:
-              "Routes directly to an existing private HTTPS endpoint without Nginx or an ILB.",
+              "Routes directly to an existing private HTTPS endpoint without Nginx or an ILB, or launches a standalone HTTPS sample VM when 'Launch a private sample VM during Apply' is checked.",
           },
           {
             name: "Option B · ILB HTTPS Offload",
@@ -3144,12 +3157,12 @@ const en: Messages = {
       },
       {
         title: "Access",
-        subtitle: "Zero-Trust policy and user authorization",
+        subtitle: "Inline Workspace connection, Zero-Trust policy, and user authorization",
         summary:
-          "Bind Context-Aware Access levels and push Chrome policies to the test OU.",
+          "Validate or switch your Google Workspace administrator account inline, bind Context-Aware Access levels, and push Chrome policies to the test OU.",
         actions: [
-          "Select the target test OU from the Directory dropdown.",
-          "Attach an optional Context-Aware Access level.",
+          "Verify your Workspace Customer ID in the inline connection card (or click 'Switch Google Account' if your Workspace admin is separate from your GCP account).",
+          "Select the target test OU from the Directory dropdown and attach an optional Context-Aware Access level.",
           "Grant Secure Gateway application access to test users, groups, or domains.",
         ],
         optionsBehavior: [
@@ -3185,12 +3198,13 @@ const en: Messages = {
       },
       {
         title: "Review",
-        subtitle: "Deterministic preflight and cryptographic approval",
+        subtitle: "Deterministic preflight, post-Preflight Deployer SA setup, and cryptographic approval",
         summary:
-          "Run read-only discovery, evaluate all safety gates, and bind approval to a SHA-256 hash.",
+          "Run read-only discovery, evaluate all safety gates, create/connect the dedicated deployer Service Account if not yet bootstrapped, and bind approval to a SHA-256 hash.",
         actions: [
           "Scan Cloud and Workspace resources to build a desired-state diff.",
           "Evaluate safety gates for APIs, permissions, CIDRs, licenses, and certificates.",
+          "If you ran Preflight using your administrator OAuth token, click 'Create deployer and product-scoped role' in the Review card to connect the dedicated deployer SA before approving.",
           "Approve the exact configuration hash.",
         ],
         optionsBehavior: [
@@ -3200,14 +3214,14 @@ const en: Messages = {
               "Runs read-only probes to detect resource conflicts before execution.",
           },
           {
-            name: "Safety Gates",
+            name: "Post-Preflight Deployer SA Card",
             behavior:
-              "Checks billing, CEP licenses, DNS, and IAM prerequisites.",
+              "Allows creating and connecting `secure-gateway-deployer` right inside Review after inspecting the read-only Preflight plan.",
           },
           {
-            name: "SHA-256 Approval Binding",
+            name: "Safety Gates & SHA-256 Approval Binding",
             behavior:
-              "Binds approval to the canonical plan hash and revokes it on any edit.",
+              "Checks billing, CEP licenses, DNS, and IAM prerequisites, binds approval to the canonical plan hash, and revokes it on any edit.",
           },
         ],
         apiCalls: [
@@ -3226,19 +3240,20 @@ const en: Messages = {
       },
       {
         title: "Apply",
-        subtitle: "Ordered orchestration, rollback, and evidence capture",
+        subtitle: "Ordered orchestration, account-switch resume, Root CA download, and configuration recall",
         summary:
-          "Execute approved changes in dependency order with ownership tracking and acceptance verification.",
+          "Execute approved changes in dependency order with ownership tracking, pause-and-resume support for separate Workspace accounts, on-demand Root CA download, and 1-click configuration recall.",
         actions: [
           "Provision subnets, certificates, backend, gateway, DNS, and Chrome policies in dependency order.",
-          "Track resource ownership and reverse-rollback owned changes on failure.",
+          "If GCP and Workspace accounts are separate and Apply pauses at Chrome Policy, click 'Switch Google Account' to sign in with your Workspace admin account and click 'Resume interrupted Apply'.",
+          "Download the public PoC Root CA PEM or export/recall the non-sensitive configuration JSON into the wizard.",
           "Run automated system checks and record managed Chrome verification in Operations.",
         ],
         optionsBehavior: [
           {
-            name: "Dependency-Ordered Execution",
+            name: "Dependency-Ordered Execution & Account-Switch Resume",
             behavior:
-              "Provisions network and secret prerequisites before binding higher-level services.",
+              "Provisions network and secret prerequisites before binding higher-level services; if Chrome Policy requires a separate Workspace admin token, Apply pauses cleanly so you can switch accounts and resume without losing GCP checkpoints.",
           },
           {
             name: "Automated Reverse Rollback",
@@ -3248,7 +3263,7 @@ const en: Messages = {
           {
             name: "Separate acceptance verification and evidence",
             behavior:
-              "Apply only persists the matrix. Run automated system checks and record client evidence in Operations.",
+              "Apply only persists the matrix. Run automated system checks and record client evidence in Operations, or recall non-sensitive parameters into the wizard.",
           },
         ],
         apiCalls: [],
@@ -3258,10 +3273,22 @@ const en: Messages = {
     ],
     faqTitle: "Frequently Asked Questions & Troubleshooting",
     faqIntro:
-      "Troubleshooting steps for routing, certificates, OAuth distribution, and teardown.",
+      "Troubleshooting steps for routing, certificates, separate GCP/Workspace accounts, OAuth distribution, and teardown.",
     faqEyebrow: "Troubleshooting & operations",
     faqChecklistLabel: "Verification checklist",
     faqs: [
+      {
+        id: "faq-separate-gcp-workspace-accounts",
+        category: "Separate GCP & Workspace Accounts",
+        question: "Can I use Secure Gateway Deployer and Easy PoC when my Google Cloud and Google Workspace admin accounts are separate?",
+        answer:
+          "Yes. The extension preserves your verified Google Cloud connection and pinned deployer Service Account when you switch the active OAuth session to your Google Workspace administrator account.",
+        checklist: [
+          "Step 1: Sign in with your Google Cloud admin account via the top-right 'Google Cloud' button (or in the Environment step) and click 'Create & Connect SGW Deployer SA' (or validate the project connection).",
+          "Step 2: Click 'Switch Workspace Account' in the top-right 'Google Workspace' popover (or 'Switch Google Account' in the Access step / Easy PoC) and sign in with your Google Workspace admin account.",
+          "Step 3: During Apply, if Google Cloud steps succeed and Chrome Policy pauses (`interrupted`) because the active token was switched back to GCP, click 'Switch Google Account' on the Apply screen to sign in with your Workspace admin account, then click 'Resume interrupted Apply'.",
+        ],
+      },
       {
         id: "faq-503-unavailable",
         category: "Routing & Data Path",
@@ -3973,7 +4000,7 @@ const ja: Messages = {
     sgwDeployer: "Secure Gateway Deployer",
   },
   title: "セキュア ゲートウェイの新規セットアップ",
-  steps: ["モード", "ID", "環境", "証明書", "アクセス", "確認", "適用"],
+  steps: ["モード", "環境", "証明書", "アクセス", "確認", "適用"],
   modeTitle: "1. Secure Gateway の PoC を開始",
   poc: "PoC",
   pocDescription:
@@ -4023,7 +4050,7 @@ const ja: Messages = {
   willValidate: "適用時に検証",
   gateNote: "適用前にすべてのゲートを通過する必要があります。",
   back: "戻る",
-  continue: "ID設定へ進む",
+  continue: "環境設定へ進む",
   noChanges: "変更はまだ適用されていません",
   draftSaved: "下書きをローカル保存",
   lastSaved: "最終保存",
@@ -4765,13 +4792,14 @@ const ja: Messages = {
         ],
       },
       {
-        stepBadge: "準備 2 · 右上でログイン",
-        title: "画面右上の「Google Workspace」からログインする",
+        stepBadge: "準備 2 · 右上でログイン・別アカウント切替",
+        title: "画面右上の「Google Workspace」「Google Cloud」からログインする",
         summary:
-          "画面右上のボタンが Easy PoC と Secure Gateway Deployer 共通のログイン窓口です。",
+          "画面右上のボタンが Easy PoC と Secure Gateway Deployer 共通のログイン窓口です。GCP と Workspace の管理者アカウントが別々の場合もそのまま切り替えながら利用できます。",
         details: [
           "右上の［Google Workspace］からログインすると、顧客ID・組織部門・グループ一覧が自動取得されます。",
-          "Secure Gateway Deployer や端末状態判定を使う場合のみ、右上の［Google Cloud］に [Google Cloud コンソール](https://console.cloud.google.com) のプロジェクト ID を入力します。",
+          "Secure Gateway Deployer や端末状態判定を使う場合は、右上の［Google Cloud］またはステップ 2 の［環境］画面で [Google Cloud コンソール](https://console.cloud.google.com) のプロジェクト ID を入力します。",
+          "GCP と Workspace のアカウントが別々の場合の手順：① 先に GCP 管理者アカウントで［Google Cloud］に接続し、続けて ②［Google Workspace］ポップオーバーまたは［アクセス］ステップの［別の Workspace アカウントに切り替え］を押して Workspace 管理者でログインします。既存の接続状態とデプロイヤーSAはそのまま維持されます。",
         ],
       },
       {
@@ -4844,21 +4872,21 @@ const ja: Messages = {
         meaning: "鍵ファイルを端末に保存せずクラウド環境を構築する作業用 ID です。",
       },
     ],
-    sharedAuthTitle: "右上ヘッダーでの共通ログイン",
+    sharedAuthTitle: "右上ヘッダーでの共通ログインと別アカウント切替",
     sharedAuthIntro:
-      "画面右上の「Google Workspace」と「Google Cloud」で一度ログインすると、両機能で認証情報が共有されます。",
+      "画面右上の「Google Workspace」と「Google Cloud」で一度ログインすると、両機能で認証情報が共有されます。GCP と Workspace の管理者アカウントが別々の場合も、片方の接続を維持したままアカウントを切り替えられます。",
     sharedAuthItems: [
       {
         label: "Google Workspace",
-        detail: "右上のボタンからログインすると、顧客ID・OU・グループ一覧が自動取得されます。",
+        detail: "右上のボタンまたは［アクセス］画面からログインすると、顧客ID・OU・グループ一覧が自動取得されます。",
       },
       {
         label: "Google Cloud",
-        detail: "Secure Gateway Deployer や端末状態判定を使う場合のみプロジェクト ID を入力します。",
+        detail: "右上のボタンまたは［環境］画面からプロジェクト ID を指定します。デプロイヤーSAは［確認］ステップの事前チェック後にワンクリック作成できます。",
       },
       {
-        label: "ドロップダウン選択",
-        detail: "適用先の OU やグループはドロップダウンから選ぶだけで確定します。",
+        label: "別アカウントの切り替え運用",
+        detail: "GCP と Workspace のアカウントが別々の場合は、各ポップオーバーまたはステップ内の［別アカウントに切り替え］ボタンで相手側の接続を維持したままサインインし直せます。",
       },
     ],
     easyPocTabLabel: "Easy PoC ガイド",
@@ -4894,13 +4922,13 @@ const ja: Messages = {
           nodes: [
             { label: "管理対象 Chrome", detail: "ポリシー同期 + Endpoint Verification", costBadge: "端末管理" },
             { label: "Enterprise Connectors", detail: "ファイル・ペースト・印刷・イベント検査", costBadge: "リアルタイム検査" },
-            { label: "Cloud Identity DLP", detail: "カード番号・マイナンバー・機密コード検出", costBadge: "監査 / 警告 / ブロック" },
+            { label: "Cloud Identity DLP", detail: "カード番号・マイナンバー・機密コード・サイズ/全操作検出", costBadge: "監査 / 警告 / ブロック" },
             { label: "業務環境保護", detail: "画面透かし表示 + 監査ログ記録", costBadge: "証跡管理" },
           ],
           supports: [
-            { label: "7行の脅威対策マトリクス", detail: "脅威ごとにファイル・ペースト・印刷・透かしを個別設定" },
-            { label: "BYOD端末限定スコープ", detail: "非管理端末だけを厳格制限する条件式を自動設定" },
-            { label: "クリップボード境界", detail: "社内 URL から外部サイトへのコピー持ち出しを禁止" },
+            { label: "9行の脅威対策マトリクス + 行複製", detail: "各行の［＋ 行を複製］で同一脅威を複製し、BYOD はブロック・会社端末は監査など並べて設定" },
+            { label: "9種類の端末スコープ & 6項目セレクター", detail: "全端末、会社端末のみ、BYOD のみ、OS 種別、ディスク暗号化条件を個別に指定" },
+            { label: "クリップボード境界 & 個人利用ブロック", detail: "社内 URL からのコピー持ち出し禁止や個人 Google アカウントログイン遮断をワンクリック構成" },
             { label: "カスタム警告文", detail: "ブロック時に社内規定や申請先リンクを表示" },
             { label: "マルウェア深層スキャン", detail: "セーフブラウジング保護強化とパスワード警告を有効化" },
             { label: "ワンクリック検証データ", detail: "テスト用カード番号・マイナンバー・機密コードを用意" },
@@ -4957,21 +4985,21 @@ const ja: Messages = {
       implementationGroups: [
         {
           eyebrow: "認証・ターゲット選択",
-          title: "右上共通ログイン・検証用 OU ワンクリック作成・グループ指定",
+          title: "右上共通ログイン・別アカウント切替・検証用 OU ワンクリック作成・グループ指定",
           items: [
-            "右上の Google Workspace / Google Cloud ボタンで認証状態を共有します。",
+            "右上の Google Workspace / Google Cloud ボタンで認証状態を共有し、別アカウントへの切り替えにも対応します。",
             "顧客ID・組織部門・Google グループ・Access Level 一覧を自動取得します。",
             "［＋ 検証用 OU を作成して選択］から `/CEP-PoC` をワンクリック作成でき、グループ単位の適用にも対応します。",
             "最上位 `/` への変更はコードレベルで拒否します。",
           ],
         },
         {
-          eyebrow: "リスク診断",
-          title: "15項目のセキュリティ診断 & プリセット自動反映",
+          eyebrow: "リスク診断 & プリセット",
+          title: "15項目のセキュリティ診断 & 個人アカウント遮断プリセット",
           items: [
             "15 項目のチェックリストから自社のリスク課題を整理できます。",
-            "選択項目に応じて Chrome ポリシーと 7 行の DLP マトリクスを自動選択します。",
-            "ワンクリックでウィザードとマトリクスへ設定値を反映できます。",
+            "選択項目に応じて Chrome ポリシーと 9 行の DLP マトリクスを自動選択します。",
+            "個人 Google アカウントのログイン遮断やシークレットモード禁止をワンクリックで反映できます。",
           ],
         },
         {
@@ -4986,12 +5014,12 @@ const ja: Messages = {
         },
         {
           eyebrow: "コンテンツ検査・DLP",
-          title: "Enterprise Connectors & Cloud Identity DLP マトリクス",
+          title: "Enterprise Connectors & 9行の Cloud Identity DLP マトリクス + 行複製",
           items: [
             "ファイル送受信・大量テキスト入力・印刷・イベント報告の 5 コネクタを構成します。",
-            "カスタム正規表現検出器と 7 行の Cloud Identity DLP ルールを作成します。",
-            "Cloud Identity 対応のアクセスレベル関数で管理端末限定および BYOD 限定ルールを生成します。",
-            "カスタム警告メッセージと社内 URL への画面透かし表示に対応します。",
+            "カスタム正規表現検出器と 9 行の Cloud Identity DLP ルールを作成し、［＋ 行を複製］で端末スコープ別のルール分割にも対応します。",
+            "6項目の会社端末・OS 環境セレクターから Access Context Manager の CEL 式を自動生成し、GCP 未接続時は手動設定用 CEL コピーガイドを表示します。",
+            "既存ルールがある場合は PATCH でインプレース更新し、カスタム警告メッセージと社内 URL への画面透かし表示に対応します。",
           ],
         },
         {
@@ -5036,12 +5064,12 @@ const ja: Messages = {
               behavior: "OU 指定時は orgunits:batchModify を使用し、ボタンから `/CEP-PoC` を自動作成できます。グループ指定時は groups:batchModify で所属部署を変えずに適用します。",
             },
             {
-              name: "Context-Aware Access 連携",
-              behavior: "GCP プロジェクト ID 入力時のみ Access Level を作成・再利用し、空欄時は Chrome ポリシーのみを適用します。",
+              name: "Context-Aware Access の初期値と手動 CEL ガイド",
+              behavior: "初期値は「なし」のため GCP プロジェクト ID なしですぐ実行できます。端末状態判定を選んだ場合、GCP プロジェクト ID 入力時は Access Level を自動作成・再利用し、空欄時はコピー可能な手動 CEL 設定ガイドを表示します。",
             },
             {
-              name: "SaaS テナント制限",
-              behavior: "HttpHeaderInjection にテナント制限ヘッダーを設定し、シークレットモードとゲストモードを無効化します。",
+              name: "SaaS テナント制限 & 個人アカウント遮断",
+              behavior: "HttpHeaderInjection にテナント制限ヘッダーを設定し、個人 Google アカウントのログイン遮断とシークレット・ゲストモード無効化を適用します。",
             },
           ],
           apiCalls: [
@@ -5110,22 +5138,26 @@ const ja: Messages = {
         },
         {
           title: "3. DLP・脅威対策マトリクス",
-          subtitle: "7行の Cloud Identity DLP ルール・BYOD 制御・透かし・Gemini 境界保護",
+          subtitle: "9行の Cloud Identity DLP ルール・行複製・BYOD 制御・透かし・Gemini 境界保護",
           summary:
-            "7 つの脅威行ごとに操作別アクションと対象端末範囲を設定し、カスタム検出器と Cloud Identity DLP ルールを展開します。",
+            "9 つの脅威行ごとに操作別アクションと対象端末範囲を設定し、必要に応じて行を複製して BYOD と会社端末の制御を分けながら Cloud Identity DLP ルールを展開します。",
           actions: [
-            "DLP プリセットを選ぶか、7 行のマトリクスで各操作のアクションと対象端末範囲を設定します。",
+            "DLP プリセットを選ぶか、9 行のマトリクスで各操作のアクションと対象端末範囲を設定します。同じ脅威を BYOD と会社端末で分けたい場合は［＋ 行を複製］を押します。",
             "透かし表示用の社内サイト URL とカスタム警告文を入力し、［選択したポリシーをデプロイ］を押します。",
             "Gemini Enterprise の境界保護も試す場合は、下部カードでプロジェクト ID を確認して実行します。",
           ],
           optionsBehavior: [
             {
-              name: "Cloud Identity 用アクセスレベル式",
-              behavior: "Cloud Identity がサポートする `access_levels.meets_access_requirements` 関数で管理端末・BYOD 条件を生成します。",
+              name: "行複製による端末スコープ別の段階制御",
+              behavior: "［＋ 行を複製］で脅威行を複製し、1行目を BYOD 端末のみブロック、2行目を会社所有端末のみ監査といった形で並べて展開できます。",
             },
             {
-              name: "既存 DLP ルールの再利用",
-              behavior: "同一スコープ・同一条件のルールが既に存在する場合は重複作成せず再利用します。",
+              name: "6項目の会社端末・OS 環境セレクター & 手動 CEL ガイド",
+              behavior: "チェックした会社端末条件から `access_levels.meets_access_requirements` 関数で管理端末・BYOD 条件を生成し、GCP 未接続時は手動 CEL コピー表を表示します。",
+            },
+            {
+              name: "既存 DLP ルールのインプレース更新",
+              behavior: "同一表示名の `CEP PoC - *` ルールが既に存在する場合は PATCH で最新設定へ更新し、重複作成を防ぎます。",
             },
             {
               name: "Gemini 3層ゼロトラスト構成",
@@ -5136,7 +5168,12 @@ const ja: Messages = {
             {
               method: "POST",
               endpoint: "https://cloudidentity.googleapis.com/v1beta1/policies",
-              purpose: "カスタム正規表現検出器および 7 行の Cloud Identity DLP ルールを作成します。",
+              purpose: "カスタム正規表現検出器および Cloud Identity DLP ルールを新規作成します。",
+            },
+            {
+              method: "PATCH",
+              endpoint: "https://cloudidentity.googleapis.com/v1beta1/policies/{policyName}",
+              purpose: "既存の `CEP PoC - *` DLP ルールを最新のアクション・端末スコープへインプレース更新します。",
             },
             {
               method: "PATCH",
@@ -5185,9 +5222,20 @@ const ja: Messages = {
       ],
       faqTitle: "Easy PoC よくある質問",
       faqIntro:
-        "権限、OU とグループの選び方、ペースト検査の文字数、ロールバックの仕様をまとめています。",
+        "別アカウント運用、権限、OU とグループの選び方、ペースト検査の文字数、ロールバックの仕様をまとめています。",
       faqEyebrow: "トラブルシューティング",
       faqs: [
+        {
+          id: "cep-faq-separate-accounts",
+          category: "別アカウント運用",
+          question: "Google Cloud の管理者アカウントと Google Workspace の管理者アカウントが別々でも使えますか？",
+          answer:
+            "はい、そのまま使えます。先に GCP 管理者アカウントで右上の［Google Cloud］から接続し、続けて右上の［Google Workspace］ポップオーバー内の［別の Workspace アカウントに切り替え］ボタンを押して Workspace 管理者アカウントでログインしてください。GCP 側の接続とプロジェクト ID を維持したまま Workspace 操作を行えます。",
+          checklist: [
+            "右上の［Google Cloud］でプロジェクト ID を入力し、GCP 管理者アカウントで接続します。",
+            "右上の［Google Workspace］を開き、［別の Workspace アカウントに切り替え］から Workspace 特権管理者でログインします。",
+          ],
+        },
         {
           id: "cep-faq-super-admin",
           category: "管理者権限",
@@ -5226,9 +5274,10 @@ const ja: Messages = {
           category: "BYOD 制御",
           question: "BYOD 限定ルールには Google Cloud プロジェクト ID が必要ですか？",
           answer:
-            "端末種別を判定する Access Level は Google Cloud 組織の Access Context Manager で管理されるため、BYOD 限定ルールを使う場合のみ右上の［Google Cloud］にプロジェクト ID を入力します。",
+            "Access Level を API で自動作成する場合は右上の［Google Cloud］にプロジェクト ID を入力します。GCP プロジェクト ID を空欄にしたままでも、画面に表示される手動設定用 CEL 式をコピーして Google 管理コンソールへ貼り付けることで BYOD 限定ルールを利用できます。",
           checklist: [
             "全端末を対象にする場合は Google Cloud プロジェクト ID なしで全 DLP ルールを作成できます。",
+            "GCP 未接続で BYOD スコープを選んだ場合は、画面の［手動設定用の CEL 式・手順を表示］から CEL 式をコピーして利用します。",
           ],
         },
         {
@@ -5363,11 +5412,12 @@ const ja: Messages = {
     implementationGroups: [
       {
         eyebrow: "データプレーン",
-        title: "HTTPオフロードと直接HTTPS",
+        title: "HTTPオフロードと直接HTTPS・サンプルVM単体起動",
         items: [
+          "プロトコル別の2段階UIにより、① HTTPSアプリ接続時は既存アプリへの直接接続または［サンプルVMをローンチする］によるテスト用HTTPS VM自動起動を選択でき、② HTTPアプリ接続時は Internal ALB または Nginx VM によるHTTPS化を選択できます。",
           "Nginx HTTPオフロード方式は管理対象サンプルまたは既存プライベートHTTPアプリに対応し、ILB HTTPSオフロードはrun所有の非公開サンプルバックエンドVMに対応します。",
           "拡張機能のILB HTTPSオフロード方式は、非公開サンプルVMとunmanaged instance group、REGIONAL_MANAGED_PROXYサブネット、HTTP health check、INTERNAL_MANAGED backend service、regional URL map/サーバー証明書/target HTTPS proxy、内部forwarding rule、Private DNSを作成します。",
-          "直接HTTPSは既存VPC経由の正確なhostname:portルートを作り、Nginx、オフロードTLS、NAT、管理Aレコードを作成しません。",
+          "直接HTTPSは既存VPC経由の正確なhostname:portルートを作り、既存アプリ接続時はNginx、オフロードTLS、NAT、管理Aレコードを作成しません。",
           "専用VPCでは作成VM用Cloud Router/NATを追加し、既存VPCではプライベートegress確認ゲートを必須にします。",
         ],
       },
@@ -5382,10 +5432,11 @@ const ja: Messages = {
       },
       {
         eyebrow: "Google制御プレーン",
-        title: "CloudとChrome APIの自動化",
+        title: "CloudとChrome APIの自動化・別アカウント切替",
         items: [
           "選択方式に応じ、Service Usage、IAM、Compute、Cloud DNS、Secret Manager、CA Service、BeyondCorp、Access Context Manager、Chrome Policy/Management、Licensing、Billingを検出・操作します。",
-          "キーレスデプロイヤーSAとカスタムロールを準備し、不足する許可済みAPIを自動有効化します。",
+          "右上ヘッダーまたは［環境］・［アクセス］ステップから直接接続でき、GCP と Workspace の管理者アカウントが別々の場合も接続状態を維持したまま切り替えられます。",
+          "［確認］ステップの事前チェック後にキーレスデプロイヤーSAとカスタムロールをワンクリックで準備し、不足する許可済みAPIを自動有効化します。",
           "テストOUへSecure Enterprise BrowserとEndpoint Verificationを強制インストールし、Gateway routeを設定します。",
         ],
       },
@@ -5393,18 +5444,20 @@ const ja: Messages = {
         eyebrow: "TLSとID",
         title: "証明書と管理対象Chromeアクセス",
         items: [
-          "HTTPオフロードはEnterprise CA、検証済み公開証明書Secret、公開ルートPEMを出力するローカルPoC CAに対応します。",
+          "HTTPオフロードおよびサンプルHTTPS VMはEnterprise CA、検証済み公開証明書Secret、公開ルートPEMを出力するローカルPoC CAに対応します。",
+          "［証明書］ステップまたはデプロイ詳細画面からいつでも公開PoCルートCA証明書をダウンロードできます。",
           "秘密鍵は専用accessor identity付きSecret Managerに保持します。",
           "[Google 管理コンソール](https://admin.google.com) の Chrome Root Store へのアップロードと OU 接続手順を案内します。",
         ],
       },
       {
-        eyebrow: "安全なApply",
-        title: "検出、承認、進捗、ロールバック",
+        eyebrow: "安全なApplyと構成リコール",
+        title: "検出、承認、進捗、ロールバック、ワンクリック構成復元",
         items: [
           "信頼済みDiscoveryが望ましい状態との差分を作成し、新規作成/更新/変更なし/競合を分類します。",
           "承認は正確な構成ハッシュに紐付き、有効期限・1回限り・編集時無効化を持ちます。",
-          "Applyは操作チェックポイントを記録し、中断時は共有リソースの変更前状態を守りつつ所有変更のみを逆順にロールバックします。",
+          "Applyは操作チェックポイントを記録し、中断時は共有リソースの変更前状態を守りつつ所有変更のみを逆順にロールバックします。別アカウント運用時はChrome Policy適用ステップでWorkspaceアカウントへ切り替えて再開できます。",
+          "過去のデプロイ履歴から［この構成をウィザードにリコール］を押すと、ホスト名やリージョン等の非機密設定を復元してすぐに再検証できます。",
         ],
       },
       {
@@ -5450,12 +5503,13 @@ const ja: Messages = {
         safetyNote: "Local PoC CA を使用する場合は、本番環境ではなく専用のテスト用 OU に限定して配布してください。",
       },
       {
-        title: "ID",
-        subtitle: "完全キーレスなクラウド & Workspace 管理者認証",
+        title: "ヘッダー & インライン認証",
+        subtitle: "完全キーレスなクラウド & Workspace 管理者認証と別アカウント切替",
         summary:
-          "サービスアカウントJSONキーを発行・保存せず、管理者アカウントによるキーレスのサービスアカウント借用認証を確立します。",
+          "専用のIDステップ画面を開かなくても、右上ヘッダーまたは［環境］・［アクセス］ステップ内で直接接続でき、［確認］ステップの事前チェック後にキーレスのサービスアカウント借用認証を確立します。",
         actions: [
           "ブラウザ管理の管理者OAuthによるキーレス認証を使用し、サービスアカウントJSONキーを発行・保存しません。",
+          "GCP と Workspace のアカウントが別々の場合は、先に［Google Cloud］へ接続し、続いて［Google Workspace］側で［別の Workspace アカウントに切り替え］を押してサインインします。",
           "製品の全対応パスに限定したカスタムロールを持つ専用デプロイヤーSAを自動プロビジョニングします。",
           "[Google Cloud コンソール](https://console.cloud.google.com) のプロジェクトおよび [Google 管理コンソール](https://admin.google.com) の Chrome Policy への読み取りアクセスを検証します。",
         ],
@@ -5463,17 +5517,17 @@ const ja: Messages = {
           {
             name: "Google Cloud プロジェクト ID",
             behavior:
-              "Secure Gateway やロードバランサーを構築する対象 GCP プロジェクトを指定します。",
+              "右上ヘッダーまたは［環境］ステップ内で、Secure Gateway やロードバランサーを構築する対象 GCP プロジェクトを指定します。",
           },
           {
-            name: "Google Workspace 顧客 ID",
+            name: "Google Workspace 顧客 ID & 別アカウント切替",
             behavior:
-              "Chrome Enterprise ポリシーを配布する対象テナントを指定します。",
+              "右上ヘッダーまたは［アクセス］ステップ内で、GCP 接続を維持したまま Chrome Enterprise ポリシーを配布する対象テナントに接続します。",
           },
           {
             name: "デプロイヤー自動作成",
             behavior:
-              "SA `secure-gateway-deployer` と専用ロールを作成し、ログイン中管理者だけに Token Creator を付与します。",
+              "［確認］ステップの事前チェック後に SA `secure-gateway-deployer` と専用ロールを作成し、ログイン中管理者だけに Token Creator を付与します。",
           },
         ],
         apiCalls: [
@@ -5502,19 +5556,20 @@ const ja: Messages = {
       },
       {
         title: "環境",
-        subtitle: "データプレーン設計とプライベートルーティングの定義",
+        subtitle: "プロトコル別の接続方式選択とプライベートルーティングの定義",
         summary:
-          "ターゲット VPC、リージョン、プライベートホスト名、およびアーキテクチャパスを構成します。Option B は専用の非公開サンプルバックエンドVMを作成します。",
+          "GCP プロジェクト接続を確認した上で、ターゲット VPC、リージョン、プライベートホスト名、および接続先アプリのプロトコルに応じた構成を設定します。",
         actions: [
           "アプリのプライベートホスト名、ポート、および Upstream VPC ネットワークを指定します。",
+          "接続先が ① HTTPS アプリか ② HTTP のみのアプリかを選択し、検証用アプリがない場合は［サンプルVMをローンチする］にチェックを入れます。",
           "Shared VPCなど別プロジェクトのアップストリームを使う場合、アップストリームプロジェクトの管理者がデプロイヤーSAへ `compute.networks.get`、`compute.networks.use`、`resourcemanager.projects.get`、`resourcemanager.projects.getIamPolicy`、`resourcemanager.projects.setIamPolicy` の5権限を含むカスタムロールを事前付与します。",
           "Option BではGoogle管理Envoyプロキシ用のProxy-OnlyサブネットCIDRを設定し、run所有の非公開サンプルバックエンドVMを作成します。",
         ],
         optionsBehavior: [
           {
-            name: "Option A · Direct HTTPS",
+            name: "Option A · Direct HTTPS & サンプルVM起動",
             behavior:
-              "既存の HTTPS アプリへ直接 Secure Gateway をルーティングします。Nginx や ILB は作成しません。",
+              "既存の HTTPS アプリへ直接 Secure Gateway をルーティングします。［サンプルVMをローンチする］を選択した場合は、自己完結型の HTTPS サンプルVMを自動構築して最短検証できます。",
           },
           {
             name: "Option B · ILB HTTPS Offload",
@@ -5559,7 +5614,7 @@ const ja: Messages = {
         actions: [
           "Enterprise CA Service、既存 Secret、またはブラウザ自動生成の Local PoC CA を指定します。",
           "TLS 秘密鍵を Secret Manager に暗号化保管し、最小権限のアクセス権を設定します。",
-          "生成された公開 Root PEM をダウンロードし、[Google 管理コンソール](https://admin.google.com) の Chrome Root Store に登録します。",
+          "［証明書］ステップまたはデプロイ詳細画面から公開 Root PEM をダウンロードし、[Google 管理コンソール](https://admin.google.com) の Chrome Root Store に登録します。",
         ],
         optionsBehavior: [
           {
@@ -5595,11 +5650,11 @@ const ja: Messages = {
       },
       {
         title: "アクセス",
-        subtitle: "ゼロトラスト認可と Chrome ポリシーの配信",
+        subtitle: "Workspace アカウント接続・ゼロトラスト認可・Chrome ポリシーの配信",
         summary:
-          "Context-Aware Access レベルを適用し、テスト OU の管理対象ブラウザにポリシーを配信します。",
+          "Workspace 管理者アカウントの接続を確認し、Context-Aware Access レベルを適用してテスト OU の管理対象ブラウザにポリシーを配信します。",
         actions: [
-          "Google Workspace Directory API から対象の組織部門を選択します。",
+          "未接続または別アカウント運用の場合は、画面内カードから Google Workspace 管理者アカウントに接続・切り替えを行い、対象の組織部門を選択します。",
           "BeyondCorp のデバイス・プロファイル状態を検証するアクセスレベルを紐付けます。",
           "テスト対象のユーザー、グループ、またはドメインに Secure Gateway アプリ利用権限を付与します。",
         ],
@@ -5636,19 +5691,19 @@ const ja: Messages = {
       },
       {
         title: "確認",
-        subtitle: "決定論的事前ディスカバリーと暗号的承認",
+        subtitle: "決定論的事前ディスカバリー、デプロイヤーSA準備、暗号的承認",
         summary:
-          "既存リソースの非破壊スキャンを実行し、すべての安全ゲートを評価した上で、構成ハッシュに紐づく承認を行います。",
+          "既存リソースの非破壊スキャンを実行し、必要に応じてデプロイヤーSAをワンクリック作成してすべての安全ゲートを評価した上で、構成ハッシュに紐づく承認を行います。",
         actions: [
           "Google Cloud / Workspace のリソースを読み取り専用スキャンし、望ましい状態との差分プランを作成します。",
-          "課金、ライセンス、API、CIDR 重複、IAM 権限などの安全ゲートを評価します。",
-          "設定ハッシュに拘束される人手承認を実施します。",
+          "デプロイヤーSAが未作成の場合は、表示される案内カードのボタンからデプロイヤーSAを作成して事前チェックを自動再実行します。",
+          "課金、ライセンス、API、CIDR 重複、IAM 権限などの安全ゲートを評価し、設定ハッシュに拘束される人手承認を実施します。",
         ],
         optionsBehavior: [
           {
-            name: "事前確認ディスカバリー",
+            name: "事前確認ディスカバリー & デプロイヤーSA作成",
             behavior:
-              "変更を加えることなく全 API をプローブし、既存インフラとの互換性や競合を事前検出します。",
+              "変更を加えることなく全 API をプローブし、デプロイヤーSAが未準備の場合はその場でワンクリック作成と再チェックを行えます。",
           },
           {
             name: "安全ゲート",
@@ -5677,19 +5732,19 @@ const ja: Messages = {
       },
       {
         title: "適用",
-        subtitle: "依存順オーケストレーション、逆順ロールバック、受入検証",
+        subtitle: "依存順オーケストレーション、別アカウント切替再開、受入検証",
         summary:
           "承認済みオペレーションを依存順に実行して所有権を追跡し、その後の個別検証用に受入マトリクスを保存します。",
         actions: [
           "サブネット → 証明書 → バックエンド → Gateway → DNS → Chrome ポリシーの依存順で作成します。",
-          "作成したリソースの所有権を記録し、異常発生時は作成済みリソースのみを逆順ロールバックします。",
+          "GCP と Workspace のアカウントが別々で Chrome ポリシー適用時に権限エラーで一時停止した場合は、右上の［Google Workspace］から Workspace 管理者に切り替えて［失敗した箇所から再試行］を押すと完了します。",
           "適用後に［運用］画面から自動システム検証を実行し、管理対象Chromeの実機接続テスト証跡を記録します。",
         ],
         optionsBehavior: [
           {
-            name: "依存関係順のデプロイ実行",
+            name: "依存関係順のデプロイ実行 & チェックポイント再開",
             behavior:
-              "下位インフラが準備完了してから上位サービスをバインドします。",
+              "下位インフラが準備完了してから上位サービスをバインドし、一時停止時は完了済みステップを保持したまま失敗箇所から再開できます。",
           },
           {
             name: "所有範囲限定の自動ロールバック",
@@ -5709,10 +5764,22 @@ const ja: Messages = {
     ],
     faqTitle: "よくある質問とトラブルシューティング",
     faqIntro:
-      "Secure Gateway 構築・検証時のトラブル対処法、証明書信頼、OAuth 配布設定、削除手順をまとめています。",
+      "別アカウント運用、Secure Gateway 構築・検証時のトラブル対処法、証明書信頼、OAuth 配布設定、削除手順をまとめています。",
     faqEyebrow: "トラブルシューティングと運用上の注意",
     faqChecklistLabel: "確認チェックリスト・解決手順",
     faqs: [
+      {
+        id: "faq-separate-gcp-workspace-accounts",
+        category: "別アカウント運用",
+        question: "Google Cloud の管理者アカウントと Google Workspace の管理者アカウントが別々の場合、どのようにデプロイを進めればよいですか？",
+        answer:
+          "右上ヘッダーまたは［環境］・［アクセス］ステップの［別アカウントに切り替え］ボタンを使って順番に接続できます。先に GCP 管理者アカウントでプロジェクト接続とデプロイヤーSA準備を行い、次に Workspace 管理者アカウントへ切り替えて対象 OU を選択します。適用ステップの最後にある Chrome Policy 反映で停止した場合も、Workspace 管理者アカウントへ切り替えて［失敗した箇所から再試行］を押すだけで完了します。",
+        checklist: [
+          "［環境］ステップまたは右上の［Google Cloud］でプロジェクト ID を入力し、GCP 管理者アカウントで接続します。",
+          "［アクセス］ステップまたは右上の［Google Workspace］で［別の Workspace アカウントに切り替え］を押し、Workspace 管理者アカウントでログインして対象 OU を選択します。",
+          "［確認］ステップで事前チェックまたはデプロイヤーSA作成を行う際は GCP 管理者アカウントに切り替え、［適用］の Chrome ポリシー反映時は Workspace 管理者アカウントに切り替えて再開します。",
+        ],
+      },
       {
         id: "faq-503-unavailable",
         category: "ルーティング・データプレーン",
@@ -5791,7 +5858,7 @@ const ja: Messages = {
         answer:
           "いいえ。すでに `default` ゲートウェイが存在する場合、本ツールはそれを変更せずそのまま再利用し、今回の PoC 用の Application とテスト用 VM だけを追加します。既存ゲートウェイは所有リソースとして記録されないため、Teardown を実行しても削除されません。",
         checklist: [
-          "ステップ 6 の事前検証で既存の `default` ゲートウェイが検出された場合は再利用として扱われます。",
+          "確認ステップの事前検証で既存の `default` ゲートウェイが検出された場合は再利用として扱われます。",
           "同じ Application ID または VM 名がすでに存在する場合は、別の ID や名前に変更することで競合を回避できます。",
         ],
       },
