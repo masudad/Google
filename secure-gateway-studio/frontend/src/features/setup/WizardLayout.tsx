@@ -26,7 +26,8 @@ export function WizardLayout({
   onNext,
   state,
 }: WizardLayoutProps) {
-  const stepperIndex = activeStep >= 2 ? activeStep - 1 : 0;
+  const stepperIndex =
+    activeStep >= 6 ? 3 : activeStep === 5 ? 2 : activeStep === 4 ? 1 : 0;
   return (
     <>
       <main className="workspace">
@@ -37,12 +38,12 @@ export function WizardLayout({
           <div className="wizard-actions">
             <button
               className="secondary-action"
-              disabled={activeStep === 0}
+              disabled={stepperIndex === 0}
               onClick={onBack}
               type="button"
             >
               <span aria-hidden="true">←</span>
-              {activeStep === 0 ? messages.back : messages.workflow.previous}
+              {stepperIndex === 0 ? messages.back : messages.workflow.previous}
             </button>
             <button
               className="primary-action"
@@ -50,8 +51,7 @@ export function WizardLayout({
               onClick={onNext}
               type="button"
             >
-              {nextLabel ??
-                (activeStep === 0 ? messages.continue : messages.workflow.next)}
+              {nextLabel ?? messages.workflow.next}
               <ArrowRightIcon size={19} />
             </button>
           </div>

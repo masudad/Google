@@ -1847,10 +1847,9 @@ describe("Secure Gateway Studio mode screen", () => {
       }),
     );
     render(<App />);
-    fireEvent.click(screen.getByRole("button", { name: /Local PoC CA/ }));
-    fireEvent.click(
-      screen.getByRole("button", { name: "Continue to environment" }),
-    );
+    expect(
+      screen.getByRole("button", { name: /Local PoC CA/ }),
+    ).toHaveAttribute("aria-pressed", "true");
     fireEvent.change(
       screen.getByRole("textbox", { name: "Google Cloud project ID" }),
       { target: { value: "enterprise-secgw-01" } },
@@ -1877,8 +1876,7 @@ describe("Secure Gateway Studio mode screen", () => {
       expect(screen.getByRole("button", { name: "Continue" })).not.toBeDisabled();
     });
 
-    // Advance from Environment -> Certificate -> Access
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    // Advance directly from Step 1 (Environment & TLS) -> Step 2 (Access)
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
     const workspaceCard = screen
@@ -2007,7 +2005,7 @@ describe("Secure Gateway Studio mode screen", () => {
     fireEvent.change(ouSelect, { target: { value: "03-test-ou" } });
     expect(onPatch).toHaveBeenCalledWith({
       targetOuId: "03-test-ou",
-      testOuConfirmed: false,
+      testOuConfirmed: true,
     });
   });
 
@@ -2647,6 +2645,64 @@ describe("Secure Gateway Studio mode screen", () => {
     fireEvent.click(recallBtn);
     expect(onRecall).toHaveBeenCalledWith(spec);
   });
-});
 
+  it("bootstraps the deployer service account and approves the plan in a single click when checking the approval box", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm");
+    const state: SetupState = {
+      ...defaultSetupState,
+      currentStep: 5,
+      projectId: "enterprise-secgw-01",
+      customerId: "C01234567",
+      cloudConnection: "connected",
+      cloudIdentity: "admin@example.com",
+      workspaceConnection: "connected",
+      workspaceIdentity: "admin@example.com",
+      targetOuId: "03-test-ou",
+      managedChromeAccessLevel: "NONE",
+      testOuConfirmed: true,
+      principals: [{ id: "p1", type: "user", value: "user@example.com" }],
+    };
+    const spec = toDeploymentSpec(state, "ja");
+    const plan = restoredPlan(spec, "a".repeat(64));
+
+    const onBootstrapCloud = vi.fn().mockResolvedValue({
+      project_id: "enterprise-secgw-01",
+      operator_email: "admin@example.com",
+      service_account_email:
+        "sgw-studio-deployer@enterprise-secgw-01.iam.gserviceaccount.com",
+      service_account_unique_id: "123456789012345678901",
+      custom_role: "projects/enterprise-secgw-01/roles/secureGatewayStudioDeployer",
+      access_policy_id: "285159511080",
+      adc_command: "",
+    });
+    const onValidateCloud = vi.fn().mockResolvedValue(undefined);
+    const onApprove = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <ReviewStep
+        approval={null}
+        busy={false}
+        error=""
+        messages={getMessages("ja")}
+        onApprove={onApprove}
+        onBootstrapCloud={onBootstrapCloud}
+        onPatch={vi.fn()}
+        onPrepare={vi.fn().mockResolvedValue(undefined)}
+        onValidateCloud={onValidateCloud}
+        preparedPlan={plan}
+        state={state}
+      />,
+    );
+
+    const approvalCheckbox = screen.getByRole("checkbox");
+    fireEvent.click(approvalCheckbox);
+
+    await waitFor(() => {
+      expect(onBootstrapCloud).toHaveBeenCalledWith(false);
+      expect(onValidateCloud).toHaveBeenCalledWith(true);
+      expect(onApprove).toHaveBeenCalledWith(true);
+    });
+    expect(confirmSpy).not.toHaveBeenCalled();
+  });
+});
 

@@ -488,15 +488,17 @@ export function App() {
   function isCurrentStepValid(): boolean {
     switch (setup.currentStep) {
       case 0:
-        return countSelectedPlatforms(setup.platforms) > 0;
       case 1:
       case 2:
-        return isEnvironmentReady(
-          setup,
-          runtimeCapabilities.internalHttpsLbArchitecture,
-        );
       case 3:
-        return isCertificateReady(setup);
+        return (
+          countSelectedPlatforms(setup.platforms) > 0 &&
+          isEnvironmentReady(
+            setup,
+            runtimeCapabilities.internalHttpsLbArchitecture,
+          ) &&
+          isCertificateReady(setup)
+        );
       case 4:
         return isAccessReady(setup);
       case 5:
@@ -510,7 +512,7 @@ export function App() {
 
   function goBack() {
     patchSetup({
-      currentStep: setup.currentStep <= 2 ? 0 : Math.max(0, setup.currentStep - 1),
+      currentStep: setup.currentStep <= 4 ? 0 : setup.currentStep - 1,
     });
   }
 
@@ -520,8 +522,20 @@ export function App() {
       return;
     }
     if (!isCurrentStepValid() || setup.currentStep >= 6) return;
+    if (setup.currentStep === 5) {
+      patchSetup({ currentStep: 6 });
+      void handleApply();
+      return;
+    }
+    if (setup.currentStep === 4) {
+      patchSetup({ currentStep: 5 });
+      if (isConfigurationReady(setup) && !preparedPlan && !workflowBusy) {
+        void handlePreparePlan();
+      }
+      return;
+    }
     patchSetup({
-      currentStep: setup.currentStep === 0 ? 2 : Math.min(6, setup.currentStep + 1),
+      currentStep: 4,
     });
   }
 
@@ -645,6 +659,20 @@ export function App() {
       if (delays[attempt] > 0) await delay(delays[attempt]);
       try {
         const validation = await validateGoogleCloudConnection(setup.projectId);
+        let autoResolvedSourceImage = setup.sourceImage;
+        if (
+          runtimeCapabilities.recommendedPocSourceImage &&
+          setup.mode === "poc" &&
+          effectiveBackendKind(setup) !== "direct_https" &&
+          !setup.sourceImage.trim()
+        ) {
+          try {
+            const option = await getRecommendedPocSourceImage(setup.projectId);
+            autoResolvedSourceImage = option.value;
+          } catch {
+            // Keep manual sample image resolution available if automatic lookup fails.
+          }
+        }
         patchSetup({
           cloudConnection: "connected",
           cloudIdentity: validation.principal_hint,
@@ -652,6 +680,9 @@ export function App() {
             validation.access_policy_id && /^\d+$/.test(validation.access_policy_id)
               ? validation.access_policy_id
               : "",
+          ...(autoResolvedSourceImage !== setup.sourceImage
+            ? { sourceImage: autoResolvedSourceImage }
+            : {}),
         });
         return;
       } catch (error) {
@@ -813,24 +844,6 @@ export function App() {
 
   function renderCurrentStep() {
     switch (setup.currentStep) {
-      case 1:
-      case 2:
-        return (
-          <EnvironmentStep
-            messages={messages}
-            onPatch={patchSetup}
-            onValidateCloud={handleValidateCloud}
-            state={setup}
-          />
-        );
-      case 3:
-        return (
-          <CertificateStep
-            messages={messages}
-            onPatch={patchSetup}
-            state={setup}
-          />
-        );
       case 4:
         return (
           <AccessStep
@@ -872,12 +885,13 @@ export function App() {
         );
       default:
         return (
-          <ModeStep
+          <EnvironmentStep
             messages={messages}
             onCertificateChange={handleCertificateChange}
             onModeChange={handleModeChange}
             onNetworkChange={handleNetworkChange}
-            onPlatformToggle={handlePlatformToggle}
+            onPatch={patchSetup}
+            onValidateCloud={handleValidateCloud}
             state={setup}
           />
         );

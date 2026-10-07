@@ -3,6 +3,7 @@ import {
   CheckIcon,
   CloudIcon,
   CodeIcon,
+  GlobeIcon,
   InfoIcon,
   LockIcon,
   NetworkIcon,
@@ -40,6 +41,9 @@ import {
   type AccessPrincipal,
   type BackendKind,
   type BackendLocation,
+  type CertificateStrategy,
+  type DeploymentMode,
+  type NetworkStrategy,
   type PrincipalType,
   type SetupState,
 } from "../../lib/setup-state";
@@ -52,6 +56,9 @@ interface StepProps {
 }
 
 interface EnvironmentStepProps extends StepProps {
+  onCertificateChange?: (strategy: CertificateStrategy) => void;
+  onModeChange?: (mode: DeploymentMode) => void;
+  onNetworkChange?: (strategy: NetworkStrategy) => void;
   onValidateCloud?: (retryAfterBootstrap?: boolean) => Promise<void>;
 }
 
@@ -619,12 +626,16 @@ export function IdentitiesStep({
 
 export function EnvironmentStep({
   messages,
+  onCertificateChange,
+  onModeChange,
+  onNetworkChange,
   onPatch,
   onValidateCloud,
   state,
 }: EnvironmentStepProps) {
   const copy = messages.workflow;
   const backendKind = effectiveBackendKind(state);
+  const localPocDisabled = state.mode === "production";
   const [vpcNetworks, setVpcNetworks] = useState<CatalogState>(emptyCatalog);
   const [sampleImageBusy, setSampleImageBusy] = useState(false);
   const [sampleImageError, setSampleImageError] = useState("");
@@ -635,6 +646,53 @@ export function EnvironmentStep({
   );
   const usesDeploymentProjectVpc =
     backendKind !== "direct_https" || !state.upstreamVpcProjectId.trim();
+
+  function selectMode(mode: DeploymentMode) {
+    if (onModeChange) {
+      onModeChange(mode);
+      return;
+    }
+    if (mode === "production" || mode === state.mode) return;
+    onPatch({ mode });
+  }
+
+  function selectNetwork(networkStrategy: NetworkStrategy) {
+    if (onNetworkChange) {
+      onNetworkChange(networkStrategy);
+      return;
+    }
+    if (networkStrategy === state.networkStrategy) return;
+    onPatch({
+      networkStrategy,
+      backendKind:
+        networkStrategy === "dedicated" &&
+        state.backendKind === "direct_https" &&
+        !state.directHttpsLaunchSampleVm
+          ? "managed_sample"
+          : state.backendKind,
+    });
+  }
+
+  function selectCertificate(certificateStrategy: CertificateStrategy) {
+    if (onCertificateChange) {
+      onCertificateChange(certificateStrategy);
+      return;
+    }
+    if (
+      certificateStrategy === state.certificateStrategy ||
+      (state.mode === "production" && certificateStrategy === "local_poc")
+    ) {
+      return;
+    }
+    onPatch({
+      certificateStrategy,
+      privateHostname:
+        certificateStrategy === "public_trusted" &&
+        !isPublicTrustedHostnameCandidate(state.privateHostname)
+          ? ""
+          : state.privateHostname,
+    });
+  }
 
   function cloudStatusLabel(status: SetupState["cloudConnection"]) {
     if (status === "connected") return copy.connected;
@@ -821,6 +879,112 @@ export function EnvironmentStep({
           )}
         </article>
       )}
+      <section className="form-section">
+        <h2>{messages.modeTitle}</h2>
+        <div className="mode-grid">
+          <ChoiceCard
+            description={messages.pocDescription}
+            icon={<InfoIcon size={29} />}
+            onSelect={() => selectMode("poc")}
+            selected={state.mode === "poc"}
+            title={messages.poc}
+          />
+          <ChoiceCard
+            description={messages.productionDescription}
+            detail={` (${messages.productionUnavailable})`}
+            disabled
+            icon={<ShieldIcon size={30} />}
+            onSelect={() => selectMode("production")}
+            selected={false}
+            title={messages.production}
+          />
+        </div>
+      </section>
+      <div className="strategy-grid">
+        <section className="form-section strategy-section">
+          <h2>
+            {messages.infrastructureTitle}
+            <InfoIcon size={16} />
+          </h2>
+          <ChoiceCard
+            description={messages.dedicatedDescription}
+            icon={<NetworkIcon size={27} />}
+            onSelect={() => selectNetwork("dedicated")}
+            selected={state.networkStrategy === "dedicated"}
+            title={messages.dedicatedNetwork}
+          />
+          <ChoiceCard
+            description={messages.existingDescription}
+            icon={<NetworkIcon size={27} />}
+            onSelect={() => selectNetwork("existing")}
+            selected={state.networkStrategy === "existing"}
+            title={messages.existingVpc}
+          />
+        </section>
+        <section className="form-section strategy-section certificate-section">
+          <h2>
+            {messages.certificateTitle}
+            <InfoIcon size={16} />
+          </h2>
+          <ChoiceCard
+            description={messages.localPocCaDescription}
+            detail={
+              state.mode === "production"
+                ? ` (${messages.disabledProduction})`
+                : ` (${messages.localPocAdminConsole})`
+            }
+            disabled={localPocDisabled}
+            icon={<LockIcon size={26} />}
+            onSelect={() => selectCertificate("local_poc")}
+            selected={state.certificateStrategy === "local_poc"}
+            title={messages.localPocCa}
+          />
+          <ChoiceCard
+            description={messages.enterpriseCaDescription}
+            icon={<ShieldIcon size={27} />}
+            onSelect={() => selectCertificate("enterprise_ca")}
+            selected={state.certificateStrategy === "enterprise_ca"}
+            title={messages.enterpriseCa}
+          />
+          <ChoiceCard
+            description={messages.publicCertificateDescription}
+            icon={<GlobeIcon size={27} />}
+            onSelect={() => selectCertificate("public_trusted")}
+            selected={state.certificateStrategy === "public_trusted"}
+            title={messages.publicCertificate}
+          />
+        </section>
+      </div>
+      {backendKind !== "direct_https" &&
+        state.certificateStrategy === "enterprise_ca" && (
+          <div className="field-grid two">
+            <Field
+              label={copy.caPool}
+              onChange={(caPool) => onPatch({ caPool })}
+              placeholder={`projects/${state.projectId || "{projectId}"}/locations/{location}/caPools/{pool}`}
+              value={state.caPool}
+            />
+            <Field
+              label={copy.caName}
+              onChange={(caName) => onPatch({ caName })}
+              placeholder={`projects/${state.projectId || "{projectId}"}/locations/{location}/caPools/{pool}/certificateAuthorities/{authority}`}
+              value={state.caName}
+            />
+          </div>
+        )}
+      {backendKind !== "direct_https" &&
+        state.certificateStrategy === "public_trusted" && (
+          <div className="field-grid one">
+            <Field
+              label={copy.secretName}
+              onChange={(publicCertificateSecret) =>
+                onPatch({ publicCertificateSecret })
+              }
+              placeholder="projects/.../secrets/secgw-tls"
+              value={state.publicCertificateSecret}
+            />
+          </div>
+        )}
       <div className="field-grid three">
         <Field
           label={copy.deploymentName}
@@ -1833,7 +1997,7 @@ export function AccessStep({
           onChange={(targetOuId) =>
             onPatch({
               targetOuId,
-              testOuConfirmed: false,
+              testOuConfirmed: Boolean(targetOuId.trim()),
             })
           }
           onRetry={() => void loadOptions()}
@@ -2120,12 +2284,9 @@ export function ReviewStep({
     state.cloudIdentity.endsWith(".iam.gserviceaccount.com") ||
     bootstrapResult !== null;
 
-  async function handleReviewBootstrap() {
+  async function handleReviewBootstrap(): Promise<boolean> {
     if (!onBootstrapCloud || !onValidateCloud) {
-      return;
-    }
-    if (!globalThis.confirm(copy.bootstrapConfirm)) {
-      return;
+      return false;
     }
     setBootstrapBusy(true);
     setBootstrapError("");
@@ -2143,7 +2304,7 @@ export function ReviewStep({
           result = await onBootstrapCloud(false, false, true);
           setBootstrapResult(result);
           await onValidateCloud(true);
-          return;
+          return true;
         }
         if (
           !(err instanceof ApiError) ||
@@ -2167,6 +2328,7 @@ export function ReviewStep({
       }
       setBootstrapResult(result);
       await onValidateCloud(true);
+      return true;
     } catch (err) {
       if (err instanceof ApiError && err.code === "consent-required") {
         setBootstrapError(copy.signInRequired);
@@ -2182,9 +2344,26 @@ export function ReviewStep({
             : copy.bootstrapFailed,
         );
       }
+      return false;
     } finally {
       setBootstrapBusy(false);
     }
+  }
+
+  async function handleApprovalToggle(checked: boolean) {
+    if (
+      checked &&
+      !deployerSaReady &&
+      onBootstrapCloud &&
+      onValidateCloud &&
+      state.projectId.trim()
+    ) {
+      const bootstrapped = await handleReviewBootstrap();
+      if (!bootstrapped) {
+        return;
+      }
+    }
+    await onApprove(checked);
   }
 
   useEffect(() => {
@@ -2568,8 +2747,8 @@ export function ReviewStep({
       <label className="approval-card">
         <input
           checked={approval !== null}
-          disabled={!gatesReady || busy}
-          onChange={(event) => void onApprove(event.target.checked)}
+          disabled={!gatesReady || busy || bootstrapBusy}
+          onChange={(event) => void handleApprovalToggle(event.target.checked)}
           type="checkbox"
         />
         <span>

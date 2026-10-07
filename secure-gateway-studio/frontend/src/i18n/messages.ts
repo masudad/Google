@@ -1520,7 +1520,7 @@ const en: Messages = {
     sgwDeployer: "Secure Gateway Deployer",
   },
   title: "New secure gateway setup",
-  steps: ["Mode", "Environment", "Certificate", "Access", "Review", "Apply"],
+  steps: ["Environment & TLS", "Access", "Review", "Apply"],
   modeTitle: "1. Start a Secure Gateway PoC",
   poc: "PoC",
   pocDescription:
@@ -4000,7 +4000,7 @@ const ja: Messages = {
     sgwDeployer: "Secure Gateway Deployer",
   },
   title: "セキュア ゲートウェイの新規セットアップ",
-  steps: ["モード", "環境", "証明書", "アクセス", "確認", "適用"],
+  steps: ["環境・証明書", "アクセス", "確認", "適用"],
   modeTitle: "1. Secure Gateway の PoC を開始",
   poc: "PoC",
   pocDescription:
