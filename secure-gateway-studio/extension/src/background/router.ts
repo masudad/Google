@@ -105,9 +105,16 @@ export interface RouteContext {
    * Chrome Policy, and Cloud Identity have to run as the administrator.
    */
   administratorTransport: Transport;
+  /**
+   * Administrator transport scoped to the Google Cloud operator when the
+   * operator uses separate Google Cloud and Google Workspace accounts.
+   */
+  cloudAdministratorTransport?: Transport;
   cloudIdentity: () => Promise<string>;
   /** Signed-in administrator, for the Token Creator binding bootstrap adds. */
   operatorEmail: () => Promise<string>;
+  /** Signed-in Google Workspace administrator when separate from the Cloud operator. */
+  workspaceOperatorEmail?: () => Promise<string>;
   /** Configured Access Context Manager policy, when the operator has set one. */
   accessPolicyId: (projectId?: string) => Promise<string | undefined>;
   /** Credential label returned by Cloud connection validation. */
@@ -156,6 +163,10 @@ export interface RouteContext {
   /** Re-schedule this exact durable run; never consume/create another one. */
   resumeApply: (runId: string) => Promise<unknown>;
   runState: (runId: string) => Promise<unknown>;
+  prepareSignIn?: (options?: {
+    switch_account?: boolean;
+    role?: "cloud" | "workspace";
+  }) => Promise<void>;
   signIn?: () => Promise<{ authenticated: true; operator: string }>;
   signOut?: () => Promise<void>;
   localPocRootCertificate?: (deploymentName: string) => Promise<{ content: string; contentType: string } | undefined>;
@@ -331,7 +342,11 @@ async function withCepMutationLease<T>(
     | CepLicenseAssignConfig
     | CepGeminiZeroTrustConfig
     | CepCustomRoleConfig,
-  mutate: (administrator: Transport, cloud: Transport) => Promise<T>,
+  mutate: (
+    administrator: Transport,
+    cloud: Transport,
+    cloudAdmin: Transport,
+  ) => Promise<T>,
 ): Promise<T> {
   if (
     context.acquireCepMutationLease === undefined ||
@@ -482,6 +497,9 @@ async function withCepMutationLease<T>(
     result = await mutate(
       guardedTransport(context.administratorTransport),
       guardedTransport(context.transport),
+      guardedTransport(
+        context.cloudAdministratorTransport ?? context.administratorTransport,
+      ),
     );
   } catch (error) {
     mutationFailure = error;
@@ -861,6 +879,13 @@ export async function route(
     if (!context.signIn) {
       throw new RouteError(501, "sign-in-unavailable", "This build cannot sign in.");
     }
+    const signInOptions = body as {
+      switch_account?: boolean;
+      role?: "cloud" | "workspace";
+    } | undefined;
+    if (signInOptions?.switch_account === true && context.prepareSignIn) {
+      await context.prepareSignIn(signInOptions);
+    }
     // Reaching a consent prompt requires an explicit operator click. The route
     // exists so the shared React layer can ask for one without knowing that
     // the extension answers it with chrome.identity.
@@ -873,6 +898,9 @@ export async function route(
     }
     return { success: true };
   }
+
+  const cloudAdminTransport =
+    context.cloudAdministratorTransport ?? context.administratorTransport;
 
   async function hasPinnedProjectDeployer(
     checkDeployer: () => Promise<unknown>,
@@ -902,7 +930,7 @@ export async function route(
       projectId.trim() !== "" &&
       (await hasPinnedProjectDeployer(() => context.requireDeployer(projectId)));
     return new GoogleSetupCatalog(
-      useDeployer ? context.discoveryTransport : context.administratorTransport,
+      useDeployer ? context.discoveryTransport : cloudAdminTransport,
       {
         principalHint: useDeployer
           ? await context.cloudIdentity()
@@ -918,7 +946,7 @@ export async function route(
   async function administratorCloudCatalog(
     policyId?: string,
   ): Promise<GoogleSetupCatalog> {
-    return new GoogleSetupCatalog(context.administratorTransport, {
+    return new GoogleSetupCatalog(cloudAdminTransport, {
       principalHint: await context.operatorEmail(),
       credentialKind: "administrator",
       accessPolicyId: policyId,
@@ -927,7 +955,9 @@ export async function route(
 
   async function workspaceCatalog(): Promise<GoogleSetupCatalog> {
     return new GoogleSetupCatalog(context.administratorTransport, {
-      principalHint: await context.operatorEmail(),
+      principalHint: await (context.workspaceOperatorEmail
+        ? context.workspaceOperatorEmail()
+        : context.operatorEmail()),
       credentialKind: "administrator",
     });
   }
@@ -946,11 +976,11 @@ export async function route(
           error.url.includes("serviceusage.googleapis.com"))
       ) {
         try {
-          await context.administratorTransport.requestJson(
+          await cloudAdminTransport.requestJson(
             "POST",
             `https://serviceusage.googleapis.com/v1/projects/${projectId}/services/serviceusage.googleapis.com:enable`,
           );
-          await context.administratorTransport.requestJson(
+          await cloudAdminTransport.requestJson(
             "POST",
             `https://serviceusage.googleapis.com/v1/projects/${projectId}/services/dns.googleapis.com:enable`,
           );
@@ -1066,7 +1096,7 @@ export async function route(
       await context.assertBootstrapOperator(projectId, ownershipPin);
     }
     const bootstrapOptions = {
-      transport: context.administratorTransport,
+      transport: cloudAdminTransport,
       operatorEmail: await context.operatorEmail(),
       accessPolicyId: resolvedPolicyId ?? undefined,
       ownershipPin,
@@ -1180,7 +1210,7 @@ export async function route(
         context.requireDeployer(spec.project_id),
       ));
     const provider = new GoogleDiscoveryProvider(
-      useDeployer ? context.discoveryTransport : context.administratorTransport,
+      useDeployer ? context.discoveryTransport : cloudAdminTransport,
       {
         cloudIdentity: useDeployer
           ? await context.cloudIdentity()
@@ -1207,7 +1237,7 @@ export async function route(
         context.requireDeployer(spec.project_id),
       ));
     const provider = new GoogleDiscoveryProvider(
-      useDeployer ? context.discoveryTransport : context.administratorTransport,
+      useDeployer ? context.discoveryTransport : cloudAdminTransport,
       {
         cloudIdentity: useDeployer
           ? await context.cloudIdentity()
@@ -2350,13 +2380,13 @@ export async function route(
       projectId !== "" &&
       (request_.access_level ?? "").startsWith("AUTO_CREATE_") &&
       (await hasPinnedProjectDeployer(() => context.requireDeployer(projectId)));
-    return withCepMutationLease(context, "provision", request_, async (administrator, cloud) =>
+    return withCepMutationLease(context, "provision", request_, async (administrator, cloud, cloudAdmin) =>
       await (
         await cepProvider(
           context,
           projectId || undefined,
           administrator,
-          useDeployer ? cloud : administrator,
+          useDeployer ? cloud : cloudAdmin,
         )
       ).provision(request_));
   }
@@ -2368,13 +2398,13 @@ export async function route(
       projectId !== "" &&
       (request_.access_level ?? "").startsWith("AUTO_CREATE_") &&
       (await hasPinnedProjectDeployer(() => context.requireDeployer(projectId)));
-    return withCepMutationLease(context, "rollback", request_, async (administrator, cloud) =>
+    return withCepMutationLease(context, "rollback", request_, async (administrator, cloud, cloudAdmin) =>
       await (
         await cepProvider(
           context,
           projectId || undefined,
           administrator,
-          useDeployer ? cloud : administrator,
+          useDeployer ? cloud : cloudAdmin,
         )
       ).rollback(request_));
   }
@@ -2385,13 +2415,13 @@ export async function route(
     const useDeployer =
       projectId !== "" &&
       (await hasPinnedProjectDeployer(() => context.requireDeployer(projectId)));
-    return withCepMutationLease(context, "roles", request_, async (administrator, cloud) =>
+    return withCepMutationLease(context, "roles", request_, async (administrator, cloud, cloudAdmin) =>
       await (
         await cepProvider(
           context,
           projectId || undefined,
           administrator,
-          useDeployer ? cloud : administrator,
+          useDeployer ? cloud : cloudAdmin,
         )
       ).createCustomRoles(request_));
   }
@@ -2418,13 +2448,13 @@ export async function route(
           "CEP licence assignment stopped because deployer identity verification timed out.",
         ),
       ));
-    return withCepMutationLease(context, "assign_licenses", request_, async (administrator, cloud) =>
+    return withCepMutationLease(context, "assign_licenses", request_, async (administrator, cloud, cloudAdmin) =>
       await (
         await cepProvider(
           context,
           projectId || undefined,
           administrator,
-          useDeployer ? cloud : administrator,
+          useDeployer ? cloud : cloudAdmin,
         )
       ).assignLicenses(request_));
   }
@@ -2437,13 +2467,13 @@ export async function route(
     const useDeployer = await hasPinnedProjectDeployer(() =>
       context.requireDeployer(request_.project_id),
     );
-    return withCepMutationLease(context, "gemini_zero_trust", request_, async (administrator, cloud) =>
+    return withCepMutationLease(context, "gemini_zero_trust", request_, async (administrator, cloud, cloudAdmin) =>
       await (
         await cepProvider(
           context,
           request_.project_id,
           administrator,
-          useDeployer ? cloud : administrator,
+          useDeployer ? cloud : cloudAdmin,
         )
       ).provisionGeminiZeroTrust(request_));
   }

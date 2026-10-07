@@ -94,20 +94,141 @@ function assertSupportedExtensionArchitecture(spec: DeploymentSpec): DeploymentS
   return spec;
 }
 
+interface CachedOperatorSession {
+  token: string;
+  operator: GoogleOperatorIdentity;
+}
+
+const operatorSessionsByEmail = new Map<string, CachedOperatorSession>();
+let pendingSignInOptions: {
+  switchAccount?: boolean;
+  role?: "cloud" | "workspace";
+} | null = null;
+
 /** Google-attested human account controlling the administrator token. */
 async function operatorIdentity(): Promise<GoogleOperatorIdentity> {
-  return await googleOperatorIdentity();
+  const current = await googleOperatorIdentity();
+  try {
+    const token = await chromeIdentity.getAuthToken(false);
+    operatorSessionsByEmail.set(current.email.trim().toLowerCase(), {
+      token,
+      operator: current,
+    });
+  } catch {
+    // Silent token inspection only; identity was already resolved.
+  }
+  return current;
+}
+
+async function effectiveLifecycleOperator(): Promise<GoogleOperatorIdentity> {
+  const current = await operatorIdentity();
+  const stored = await persistentGet([
+    "deployerOperatorEmail",
+    "deployerOperatorSubject",
+    "workspaceOperatorEmail",
+    "workspaceOperatorSubject",
+    "cloudOperatorEmail",
+    "cloudOperatorSubject",
+  ]);
+  if (
+    typeof stored.workspaceOperatorEmail === "string" &&
+    typeof stored.workspaceOperatorSubject === "string" &&
+    stored.workspaceOperatorEmail === current.email &&
+    stored.workspaceOperatorSubject === current.subject
+  ) {
+    if (
+      typeof stored.deployerOperatorEmail === "string" &&
+      stored.deployerOperatorEmail !== "" &&
+      typeof stored.deployerOperatorSubject === "string" &&
+      stored.deployerOperatorSubject !== ""
+    ) {
+      return {
+        email: stored.deployerOperatorEmail,
+        subject: stored.deployerOperatorSubject,
+      };
+    }
+    if (
+      typeof stored.cloudOperatorEmail === "string" &&
+      stored.cloudOperatorEmail !== "" &&
+      typeof stored.cloudOperatorSubject === "string" &&
+      stored.cloudOperatorSubject !== "" &&
+      operatorSessionsByEmail.has(stored.cloudOperatorEmail.trim().toLowerCase())
+    ) {
+      return {
+        email: stored.cloudOperatorEmail,
+        subject: stored.cloudOperatorSubject,
+      };
+    }
+  }
+  return current;
 }
 
 /** Set once the operator has chosen a deployer service account to impersonate. */
 async function operatorEmail(): Promise<string> {
   try {
-    return (await operatorIdentity()).email;
+    return (await effectiveLifecycleOperator()).email;
   } catch {
     return "";
   }
 }
 
+async function workspaceOperatorEmail(): Promise<string> {
+  try {
+    const current = await operatorIdentity();
+    const stored = await persistentGet([
+      "workspaceOperatorEmail",
+      "workspaceOperatorSubject",
+    ]);
+    if (
+      typeof stored.workspaceOperatorEmail === "string" &&
+      stored.workspaceOperatorEmail !== "" &&
+      (stored.workspaceOperatorEmail === current.email ||
+        operatorSessionsByEmail.has(stored.workspaceOperatorEmail.trim().toLowerCase()))
+    ) {
+      return stored.workspaceOperatorEmail;
+    }
+    return current.email;
+  } catch {
+    return "";
+  }
+}
+
+function cloudOperatorIdentityBackend(preferredEmail?: string) {
+  return {
+    getAuthToken: async (interactive: boolean): Promise<string> => {
+      if (!interactive) {
+        const stored = await persistentGet([
+          "deployerOperatorEmail",
+          "cloudOperatorEmail",
+        ]);
+        const targetEmail = (
+          preferredEmail ??
+          (typeof stored.deployerOperatorEmail === "string" && stored.deployerOperatorEmail !== ""
+            ? stored.deployerOperatorEmail
+            : typeof stored.cloudOperatorEmail === "string" && stored.cloudOperatorEmail !== ""
+              ? stored.cloudOperatorEmail
+              : "")
+        ).trim().toLowerCase();
+        if (targetEmail !== "") {
+          const cached = operatorSessionsByEmail.get(targetEmail);
+          if (cached !== undefined) {
+            return cached.token;
+          }
+        }
+      }
+      return chromeIdentity.getAuthToken(interactive);
+    },
+    removeCachedAuthToken: async (token: string): Promise<void> => {
+      for (const [email, session] of operatorSessionsByEmail.entries()) {
+        if (session.token === token) {
+          operatorSessionsByEmail.delete(email);
+        }
+      }
+      await chromeIdentity.removeCachedAuthToken(token);
+    },
+    clearAllCachedAuthTokens: () => chromeIdentity.clearAllCachedAuthTokens(),
+  };
+}
 
 let credentials: DeployerCredentials | null = null;
 
@@ -141,10 +262,14 @@ async function ensureCredentials(): Promise<DeployerCredentials | null> {
     "deployerServiceAccount",
     "deployerServiceAccountUniqueId",
     "deployerProjectId",
+    "deployerOperatorEmail",
   ]);
   const email = stored.deployerServiceAccount;
   const projectId = stored.deployerProjectId;
   const uniqueId = stored.deployerServiceAccountUniqueId;
+  const operator = typeof stored.deployerOperatorEmail === "string"
+    ? stored.deployerOperatorEmail
+    : undefined;
   if (
     typeof projectId !== "string" ||
     !/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(projectId) ||
@@ -152,7 +277,10 @@ async function ensureCredentials(): Promise<DeployerCredentials | null> {
     typeof uniqueId !== "string" ||
     !/^\d+$/.test(uniqueId)
   ) return null;
-  credentials = new DeployerCredentials({ serviceAccountEmail: email });
+  credentials = new DeployerCredentials({
+    serviceAccountEmail: email,
+    identity: cloudOperatorIdentityBackend(operator),
+  });
   return credentials;
 }
 
@@ -175,7 +303,8 @@ async function requirePinnedBootstrapOperator(
   pinValue?: unknown,
   requireStoredSubject = true,
 ): Promise<{ pin: BootstrapOwnershipPin; operator: GoogleOperatorIdentity }> {
-  const operator = await operatorIdentity();
+  const currentOperator = await operatorIdentity();
+  const operator = await effectiveLifecycleOperator();
   const pin = assertBootstrapOwnershipOperator(
     pinValue ?? await bootstrapOwnershipPin(projectId),
     projectId,
@@ -184,6 +313,8 @@ async function requirePinnedBootstrapOperator(
   const stored = await persistentGet([
     "deployerOperatorEmail",
     "deployerOperatorSubject",
+    "workspaceOperatorEmail",
+    "workspaceOperatorSubject",
   ]);
   const storedIdentityPresent =
     typeof stored.deployerOperatorEmail === "string" ||
@@ -197,23 +328,32 @@ async function requirePinnedBootstrapOperator(
       "The signed-in Google account differs from the immutable operator bound to this deployer.",
     );
   }
-  const accountUrl =
-    `https://iam.googleapis.com/v1/projects/${projectId}/serviceAccounts/` +
-    encodeURIComponent(pin.service_account_email);
-  const { payload } = await administratorTransport.requestJson(
-    "POST",
-    `${accountUrl}:getIamPolicy`,
-    { params: { "options.requestedPolicyVersion": 3 } },
-  );
-  const liveBindings = normaliseIamBindings(payload.bindings);
-  if (
-    canonicalDigestSync(liveBindings) !==
-      canonicalDigestSync(pin.service_account_iam_bindings)
-  ) {
-    throw new AuthenticationError(
-      "deployer-iam-policy-changed",
-      "The live deployer IAM policy differs from the exact bootstrapped ownership pin.",
+  const usingPairedWorkspaceOperator =
+    currentOperator.email !== operator.email &&
+    stored.workspaceOperatorEmail === currentOperator.email &&
+    stored.workspaceOperatorSubject === currentOperator.subject;
+  const hasCloudOperatorToken =
+    !usingPairedWorkspaceOperator ||
+    operatorSessionsByEmail.has(operator.email.trim().toLowerCase());
+  if (hasCloudOperatorToken) {
+    const accountUrl =
+      `https://iam.googleapis.com/v1/projects/${projectId}/serviceAccounts/` +
+      encodeURIComponent(pin.service_account_email);
+    const { payload } = await cloudAdministratorTransport.requestJson(
+      "POST",
+      `${accountUrl}:getIamPolicy`,
+      { params: { "options.requestedPolicyVersion": 3 } },
     );
+    const liveBindings = normaliseIamBindings(payload.bindings);
+    if (
+      canonicalDigestSync(liveBindings) !==
+        canonicalDigestSync(pin.service_account_iam_bindings)
+    ) {
+      throw new AuthenticationError(
+        "deployer-iam-policy-changed",
+        "The live deployer IAM policy differs from the exact bootstrapped ownership pin.",
+      );
+    }
   }
   return { pin, operator };
 }
@@ -227,7 +367,7 @@ async function requireBootstrapCheckpointOperator(
     throw new AuthenticationError("bootstrap-ownership-pin-invalid", "Bootstrap ownership state is malformed.");
   }
   const checkpoint = value as Record<string, unknown>;
-  const operator = await operatorIdentity();
+  const operator = await effectiveLifecycleOperator();
   if (
     checkpoint.project_id !== projectId ||
     checkpoint.operator_email !== operator.email
@@ -262,6 +402,8 @@ async function requireDeployerIdentity(
     "deployerProjectId",
     "deployerOperatorEmail",
     "deployerOperatorSubject",
+    "workspaceOperatorEmail",
+    "workspaceOperatorSubject",
   ]);
   const identity: DeployerIdentityBinding = {
     serviceAccountEmail: String(stored.deployerServiceAccount ?? ""),
@@ -292,6 +434,27 @@ async function requireDeployerIdentity(
   const current = await ensureCredentials();
   if (current === null) {
     throw new AuthenticationError("deployer-required", "Impersonated deployer state is missing.");
+  }
+  const currentOperator = await operatorIdentity();
+  const usingPairedWorkspaceOperator =
+    currentOperator.email !== identity.operatorEmail &&
+    stored.workspaceOperatorEmail === currentOperator.email &&
+    stored.workspaceOperatorSubject === currentOperator.subject;
+  const hasCloudOperatorToken =
+    !usingPairedWorkspaceOperator ||
+    operatorSessionsByEmail.has(identity.operatorEmail.trim().toLowerCase());
+  if (!hasCloudOperatorToken) {
+    const { pin } = await requirePinnedBootstrapOperator(projectId);
+    if (
+      pin.service_account_email !== identity.serviceAccountEmail ||
+      pin.service_account_unique_id !== identity.serviceAccountUniqueId
+    ) {
+      throw new AuthenticationError(
+        "deployer-identity-changed",
+        "The stored deployer differs from the immutable bootstrap ownership record.",
+      );
+    }
+    return identity;
   }
   // Mint first, then verify the immutable numeric identity of the exact service
   // account. A deleted/recreated account with the same email is not equivalent.
@@ -347,11 +510,29 @@ async function deployerAccessToken(): Promise<string> {
   return current.accessToken();
 }
 
+async function cloudAdministratorAccessToken(): Promise<string> {
+  return cloudOperatorIdentityBackend().getAuthToken(false);
+}
+
+async function workspaceAdministratorAccessToken(): Promise<string> {
+  const stored = await persistentGet("workspaceOperatorEmail");
+  const email = typeof stored.workspaceOperatorEmail === "string"
+    ? stored.workspaceOperatorEmail.trim().toLowerCase()
+    : "";
+  if (email !== "") {
+    const cached = operatorSessionsByEmail.get(email);
+    if (cached !== undefined) {
+      return cached.token;
+    }
+  }
+  return chromeIdentity.getAuthToken(false);
+}
+
 /** Explicitly read-only discovery may use the administrator before bootstrap. */
 async function discoveryAccessToken(): Promise<string> {
   const current = await ensureCredentials();
   return current === null
-    ? chromeIdentity.getAuthToken(false)
+    ? cloudAdministratorAccessToken()
     : current.accessToken();
 }
 
@@ -428,6 +609,27 @@ async function dropCachedAdministratorToken(): Promise<void> {
   }
 }
 
+async function dropCachedCloudAdministratorToken(): Promise<void> {
+  const stored = await persistentGet([
+    "deployerOperatorEmail",
+    "cloudOperatorEmail",
+  ]);
+  for (const raw of [stored.deployerOperatorEmail, stored.cloudOperatorEmail]) {
+    if (typeof raw === "string" && raw.trim() !== "") {
+      operatorSessionsByEmail.delete(raw.trim().toLowerCase());
+    }
+  }
+  await dropCachedAdministratorToken();
+}
+
+async function dropCachedWorkspaceAdministratorToken(): Promise<void> {
+  const stored = await persistentGet("workspaceOperatorEmail");
+  if (typeof stored.workspaceOperatorEmail === "string" && stored.workspaceOperatorEmail.trim() !== "") {
+    operatorSessionsByEmail.delete(stored.workspaceOperatorEmail.trim().toLowerCase());
+  }
+  await dropCachedAdministratorToken();
+}
+
 async function hasAdministratorSession(): Promise<boolean> {
   try {
     await operatorIdentity();
@@ -447,8 +649,13 @@ const transport: Transport = makeTransport(deployerAccessToken, async () => {
 const discoveryTransport: Transport = makeTransport(discoveryAccessToken, async () => {
   const current = await ensureCredentials();
   if (current !== null) await current.invalidate();
-  else await dropCachedAdministratorToken();
+  else await dropCachedCloudAdministratorToken();
 });
+
+const cloudAdministratorTransport: Transport = makeTransport(
+  cloudAdministratorAccessToken,
+  dropCachedCloudAdministratorToken,
+);
 
 /**
  * Workspace calls: always the signed-in administrator.
@@ -461,8 +668,8 @@ const discoveryTransport: Transport = makeTransport(discoveryAccessToken, async 
  * alternative is not a narrower credential, it is a 403.
  */
 const administratorTransport: Transport = makeTransport(
-  () => chromeIdentity.getAuthToken(false),
-  dropCachedAdministratorToken,
+  workspaceAdministratorAccessToken,
+  dropCachedWorkspaceAdministratorToken,
 );
 
 /** Run records live in the same database as everything else. */
@@ -734,6 +941,8 @@ async function signOutSafely(): Promise<void> {
   // extension. Await it before reporting success; otherwise a silent token
   // request can immediately recreate the administrator session.
   await chromeIdentity.clearAllCachedAuthTokens();
+  operatorSessionsByEmail.clear();
+  pendingSignInOptions = null;
   credentials = null;
   await chrome.storage.session.clear();
   // Specs and public certificate material are required for later evidence and
@@ -764,6 +973,10 @@ async function signOutSafely(): Promise<void> {
     "deployerProjectId",
     "deployerOperatorEmail",
     "deployerOperatorSubject",
+    "workspaceOperatorEmail",
+    "workspaceOperatorSubject",
+    "cloudOperatorEmail",
+    "cloudOperatorSubject",
   ]);
 }
 
@@ -1058,15 +1271,38 @@ async function engineFor(runId: string, spec: DeploymentSpec): Promise<RunEngine
   const certificate = record?.state === "rolling_back"
     ? undefined
     : await certificateForRun(runId, spec);
+  const runWorkspaceTransport: Transport = {
+    async requestJson(method, url, options) {
+      try {
+        return await administratorTransport.requestJson(method, url, options);
+      } catch (error) {
+        if (
+          record.state !== "rolling_back" &&
+          error instanceof GoogleApiError &&
+          (error.status === 401 || error.status === 403) &&
+          (method.toUpperCase() === "GET" || url.endsWith(":resolve"))
+        ) {
+          throw new AuthenticationError(
+            "consent-required",
+            "Google Workspace administrator authorization is required for Chrome policy mutations. Switch to the Google Workspace administrator account and resume the run.",
+          );
+        }
+        throw error;
+      }
+    },
+  };
   const executor = new GoogleResourceExecutor(transport, {
     certificate,
     publicCertificateBinding: record.publicCertificateBinding ?? null,
     sourceImageBinding: record.sourceImageBinding ?? null,
-    workspaceTransport: administratorTransport,
+    workspaceTransport: runWorkspaceTransport,
     accessPolicyId: await accessPolicyId(spec.project_id),
     issueEnterpriseCertificate: issueEnterpriseCertificateForRun,
   });
-  if (record.state !== "rolling_back") {
+  if (
+    record.state !== "rolling_back" &&
+    record.steps.some((step) => step.status !== "done" && step.change.provider !== "chromepolicy")
+  ) {
     await executor.prepareApply(spec);
   }
   return new RunEngine(
@@ -1205,6 +1441,40 @@ async function driveDurableRun(runId: string, plan?: DeploymentPlan): Promise<vo
   });
 }
 
+async function prepareSignIn(options?: {
+  switch_account?: boolean;
+  role?: "cloud" | "workspace";
+}): Promise<void> {
+  const switchAccount = options?.switch_account === true;
+  pendingSignInOptions = {
+    switchAccount,
+    role: options?.role,
+  };
+  if (!switchAccount) return;
+  try {
+    const current = await googleOperatorIdentity();
+    const currentToken = await chromeIdentity.getAuthToken(false);
+    operatorSessionsByEmail.set(current.email.trim().toLowerCase(), {
+      token: currentToken,
+      operator: current,
+    });
+    if (options?.role === "workspace") {
+      await persistentSet({
+        cloudOperatorEmail: current.email,
+        cloudOperatorSubject: current.subject,
+      });
+    } else if (options?.role === "cloud") {
+      await persistentSet({
+        workspaceOperatorEmail: current.email,
+        workspaceOperatorSubject: current.subject,
+      });
+    }
+  } catch {
+    // No active session before switching; proceed directly to account chooser.
+  }
+  await chromeIdentity.clearAllCachedAuthTokens();
+}
+
 /**
  * Establish the administrator session behind an explicit user action.
  *
@@ -1223,19 +1493,49 @@ async function establishAdministratorSession(): Promise<{
   // refresh administrator consent first even when deployer metadata
   // survived sign-out; the impersonation mint below remains silent and
   // consumes only the token Chrome just cached.
+  const signInOptions = pendingSignInOptions;
+  pendingSignInOptions = null;
   await chromeIdentity.getAuthToken(true);
   const operator = await operatorIdentity();
+  if (signInOptions?.switchAccount === true) {
+    if (signInOptions.role === "cloud") {
+      await persistentSet({
+        cloudOperatorEmail: operator.email,
+        cloudOperatorSubject: operator.subject,
+      });
+    } else {
+      await persistentSet({
+        workspaceOperatorEmail: operator.email,
+        workspaceOperatorSubject: operator.subject,
+      });
+    }
+  }
   const boundOperator = await persistentGet([
     "deployerOperatorEmail",
     "deployerOperatorSubject",
+    "workspaceOperatorEmail",
+    "workspaceOperatorSubject",
   ]);
   const hasBoundOperator =
     typeof boundOperator.deployerOperatorEmail === "string" ||
     typeof boundOperator.deployerOperatorSubject === "string";
-  if (hasBoundOperator && (
-    boundOperator.deployerOperatorEmail !== operator.email ||
-    boundOperator.deployerOperatorSubject !== operator.subject
-  )) {
+  const matchesBoundOperator =
+    boundOperator.deployerOperatorEmail === operator.email &&
+    boundOperator.deployerOperatorSubject === operator.subject;
+  if (hasBoundOperator && !matchesBoundOperator && signInOptions?.switchAccount === true) {
+    await persistentSet({
+      workspaceOperatorEmail: operator.email,
+      workspaceOperatorSubject: operator.subject,
+    });
+    boundOperator.workspaceOperatorEmail = operator.email;
+    boundOperator.workspaceOperatorSubject = operator.subject;
+  }
+  const matchesWorkspaceOperator =
+    typeof boundOperator.workspaceOperatorEmail === "string" &&
+    typeof boundOperator.workspaceOperatorSubject === "string" &&
+    boundOperator.workspaceOperatorEmail === operator.email &&
+    boundOperator.workspaceOperatorSubject === operator.subject;
+  if (hasBoundOperator && !matchesBoundOperator && !matchesWorkspaceOperator) {
     throw new AuthenticationError(
       "operator-identity-changed",
       "The signed-in Google account differs from the immutable operator bound to this deployer.",
@@ -1254,8 +1554,24 @@ async function establishAdministratorSession(): Promise<{
     isSupportedDeployerServiceAccountEmail(deployer, projectId) &&
     typeof uniqueId === "string" && /^\d+$/.test(uniqueId)
   ) {
-    credentials = new DeployerCredentials({ serviceAccountEmail: deployer });
-    await credentials.accessToken();
+    if (matchesBoundOperator) {
+      credentials = new DeployerCredentials({
+        serviceAccountEmail: deployer,
+        identity: cloudOperatorIdentityBackend(operator.email),
+      });
+      await credentials.accessToken();
+    } else if (
+      typeof boundOperator.deployerOperatorEmail === "string" &&
+      operatorSessionsByEmail.has(boundOperator.deployerOperatorEmail.trim().toLowerCase())
+    ) {
+      if (credentials === null) {
+        credentials = new DeployerCredentials({
+          serviceAccountEmail: deployer,
+          identity: cloudOperatorIdentityBackend(boundOperator.deployerOperatorEmail),
+        });
+      }
+      await credentials.accessToken();
+    }
   } else {
     credentials = null;
   }
@@ -1478,8 +1794,10 @@ const routeContext = {
   discoveryTransport,
   transport,
   administratorTransport,
+  cloudAdministratorTransport,
   cloudIdentity: resolveDeployerEmail,
   operatorEmail,
+  workspaceOperatorEmail,
   accessPolicyId,
   cloudCredentialKind: async () =>
     (await ensureCredentials()) === null
@@ -1527,7 +1845,7 @@ const routeContext = {
     uniqueId: string,
     policyId?: string | null,
   ) => {
-    const operator = await operatorIdentity();
+    const operator = await effectiveLifecycleOperator();
     await persistentSet({
       deployerServiceAccount: email,
       deployerServiceAccountUniqueId: uniqueId,
@@ -1537,7 +1855,10 @@ const routeContext = {
     });
     await persistentRemove("legacyDeployerIdentityV020");
     await rememberAccessPolicyId(projectId, policyId ?? null);
-    credentials = new DeployerCredentials({ serviceAccountEmail: email });
+    credentials = new DeployerCredentials({
+      serviceAccountEmail: email,
+      identity: cloudOperatorIdentityBackend(operator.email),
+    });
     // A first cold-start pass may have retained provider work because the
     // deployer was unavailable. Bootstrap has now restored it, so retry those
     // durable checkpoints in this worker lifetime instead of waiting for a
@@ -1552,6 +1873,7 @@ const routeContext = {
     await new StateRepository(await openDatabase()).renewCepMutationLease(lease),
   releaseCepMutationLease: async (lease: Parameters<StateRepository["releaseCepMutationLease"]>[0]) =>
     await new StateRepository(await openDatabase()).releaseCepMutationLease(lease),
+  prepareSignIn,
   signIn: establishAdministratorSession,
   signOut: async () => {
     await signOutSafely();
@@ -1585,7 +1907,7 @@ const routeContext = {
     const spec = assertSupportedExtensionArchitecture(
       parseDeploymentSpec(JSON.parse(approval.specificationJson)),
     );
-    const operator = await operatorIdentity();
+    const operator = await effectiveLifecycleOperator();
     const deployerIdentity = await requireDeployerIdentity(spec.project_id, run.deployerIdentity);
     const rollbackPreflight = rollbackCompensationPreflight(run as unknown as RunRecord);
     const resumed = await repository.resumeRun(runId, {

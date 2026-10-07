@@ -491,6 +491,61 @@ function newRun(): RunRecord {
   check("run succeeds", record.state === "succeeded" && !isActive(record.state));
 }
 
+// -- AuthenticationError pauses step as pending without burning attempts or rolling back --
+{
+  const store = new MemoryStore();
+  let workspaceAuthenticated = false;
+  const applied: string[] = [];
+  const rolledBack: string[] = [];
+  class DualAccountExecutor implements StepExecutor {
+    async apply(target: ResourceChange): Promise<void> {
+      if (target.resource_name === "chrome-policy" && !workspaceAuthenticated) {
+        const authErr = new Error("Workspace OAuth consent required");
+        authErr.name = "AuthenticationError";
+        throw authErr;
+      }
+      applied.push(target.resource_name);
+    }
+    async rollback(target: ResourceChange): Promise<void> {
+      rolledBack.push(target.resource_name);
+    }
+  }
+  await store.save(
+    planRun({
+      runId: "run-dual",
+      approvalId: "approval-1",
+      configurationHash: "a".repeat(64),
+      changes: [change("gcp-gateway"), change("chrome-policy")],
+    }),
+  );
+  const engine = new RunEngine(store, new DualAccountExecutor(), new NullScheduler());
+  await engine.tick("run-dual", SPEC);
+  let threwAuthError = false;
+  try {
+    await engine.tick("run-dual", SPEC);
+  } catch (err) {
+    threwAuthError = (err as { name?: string })?.name === "AuthenticationError";
+  }
+  const paused = await store.load("run-dual");
+  const chromeStep = paused?.steps.find((s) => s.change.resource_name === "chrome-policy");
+  check("AuthenticationError rethrows from tick", threwAuthError);
+  check(
+    "AuthenticationError leaves step pending with 0 burned attempts and does not trigger rollback",
+    paused?.state === "running" &&
+      chromeStep?.status === "pending" &&
+      chromeStep?.attempts === 0 &&
+      rolledBack.length === 0,
+    JSON.stringify({ state: paused?.state, step: chromeStep, rolledBack }),
+  );
+  workspaceAuthenticated = true;
+  const resumed = await engine.drain("run-dual", SPEC);
+  check(
+    "resuming after account switch completes without duplicating GCP step",
+    resumed.state === "succeeded" && applied.join(",") === "gcp-gateway,chrome-policy",
+    applied.join(","),
+  );
+}
+
 if (failures.length > 0) {
   console.error(`FAIL ${failures.length} of ${failures.length + passed} checks\n`);
   for (const failure of failures) console.error(`  ${failure}`);

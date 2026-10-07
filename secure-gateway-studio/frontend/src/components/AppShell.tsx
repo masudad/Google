@@ -38,7 +38,9 @@ interface AppShellProps {
   onCustomerIdChange?: (customerId: string) => void;
   onValidateCloud?: () => Promise<void>;
   onBootstrapCloud?: () => Promise<void>;
+  onSwitchCloudAccount?: () => Promise<void>;
   onSignInWorkspace?: () => Promise<void>;
+  onSwitchWorkspaceAccount?: () => Promise<void>;
   onLocaleChange: (locale: Locale) => void;
   onNavigate: (view: AppView) => void;
   onSignOut: () => void;
@@ -62,7 +64,9 @@ export function AppShell({
   onCustomerIdChange,
   onValidateCloud,
   onBootstrapCloud,
+  onSwitchCloudAccount,
   onSignInWorkspace,
+  onSwitchWorkspaceAccount,
   onLocaleChange,
   onNavigate,
   onSignOut,
@@ -78,7 +82,9 @@ export function AppShell({
 
   const [openPopover, setOpenPopover] = useState<"cloud" | "workspace" | null>(null);
   const [cloudBootstrapBusy, setCloudBootstrapBusy] = useState(false);
+  const [cloudSwitchBusy, setCloudSwitchBusy] = useState(false);
   const [workspaceAuthBusy, setWorkspaceAuthBusy] = useState(false);
+  const [workspaceSwitchBusy, setWorkspaceSwitchBusy] = useState(false);
   const cloudMenuRef = useRef<HTMLDivElement>(null);
   const workspaceMenuRef = useRef<HTMLDivElement>(null);
 
@@ -129,7 +135,7 @@ export function AppShell({
   const isCloudConnected = cloudStatus === "connected";
 
   const handleTopbarWorkspaceSignIn = async () => {
-    if (!onSignInWorkspace || workspaceAuthBusy) return;
+    if (!onSignInWorkspace || workspaceAuthBusy || workspaceSwitchBusy) return;
     setWorkspaceAuthBusy(true);
     try {
       await onSignInWorkspace();
@@ -138,13 +144,33 @@ export function AppShell({
     }
   };
 
+  const handleTopbarWorkspaceSwitchAccount = async () => {
+    if (!onSwitchWorkspaceAccount || workspaceSwitchBusy || workspaceAuthBusy) return;
+    setWorkspaceSwitchBusy(true);
+    try {
+      await onSwitchWorkspaceAccount();
+    } finally {
+      setWorkspaceSwitchBusy(false);
+    }
+  };
+
   const handleTopbarCloudBootstrap = async () => {
-    if (!onBootstrapCloud || cloudBootstrapBusy) return;
+    if (!onBootstrapCloud || cloudBootstrapBusy || cloudSwitchBusy) return;
     setCloudBootstrapBusy(true);
     try {
       await onBootstrapCloud();
     } finally {
       setCloudBootstrapBusy(false);
+    }
+  };
+
+  const handleTopbarCloudSwitchAccount = async () => {
+    if (!onSwitchCloudAccount || cloudSwitchBusy || cloudBootstrapBusy) return;
+    setCloudSwitchBusy(true);
+    try {
+      await onSwitchCloudAccount();
+    } finally {
+      setCloudSwitchBusy(false);
     }
   };
 
@@ -320,7 +346,7 @@ export function AppShell({
                   <div className="identity-popover-actions">
                     <button
                       className="btn btn-primary btn-block"
-                      disabled={!cloudProject.trim() || cloudStatus === "checking" || cloudBootstrapBusy}
+                      disabled={!cloudProject.trim() || cloudStatus === "checking" || cloudBootstrapBusy || cloudSwitchBusy}
                       onClick={() => void onValidateCloud?.()}
                       type="button"
                     >
@@ -328,7 +354,7 @@ export function AppShell({
                     </button>
                     <button
                       className="btn btn-secondary btn-block"
-                      disabled={!cloudProject.trim() || cloudBootstrapBusy || cloudStatus === "checking"}
+                      disabled={!cloudProject.trim() || cloudBootstrapBusy || cloudSwitchBusy || cloudStatus === "checking"}
                       onClick={() => void handleTopbarCloudBootstrap()}
                       type="button"
                     >
@@ -337,9 +363,23 @@ export function AppShell({
                         {cloudBootstrapBusy ? t.cloudBootstrappingBtn : t.cloudBootstrapBtn}
                       </span>
                     </button>
+                    {onSwitchCloudAccount && (
+                      <button
+                        className="btn btn-secondary btn-block"
+                        disabled={cloudBootstrapBusy || cloudSwitchBusy || cloudStatus === "checking"}
+                        onClick={() => void handleTopbarCloudSwitchAccount()}
+                        type="button"
+                      >
+                        <KeyIcon size={15} />
+                        <span>
+                          {cloudSwitchBusy ? t.cloudSwitchingAccountBtn : t.cloudSwitchAccountBtn}
+                        </span>
+                      </button>
+                    )}
                   </div>
 
                   <p className="identity-popover-note">{t.cloudSharedNote}</p>
+                  <p className="identity-popover-note">{t.dualAccountHint}</p>
                 </div>
               )}
             </div>
@@ -408,7 +448,7 @@ export function AppShell({
                   <div className="identity-popover-actions">
                     <button
                       className="btn btn-primary btn-block"
-                      disabled={workspaceAuthBusy || workspaceStatus === "checking"}
+                      disabled={workspaceAuthBusy || workspaceSwitchBusy || workspaceStatus === "checking"}
                       onClick={() => void handleTopbarWorkspaceSignIn()}
                       type="button"
                     >
@@ -421,6 +461,21 @@ export function AppShell({
                             : t.workspaceSignInBtn}
                       </span>
                     </button>
+                    {onSwitchWorkspaceAccount && (
+                      <button
+                        className="btn btn-secondary btn-block"
+                        disabled={workspaceAuthBusy || workspaceSwitchBusy || workspaceStatus === "checking"}
+                        onClick={() => void handleTopbarWorkspaceSwitchAccount()}
+                        type="button"
+                      >
+                        <KeyIcon size={15} />
+                        <span>
+                          {workspaceSwitchBusy
+                            ? t.workspaceSwitchingAccountBtn
+                            : t.workspaceSwitchAccountBtn}
+                        </span>
+                      </button>
+                    )}
                   </div>
 
                   <div className="identity-popover-field">
@@ -445,6 +500,7 @@ export function AppShell({
                   )}
 
                   <p className="identity-popover-note">{t.workspaceSharedNote}</p>
+                  <p className="identity-popover-note">{t.dualAccountHint}</p>
                 </div>
               )}
             </div>

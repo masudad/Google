@@ -317,6 +317,8 @@ export function IdentitiesStep({
     }
   }
 
+  const [switchRoleBusy, setSwitchRoleBusy] = useState<"cloud" | "workspace" | null>(null);
+
   async function handleSignIn() {
     setSignInBusy(true);
     setBootstrapError("");
@@ -335,6 +337,36 @@ export function IdentitiesStep({
     }
   }
 
+  async function handleSwitchAccount(role: "cloud" | "workspace") {
+    setSwitchRoleBusy(role);
+    setBootstrapError("");
+    try {
+      await signInSession({ switch_account: true, role });
+      if (role === "workspace" && state.customerId.trim()) {
+        await onValidateWorkspace();
+      } else if (role === "cloud" && state.projectId.trim()) {
+        await onValidateCloud();
+      }
+    } catch (error) {
+      const msg =
+        error instanceof ApiError && error.code === "operator-identity-changed"
+          ? copy.signInOperatorChanged
+          : error instanceof Error
+          ? error.message
+          : copy.connectionFailed;
+      if (role === "workspace") {
+        onPatch({
+          workspaceConnection: "error",
+          workspaceConnectionError: msg,
+        });
+      } else {
+        setBootstrapError(msg);
+      }
+    } finally {
+      setSwitchRoleBusy(null);
+    }
+  }
+
   function statusLabel(status: SetupState["cloudConnection"]) {
     if (status === "connected") return copy.connected;
     if (status === "checking") return copy.checking;
@@ -348,6 +380,7 @@ export function IdentitiesStep({
       {(state.cloudConnection === "connected" || state.workspaceConnection === "connected") && (
         <Notice tone="info">{messages.topbarAuth.sharedHeaderConnectedBanner}</Notice>
       )}
+      <Notice tone="info">{copy.dualAccountStep2Notice}</Notice>
       <div className="connection-grid">
         <article className="connection-card">
           <div className="connection-card-heading">
@@ -380,12 +413,21 @@ export function IdentitiesStep({
               </small>
               <button
                 className="connection-action secondary"
-                disabled={signInBusy || bootstrapBusy}
+                disabled={signInBusy || bootstrapBusy || switchRoleBusy !== null}
                 onClick={() => void handleSignIn()}
                 type="button"
               >
                 <ShieldIcon size={18} />
                 {signInBusy ? copy.signingInGoogle : copy.signInGoogle}
+              </button>
+              <button
+                className="connection-action secondary"
+                disabled={signInBusy || bootstrapBusy || switchRoleBusy !== null}
+                onClick={() => void handleSwitchAccount("cloud")}
+                type="button"
+              >
+                <ShieldIcon size={18} />
+                {switchRoleBusy === "cloud" ? copy.switchingGoogleAccount : copy.switchGoogleAccount}
               </button>
               <small className="connection-help-hint">
                 {copy.signInGoogleHint}
@@ -506,6 +548,24 @@ export function IdentitiesStep({
             readOnly
             value={state.workspaceIdentity}
           />
+          {runtimeCapabilities.sessionSignIn && (
+            <button
+              className="connection-action secondary"
+              disabled={
+                signInBusy ||
+                bootstrapBusy ||
+                switchRoleBusy !== null ||
+                state.workspaceConnection === "checking"
+              }
+              onClick={() => void handleSwitchAccount("workspace")}
+              type="button"
+            >
+              <ShieldIcon size={18} />
+              {switchRoleBusy === "workspace"
+                ? copy.switchingGoogleAccount
+                : copy.switchGoogleAccount}
+            </button>
+          )}
           <button
             className="connection-action"
             disabled={
@@ -2358,12 +2418,26 @@ export function ApplyStep({
   const [downloadBusy, setDownloadBusy] = useState(false);
   const [downloadError, setDownloadError] = useState("");
   const [recallCopied, setRecallCopied] = useState(false);
+  const [switchAccountBusy, setSwitchAccountBusy] = useState(false);
+
+  async function handleSwitchAccountInApply() {
+    setSwitchAccountBusy(true);
+    try {
+      await signInSession({ switch_account: true, role: "workspace" });
+    } catch {
+      // Errors surface if resume still lacks permission
+    } finally {
+      setSwitchAccountBusy(false);
+    }
+  }
   const planReady = preparedPlan !== null;
   const approvalReady = approval !== null;
   const activeRunStatuses = new Set(["pending", "running", "rolling_back"]);
   const runFinished = run !== null && !activeRunStatuses.has(run.status);
   const runFinalized = run?.status === "succeeded" || run?.status === "rolled_back";
-  const recallSpec = preparedPlan?.specification ?? toDeploymentSpec(state);
+  const recallSpec =
+    preparedPlan?.specification ??
+    toDeploymentSpec(state, messages.languages.japanese === "日本語" && copy.ready === "準備完了" ? "ja" : "en");
   const recallRecord = buildNonSensitiveRecallRecord(recallSpec, {
     runId: run?.run_id ?? null,
     configurationHash:
@@ -2620,10 +2694,24 @@ export function ApplyStep({
           </ul>
         </article>
       )}
+      {run?.status === "interrupted" && runtimeCapabilities.sessionSignIn && (
+        <>
+          <Notice tone="info">{copy.applyInterruptedSwitchHint}</Notice>
+          <button
+            className="connection-action secondary"
+            disabled={busy || switchAccountBusy}
+            onClick={() => void handleSwitchAccountInApply()}
+            type="button"
+          >
+            <ShieldIcon size={18} />
+            {switchAccountBusy ? copy.switchingGoogleAccount : copy.switchGoogleAccount}
+          </button>
+        </>
+      )}
       {run && retryAvailable && (
         <button
           className="connection-action"
-          disabled={busy}
+          disabled={busy || switchAccountBusy}
           onClick={() => void onResume()}
           type="button"
         >
@@ -2715,7 +2803,7 @@ export function ApplyStep({
               <strong>{messages.operations.architectureLabel(recallSpec.backend_kind)}</strong>
             </div>
             <div className="recall-config-item">
-              <small>{copy.privateHostname}</small>
+              <small>{copy.hostname}</small>
               <strong>{recallSpec.private_hostname}</strong>
             </div>
             <div className="recall-config-item">
@@ -2723,7 +2811,7 @@ export function ApplyStep({
               <strong>{recallSpec.target_ou_id}</strong>
             </div>
             <div className="recall-config-item">
-              <small>{copy.principals}</small>
+              <small>{copy.principalValue}</small>
               <strong>
                 {recallSpec.principals.map((p) => `${p.type}:${p.value}`).join(", ") || "—"}
               </strong>

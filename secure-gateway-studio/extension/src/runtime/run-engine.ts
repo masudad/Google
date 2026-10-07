@@ -494,6 +494,13 @@ export class RunEngine {
       step.error = null;
       await this.store.save(record);
     } catch (error) {
+      if ((error as { name?: unknown })?.name === "AuthenticationError") {
+        step.status = "pending";
+        step.attempts = Math.max(0, step.attempts - 1);
+        step.error = error instanceof Error ? error.message : String(error);
+        await this.store.save(record);
+        throw error;
+      }
       step.error = error instanceof Error ? error.message : String(error);
       if (step.attempts >= MAX_ATTEMPTS) {
         step.status = "failed";

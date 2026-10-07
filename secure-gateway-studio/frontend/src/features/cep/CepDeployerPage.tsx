@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { Messages } from "../../i18n/messages";
 import type {
   CepDataBoundaryMode,
+  CepDlpMatrixRuleConfig,
   CepDlpMatrixState,
   CepGeminiZeroTrustConfig,
   CepGeminiZeroTrustResult,
@@ -595,8 +596,10 @@ gcloud access-context-manager cloud-bindings create \\
     }
   }, [workspaceConnected, canonicalCustomerId]);
 
+  const [switchingAccount, setSwitchingAccount] = useState(false);
+
   const handleAutoDetectCustomerId = async () => {
-    if (detectingCustomerId || loadingOus || loadingGroups) return;
+    if (detectingCustomerId || switchingAccount || loadingOus || loadingGroups) return;
     setDetectingCustomerId(true);
     setOuError(false);
     try {
@@ -648,6 +651,60 @@ gcloud access-context-manager cloud-bindings create \\
       setOuError(true);
     } finally {
       setDetectingCustomerId(false);
+    }
+  };
+
+  const handleSwitchGoogleAccount = async () => {
+    if (switchingAccount || detectingCustomerId || loadingOus || loadingGroups) return;
+    setSwitchingAccount(true);
+    setOuError(false);
+    try {
+      await signInSession({ switch_account: true, role: "workspace" });
+      const ws = await validateWorkspaceConnection(canonicalCustomerId || "my_customer");
+      const detectedId = (ws.resource_id || "").trim();
+      if (/^C[A-Za-z0-9]+$/.test(detectedId)) {
+        setResolvedCustomerId(detectedId);
+        onCustomerIdResolved?.(detectedId, ws.principal_hint);
+        setLoadingOus(true);
+        try {
+          const options = await listOrganizationalUnitOptions(detectedId);
+          setOrganizationalUnits(options);
+          setOuError(options.length === 0);
+          setOuLoaded(true);
+          try {
+            setLoadingGroups(true);
+            const groupOptions = await listGroupOptions(detectedId);
+            setGroups(groupOptions);
+            setGroupsLoaded(true);
+            setGroupsError(false);
+          } catch {
+            setGroupsLoaded(true);
+            setGroupsError(true);
+          } finally {
+            setLoadingGroups(false);
+          }
+          if (effectiveProjectId) {
+            try {
+              const accessOptions = await listAccessLevelOptions(effectiveProjectId);
+              const existing = accessOptions.filter(
+                (option) =>
+                  option.value !== ACCESS_LEVEL_NONE &&
+                  !AUTO_CREATE_SENTINELS.includes(option.value),
+              );
+              setAccessLevels(existing);
+              setAccessLevelError(false);
+            } catch {
+              setAccessLevelError(true);
+            }
+          }
+        } finally {
+          setLoadingOus(false);
+        }
+      }
+    } catch {
+      setOuError(true);
+    } finally {
+      setSwitchingAccount(false);
     }
   };
 
@@ -1202,12 +1259,21 @@ gcloud access-context-manager cloud-bindings create \\
           <div className="cep-verify-box">
             <button
               className="btn btn-primary cep-auth-btn"
-              disabled={canonicalCustomerId === "" || loadingOus || loadingGroups}
+              disabled={canonicalCustomerId === "" || loadingOus || loadingGroups || switchingAccount}
               onClick={() => void handleLoadOus()}
               type="button"
             >
               <KeyIcon size={16} />
               <span>{loadingOus || loadingGroups ? m.verifyingGoogleAccount : m.verifyGoogleAccount}</span>
+            </button>
+            <button
+              className="btn btn-secondary cep-auth-btn"
+              disabled={loadingOus || loadingGroups || switchingAccount || detectingCustomerId}
+              onClick={() => void handleSwitchGoogleAccount()}
+              type="button"
+            >
+              <KeyIcon size={16} />
+              <span>{switchingAccount ? m.switchingGoogleAccountBtn : m.switchGoogleAccountBtn}</span>
             </button>
             <p className="cep-verify-hint">
               {m.verifyGoogleAccountHint}
@@ -1225,14 +1291,24 @@ gcloud access-context-manager cloud-bindings create \\
                 )}
               </span>
             </div>
-            <button
-              type="button"
-              className="btn btn-sm btn-secondary cep-reauth-btn"
-              disabled={loadingOus || loadingGroups}
-              onClick={() => void handleLoadOus()}
-            >
-              {loadingOus || loadingGroups ? m.reloading : m.refreshOus}
-            </button>
+            <div className="cep-ou-header-actions">
+              <button
+                type="button"
+                className="btn btn-sm btn-secondary cep-reauth-btn"
+                disabled={loadingOus || loadingGroups || switchingAccount}
+                onClick={() => void handleSwitchGoogleAccount()}
+              >
+                {switchingAccount ? m.switchingGoogleAccountBtn : m.switchGoogleAccountBtn}
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm btn-secondary cep-reauth-btn"
+                disabled={loadingOus || loadingGroups || switchingAccount}
+                onClick={() => void handleLoadOus()}
+              >
+                {loadingOus || loadingGroups ? m.reloading : m.refreshOus}
+              </button>
+            </div>
           </div>
         )}
 

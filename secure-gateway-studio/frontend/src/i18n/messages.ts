@@ -38,6 +38,9 @@ export interface WorkflowMessages {
   bootstrapFailed: string;
   signInGoogle: string;
   signingInGoogle: string;
+  switchGoogleAccount: string;
+  switchingGoogleAccount: string;
+  dualAccountStep2Notice: string;
   signInGoogleHint: string;
   signInRequired: string;
   signInOperatorChanged: string;
@@ -235,6 +238,7 @@ export interface WorkflowMessages {
   noActiveOperation: string;
   finalizedOperationCount: (count: number) => string;
   runInterrupted: string;
+  applyInterruptedSwitchHint: string;
   resumeRun: string;
   resumingRun: string;
   retryRollback: string;
@@ -650,15 +654,20 @@ export interface Messages {
     cloudVerifyingBtn: string;
     cloudBootstrapBtn: string;
     cloudBootstrappingBtn: string;
+    cloudSwitchAccountBtn: string;
+    cloudSwitchingAccountBtn: string;
     cloudSharedNote: string;
     workspacePopoverTitle: string;
     workspacePopoverDesc: string;
     workspaceSignInBtn: string;
     workspaceSigningInBtn: string;
     workspaceReverifyBtn: string;
+    workspaceSwitchAccountBtn: string;
+    workspaceSwitchingAccountBtn: string;
     workspaceCustomerIdLabel: string;
     workspaceAdminLabel: string;
     workspaceSharedNote: string;
+    dualAccountHint: string;
     sharedHeaderConnectedBanner: string;
   };
   mainTitle: string;
@@ -705,6 +714,8 @@ export interface CepDeployerMessages {
   verifyGoogleAccount: string;
   verifyingGoogleAccount: string;
   verifyGoogleAccountHint: string;
+  switchGoogleAccountBtn: string;
+  switchingGoogleAccountBtn: string;
   retry: string;
   refreshOus: string;
   reloading: string;
@@ -1576,15 +1587,21 @@ const en: Messages = {
     cloudVerifyingBtn: "Verifying…",
     cloudBootstrapBtn: "Create & Connect SGW Deployer SA",
     cloudBootstrappingBtn: "Preparing Deployer SA…",
+    cloudSwitchAccountBtn: "Switch Google Cloud Account",
+    cloudSwitchingAccountBtn: "Switching Account…",
     cloudSharedNote: "Shared across Easy PoC and Secure Gateway Deployer.",
     workspacePopoverTitle: "Google Workspace Authentication",
     workspacePopoverDesc: "Sign in once to share Customer ID, OUs, and Groups across both tools.",
     workspaceSignInBtn: "Sign in with Google",
     workspaceSigningInBtn: "Signing in…",
     workspaceReverifyBtn: "Re-verify Workspace Connection",
+    workspaceSwitchAccountBtn: "Switch Workspace Account",
+    workspaceSwitchingAccountBtn: "Switching Account…",
     workspaceCustomerIdLabel: "Customer ID",
     workspaceAdminLabel: "Signed-in Administrator",
     workspaceSharedNote: "OUs and Groups load automatically.",
+    dualAccountHint:
+      "Separate GCP and Workspace accounts are supported. Switching accounts preserves your verified connection and deployer SA.",
     sharedHeaderConnectedBanner: "Connected via top-right header.",
   },
   workflow: {
@@ -1649,6 +1666,10 @@ const en: Messages = {
     bootstrapFailed: "Automatic deployer setup failed",
     signInGoogle: "Sign in with Google",
     signingInGoogle: "Waiting for Google…",
+    switchGoogleAccount: "Switch Google Account",
+    switchingGoogleAccount: "Switching account…",
+    dualAccountStep2Notice:
+      "Using separate Google Cloud and Google Workspace accounts is supported. Connect Google Cloud first, then click Switch Google Account on the Workspace card to sign in with your Workspace admin account while keeping your GCP deployer active.",
     signInGoogleHint:
       "Required once per Chrome profile before setting up the deployer.",
     signInRequired:
@@ -1973,6 +1994,8 @@ const en: Messages = {
       `Run finalized (${count} operations)`,
     runInterrupted:
       "Apply was interrupted. Resume reconciles checkpoints with live resources.",
+    applyInterruptedSwitchHint:
+      "If Google Cloud steps succeeded and Chrome Policy failed due to a separate Workspace account, click Switch Google Account to sign in with your Workspace admin account, then click Resume interrupted Apply.",
     resumeRun: "Resume interrupted Apply",
     resumingRun: "Reconciling and resuming…",
     retryRollback: "Retry failed rollback",
@@ -3369,6 +3392,8 @@ const en: Messages = {
     verifyGoogleAccount: "Verify Google Account & Load Directory",
     verifyingGoogleAccount: "Verifying & Loading Directory…",
     verifyGoogleAccountHint: "Sign in with Google OAuth to load OUs and Google Groups.",
+    switchGoogleAccountBtn: "Switch Google Account",
+    switchingGoogleAccountBtn: "Switching Account…",
     retry: "Retry",
     refreshOus: "↻ Refresh OUs",
     reloading: "Reloading…",
@@ -4014,15 +4039,21 @@ const ja: Messages = {
     cloudVerifyingBtn: "確認中…",
     cloudBootstrapBtn: "SGWデプロイ用サービスアカウントを作成して接続",
     cloudBootstrappingBtn: "サービスアカウントを準備中…",
+    cloudSwitchAccountBtn: "別の Google Cloud アカウントに切り替え",
+    cloudSwitchingAccountBtn: "アカウントを切り替え中…",
     cloudSharedNote: "Easy PoC は管理者OAuthを、Secure Gateway Deployer は専用デプロイヤーSAを使用します。",
     workspacePopoverTitle: "Google Workspace 管理者ログイン",
     workspacePopoverDesc: "一度ログインすると、Easy PoC と Secure Gateway Deployer で顧客ID・OU・グループを共有します。",
     workspaceSignInBtn: "Googleでログインして自動設定",
     workspaceSigningInBtn: "ログイン・顧客IDを取得中…",
     workspaceReverifyBtn: "Workspace接続を再確認",
+    workspaceSwitchAccountBtn: "別の Workspace アカウントに切り替え",
+    workspaceSwitchingAccountBtn: "アカウントを切り替え中…",
     workspaceCustomerIdLabel: "顧客ID",
     workspaceAdminLabel: "ログイン中の管理者",
     workspaceSharedNote: "組織部門とグループ一覧は各画面で自動的に読み込まれます。",
+    dualAccountHint:
+      "GCP と Workspace のアカウントが別々の場合も、接続状態とデプロイヤーSAを維持したままアカウントを切り替えられます。",
     sharedHeaderConnectedBanner: "右上のヘッダーから接続済み · Easy PoC / SGW Deployer 共通",
   },
   workflow: {
@@ -4086,6 +4117,10 @@ const ja: Messages = {
     bootstrapFailed: "サービスアカウントの自動準備に失敗しました",
     signInGoogle: "Google でサインイン",
     signingInGoogle: "Google の応答を待っています…",
+    switchGoogleAccount: "別アカウントに切り替え",
+    switchingGoogleAccount: "アカウントを切り替え中…",
+    dualAccountStep2Notice:
+      "Google Cloud と Google Workspace のアカウントが別々の場合もそのまま利用できます。先に Google Cloud を接続し、次に右側の「別アカウントに切り替え」から Workspace 管理者アカウントでサインインしてください。GCP のデプロイヤー接続は維持されます。",
     signInGoogleHint:
       "Google の承認画面を開きます。初回のみ実行してください。",
     signInRequired:
@@ -4406,6 +4441,8 @@ const ja: Messages = {
       `処理完了 · ${count} 件の操作を記録`,
     runInterrupted:
       "適用中にワーカーが停止しました。再開するとチェックポイントと実リソースを照合して続行します。",
+    applyInterruptedSwitchHint:
+      "Google Cloud の適用が完了し、Workspace 側の権限不足で一時停止した場合は、「別アカウントに切り替え」から Workspace 管理者アカウントでサインインした後に「中断した適用を再開」を押してください。",
     resumeRun: "中断した適用を再開",
     resumingRun: "照合して再開しています…",
     retryRollback: "失敗したロールバックを再試行",
@@ -5807,6 +5844,8 @@ const ja: Messages = {
     verifyGoogleAccount: "Google アカウントを認証して組織とグループを読み込む",
     verifyingGoogleAccount: "組織とグループを取得中…",
     verifyGoogleAccountHint: "Google OAuthで組織部門とGoogleグループを一覧取得します。",
+    switchGoogleAccountBtn: "別アカウントに切り替え",
+    switchingGoogleAccountBtn: "アカウントを切り替え中…",
     retry: "再試行",
     refreshOus: "↻ OUを再読込",
     reloading: "再読込中…",

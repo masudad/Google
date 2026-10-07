@@ -749,6 +749,36 @@ export function App() {
     }
   }
 
+  async function handleTopbarSwitchWorkspaceAccount() {
+    try {
+      if (runtimeCapabilities.sessionSignIn) {
+        await signInSession({ switch_account: true, role: "workspace" });
+      }
+      await handleValidateWorkspace(setup.customerId.trim() || "my_customer");
+    } catch (error) {
+      patchSetup({
+        workspaceConnection: "error",
+        workspaceConnectionError: connectionErrorText(error, "workspace", messages.workflow),
+      });
+    }
+  }
+
+  async function handleTopbarSwitchCloudAccount() {
+    try {
+      if (runtimeCapabilities.sessionSignIn) {
+        await signInSession({ switch_account: true, role: "cloud" });
+      }
+      if (setup.projectId.trim()) {
+        await handleValidateCloud(false);
+      }
+    } catch (error) {
+      patchSetup({
+        cloudConnection: "error",
+        cloudConnectionError: connectionErrorText(error, "cloud", messages.workflow),
+      });
+    }
+  }
+
   async function handleTopbarBootstrapCloud() {
     if (!globalThis.confirm(messages.workflow.bootstrapConfirm)) return;
     try {
@@ -953,6 +983,8 @@ export function App() {
         })
       }
       onSignInWorkspace={handleTopbarSignInWorkspace}
+      onSwitchCloudAccount={handleTopbarSwitchCloudAccount}
+      onSwitchWorkspaceAccount={handleTopbarSwitchWorkspaceAccount}
       onSignOut={handleSignOut}
       onValidateCloud={() => handleValidateCloud(false)}
       showCepDeployer={runtimeCapabilities.cepDeployer}

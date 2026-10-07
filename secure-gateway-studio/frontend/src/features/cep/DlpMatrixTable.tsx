@@ -357,7 +357,7 @@ export function DlpMatrixTable({
       universal_upload: {
         upload: uploadAction,
         deviceScope: uploadScope,
-        byodOnly: uploadScope !== "all" && uploadScope !== "corp_only",
+        byodOnly: uploadScope !== "all",
         ...(hasAnyByod && hasAnyCorp
           ? {
               extraRows: [
@@ -373,7 +373,7 @@ export function DlpMatrixTable({
       universal_download: {
         download: uploadAction,
         deviceScope: uploadScope,
-        byodOnly: uploadScope !== "all" && uploadScope !== "corp_only",
+        byodOnly: uploadScope !== "all",
         ...(hasAnyByod && hasAnyCorp
           ? {
               extraRows: [

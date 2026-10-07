@@ -900,13 +900,16 @@ export function generateCepScript(
  * window on its own. Call this only from an explicit operator action; a build
  * without the capability has nothing to prompt and reports the session as-is.
  */
-export async function signInSession(): Promise<
+export async function signInSession(options?: {
+  switch_account?: boolean;
+  role?: "cloud" | "workspace";
+}): Promise<
   { authenticated: boolean; operator?: string }
 > {
   if (!runtimeCapabilities.sessionSignIn) return { authenticated: true };
   return await postJson<{ authenticated: boolean; operator?: string }>(
     "/api/v1/auth/sign-in",
-    {},
+    options ?? {},
   );
 }
 

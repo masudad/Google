@@ -374,6 +374,11 @@ describe("DeploymentManager", () => {
       offload_min_replicas: 2,
       offload_max_replicas: 20,
       offload_cpu_target: 0.6,
+      schema_version: 1,
+      certificate_lifetime_days: 90,
+      allow_external_ips: false,
+      require_cloud_nat: true,
+      require_human_approval: true,
     };
     vi.mocked(api.getDeploymentDetails).mockResolvedValue({
       ...details,
