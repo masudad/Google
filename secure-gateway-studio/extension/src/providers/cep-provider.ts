@@ -2412,6 +2412,7 @@ export class CepProvider {
       }
       return true;
     } catch (error) {
+      const spec = MANAGED_CHROME_ACCESS_LEVEL_SPECS[kind];
       trace.push({
         label: "Ensure Context-Aware Access level",
         method: "POST",
@@ -2421,7 +2422,7 @@ export class CepProvider {
         error: errorMessage(error),
       });
       skipped.push(
-        `Context-Aware Access: ${errorMessage(error)} Select an existing access level from the dropdown to use one that already exists.`,
+        `Context-Aware Access: ${errorMessage(error)} Select an existing access level from the dropdown to use one that already exists, or create "${spec.suffix}" manually at https://admin.google.com/ac/caa/levels (Custom mode CEL) with expression: ${spec.expression}`,
       );
       return false;
     }
@@ -3128,9 +3129,7 @@ export class CepProvider {
         const manualKind =
           deviceScopeToAccessLevelKind(scope === "all" ? "byod_only" : scope) ?? "byod";
         const spec = MANAGED_CHROME_ACCESS_LEVEL_SPECS[manualKind];
-        const manualGuide = !context.projectId
-          ? ` — Manual setup (no Cloud Project ID): create Access Level "${spec.suffix}" at https://admin.google.com/ac/caa/levels (Custom mode CEL) with expression: ${spec.expression} , then bind it in Data protection rules at https://admin.google.com/ac/dp with contextCondition: access_levels.meets_access_requirements(['accessPolicies/<POLICY_ID>/accessLevels/${spec.suffix}'])`
-          : "";
+        const manualGuide = ` — Manual setup: create Access Level "${spec.suffix}" at https://admin.google.com/ac/caa/levels (Custom mode CEL) with expression: ${spec.expression} , then bind it in Data protection rules at https://admin.google.com/ac/dp with contextCondition: access_levels.meets_access_requirements(['accessPolicies/<POLICY_ID>/accessLevels/${spec.suffix}'])`;
         if (id === "access_level") {
           skipped.push(
             `DLP unmanaged/BYOD rule: not created because no Access Level is selected in Setup wizard (access-level CEL)${manualGuide}`,
@@ -3188,8 +3187,7 @@ export class CepProvider {
         const existingPolicy = sameName.length === 1 ? sameName[0] : undefined;
         if (
           existingPolicy === undefined ||
-          existingPolicy.type !== "settings/rule.dlp" ||
-          existingPolicy.value.state !== "ACTIVE"
+          existingPolicy.type !== "settings/rule.dlp"
         ) {
           failed = true;
           skipped.push(

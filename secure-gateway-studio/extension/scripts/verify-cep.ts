@@ -2933,14 +2933,25 @@ for (const mode of ["response-loss-commit", "503-commit"] as const) {
     const setting = (call.body?.setting ?? {}) as { value?: { displayName?: string } };
     return call.method === "POST" && setting.value?.displayName === PAYMENT_CARD_UPLOAD_NAME;
   });
+  const sameNamePatches = calls.filter((call) => {
+    const setting = (call.body?.setting ?? {}) as { value?: { displayName?: string; state?: string } };
+    return (
+      call.method === "PATCH" &&
+      call.url.endsWith("/policies/mismatched-payment-card-upload") &&
+      setting.value?.displayName === PAYMENT_CARD_UPLOAD_NAME &&
+      setting.value?.state === "ACTIVE"
+    );
+  });
   check(
-    "a same-name DLP policy with different semantics fails closed",
-    !result.success &&
+    "an existing INACTIVE same-name DLP policy is re-activated and updated in-place via PATCH without duplicate POST",
+    result.success &&
       sameNameCreates.length === 0 &&
-      result.skipped_items.some(
-        (item) => item.includes(PAYMENT_CARD_UPLOAD_NAME) && item.includes("reserved-name-conflict"),
+      sameNamePatches.length === 1 &&
+      result.created_items.some(
+        (item) =>
+          item.includes(`Updated DLP rule "${PAYMENT_CARD_UPLOAD_NAME}" (policies/mismatched-payment-card-upload)`),
       ),
-    `${result.skipped_items.join(" | ")} | creates=${sameNameCreates.length}`,
+    `${result.created_items.join(" | ")} | skipped=${result.skipped_items.join(" | ")} | creates=${sameNameCreates.length} | patches=${sameNamePatches.length}`,
   );
 }
 

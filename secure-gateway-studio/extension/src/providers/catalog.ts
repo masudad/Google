@@ -1191,7 +1191,7 @@ export async function ensureManagedChromeAccessLevelDetailed(
   // bind a level into IAM until the operation and a confirming GET succeed.
   const operationName = operation.name;
   const expectedOperation = new RegExp(
-    `^${fullName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/create/[A-Za-z0-9][A-Za-z0-9._~-]{0,127}$`,
+    `^(?:operations/)?${fullName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/create/[A-Za-z0-9][A-Za-z0-9._~-]{0,127}$`,
   );
   if (typeof operationName !== "string" || !expectedOperation.test(operationName)) {
     throw new ConnectionError(

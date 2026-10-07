@@ -863,6 +863,68 @@ for (const postCreateCase of [
   );
 }
 
+// Google Cloud Access Context Manager v1 OperationName.getPublicName() returns
+// "operations/accessPolicies/{policyId}/accessLevels/{levelName}/create/{timestamp}".
+{
+  const calls: string[] = [];
+  let created = false;
+  const operationName =
+    "operations/accessPolicies/456/accessLevels/secgw_corp_owned/create/1728259000000000";
+  const transport: Transport = {
+    async requestJson(method, url, options) {
+      calls.push(`${method} ${url}`);
+      if (url.endsWith("/projects/project-1")) {
+        return { status: 200, payload: { name: "projects/111", parent: "organizations/123" } };
+      }
+      if (url.endsWith("/accessPolicies")) {
+        return {
+          status: 200,
+          payload: { accessPolicies: [{ name: "accessPolicies/456", parent: "organizations/123" }] },
+        };
+      }
+      if (url.endsWith("/accessPolicies/456")) {
+        return { status: 200, payload: { name: "accessPolicies/456", parent: "organizations/123" } };
+      }
+      if (url.endsWith("/accessLevels/secgw_corp_owned") && method === "GET") {
+        return created
+          ? {
+            status: 200,
+            payload: {
+              name: "accessPolicies/456/accessLevels/secgw_corp_owned",
+              title: "Company-Owned or Managed Browser (SGS)",
+              description: "Created automatically by Secure Gateway Studio",
+              custom: {
+                expr: {
+                  expression:
+                    "device.is_corp_owned_device == true || device.chrome.management_state == ChromeManagementState.CHROME_MANAGEMENT_STATE_BROWSER_MANAGED",
+                },
+              },
+            },
+          }
+          : { status: 404, payload: { error: { status: "NOT_FOUND" } } };
+      }
+      if (url.endsWith("/accessPolicies/456/accessLevels") && method === "POST") {
+        check("operations/-prefixed operation test sends the access level body", options?.jsonBody !== undefined);
+        return { status: 200, payload: { name: operationName, done: false } };
+      }
+      if (url.endsWith(`/${operationName}`) && method === "GET") {
+        created = true;
+        return { status: 200, payload: { name: operationName, done: true } };
+      }
+      throw new Error(`unexpected ${method} ${url}`);
+    },
+  };
+  const name = await ensureManagedChromeAccessLevel(transport, "project-1", "corp_owned");
+  check(
+    "ACM v1 operations/accessPolicies/... create operation is accepted and polled",
+    name === "accessPolicies/456/accessLevels/secgw_corp_owned" &&
+      calls.includes(
+        `GET https://accesscontextmanager.googleapis.com/v1/${operationName}`,
+      ),
+    calls.join(","),
+  );
+}
+
 for (const invalidName of [
   "accessPolicies/999/accessLevels/secgw_chrome_managed/create/1",
   "accessPolicies/456/accessLevels/other/create/1",
