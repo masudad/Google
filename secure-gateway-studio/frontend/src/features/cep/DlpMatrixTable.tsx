@@ -326,25 +326,22 @@ export function DlpMatrixTable({
     }));
   }
 
-  function toggleEnvKey(key: keyof CompanyDeviceEnvState) {
-    setEnvState((prev) => ({ ...prev, [key]: !prev[key] }));
-  }
-
-  function applyEnvironmentProfile() {
-    const hasAnyByod = envState.byodPc || envState.byodAndroid || envState.byodIos;
-    const hasAnyCorp = envState.corpPc || envState.corpAndroid || envState.corpIos;
+  function applyEnvironmentProfile(stateOverride?: CompanyDeviceEnvState) {
+    const activeEnv = stateOverride ?? envState;
+    const hasAnyByod = activeEnv.byodPc || activeEnv.byodAndroid || activeEnv.byodIos;
+    const hasAnyCorp = activeEnv.corpPc || activeEnv.corpAndroid || activeEnv.corpIos;
 
     let aggregateByodScope: CepDlpDeviceScope = "all";
     if (hasAnyByod) {
-      if (envState.byodPc && (envState.byodAndroid || envState.byodIos)) {
+      if (activeEnv.byodPc && (activeEnv.byodAndroid || activeEnv.byodIos)) {
         aggregateByodScope = "byod_only";
-      } else if (envState.byodPc) {
+      } else if (activeEnv.byodPc) {
         aggregateByodScope = "desktop_byod";
-      } else if (envState.byodAndroid && envState.byodIos) {
+      } else if (activeEnv.byodAndroid && activeEnv.byodIos) {
         aggregateByodScope = "mobile_byod";
-      } else if (envState.byodAndroid) {
+      } else if (activeEnv.byodAndroid) {
         aggregateByodScope = "android_byod";
-      } else if (envState.byodIos) {
+      } else if (activeEnv.byodIos) {
         aggregateByodScope = "ios_byod";
       }
       onEnsureAccessLevel?.("AUTO_CREATE_CORP_OWNED");
@@ -401,26 +398,26 @@ export function DlpMatrixTable({
         byodOnly: false,
       },
       access_level: {
-        upload: envState.byodPc ? "blockContent" : "off",
-        download: envState.byodPc ? "blockContent" : "off",
-        paste: envState.byodPc ? "warnUser" : "off",
-        print: envState.byodPc ? "blockContent" : "off",
+        upload: activeEnv.byodPc ? "blockContent" : "off",
+        download: activeEnv.byodPc ? "blockContent" : "off",
+        paste: activeEnv.byodPc ? "warnUser" : "off",
+        print: activeEnv.byodPc ? "blockContent" : "off",
         deviceScope: "byod_only",
         byodOnly: true,
       },
       android_byod: {
-        upload: envState.byodAndroid ? "blockContent" : "off",
-        download: envState.byodAndroid ? "blockContent" : "off",
-        paste: envState.byodAndroid ? "warnUser" : "off",
-        print: envState.byodAndroid ? "blockContent" : "off",
+        upload: activeEnv.byodAndroid ? "blockContent" : "off",
+        download: activeEnv.byodAndroid ? "blockContent" : "off",
+        paste: activeEnv.byodAndroid ? "warnUser" : "off",
+        print: activeEnv.byodAndroid ? "blockContent" : "off",
         deviceScope: "android_byod",
         byodOnly: true,
       },
       ios_byod: {
-        upload: envState.byodIos ? "blockContent" : "off",
-        download: envState.byodIos ? "blockContent" : "off",
-        paste: envState.byodIos ? "warnUser" : "off",
-        print: envState.byodIos ? "blockContent" : "off",
+        upload: activeEnv.byodIos ? "blockContent" : "off",
+        download: activeEnv.byodIos ? "blockContent" : "off",
+        paste: activeEnv.byodIos ? "warnUser" : "off",
+        print: activeEnv.byodIos ? "blockContent" : "off",
         deviceScope: "ios_byod",
         byodOnly: true,
       },
@@ -436,6 +433,12 @@ export function DlpMatrixTable({
         byodOnly: false,
       },
     });
+  }
+
+  function toggleEnvKey(key: keyof CompanyDeviceEnvState) {
+    const nextState = { ...envState, [key]: !envState[key] };
+    setEnvState(nextState);
+    applyEnvironmentProfile(nextState);
   }
 
   function applyPreset(presetName: "recommended" | "strict" | "byod_mobile" | "genai" | "audit" | "gemini") {
@@ -753,7 +756,7 @@ export function DlpMatrixTable({
           </div>
           <button
             className="btn btn-primary btn-sm dlp-env-apply-btn"
-            onClick={applyEnvironmentProfile}
+            onClick={() => applyEnvironmentProfile()}
             type="button"
           >
             {m.dlpEnvApplyBtn}

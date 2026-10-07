@@ -709,12 +709,17 @@ describe("CepDeployerPage", () => {
     expect(provision.mock.calls[1]?.[0]?.project_id).toBe("easy-poc-gcp-proj");
   });
 
-  it("scopes policy deployment per tab (Option A: Setup vs DLP vs Licensing/Operations)", async () => {
-    const provision = vi.spyOn(api, "provisionCepPolicies").mockResolvedValue(emptyResult());
+  it("scopes policy deployment per tab (Setup vs DLP vs Operations vs All) and supports 1-click Apply All + Quick Test bar", async () => {
+    const provision = vi.spyOn(api, "provisionCepPolicies").mockResolvedValue(
+      emptyResult({ message: "Applied CEP policies." }),
+    );
     renderPage();
     await selectPilotOu();
 
-    // 1. On Tab 1 (Setup Wizard): applies only Chrome baseline modules (dlp_rules: false)
+    // Shared Target Scope renders a single OU selector at the top of the page across all tabs
+    expect(screen.getAllByLabelText(m.selectTargetOu)).toHaveLength(1);
+
+    // 1. On Tab 1 (Baseline Policies & License): btnDeploy applies only Chrome baseline modules (dlp_rules: false)
     fireEvent.click(screen.getByText(m.btnDeploy));
     await waitFor(() => {
       expect(provision).toHaveBeenCalledTimes(1);
@@ -728,22 +733,34 @@ describe("CepDeployerPage", () => {
       }),
     );
 
+    // Post-deploy Quick Test dummy data copy bar appears immediately below the success banner
+    expect(screen.getByRole("region", { name: m.quickTestBarTitle })).toBeInTheDocument();
+
+    // 2. Clicking 1-click Apply All (btnDeployAll) from Tab 1 deploys BOTH Baseline Policies and DLP Matrix rules without switching tabs
+    fireEvent.click(screen.getByText(m.btnDeployAll));
+    await waitFor(() => {
+      expect(provision).toHaveBeenCalledTimes(2);
+    });
+    expect(provision.mock.calls[1]?.[0]).toEqual(
+      expect.objectContaining({
+        core_policies: true,
+        force_extensions: true,
+        connectors: true,
+        dlp_rules: true,
+      }),
+    );
+
     const nav = screen.getByRole("navigation", { name: "CEP PoC Sections" });
 
-    // 2. Switch to Tab 2 (Users & Licensing): policy action bar is hidden, contextual OU dropdown is available in Tab 2
-    fireEvent.click(within(nav).getByRole("button", { name: m.tabLicensing }));
-    expect(screen.getByText(m.btnDeploy).closest(".cep-tab-panel")).toHaveClass("hidden");
-    expect(screen.getAllByLabelText(m.selectTargetOu).length).toBeGreaterThanOrEqual(2);
-
-    // 3. Switch to Tab 3 (DLP & Threat Matrix): applies only DLP Matrix rules (core_policies: false, dlp_rules: true)
+    // 3. Switch to Tab 2 (DLP & Threat Matrix): btnDeploy applies only DLP Matrix rules (core_policies: false, dlp_rules: true)
     fireEvent.click(within(nav).getByRole("button", { name: m.tabDlp }));
     expect(screen.getByText(m.btnDeploy).closest(".cep-tab-panel")).toHaveClass("active");
     fireEvent.click(screen.getByText(m.btnDeploy));
 
     await waitFor(() => {
-      expect(provision).toHaveBeenCalledTimes(2);
+      expect(provision).toHaveBeenCalledTimes(3);
     });
-    expect(provision.mock.calls[1]?.[0]).toEqual(
+    expect(provision.mock.calls[2]?.[0]).toEqual(
       expect.objectContaining({
         create_sub_ous: false,
         core_policies: false,
@@ -754,19 +771,19 @@ describe("CepDeployerPage", () => {
       }),
     );
 
-    // 4. Switch to Tab 4 (Operations & Testing): policy action bar is hidden
+    // 4. Switch to Tab 3 (Operations & Testing): policy action bar is hidden
     fireEvent.click(within(nav).getByRole("button", { name: m.tabOperations }));
     expect(screen.getByText(m.btnDeploy).closest(".cep-tab-panel")).toHaveClass("hidden");
 
-    // 5. Switch to Tab 5 (View All Sections): applies both Setup and DLP rules
+    // 5. Switch to Tab 4 (View All Sections): applies both Setup and DLP rules
     fireEvent.click(within(nav).getByRole("button", { name: m.tabAll }));
     expect(screen.getByText(m.btnDeploy).closest(".cep-tab-panel")).toHaveClass("active");
     fireEvent.click(screen.getByText(m.btnDeploy));
 
     await waitFor(() => {
-      expect(provision).toHaveBeenCalledTimes(3);
+      expect(provision).toHaveBeenCalledTimes(4);
     });
-    expect(provision.mock.calls[2]?.[0]).toEqual(
+    expect(provision.mock.calls[3]?.[0]).toEqual(
       expect.objectContaining({
         core_policies: true,
         force_extensions: true,
@@ -943,11 +960,11 @@ describe("CepDeployerPage", () => {
     expect(within(envRegion).getByLabelText(m.dlpEnvByodAndroid, { exact: false })).toBeChecked();
     expect(within(envRegion).getByLabelText(m.dlpEnvByodIos, { exact: false })).toBeChecked();
 
-    // Uncheck PC BYOD so only Android BYOD + iOS BYOD + Corp PC are active, then click auto-configure
+    // Uncheck PC BYOD so only Android BYOD + iOS BYOD + Corp PC are active: 1-click reactive toggle immediately updates the DLP matrix
     fireEvent.click(within(envRegion).getByLabelText(m.dlpEnvByodPc, { exact: false }));
-    fireEvent.click(within(envRegion).getByRole("button", { name: m.dlpEnvApplyBtn }));
+    expect(within(envRegion).getByRole("button", { name: m.dlpEnvApplyBtn })).toBeInTheDocument();
 
-    // Deploy from Tab 3 (DLP)
+    // Deploy from Tab 2 (DLP)
     fireEvent.click(screen.getByText(m.btnDeploy));
 
     await waitFor(() => {

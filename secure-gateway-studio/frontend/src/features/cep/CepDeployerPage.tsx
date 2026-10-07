@@ -493,7 +493,7 @@ gcloud access-context-manager cloud-bindings create \\
     if (config.dlpCustomMessage) setDlpCustomMessage(config.dlpCustomMessage);
     setAssessmentAppliedNotice(m.assessAppliedBanner);
     setTimeout(() => setAssessmentAppliedNotice(""), 6000);
-    setActiveTab("dlp");
+    setActiveTab("all");
   };
 
   const [ouLoaded, setOuLoaded] = useState<boolean>(false);
@@ -897,9 +897,9 @@ gcloud access-context-manager cloud-bindings create \\
     );
   }
 
-  function currentConfig(): CepProvisionConfig {
-    const isSetupOnly = activeTab === "setup";
-    const isDlpOnly = activeTab === "dlp";
+  function currentConfig(forceAll = false): CepProvisionConfig {
+    const isSetupOnly = !forceAll && activeTab === "setup";
+    const isDlpOnly = !forceAll && activeTab === "dlp";
     const resolvedAccessLevel = isDlpOnly
       ? dlpNeedsAccessLevel
         ? modules.accessLevel !== ACCESS_LEVEL_NONE
@@ -908,7 +908,11 @@ gcloud access-context-manager cloud-bindings create \\
             ? "AUTO_CREATE_CORP_OWNED"
             : ACCESS_LEVEL_NONE
         : ACCESS_LEVEL_NONE
-      : modules.accessLevel;
+      : modules.accessLevel !== ACCESS_LEVEL_NONE
+        ? modules.accessLevel
+        : forceAll && dlpNeedsAccessLevel && effectiveProjectId !== ""
+          ? "AUTO_CREATE_CORP_OWNED"
+          : modules.accessLevel;
     return {
       customer_id: canonicalCustomerId,
       project_id: effectiveProjectId,
@@ -924,7 +928,13 @@ gcloud access-context-manager cloud-bindings create \\
       connectors: isDlpOnly ? false : modules.connectors,
       access_level: resolvedAccessLevel,
       dlp_detectors: false,
-      dlp_rules: isSetupOnly ? false : isDlpOnly ? true : modules.dlpRules,
+      dlp_rules: isSetupOnly
+        ? false
+        : isDlpOnly
+          ? true
+          : forceAll
+            ? modules.dlpRules || anyDlpRuleActive
+            : modules.dlpRules,
       dlp_region: modules.dlpRegion,
       dlp_matrix: dlpMatrix,
       dlp_custom_message: dlpCustomMessage,
@@ -981,9 +991,8 @@ gcloud access-context-manager cloud-bindings create \\
     setActionError(result.success ? null : result);
   };
 
-  const handleDeploy = async () => {
+  const runDeployWithConfig = async (config: CepProvisionConfig) => {
     if (busy !== null || canonicalCustomerId === "" || !targetConfirmed) return;
-    const config = currentConfig();
     setLastAction("deploy");
     setBusy("deploy");
     setDeployStep(1);
@@ -1004,6 +1013,14 @@ gcloud access-context-manager cloud-bindings create \\
     } finally {
       setBusy(null);
     }
+  };
+
+  const handleDeploy = async () => {
+    await runDeployWithConfig(currentConfig(false));
+  };
+
+  const handleDeployAll = async () => {
+    await runDeployWithConfig(currentConfig(true));
   };
 
   const handleRollback = async () => {
@@ -1178,59 +1195,7 @@ gcloud access-context-manager cloud-bindings create \\
         </p>
       )}
 
-      <nav className="cep-nav-tabs" aria-label="CEP PoC Sections">
-        <button
-          type="button"
-          className={`cep-nav-tab ${activeTab === "setup" ? "active" : ""}`}
-          onClick={() => setActiveTab("setup")}
-          aria-pressed={activeTab === "setup"}
-        >
-          <ShieldNetworkIcon size={16} />
-          <span>{m.tabSetup}</span>
-        </button>
-        <button
-          type="button"
-          className={`cep-nav-tab ${activeTab === "licensing" ? "active" : ""}`}
-          onClick={() => setActiveTab("licensing")}
-          aria-pressed={activeTab === "licensing"}
-        >
-          <UsersIcon size={16} />
-          <span>{m.tabLicensing}</span>
-        </button>
-        <button
-          type="button"
-          className={`cep-nav-tab ${activeTab === "dlp" ? "active" : ""}`}
-          onClick={() => setActiveTab("dlp")}
-          aria-pressed={activeTab === "dlp"}
-        >
-          <ShieldIcon size={16} />
-          <span>{m.tabDlp}</span>
-        </button>
-        <button
-          type="button"
-          className={`cep-nav-tab ${activeTab === "operations" ? "active" : ""}`}
-          onClick={() => setActiveTab("operations")}
-          aria-pressed={activeTab === "operations"}
-        >
-          <SettingsIcon size={16} />
-          <span>{m.tabOperations}</span>
-        </button>
-        <button
-          type="button"
-          className={`cep-nav-tab cep-nav-tab-all ${activeTab === "all" ? "active" : ""}`}
-          onClick={() => setActiveTab("all")}
-          aria-pressed={activeTab === "all"}
-        >
-          <ClipboardIcon size={16} />
-          <span>{m.tabAll}</span>
-        </button>
-      </nav>
-
-      {/* TAB 1: SETUP WIZARD */}
-      <div
-        className={`cep-tab-panel ${activeTab === "setup" || activeTab === "all" ? "active" : "hidden"}`}
-      >
-<section className="cep-section" aria-labelledby="cep-ou-title">
+      <section className="cep-section" aria-labelledby="cep-ou-title">
         <h2 id="cep-ou-title">{m.targetScopeCardTitle || m.targetOuCardTitle}</h2>
         <p>{targetType === "group" ? (m.targetScopeCardSubtitle || m.targetOuCardSubtitle) : m.targetOuCardSubtitle}</p>
         {canonicalCustomerId === "" && (
@@ -1446,7 +1411,7 @@ gcloud access-context-manager cloud-bindings create \\
               </div>
             )}
 
-            {activeTab !== "licensing" && activeTab !== "dlp" && selectedUnit !== undefined && selectedUnit.label !== "/" && (
+            {selectedUnit !== undefined && selectedUnit.label !== "/" && (
               <div className="cep-license-warning-box">
                 <div className="cep-license-warning-header">
                   <ExclamationCircleIcon size={20} />
@@ -1520,7 +1485,7 @@ gcloud access-context-manager cloud-bindings create \\
               </div>
             ) : null}
 
-            {activeTab !== "dlp" && selectedGroup.trim() !== "" && (
+            {selectedGroup.trim() !== "" && (
               <div className="cep-license-warning-box">
                 <div className="cep-license-warning-header">
                   <ExclamationCircleIcon size={20} />
@@ -1534,6 +1499,50 @@ gcloud access-context-manager cloud-bindings create \\
           </>
         )}
       </section>
+
+      <nav className="cep-nav-tabs" aria-label="CEP PoC Sections">
+        <button
+          type="button"
+          className={`cep-nav-tab ${activeTab === "setup" ? "active" : ""}`}
+          onClick={() => setActiveTab("setup")}
+          aria-pressed={activeTab === "setup"}
+        >
+          <ShieldNetworkIcon size={16} />
+          <span>{m.tabSetup}</span>
+        </button>
+        <button
+          type="button"
+          className={`cep-nav-tab ${activeTab === "dlp" ? "active" : ""}`}
+          onClick={() => setActiveTab("dlp")}
+          aria-pressed={activeTab === "dlp"}
+        >
+          <ShieldIcon size={16} />
+          <span>{m.tabDlp}</span>
+        </button>
+        <button
+          type="button"
+          className={`cep-nav-tab ${activeTab === "operations" ? "active" : ""}`}
+          onClick={() => setActiveTab("operations")}
+          aria-pressed={activeTab === "operations"}
+        >
+          <SettingsIcon size={16} />
+          <span>{m.tabOperations}</span>
+        </button>
+        <button
+          type="button"
+          className={`cep-nav-tab cep-nav-tab-all ${activeTab === "all" ? "active" : ""}`}
+          onClick={() => setActiveTab("all")}
+          aria-pressed={activeTab === "all"}
+        >
+          <ClipboardIcon size={16} />
+          <span>{m.tabAll}</span>
+        </button>
+      </nav>
+
+      {/* TAB 1: BASELINE POLICIES & LICENSE */}
+      <div
+        className={`cep-tab-panel ${activeTab === "setup" || activeTab === "all" ? "active" : "hidden"}`}
+      >
 
       
 <section className="cep-section" aria-labelledby="cep-presets-title">
@@ -1897,14 +1906,7 @@ gcloud access-context-manager cloud-bindings create \\
         )}
       </section>
 
-      
-      </div>
-
-      {/* TAB 2: USERS & LICENSING */}
-      <div
-        className={`cep-tab-panel ${activeTab === "licensing" || activeTab === "all" ? "active" : "hidden"}`}
-      >
-<section className="cep-section cep-license-section" aria-labelledby="cep-license-title">
+      <section className="cep-section cep-license-section" aria-labelledby="cep-license-title">
         <h2 id="cep-license-title">{m.licenseCardTitle}</h2>
         <p>{m.licenseCardSubtitle}</p>
         <p className="cep-inline-note">{m.licensePilotLimitNotice}</p>
@@ -1928,39 +1930,6 @@ gcloud access-context-manager cloud-bindings create \\
             {m.licenseAutoAssignWarningLink} ↗
           </a>
         </div>
-
-        {activeTab === "licensing" && (
-          <>
-            {ouLoaded && (
-              <div className="cep-field">
-                <label htmlFor="cep-target-ou-licensing">{m.selectTargetOu}</label>
-                <select
-                  id="cep-target-ou-licensing"
-                  onChange={(event) => setSelectedOu(event.target.value)}
-                  value={selectedOu}
-                >
-                  <option value="">{m.selectTargetOuPlaceholder}</option>
-                  {organizationalUnits.map((unit) => (
-                    <option disabled={unit.label === "/"} key={unit.value} value={unit.value}>
-                      {unit.label === "/" ? `${unit.label} (${m.rootOuUnavailable})` : unit.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-            {selectedUnit !== undefined && selectedUnit.label !== "/" && (
-              <div className="cep-license-warning-box">
-                <div className="cep-license-warning-header">
-                  <ExclamationCircleIcon size={20} />
-                  <strong>{m.targetOuImpact}</strong>
-                </div>
-                <div className="cep-ou-confirmation-row">
-                  <code>{selectedUnit.label}</code>
-                </div>
-              </div>
-            )}
-          </>
-        )}
 
         <div className="cep-license-card">
           <div className="cep-license-card-info">
@@ -2022,99 +1991,14 @@ gcloud access-context-manager cloud-bindings create \\
           />
         )}
       </section>
-
-      
       </div>
 
-      {/* TAB 3: DLP & THREAT MATRIX */}
+      {/* TAB 2: DLP & THREAT MATRIX */}
       <div
         className={`cep-tab-panel ${activeTab === "dlp" || activeTab === "all" ? "active" : "hidden"}`}
       >
         <section className="cep-section" aria-labelledby="cep-dlp-matrix-heading">
-          {activeTab === "dlp" && (
-            <>
-              {targetType === "ou" ? (
-                <>
-                  {ouLoaded && (
-                    <div className="cep-field">
-                      <label htmlFor="cep-target-ou-dlp">{m.selectTargetOu}</label>
-                      <select
-                        id="cep-target-ou-dlp"
-                        onChange={(event) => setSelectedOu(event.target.value)}
-                        value={selectedOu}
-                      >
-                        <option value="">{m.selectTargetOuPlaceholder}</option>
-                        {organizationalUnits.map((unit) => (
-                          <option disabled={unit.label === "/"} key={unit.value} value={unit.value}>
-                            {unit.label === "/" ? `${unit.label} (${m.rootOuUnavailable})` : unit.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                  {selectedUnit !== undefined && selectedUnit.label !== "/" ? (
-                    <div className="cep-license-warning-box">
-                      <div className="cep-license-warning-header">
-                        <ExclamationCircleIcon size={20} />
-                        <strong>{m.targetOuImpact}</strong>
-                      </div>
-                      <div className="cep-ou-confirmation-row">
-                        <code>{selectedUnit.label}</code>
-                      </div>
-                    </div>
-                  ) : !ouLoaded ? (
-                    <p className="cep-inline-note">
-                      <button type="button" className="text-action" onClick={() => setActiveTab("setup")}>
-                        {m.tabSetup}
-                      </button>
-                      {" — "}
-                      {m.selectTargetOu}
-                    </p>
-                  ) : null}
-                </>
-              ) : (
-                <>
-                  {(groupsLoaded || ouLoaded) && groups.length > 0 && (
-                    <div className="cep-field">
-                      <label htmlFor="cep-target-group-dlp">{m.selectTargetGroup}</label>
-                      <select
-                        id="cep-target-group-dlp"
-                        onChange={(event) => setSelectedGroup(event.target.value)}
-                        value={selectedGroup}
-                      >
-                        <option value="">{m.selectTargetGroupPlaceholder}</option>
-                        {groups.map((group) => (
-                          <option key={group.value} value={group.value}>
-                            {group.label ? `${group.label} (${group.value})` : group.value}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                  {selectedGroup.trim() !== "" ? (
-                    <div className="cep-license-warning-box">
-                      <div className="cep-license-warning-header">
-                        <ExclamationCircleIcon size={20} />
-                        <strong>{m.targetGroupImpact}</strong>
-                      </div>
-                      <div className="cep-ou-confirmation-row">
-                        <code>{selectedGroup.trim()}</code>
-                      </div>
-                    </div>
-                  ) : !groupsLoaded && !ouLoaded ? (
-                    <p className="cep-inline-note">
-                      <button type="button" className="text-action" onClick={() => setActiveTab("setup")}>
-                        {m.tabSetup}
-                      </button>
-                      {" — "}
-                      {m.selectTargetGroup}
-                    </p>
-                  ) : null}
-                </>
-              )}
-              <p className="cep-inline-note">{m.dlpBetaNote}</p>
-            </>
-          )}
+          {activeTab === "dlp" && <p className="cep-inline-note">{m.dlpBetaNote}</p>}
 
           <DlpMatrixTable
             customMessage={dlpCustomMessage}
@@ -2654,6 +2538,22 @@ gcloud access-context-manager cloud-bindings create \\
           >
             {busy === "deploy" ? m.btnDeploying : m.btnDeploy}
           </button>
+          {(activeTab === "setup" || activeTab === "dlp") && (
+            <button
+              className="secondary-action cep-deploy-all-btn"
+              disabled={
+                canonicalCustomerId === "" ||
+                (targetType === "group" ? selectedGroup.trim() === "" : selectedOu === "") ||
+                !targetConfirmed ||
+                (!anyStep1ModuleSelected && !anyDlpRuleActive) ||
+                busy !== null
+              }
+              onClick={() => void handleDeployAll()}
+              type="button"
+            >
+              {busy === "deploy" ? m.btnDeploying : m.btnDeployAll}
+            </button>
+          )}
           <button
             className="secondary-action"
             disabled={
@@ -2730,10 +2630,33 @@ gcloud access-context-manager cloud-bindings create \\
         {!anyModuleSelected && <p className="cep-inline-note">{m.noModulesSelected}</p>}
 
         {actionSuccess !== "" && (
-          <p className="cep-banner cep-banner-ok">
-            <CheckCircleIcon size={18} />
-            <span>{actionSuccess}</span>
-          </p>
+          <>
+            <p className="cep-banner cep-banner-ok">
+              <CheckCircleIcon size={18} />
+              <span>{actionSuccess}</span>
+            </p>
+            {activeTab !== "operations" && activeTab !== "all" && (
+              <div className="cep-quick-test-bar" role="region" aria-label={m.quickTestBarTitle}>
+                <strong className="cep-quick-test-title">{m.quickTestBarTitle}</strong>
+                <div className="cep-quick-test-items">
+                  {samples.map((sample) => (
+                    <button
+                      key={`quick-${sample.key}`}
+                      className="btn btn-secondary btn-sm cep-quick-test-btn"
+                      onClick={() => handleCopy(sample.value, `quick-${sample.key}`)}
+                      type="button"
+                    >
+                      <span>{sample.label}</span>
+                      <code>{sample.value}</code>
+                      <span>
+                        {copiedSnippet === `quick-${sample.key}` ? m.copiedToClipboard : m.copyDummyData}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
         )}
         {actionError != null && (
           <ErrorDiagnosticCard

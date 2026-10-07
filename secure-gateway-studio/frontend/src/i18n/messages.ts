@@ -840,10 +840,12 @@ export interface CepDeployerMessages {
     href: string;
   }>;
   btnDeploy: string;
+  btnDeployAll: string;
   btnDeploying: string;
   btnRollback: string;
   btnRollingBack: string;
   btnDownloadScript: string;
+  quickTestBarTitle: string;
   confirmRollback: string;
   downloadFailed: string;
   noModulesSelected: string;
@@ -3611,10 +3613,12 @@ const en: Messages = {
       },
     ],
     btnDeploy: "Apply to the target OU",
+    btnDeployAll: "Apply All · Baseline + DLP",
     btnDeploying: "Applying...",
     btnRollback: "Roll back DLP rules & inspect cleanup candidates",
     btnRollingBack: "Rolling back DLP rules...",
     btnDownloadScript: "Export Chrome policies as Python",
+    quickTestBarTitle: "Quick Test · Copy safe dummy data to test DLP immediately",
     confirmRollback:
       "Delete CEP PoC DLP rules for the selected target scope and inspect remaining Chrome Policy and Access Level cleanup candidates. Continue?",
     downloadFailed: "The script could not be generated",
@@ -3639,10 +3643,10 @@ const en: Messages = {
     ],
     btnAssignLicensesToOu: "Assign CEP licenses · max 10 direct-OU users",
     copyTargetOuPath: "Auto-fill path",
-    tabSetup: "1. Setup Wizard",
+    tabSetup: "1. Baseline Policies & License",
     tabLicensing: "2. Users & Licensing",
-    tabDlp: "3. DLP & Threat Matrix",
-    tabOperations: "4. Operations & Testing",
+    tabDlp: "2. DLP & Threat Matrix",
+    tabOperations: "3. Operations & Testing",
     tabAll: "View All Sections",
     btnAssigningLicenses: "Assigning licenses...",
     licenseAssignUsersFound: "Processed users in OU",
@@ -6102,10 +6106,12 @@ const ja: Messages = {
       },
     ],
     btnDeploy: "対象 OU に適用",
+    btnDeployAll: "一括適用 · 基本ポリシー＋DLP",
     btnDeploying: "適用中...",
     btnRollback: "DLPルールをロールバック・削除候補を確認",
     btnRollingBack: "DLPルールをロールバック中...",
     btnDownloadScript: "Chrome ポリシーを Python で出力",
+    quickTestBarTitle: "今すぐ動作テスト · ダミーデータを1クリックでコピー",
     confirmRollback:
       "選択した対象スコープのCEP PoC DLPルールを削除し、Chrome PolicyとAccess Levelの削除候補を確認します。続行しますか？",
     downloadFailed: "スクリプトを生成できませんでした",
@@ -6130,10 +6136,10 @@ const ja: Messages = {
     ],
     btnAssignLicensesToOu: "CEPライセンスを割り当て · OU直下最大10名",
     copyTargetOuPath: "このパスを自動入力",
-    tabSetup: "1. セットアップ",
+    tabSetup: "1. 基本ポリシー & ライセンス",
     tabLicensing: "2. ユーザー & ライセンス",
-    tabDlp: "3. DLP & 脅威対策",
-    tabOperations: "4. 運用 & 検証",
+    tabDlp: "2. DLP & 脅威対策",
+    tabOperations: "3. 運用 & 検証",
     tabAll: "すべて表示",
     btnAssigningLicenses: "ライセンスを割り当て中...",
     licenseAssignUsersFound: "OU 内のユーザーを処理しました",
