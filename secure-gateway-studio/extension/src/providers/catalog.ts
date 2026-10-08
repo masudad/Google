@@ -27,6 +27,12 @@ export interface ConnectionValidation {
   credential_kind: string;
   access_policy_id: string | null;
   read_only: true;
+  /**
+   * Workspace only: the tenant's primary domain from the customer resource the
+   * validation already reads. Lets the UI show which domain the data boundary
+   * policies always allow.
+   */
+  primary_domain?: string | null;
 }
 
 export class ConnectionError extends Error {
@@ -519,6 +525,7 @@ export class GoogleSetupCatalog {
         },
       );
     }
+    const customerDomain = customer.customerDomain;
     return {
       provider: "workspace",
       status: "connected",
@@ -527,6 +534,10 @@ export class GoogleSetupCatalog {
       credential_kind: this.options.credentialKind,
       access_policy_id: null,
       read_only: true,
+      primary_domain:
+        typeof customerDomain === "string" && customerDomain.trim() !== ""
+          ? customerDomain.trim().toLowerCase()
+          : null,
     };
   }
 

@@ -27,4 +27,31 @@ describe("AppShell runtime capabilities", () => {
 
     expect(onNavigate).toHaveBeenCalledWith("cepDeployer");
   });
+
+  it("always shows the local-only CERA entry, even without the Easy PoC capability", () => {
+    const onNavigate = vi.fn();
+
+    render(
+      <AppShell
+        activeView="guide"
+        cloudProject=""
+        locale="ja"
+        messages={getMessages("ja")}
+        onLocaleChange={vi.fn()}
+        onNavigate={onNavigate}
+        onSignOut={vi.fn()}
+        showCepDeployer={false}
+        workspaceAdmin=""
+      >
+        <main>content</main>
+      </AppShell>,
+    );
+
+    expect(screen.queryByRole("button", { name: "Easy PoC" })).not.toBeInTheDocument();
+    const ceraButton = screen.getByRole("button", { name: "CERA" });
+    expect(ceraButton).not.toHaveAttribute("aria-current");
+    fireEvent.click(ceraButton);
+
+    expect(onNavigate).toHaveBeenCalledWith("cera");
+  });
 });

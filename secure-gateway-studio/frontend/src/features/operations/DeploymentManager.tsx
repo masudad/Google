@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CheckIcon, CloudIcon, ShieldIcon } from "../../components/Icons";
+import { formatDateTime } from "../../lib/format";
 import type { OperationsMessages } from "../../i18n/messages";
 import {
   type DeploymentDetails,
@@ -24,6 +25,7 @@ import {
   buildNonSensitiveRecallRecord,
   isSupportedManagedChromeAccessLevel,
 } from "../../lib/setup-state";
+import { effectiveRunStatus, runStatusText } from "./run-status";
 
 type ManagerTab = "overview" | "logs" | "resources" | "delete";
 
@@ -237,18 +239,24 @@ export function DeploymentManager({
       ["succeeded", "failed", "skipped"].includes(operation.status),
     ).length;
 
-  const isDeleted = Boolean(
-    details?.run.status === "deleted" ||
-    details?.run.status === "torn_down" ||
-    teardown?.status === "succeeded",
-  );
+  const effectiveStatus = effectiveRunStatus(details?.run?.status, teardown?.status);
+  const isDeleted =
+    effectiveStatus === "deleted" || effectiveStatus === "torn_down" || effectiveStatus === "clean";
 
-  const recallRecord = details?.specification
-    ? buildNonSensitiveRecallRecord(details.specification, {
-        runId: details.run.run_id,
-        configurationHash: details.run.configuration_hash,
-      })
-    : null;
+  const recallRecord = useMemo(() => {
+    if (!details?.specification) return null;
+    try {
+      return buildNonSensitiveRecallRecord(details.specification, {
+        runId: details.run?.run_id ?? null,
+        configurationHash: details.run?.configuration_hash ?? null,
+      });
+    } catch (cause) {
+      // A malformed stored specification must degrade to "no recall card",
+      // never to an unmounted application.
+      console.error("Deployment specification could not be summarised", cause);
+      return null;
+    }
+  }, [details]);
 
   async function handleCopyRecallJson() {
     if (!recallRecord) return;
@@ -283,8 +291,8 @@ export function DeploymentManager({
           <span>{copy.deploymentName}</span>
           <div className="deployment-title-row">
             <h2>{details?.deployment_name ?? runId.slice(0, 12)}</h2>
-            <span className={`status-pill status-${isDeleted ? "deleted" : "succeeded"}`}>
-              {isDeleted ? (copy.statusDeleted || "Deleted") : (copy.statusSucceeded || "Success")}
+            <span className={`status-pill status-${effectiveStatus}`}>
+              {runStatusText(effectiveStatus, copy)}
             </span>
           </div>
           <code className="tabular-nums">{runId}</code>
@@ -333,7 +341,7 @@ export function DeploymentManager({
             {details.ownership_run_id ? (
               <article>
                 <small>{copy.ownershipRun}</small>
-                <strong>{details.ownership_run_id.slice(0, 12)}</strong>
+                <strong title={details.ownership_run_id}>{details.ownership_run_id.slice(0, 12)}</strong>
               </article>
             ) : null}
           </div>
@@ -539,7 +547,7 @@ export function DeploymentManager({
                   <span className={`log-severity severity-${entry.severity.toLowerCase()}`}>
                     {entry.severity}
                   </span>
-                  <time className="tabular-nums">{entry.timestamp ? new Date(entry.timestamp).toLocaleString() : copy.notAvailable}</time>
+                  <time className="tabular-nums">{entry.timestamp ? formatDateTime(entry.timestamp) : copy.notAvailable}</time>
                 </header>
                 <strong>{entry.summary}</strong>
                 <dl>

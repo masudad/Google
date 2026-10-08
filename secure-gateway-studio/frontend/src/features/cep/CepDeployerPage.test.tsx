@@ -910,6 +910,133 @@ describe("CepDeployerPage", () => {
     );
   });
 
+  it("collects extra corporate domains under Data boundary and sends them as allowed_domains", async () => {
+    const provision = vi.spyOn(api, "provisionCepPolicies").mockResolvedValue(emptyResult());
+    renderPage();
+    await selectPilotOu();
+    fireEvent.click(screen.getByText(m.presetPersonalAccount));
+
+    const block = screen.getByTestId("cep-allowed-domains");
+    // The primary domain is only known after Workspace validation.
+    expect(within(block).getByText(m.allowedDomainsPrimaryPending)).toBeInTheDocument();
+
+    const input = screen.getByLabelText(m.allowedDomainsTitle);
+    fireEvent.change(input, {
+      target: { value: "Example.co.jp, https://example-group.com/path\n*@example.co.jp; bad_domain" },
+    });
+
+    // Chips are canonical and de-duplicated; invalid entries are called out.
+    const chips = within(block).getByRole("list", { name: m.allowedDomainsCount(2) });
+    expect(within(chips).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      m.allowedDomainsPrimaryPending,
+      "example.co.jp",
+      "example-group.com",
+    ]);
+    expect(within(block).getByRole("status")).toHaveTextContent(
+      m.allowedDomainsInvalid("bad_domain"),
+    );
+
+    // The preview shows the exact shapes written to the three policies.
+    expect(within(block).getByText(m.allowedDomainsPreviewTitle)).toBeInTheDocument();
+    expect(within(block).getByText("example.co.jp,example-group.com")).toBeInTheDocument();
+    expect(within(block).getByText("*@example.co.jp, *@example-group.com")).toBeInTheDocument();
+    expect(
+      within(block).getByText(".*@(example\\.co\\.jp|example-group\\.com)$"),
+    ).toBeInTheDocument();
+    expect(within(block).getByText(m.allowedDomainsPreviewNote)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText(m.btnDeploy));
+    await waitFor(() => expect(provision).toHaveBeenCalledTimes(1));
+    expect(provision.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        data_boundary_mode: "block_non_corp",
+        allowed_domains: ["example.co.jp", "example-group.com"],
+      }),
+    );
+  });
+
+  it("hides the domain allowlist and omits allowed_domains when the data boundary is inherited", async () => {
+    const provision = vi.spyOn(api, "provisionCepPolicies").mockResolvedValue(emptyResult());
+    renderPage();
+    await selectPilotOu();
+
+    // Type domains first, then switch to a preset that inherits the boundary.
+    fireEvent.click(screen.getByText(m.presetPersonalAccount));
+    fireEvent.change(screen.getByLabelText(m.allowedDomainsTitle), {
+      target: { value: "example.co.jp" },
+    });
+    fireEvent.click(screen.getByText(m.presetAudit));
+    expect(screen.queryByTestId("cep-allowed-domains")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText(m.btnDeploy));
+    await waitFor(() => expect(provision).toHaveBeenCalledTimes(1));
+    const payload = provision.mock.calls[0]?.[0];
+    expect(payload).toEqual(expect.objectContaining({ data_boundary_mode: "none" }));
+    expect(payload).not.toHaveProperty("allowed_domains", expect.anything());
+    expect(payload?.allowed_domains).toBeUndefined();
+
+    // Re-enabling the boundary brings the typed domains back untouched.
+    fireEvent.click(screen.getByText(m.presetPersonalAccount));
+    expect(screen.getByLabelText(m.allowedDomainsTitle)).toHaveValue("example.co.jp");
+  });
+
+  it("omits allowed_domains when only the primary domain is in play", async () => {
+    const provision = vi.spyOn(api, "provisionCepPolicies").mockResolvedValue(emptyResult());
+    renderPage();
+    await selectPilotOu();
+    fireEvent.click(screen.getByText(m.presetPersonalAccount));
+    fireEvent.change(screen.getByLabelText(m.allowedDomainsTitle), {
+      target: { value: "   " },
+    });
+
+    fireEvent.click(screen.getByText(m.btnDeploy));
+    await waitFor(() => expect(provision).toHaveBeenCalledTimes(1));
+    expect(provision.mock.calls[0]?.[0]?.allowed_domains).toBeUndefined();
+  });
+
+  it("shows the detected primary domain as a fixed chip and never duplicates it", async () => {
+    vi.spyOn(api, "validateWorkspaceConnection").mockResolvedValue({
+      provider: "workspace",
+      status: "connected",
+      principal_hint: "admin@example.com",
+      resource_id: "C09876543",
+      credential_kind: "chrome_identity",
+      access_policy_id: null,
+      read_only: true,
+      primary_domain: "example.com",
+    });
+    const provision = vi.spyOn(api, "provisionCepPolicies").mockResolvedValue(emptyResult());
+
+    render(
+      <CepDeployerPage customerId="my_customer" messages={messages} projectId="my-test-proj" />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: m.autoDetectCustomerIdBtn }));
+    const pickers = await screen.findAllByLabelText(m.selectTargetOu);
+    fireEvent.change(pickers[0], { target: { value: "03pilot" } });
+    fireEvent.click(screen.getByText(m.presetPersonalAccount));
+
+    const block = screen.getByTestId("cep-allowed-domains");
+    expect(within(block).getByText(m.allowedDomainsPrimaryBadge)).toBeInTheDocument();
+    expect(within(block).queryByText(m.allowedDomainsPrimaryPending)).not.toBeInTheDocument();
+
+    // Typing the primary domain again does not create a second chip.
+    fireEvent.change(screen.getByLabelText(m.allowedDomainsTitle), {
+      target: { value: "EXAMPLE.COM, sub.example.com" },
+    });
+    const chips = within(block).getByRole("list", { name: m.allowedDomainsCount(2) });
+    expect(within(chips).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      `example.com${m.allowedDomainsPrimaryBadge}`,
+      "sub.example.com",
+    ]);
+    expect(within(block).getByText(".*@(example\\.com|sub\\.example\\.com)$")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText(m.btnDeploy));
+    await waitFor(() => expect(provision).toHaveBeenCalledTimes(1));
+    // The extension resolves the primary domain itself; the UI only forwards
+    // what the operator typed, including a harmless repeat of the primary.
+    expect(provision.mock.calls[0]?.[0]?.allowed_domains).toEqual(["example.com", "sub.example.com"]);
+  });
+
   it("rolls back CEP PoC DLP rules with delete_dlp_rules: true and scopes rollback_modules on the DLP tab", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
     const rollback = vi.spyOn(api, "rollbackCepPolicies").mockResolvedValue(

@@ -120,6 +120,22 @@ if (!routerSource.includes("specification: specToJson(spec)")) {
   process.exit(1);
 }
 
+// The same Set→`{}` serialisation hazard applies to the run details route.
+// When it regressed, `[...spec.platforms]` threw during render and the entire
+// UI unmounted (white screen) the moment an operator clicked Manage.
+if (!routerSource.includes("specification: spec ? specToJson(spec, false) : null")) {
+  console.error(
+    "FAIL the run details route must return the JSON deployment specification (nulls kept), not its Set-backed domain object.",
+  );
+  process.exit(1);
+}
+if (/specification:\s*spec\s*\?\?\s*null/.test(routerSource)) {
+  console.error(
+    "FAIL a route returns the Set-backed domain specification directly; serialise it with specToJson.",
+  );
+  process.exit(1);
+}
+
 const calls = callsFromUi(apiSource);
 const served = routesFromWorker(routerSource);
 

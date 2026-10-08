@@ -2420,6 +2420,130 @@ class IntegrityProbeTransport extends ReplayTransport {
   }
 }
 
+{
+  // Verify stateless SGS ownership marker adoption (when IndexedDB ownershipProofs are empty)
+  // and TLS certificate reuse across non-TLS spec changes (e.g., adding a principal).
+  const baseSpec = parseDeploymentSpec({
+    project_id: "enterprise-secgw-01",
+    mode: "poc",
+    target_ou_id: "03-test-ou",
+    managed_chrome_access_level: "accessPolicies/123456789/accessLevels/managed_chrome",
+    test_ou_confirmed: true,
+    principals: [{ type: "group", value: "secure-access@example.com" }],
+    backend_kind: "managed_sample",
+    network_strategy: "dedicated",
+    source_image: IMMUTABLE_SOURCE_IMAGE,
+    certificate_strategy: "local_poc",
+  });
+  const bundle = await issueLocalPoc(baseSpec.private_hostname, 90);
+  const statelessResult = await new GoogleDiscoveryProvider(
+    new PathAExistingTransport(baseSpec, secretPayload(bundle)),
+    {
+      cloudIdentity: "secure-gateway-deployer@enterprise-secgw-01.iam.gserviceaccount.com",
+      ownershipProofs: {},
+    },
+  ).preflight(baseSpec);
+  if ((statelessResult.snapshot.conflicting_resource_keys ?? []).length > 0) {
+    failures.push(
+      `stateless SGS ownership adoption produced conflicts: ` +
+        JSON.stringify(statelessResult.snapshot.conflicting_resource_keys),
+    );
+  }
+  for (const key of [
+    `compute:network:${baseSpec.name}-vpc`,
+    `compute:subnetwork:${baseSpec.name}-subnet`,
+    `secretmanager:secret:${baseSpec.name}-tls`,
+    `secretmanager:secret_version:${baseSpec.name}-tls`,
+    `dns:private_zone:${baseSpec.name}-zone`,
+    `dns:record_set:${baseSpec.private_hostname}`,
+    `beyondcorp:security_gateway:${baseSpec.gateway_id}`,
+    `beyondcorp:application:${baseSpec.name}-app`,
+  ]) {
+    if (!statelessResult.snapshot.existing_resource_keys?.includes(key)) {
+      failures.push(`stateless SGS ownership adoption missed ${key}`);
+    }
+  }
+
+  // Non-TLS spec edit (adding a second principal) should still reuse the existing TLS secret version
+  const editedNonTlsSpec = parseDeploymentSpec({
+    ...baseSpec,
+    principals: [
+      { type: "group", value: "secure-access@example.com" },
+      { type: "user", value: "second-operator@example.com" },
+    ],
+  });
+  const nonTlsEditResult = await new GoogleDiscoveryProvider(
+    new PathAExistingTransport(baseSpec, secretPayload(bundle)),
+    {
+      cloudIdentity: "secure-gateway-deployer@enterprise-secgw-01.iam.gserviceaccount.com",
+      ownershipProofs: pathAOwnershipProofs(baseSpec),
+    },
+  ).preflight(editedNonTlsSpec);
+  if (
+    !nonTlsEditResult.snapshot.existing_resource_keys?.includes(
+      `secretmanager:secret_version:${baseSpec.name}-tls`,
+    ) ||
+    nonTlsEditResult.snapshot.conflicting_resource_keys?.includes(
+      `secretmanager:secret_version:${baseSpec.name}-tls`,
+    )
+  ) {
+    failures.push(
+      "TLS certificate reuse: non-TLS spec edit falsely conflicted secretmanager:secret_version",
+    );
+  }
+
+  // Egress region toggle should still accept beyondcorp:application ownership checkpoint
+  const appResourceKey = `beyondcorp:application:${baseSpec.name}-app`;
+  const appUrl =
+    `https://beyondcorp.googleapis.com/v1/projects/${baseSpec.project_id}` +
+    `/locations/global/securityGateways/${baseSpec.gateway_id}/applications/${baseSpec.name}-app`;
+  const appRequestId = "11111111-2222-4333-8444-555555555555";
+  const egressSpec = parseDeploymentSpec({
+    ...baseSpec,
+    application_egress_region: "asia-east1",
+  });
+  const appProofAfterEgressToggle = discoveryOwnershipProofs([{
+    runId: "run-app-checkpoint",
+    resourceKey: appResourceKey,
+    provider: "beyondcorp",
+    resourceType: "application",
+    resourceName: `${baseSpec.name}-app`,
+    owned: true,
+    shared: false,
+    requestId: appRequestId,
+    beforeImage: {
+      kind: "generic_created_resource",
+      protocolVersion: 2,
+      phase: "applied",
+      resourceKey: appResourceKey,
+      createUrl: appUrl.slice(0, appUrl.lastIndexOf("/")),
+      resourceUrl: appUrl,
+      createRequestId: appRequestId,
+      expectedParamsDigest: canonicalDigestSync({
+        applicationId: `${baseSpec.name}-app`,
+        requestId: appRequestId,
+      }),
+      expectedPayloadDigest: canonicalDigestSync({
+        displayName: `${baseSpec.name}-app`,
+        endpointMatchers: [{ hostname: baseSpec.private_hostname, ports: [443] }],
+        upstreams: [{
+          network: {
+            name: `projects/${baseSpec.project_id}/global/networks/${baseSpec.name}-vpc`,
+          },
+        }],
+      }),
+      ownershipMarker: null,
+      providerIdentityField: "createTime",
+      providerIdentity: "2026-08-24T00:00:02Z",
+    },
+  }], egressSpec);
+  if (!appProofAfterEgressToggle[appResourceKey]) {
+    failures.push(
+      "ownership checkpoint: beyondcorp:application proof was rejected after application_egress_region toggle",
+    );
+  }
+}
+
 if (failures.length > 0) {
   console.error(`FAIL ${failures.length} difference(s)\n`);
   for (const failure of failures.slice(0, 10)) console.error(`  ${failure}\n`);

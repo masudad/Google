@@ -1205,6 +1205,120 @@ for (const [path, payload] of [
   );
 }
 
+// -- 2b. Corporate domain allowlist ------------------------------------------
+// Tenants commonly own several domains (secondary domains, aliases). The
+// extension holds no Directory domains scope, so the operator types them and
+// the three sign-in policies must cover every one, shaped per the schema.
+
+function dataBoundaryValues(requests: Array<Record<string, unknown>>): Record<string, unknown> {
+  const pick = (schema: string, field: string): unknown => {
+    const request = requests.find(
+      (entry) => (entry.policyValue as { policySchema?: string }).policySchema === schema,
+    );
+    return ((request?.policyValue as { value?: Record<string, unknown> })?.value ?? {})[field];
+  };
+  return {
+    allowedDomainsForApps: pick("chrome.users.AllowedDomainsForApps", "allowedDomainsForApps"),
+    restrictAccountsToPatterns: pick(
+      "chrome.users.RestrictAccountsToPatterns",
+      "restrictAccountsToPatterns",
+    ),
+    restrictSigninToPattern: pick("chrome.users.RestrictSigninToPattern", "restrictSigninToPattern"),
+  };
+}
+
+{
+  const { transport, calls } = stubTransport();
+  const result = (await route(context(transport), "POST", "/api/v1/cep/provision", {
+    ...FULL_CONFIG,
+    data_boundary_mode: "block_non_corp" as const,
+    allowed_domains: [
+      " Sub.Example.co.jp ",
+      "*@alias.example",
+      "@Example.com",
+      "not a domain",
+      "localhost",
+      "sub.example.co.jp.",
+      42,
+    ],
+  })) as ProvisionResult;
+  const values = dataBoundaryValues(batchRequests(calls, "batchModify"));
+  check("multi-domain provision succeeds", result.success, result.message);
+  check(
+    "AllowedDomainsForApps (single string schema) joins the primary domain and the normalised extra domains with commas",
+    values.allowedDomainsForApps === "example.com,sub.example.co.jp,alias.example",
+    JSON.stringify(values.allowedDomainsForApps),
+  );
+  check(
+    "RestrictAccountsToPatterns (repeated schema) lists one *@ glob per allowed domain",
+    JSON.stringify(values.restrictAccountsToPatterns) ===
+      JSON.stringify(["*@example.com", "*@sub.example.co.jp", "*@alias.example"]),
+    JSON.stringify(values.restrictAccountsToPatterns),
+  );
+  check(
+    "RestrictSigninToPattern becomes one escaped alternation for several domains",
+    values.restrictSigninToPattern === ".*@(example\\.com|sub\\.example\\.co\\.jp|alias\\.example)$",
+    JSON.stringify(values.restrictSigninToPattern),
+  );
+}
+
+{
+  const { transport, calls } = stubTransport({
+    rawSchemas: {
+      "chrome.users.AllowedDomainsForApps": schemaPayload([
+        { name: "allowedDomainsForApps", type: "TYPE_STRING", repeated: true },
+      ]),
+    },
+  });
+  await route(context(transport), "POST", "/api/v1/cep/provision", {
+    ...FULL_CONFIG,
+    data_boundary_mode: "block_non_corp" as const,
+    allowed_domains: ["corp.example"],
+  });
+  const values = dataBoundaryValues(batchRequests(calls, "batchModify"));
+  check(
+    "AllowedDomainsForApps is written as an array when this tenant's schema marks it repeated",
+    JSON.stringify(values.allowedDomainsForApps) === JSON.stringify(["example.com", "corp.example"]),
+    JSON.stringify(values.allowedDomainsForApps),
+  );
+}
+
+{
+  // The Directory did not return a primary domain, but the operator typed one:
+  // the policies must still be written instead of silently skipped.
+  const { transport, calls } = stubTransport({ customerDomain: null });
+  const result = (await route(context(transport), "POST", "/api/v1/cep/provision", {
+    ...FULL_CONFIG,
+    data_boundary_mode: "block_non_corp" as const,
+    allowed_domains: ["corp.example"],
+  })) as ProvisionResult;
+  const values = dataBoundaryValues(batchRequests(calls, "batchModify"));
+  check(
+    "an operator-entered domain is enough when the primary domain cannot be resolved",
+    values.allowedDomainsForApps === "corp.example" &&
+      JSON.stringify(values.restrictAccountsToPatterns) === JSON.stringify(["*@corp.example"]) &&
+      values.restrictSigninToPattern === ".*@corp\\.example$",
+    JSON.stringify({ values, skipped: result.skipped_items }),
+  );
+}
+
+{
+  const { transport, calls } = stubTransport({ customerDomain: null });
+  const result = (await route(context(transport), "POST", "/api/v1/cep/provision", {
+    ...FULL_CONFIG,
+    data_boundary_mode: "block_non_corp" as const,
+  })) as ProvisionResult;
+  const values = dataBoundaryValues(batchRequests(calls, "batchModify"));
+  check(
+    "with no primary domain and no entered domain the sign-in policies are skipped with an actionable reason",
+    values.allowedDomainsForApps === undefined &&
+      result.skipped_items.some(
+        (item) => /AllowedDomainsForApps|non-corporate/i.test(item) && /none was entered/.test(item),
+      ),
+    JSON.stringify(result.skipped_items),
+  );
+}
+
 {
   const { transport, calls } = stubTransport();
   await route(context(transport), "POST", "/api/v1/cep/provision", {

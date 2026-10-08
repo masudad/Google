@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { AppShell, type AppView } from "./components/AppShell";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { UserDataDisclosure } from "./components/UserDataDisclosure";
 import {
   AccessStep,
@@ -12,13 +13,14 @@ import {
   isEnvironmentReady,
   ReviewStep,
 } from "./features/setup/ConfigurationSteps";
-import { ModeStep } from "./features/setup/ModeStep";
 import { WizardLayout } from "./features/setup/WizardLayout";
 import {
   OperationsPage,
 } from "./features/operations/OperationsPage";
 import { GuidePage } from "./features/guide/GuidePage";
 import { CepDeployerPage } from "./features/cep/CepDeployerPage";
+import { CeraPage } from "./features/cera/CeraPage";
+import type { EasyPocPreset } from "./features/cera/types";
 import { getMessages, type Messages } from "./i18n/messages";
 import {
   applyApprovedPlan,
@@ -49,6 +51,8 @@ import {
   loadLocale,
   loadSetupState,
   recallSetupStateFromSpec,
+  resolveDefaultDeploymentName,
+  resolveDefaultPrivateHostname,
   restoreSetupState,
   requiresCloudConnectionRevalidation,
   saveLocale,
@@ -233,6 +237,7 @@ export function App() {
   const [activeView, setActiveView] = useState<AppView>(() =>
     extensionPersistentState ? "guide" : "setup"
   );
+  const [cepPresetRequest, setCepPresetRequest] = useState<{ name: EasyPocPreset; nonce: number } | null>(null);
   const messages = useMemo(() => getMessages(locale), [locale]);
 
   useEffect(() => {
@@ -410,7 +415,7 @@ export function App() {
   }
 
   function handleModeChange(mode: DeploymentMode) {
-    // This release is intentionally scoped to rapid PoC deployments. ModeStep and loadSetupState share this invariant.
+    // This release is intentionally scoped to rapid PoC deployments. loadSetupState enforces the same invariant.
     if (mode === "production") return;
     if (mode === setup.mode) return;
     updateConfiguration((current) => ({
@@ -434,16 +439,29 @@ export function App() {
 
   function handleNetworkChange(networkStrategy: NetworkStrategy) {
     if (networkStrategy === setup.networkStrategy) return;
-    updateConfiguration((current) => ({
-      ...current,
-      networkStrategy,
-      backendKind:
+    updateConfiguration((current) => {
+      const switchingToSample =
         networkStrategy === "dedicated" &&
         current.backendKind === "direct_https" &&
-        !current.directHttpsLaunchSampleVm
-          ? "managed_sample"
-          : current.backendKind,
-    }));
+        !current.directHttpsLaunchSampleVm;
+      return {
+        ...current,
+        networkStrategy,
+        backendKind: switchingToSample ? "managed_sample" : current.backendKind,
+        ...(switchingToSample
+          ? {
+              deploymentName: resolveDefaultDeploymentName(
+                current.deploymentName,
+                "secure-gateway-http-offload",
+              ),
+              privateHostname: resolveDefaultPrivateHostname(
+                current.privateHostname,
+                "demo-server-http.internal",
+              ),
+            }
+          : {}),
+      };
+    });
   }
 
   function handleCertificateChange(certificateStrategy: CertificateStrategy) {
@@ -543,7 +561,8 @@ export function App() {
     return workflowErrorText(error, messages.workflow);
   }
 
-  async function handlePreparePlan() {
+  async function handlePreparePlan(overrideState?: SetupState) {
+    const baseSetup = overrideState ?? setup;
     setWorkflowBusy(true);
     setWorkflowError("");
     setPreparedPlan(null);
@@ -555,15 +574,15 @@ export function App() {
         void saveExtensionClientState({ workflow: emptyWorkflowRefs });
       }
       updateSetup((current) => ({ ...current, approvalConfirmed: false }));
-      let setupForPlan = setup;
+      let setupForPlan = baseSetup;
       if (
         runtimeCapabilities.recommendedPocSourceImage &&
-        setup.mode === "poc" &&
-        effectiveBackendKind(setup) !== "direct_https" &&
-        !setup.sourceImage.trim()
+        baseSetup.mode === "poc" &&
+        effectiveBackendKind(baseSetup) !== "direct_https" &&
+        !baseSetup.sourceImage.trim()
       ) {
-        const recommendedImage = await getRecommendedPocSourceImage(setup.projectId);
-        setupForPlan = { ...setup, sourceImage: recommendedImage.value };
+        const recommendedImage = await getRecommendedPocSourceImage(baseSetup.projectId);
+        setupForPlan = { ...baseSetup, sourceImage: recommendedImage.value };
         updateSetup((current) => ({
           ...current,
           sourceImage: recommendedImage.value,
@@ -1003,49 +1022,62 @@ export function App() {
       workspaceError={setup.workspaceConnectionError}
       workspaceStatus={setup.workspaceConnection}
     >
-      {activeView === "setup" ? (
-        <WizardLayout
-          activeStep={setup.currentStep}
-          messages={messages}
-          nextDisabled={!isCurrentStepValid()}
-          nextLabel={nextLabel}
-          onBack={goBack}
-          onNext={goNext}
-          state={setup}
-        >
-          {renderCurrentStep()}
-        </WizardLayout>
-      ) : activeView === "guide" ? (
-        <GuidePage messages={messages} onNavigate={setActiveView} />
-      ) : activeView === "cepDeployer" ? (
-        runtimeCapabilities.cepDeployer ? (
-          <CepDeployerPage
-            customerId={setup.customerId}
+      <ErrorBoundary copy={messages.errorBoundary} resetKey={activeView}>
+        {activeView === "setup" ? (
+          <WizardLayout
+            activeStep={setup.currentStep}
             messages={messages}
-            onCustomerIdResolved={(resolvedId, principalHint) =>
-              patchSetup({
-                customerId: resolvedId,
-                workspaceConnection: "connected",
-                workspaceConnectionError: "",
-                ...(principalHint ? { workspaceIdentity: principalHint } : {}),
-              })
-            }
-            onProjectIdChange={(nextProjectId) =>
-              patchSetup({
-                projectId: nextProjectId,
-              })
-            }
-            projectId={setup.projectId}
-            workspaceConnected={setup.workspaceConnection === "connected"}
+            nextDisabled={!isCurrentStepValid()}
+            nextLabel={nextLabel}
+            onBack={goBack}
+            onNext={goNext}
+            state={setup}
+          >
+            {renderCurrentStep()}
+          </WizardLayout>
+        ) : activeView === "guide" ? (
+          <GuidePage messages={messages} onNavigate={setActiveView} />
+        ) : activeView === "cera" ? (
+          <CeraPage
+            locale={locale}
+            onOpenEasyPoc={(preset) => {
+              setCepPresetRequest({ name: preset, nonce: Date.now() });
+              setActiveView("cepDeployer");
+            }}
+            showEasyPoc={runtimeCapabilities.cepDeployer}
+            workspaceIdentity={setup.workspaceIdentity}
           />
-        ) : null
-      ) : (
-        <OperationsPage
-          messages={messages}
-          onRecallSpecification={handleRecallSpecification}
-          view={activeView}
-        />
-      )}
+        ) : activeView === "cepDeployer" ? (
+          runtimeCapabilities.cepDeployer ? (
+            <CepDeployerPage
+              customerId={setup.customerId}
+              messages={messages}
+              onCustomerIdResolved={(resolvedId, principalHint) =>
+                patchSetup({
+                  customerId: resolvedId,
+                  workspaceConnection: "connected",
+                  workspaceConnectionError: "",
+                  ...(principalHint ? { workspaceIdentity: principalHint } : {}),
+                })
+              }
+              onProjectIdChange={(nextProjectId) =>
+                patchSetup({
+                  projectId: nextProjectId,
+                })
+              }
+              projectId={setup.projectId}
+              requestedPreset={cepPresetRequest}
+              workspaceConnected={setup.workspaceConnection === "connected"}
+            />
+          ) : null
+        ) : (
+          <OperationsPage
+            messages={messages}
+            onRecallSpecification={handleRecallSpecification}
+            view={activeView}
+          />
+        )}
+      </ErrorBoundary>
     </AppShell>
   );
 }

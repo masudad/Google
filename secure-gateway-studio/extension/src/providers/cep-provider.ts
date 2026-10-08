@@ -346,6 +346,12 @@ export interface CepProvisionConfig {
   /** Comprehensive DLP matrix state */
   dlp_matrix?: CepDlpMatrixState;
   data_boundary_mode?: CepDataBoundaryMode;
+  /**
+   * Corporate domains the data boundary policies allow in addition to the
+   * tenant's primary domain, e.g. secondary domains and domain aliases. The
+   * operator types these; the extension holds no Directory domains scope.
+   */
+  allowed_domains?: string[];
   http_header_rules?: CepHttpHeaderRule[];
   internal_urls?: string[];
   dlp_custom_message?: string;
@@ -858,6 +864,12 @@ interface CepContext {
   /** Org unit ids the policies target, per scope. */
   ouIds: Record<CepOu, string>;
   primaryDomain?: string;
+  /**
+   * Every corporate domain the data boundary policies allow: the tenant's
+   * primary domain when the Directory resolves it, then the operator-entered
+   * `allowed_domains`, normalised and de-duplicated, in that order.
+   */
+  allowedDomains: string[];
   internalUrls: string[];
   region: string;
   dlpMatrix: CepDlpMatrixState;
@@ -879,7 +891,12 @@ interface CepFieldSpec {
    */
   name: string | RegExp;
   enumHint?: EnumHint;
-  value?: (context: CepContext) => unknown;
+  /**
+   * The literal to write. The resolved schema field is passed as well so a
+   * list-valued setting can be an array when the tenant's schema is repeated
+   * and a comma-joined string when it is a single string.
+   */
+  value?: (context: CepContext, field?: ProtoField) => unknown;
   /** Absent from this tenant's schema is fine; write the other fields. */
   optional?: boolean;
 }
@@ -938,10 +955,66 @@ function connectorFields(configurationPattern: RegExp): CepFieldSpec[] {
   ];
 }
 
+const ALLOWED_DOMAIN_PATTERN = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
+const MAX_ALLOWED_DOMAINS = 50;
+
+/**
+ * Operator-entered corporate domains, one canonical form each.
+ *
+ * Accepts the spellings an administrator is likely to paste (`Example.com`,
+ * `@example.com`, `*@example.com`, `example.com.`), lower-cases them, drops
+ * anything that is not a DNS name, and de-duplicates while keeping order.
+ */
+export function normalizeAllowedDomains(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<string>();
+  const domains: string[] = [];
+  for (const entry of raw) {
+    if (typeof entry !== "string") continue;
+    const domain = entry
+      .trim()
+      .toLowerCase()
+      .replace(/^\*@/, "")
+      .replace(/^@/, "")
+      .replace(/\.$/, "");
+    if (domain === "" || !ALLOWED_DOMAIN_PATTERN.test(domain) || seen.has(domain)) continue;
+    seen.add(domain);
+    domains.push(domain);
+    if (domains.length >= MAX_ALLOWED_DOMAINS) break;
+  }
+  return domains;
+}
+
+/** Primary domain first, then the operator's list, without duplicates. */
+export function resolveAllowedDomains(
+  primaryDomain: string | undefined,
+  extra: unknown,
+): string[] {
+  const primary = normalizeAllowedDomains(primaryDomain === undefined ? [] : [primaryDomain]);
+  const entered = normalizeAllowedDomains(extra).filter((domain) => !primary.includes(domain));
+  return [...primary, ...entered];
+}
+
+/** `RestrictAccountsToPatterns` entries: one glob per allowed domain. */
+export function accountPatternsForDomains(domains: readonly string[]): string[] {
+  return domains.map((domain) => `*@${domain}`);
+}
+
+/**
+ * `RestrictSigninToPattern` is a single regular expression, so several
+ * domains become one alternation. A single domain keeps the historical
+ * `.*@example\.com$` form.
+ */
+export function signinPatternForDomains(domains: readonly string[]): string {
+  const escaped = domains.map((domain) => domain.replace(/\./g, "\\."));
+  if (escaped.length === 1) return `.*@${escaped[0]}$`;
+  return `.*@(${escaped.join("|")})$`;
+}
+
 function requiresDomain(context: CepContext): string | null {
-  return context.primaryDomain
+  return context.allowedDomains.length > 0
     ? null
-    : "the tenant's primary domain could not be resolved from the Directory API";
+    : "no corporate domain is available: the tenant's primary domain could not be resolved from the Directory API and none was entered under Data boundary";
 }
 
 const HTTP_HEADER_TOKEN_PATTERN = /^[a-zA-Z0-9!#$%&'*+.^_`|~-]+$/;
@@ -1261,7 +1334,13 @@ const CEP_POLICIES: readonly CepPolicyDefinition[] = [
         value: () => "TRUE",
         optional: true,
       },
-      { name: /allowedDomainsForApps/i, value: (c) => c.primaryDomain },
+      {
+        name: /allowedDomainsForApps/i,
+        value: (c, field) =>
+          field?.label === "LABEL_REPEATED"
+            ? [...c.allowedDomains]
+            : c.allowedDomains.join(","),
+      },
     ],
   },
   {
@@ -1277,7 +1356,10 @@ const CEP_POLICIES: readonly CepPolicyDefinition[] = [
     fields: [
       {
         name: /^restrictAccountsToPatterns$/i,
-        value: (c) => `*@${c.primaryDomain}`,
+        value: (c, field) =>
+          field?.label === "LABEL_REPEATED"
+            ? accountPatternsForDomains(c.allowedDomains)
+            : accountPatternsForDomains(c.allowedDomains).join(","),
       },
     ],
   },
@@ -1294,7 +1376,7 @@ const CEP_POLICIES: readonly CepPolicyDefinition[] = [
     fields: [
       {
         name: /^restrictSigninToPattern$/i,
-        value: (c) => `.*@${c.primaryDomain!.replace(/\./g, "\\.")}$`,
+        value: (c) => signinPatternForDomains(c.allowedDomains),
       },
     ],
   },
@@ -3549,7 +3631,7 @@ export class CepProvider {
           schema,
           field,
           spec.enumHint,
-          spec.value?.(context),
+          spec.value?.(context, field),
           5,
         );
         if (chosen === undefined) {
@@ -3613,6 +3695,7 @@ export class CepProvider {
       targetGroupEmail,
       ouIds: { users: config.target_ou_id ?? "", browsers: config.target_ou_id ?? "" },
       primaryDomain: customer.primaryDomain,
+      allowedDomains: resolveAllowedDomains(customer.primaryDomain, provision.allowed_domains),
       internalUrls,
       region: NATIONAL_ID_INFOTYPES[region] === undefined ? "US" : region,
       dlpMatrix: resolveDlpMatrix(provision),

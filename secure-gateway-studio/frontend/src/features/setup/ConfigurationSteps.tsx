@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   CheckIcon,
+  ClipboardIcon,
   CloudIcon,
   CodeIcon,
   GlobeIcon,
@@ -10,6 +11,7 @@ import {
   ShieldIcon,
   UsersIcon,
 } from "../../components/Icons";
+import { InfoTip } from "../../components/InfoTip";
 import type { Messages } from "../../i18n/messages";
 import type {
   ApprovedPlan,
@@ -34,9 +36,12 @@ import {
 import {
   buildNonSensitiveRecallRecord,
   effectiveBackendKind,
+  incrementDeploymentIdentity,
   isPublicTrustedHostnameCandidate,
   isSupportedGoogleCloudProjectId,
   isSupportedManagedChromeAccessLevel,
+  resolveDefaultDeploymentName,
+  resolveDefaultPrivateHostname,
   toDeploymentSpec,
   type AccessPrincipal,
   type BackendKind,
@@ -82,7 +87,7 @@ interface ReviewStepProps extends StepProps {
   error: string;
   onApprove: (approved: boolean) => Promise<void>;
   onBootstrapCloud?: IdentitiesStepProps["onBootstrapCloud"];
-  onPrepare: () => Promise<void>;
+  onPrepare: (overrideState?: SetupState) => Promise<void>;
   onValidateCloud?: IdentitiesStepProps["onValidateCloud"];
   preparedPlan: PreparedPlan | null;
 }
@@ -662,14 +667,25 @@ export function EnvironmentStep({
       return;
     }
     if (networkStrategy === state.networkStrategy) return;
+    const switchingToSample =
+      networkStrategy === "dedicated" &&
+      state.backendKind === "direct_https" &&
+      !state.directHttpsLaunchSampleVm;
     onPatch({
       networkStrategy,
-      backendKind:
-        networkStrategy === "dedicated" &&
-        state.backendKind === "direct_https" &&
-        !state.directHttpsLaunchSampleVm
-          ? "managed_sample"
-          : state.backendKind,
+      backendKind: switchingToSample ? "managed_sample" : state.backendKind,
+      ...(switchingToSample
+        ? {
+            deploymentName: resolveDefaultDeploymentName(
+              state.deploymentName,
+              "secure-gateway-http-offload",
+            ),
+            privateHostname: resolveDefaultPrivateHostname(
+              state.privateHostname,
+              "demo-server-http.internal",
+            ),
+          }
+        : {}),
     });
   }
 
@@ -795,12 +811,14 @@ export function EnvironmentStep({
       directHttpsLaunchSampleVm: false,
       networkStrategy: "dedicated",
       proxySubnetCidr: state.proxySubnetCidr || "10.42.1.0/24",
-      privateHostname: state.privateHostname || "secgw-backend.internal",
-      deploymentName:
-        state.deploymentName === "secure-gateway-http-offload" ||
-        state.deploymentName === "secure-gateway-private-https"
-          ? "secure-gateway-ilb-https-offload"
-          : state.deploymentName,
+      privateHostname: resolveDefaultPrivateHostname(
+        state.privateHostname,
+        "demo-server-http.internal",
+      ),
+      deploymentName: resolveDefaultDeploymentName(
+        state.deploymentName,
+        "secure-gateway-ilb-https-offload",
+      ),
       existingBackendUrl: "",
       existingBackendConnectivityConfirmed: false,
     });
@@ -811,12 +829,14 @@ export function EnvironmentStep({
     onPatch({
       backendKind: "managed_sample",
       directHttpsLaunchSampleVm: false,
-      privateHostname: state.privateHostname || "secgw-backend.internal",
-      deploymentName:
-        state.deploymentName === "secure-gateway-ilb-https-offload" ||
-        state.deploymentName === "secure-gateway-private-https"
-          ? "secure-gateway-http-offload"
-          : state.deploymentName,
+      privateHostname: resolveDefaultPrivateHostname(
+        state.privateHostname,
+        "demo-server-http.internal",
+      ),
+      deploymentName: resolveDefaultDeploymentName(
+        state.deploymentName,
+        "secure-gateway-http-offload",
+      ),
       existingBackendUrl: "",
       existingBackendConnectivityConfirmed: false,
     });
@@ -884,7 +904,7 @@ export function EnvironmentStep({
         <div className="mode-grid">
           <ChoiceCard
             description={messages.pocDescription}
-            icon={<InfoIcon size={29} />}
+            icon={<ClipboardIcon size={27} />}
             onSelect={() => selectMode("poc")}
             selected={state.mode === "poc"}
             title={messages.poc}
@@ -904,7 +924,9 @@ export function EnvironmentStep({
         <section className="form-section strategy-section">
           <h2>
             {messages.infrastructureTitle}
-            <InfoIcon size={16} />
+            <InfoTip label={messages.infrastructureInfoLabel}>
+              {messages.infrastructureInfo}
+            </InfoTip>
           </h2>
           <ChoiceCard
             description={messages.dedicatedDescription}
@@ -924,7 +946,9 @@ export function EnvironmentStep({
         <section className="form-section strategy-section certificate-section">
           <h2>
             {messages.certificateTitle}
-            <InfoIcon size={16} />
+            <InfoTip label={messages.certificateInfoLabel}>
+              {messages.certificateInfo}
+            </InfoTip>
           </h2>
           <ChoiceCard
             description={messages.localPocCaDescription}
@@ -1083,14 +1107,15 @@ export function EnvironmentStep({
                     state.vpcName.trim() && state.subnetName.trim()
                       ? "existing"
                       : "dedicated",
-                  privateHostname:
-                    state.privateHostname || "secgw-backend.internal",
+                  privateHostname: resolveDefaultPrivateHostname(
+                    state.privateHostname,
+                    "demo-server-https.internal",
+                  ),
                   region: state.region || "asia-northeast1",
-                  deploymentName:
-                    state.deploymentName === "secure-gateway-ilb-https-offload" ||
-                    state.deploymentName === "secure-gateway-private-https"
-                      ? "secure-gateway-http-offload"
-                      : state.deploymentName,
+                  deploymentName: resolveDefaultDeploymentName(
+                    state.deploymentName,
+                    "secure-gateway-direct-https-demo",
+                  ),
                   existingBackendConnectivityConfirmed: false,
                 });
                 return;
@@ -1098,15 +1123,17 @@ export function EnvironmentStep({
               onPatch({
                 backendKind: "direct_https",
                 networkStrategy: "existing",
-                privateHostname: "secgw-backend.internal",
+                privateHostname: resolveDefaultPrivateHostname(
+                  state.privateHostname,
+                  "secgw-backend.internal",
+                ),
                 region: state.region || "asia-northeast1",
                 applicationEgressRegion:
                   state.applicationEgressRegion || state.region || "asia-northeast1",
-                deploymentName:
-                  state.deploymentName === "secure-gateway-http-offload" ||
-                  state.deploymentName === "secure-gateway-ilb-https-offload"
-                    ? "secure-gateway-private-https"
-                    : state.deploymentName,
+                deploymentName: resolveDefaultDeploymentName(
+                  state.deploymentName,
+                  "secure-gateway-private-https",
+                ),
                 existingBackendConnectivityConfirmed: false,
                 existingBackendUrl: state.existingBackendUrl.startsWith("https://")
                   ? state.existingBackendUrl
@@ -1161,11 +1188,14 @@ export function EnvironmentStep({
                 onPatch({
                   backendKind: "existing_http",
                   directHttpsLaunchSampleVm: false,
-                  deploymentName:
-                    state.deploymentName === "secure-gateway-ilb-https-offload" ||
-                    state.deploymentName === "secure-gateway-private-https"
-                      ? "secure-gateway-http-offload"
-                      : state.deploymentName,
+                  privateHostname: resolveDefaultPrivateHostname(
+                    state.privateHostname,
+                    "demo-server-http.internal",
+                  ),
+                  deploymentName: resolveDefaultDeploymentName(
+                    state.deploymentName,
+                    "secure-gateway-http-offload",
+                  ),
                   existingBackendUrl: state.existingBackendUrl.startsWith("http://")
                     ? state.existingBackendUrl
                     : "",
@@ -1181,9 +1211,9 @@ export function EnvironmentStep({
 
       {(() => {
         const activeArchitecture =
-          state.backendKind === "direct_https"
+          backendKind === "direct_https"
             ? messages.guide.architectures[0]
-            : state.backendKind === "internal_https_lb"
+            : backendKind === "internal_https_lb"
               ? messages.guide.architectures[1]
               : messages.guide.architectures[2];
         return (
@@ -1294,19 +1324,20 @@ export function EnvironmentStep({
                       state.vpcName.trim() && state.subnetName.trim()
                         ? "existing"
                         : "dedicated",
-                    privateHostname:
-                      state.privateHostname || "secgw-backend.internal",
+                    privateHostname: resolveDefaultPrivateHostname(
+                      state.privateHostname,
+                      "demo-server-https.internal",
+                    ),
                     certificateStrategy:
                       state.mode === "poc" &&
                       state.certificateStrategy === "enterprise_ca" &&
                       !state.caPool.trim()
                         ? "local_poc"
                         : state.certificateStrategy,
-                    deploymentName:
-                      state.deploymentName === "secure-gateway-ilb-https-offload" ||
-                      state.deploymentName === "secure-gateway-private-https"
-                        ? "secure-gateway-http-offload"
-                        : state.deploymentName,
+                    deploymentName: resolveDefaultDeploymentName(
+                      state.deploymentName,
+                      "secure-gateway-direct-https-demo",
+                    ),
                     existingBackendConnectivityConfirmed: false,
                   });
                   void resolveSampleImage(true);
@@ -1314,11 +1345,14 @@ export function EnvironmentStep({
                   onPatch({
                     directHttpsLaunchSampleVm: false,
                     networkStrategy: "existing",
-                    deploymentName:
-                      state.deploymentName === "secure-gateway-http-offload" ||
-                      state.deploymentName === "secure-gateway-ilb-https-offload"
-                        ? "secure-gateway-private-https"
-                        : state.deploymentName,
+                    privateHostname: resolveDefaultPrivateHostname(
+                      state.privateHostname,
+                      "secgw-backend.internal",
+                    ),
+                    deploymentName: resolveDefaultDeploymentName(
+                      state.deploymentName,
+                      "secure-gateway-private-https",
+                    ),
                     existingBackendUrl: state.existingBackendUrl.startsWith(
                       "https://",
                     )
@@ -1628,7 +1662,7 @@ export function EnvironmentStep({
               onChange={(applicationEgressRegion) =>
                 onPatch({ applicationEgressRegion })
               }
-              placeholder="asia-east1"
+              placeholder={state.region || "asia-northeast1"}
               value={state.applicationEgressRegion}
             />
           </div>
@@ -2142,14 +2176,17 @@ export function AccessStep({
                 value={principal.value}
               />
             )}
-            <button
-              className="remove-action"
-              disabled={state.principals.length === 1}
-              onClick={() => removePrincipal(principal.id)}
-              type="button"
-            >
-              {copy.removePrincipal}
-            </button>
+            <div className="field compact principal-remove">
+              <span aria-hidden="true">{"\u00a0"}</span>
+              <button
+                className="remove-action"
+                disabled={state.principals.length === 1}
+                onClick={() => removePrincipal(principal.id)}
+                type="button"
+              >
+                {copy.removePrincipal}
+              </button>
+            </div>
           </div>
         ))}
       </div>
@@ -2259,6 +2296,7 @@ export function ReviewStep({
   messages,
   onApprove,
   onBootstrapCloud,
+  onPatch,
   onPrepare,
   onValidateCloud,
   preparedPlan,
@@ -2272,6 +2310,35 @@ export function ReviewStep({
         gate.gate_id === "human-approval" ||
         gate.status === "pass",
     ) ?? false;
+  const conflictingKeys = Array.from(
+    new Set([
+      ...(preparedPlan?.preflight.snapshot.conflicting_resource_keys ?? []),
+      ...(preparedPlan?.plan.changes
+        .filter((change) => change.action === "conflict")
+        .map(
+          (change) =>
+            `${change.provider}:${change.resource_type}:${change.resource_name}`,
+        ) ?? []),
+    ]),
+  );
+  const hasResourceConflict =
+    conflictingKeys.length > 0 ||
+    (preparedPlan?.plan.gates.some(
+      (gate) =>
+        (gate.gate_id === "resource-conflicts" ||
+          gate.gate_id === "existing-resource-safety") &&
+        gate.status !== "pass",
+    ) ??
+      false);
+
+  function handleAutoRenameAndRepreflight() {
+    const patch = {
+      ...incrementDeploymentIdentity(state),
+      approvalConfirmed: false,
+    };
+    onPatch(patch);
+    void onPrepare({ ...state, ...patch });
+  }
 
   const [preflightProgress, setPreflightProgress] = useState(0);
   const [preflightStage, setPreflightStage] = useState(1);
@@ -2698,6 +2765,16 @@ export function ReviewStep({
         >
           {busy && !preparedPlan ? copy.preparingPlan : copy.runPreflight}
         </button>
+        {hasResourceConflict && (
+          <button
+            className="connection-action secondary"
+            disabled={busy}
+            onClick={handleAutoRenameAndRepreflight}
+            type="button"
+          >
+            {copy.autoRenameAndRepreflight}
+          </button>
+        )}
         {preparedPlan && (
           <p className={`plan-result ${gatesReady ? "pass" : "blocked"}`}>
             {gatesReady ? <CheckIcon size={18} /> : <InfoIcon size={18} />}
@@ -2708,6 +2785,20 @@ export function ReviewStep({
           </p>
         )}
       </div>
+      {hasResourceConflict && (
+        <article className="plan-conflict-banner" role="status">
+          <div className="plan-conflict-copy">
+            <strong>{copy.conflictingResourcesHint(Math.max(1, conflictingKeys.length))}</strong>
+            {conflictingKeys.length > 0 && (
+              <div className="plan-conflict-keys">
+                {conflictingKeys.map((key) => (
+                  <code key={key}>{key}</code>
+                ))}
+              </div>
+            )}
+          </div>
+        </article>
+      )}
       {error && <p className="connection-error" role="alert">{error}</p>}
       {onBootstrapCloud && onValidateCloud && (
         <article

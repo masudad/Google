@@ -47,6 +47,11 @@ import {
   type RecommendedPolicyConfig,
 } from "./SecurityAssessmentModal";
 import { DEFAULT_DLP_MATRIX, DlpMatrixTable } from "./DlpMatrixTable";
+import {
+  dataBoundaryPolicyPreview,
+  effectiveAllowedDomains,
+  parseAllowedDomains,
+} from "./domains";
 
 interface CepDeployerPageProps {
   messages: Messages;
@@ -55,6 +60,8 @@ interface CepDeployerPageProps {
   workspaceConnected?: boolean;
   onCustomerIdResolved?: (customerId: string, principalHint?: string) => void;
   onProjectIdChange?: (projectId: string) => void;
+  /** Preset requested by another page (e.g. CERA). The nonce makes repeated requests re-apply. */
+  requestedPreset?: { name: PresetName; nonce: number } | null;
 }
 
 interface ModuleState {
@@ -298,6 +305,7 @@ export function CepDeployerPage({
   workspaceConnected = false,
   onCustomerIdResolved,
   onProjectIdChange,
+  requestedPreset = null,
 }: CepDeployerPageProps) {
   const m = messages.cepDeployer;
   const [resolvedCustomerId, setResolvedCustomerId] = useState<string>("");
@@ -333,6 +341,8 @@ export function CepDeployerPage({
   const [dlpCustomMessage, setDlpCustomMessage] = useState<string>("");
   const [dlpSaveContent, setDlpSaveContent] = useState<boolean>(false);
   const [httpHeaderRules, setHttpHeaderRules] = useState<CepHttpHeaderRule[]>([]);
+  const [allowedDomainsText, setAllowedDomainsText] = useState<string>("");
+  const [primaryDomain, setPrimaryDomain] = useState<string | null>(null);
 
   const [accessLevels, setAccessLevels] = useState<SetupOption[]>([]);
   const [accessLevelError, setAccessLevelError] = useState<boolean>(false);
@@ -496,6 +506,29 @@ gcloud access-context-manager cloud-bindings create \\
     setActiveTab("all");
   };
 
+  // Preset handoff from CERA: mirror the preset button handler and surface a banner.
+  useEffect(() => {
+    if (!requestedPreset) return;
+    const name = requestedPreset.name;
+    if (!(name in PRESETS)) return;
+    setActivePreset(name);
+    setModules(PRESETS[name]);
+    setDlpMatrix(PRESET_MATRICES[name]);
+    setActiveTab("all");
+    const presetLabels: Record<PresetName, string> = {
+      full: m.presetFullPoc,
+      ai: m.presetAiProtection,
+      personal_account: m.presetPersonalAccount,
+      endpoint: m.presetEndpoint,
+      audit: m.presetAudit,
+    };
+    setAssessmentAppliedNotice(m.ceraPresetAppliedBanner(presetLabels[name]));
+    const timer = setTimeout(() => setAssessmentAppliedNotice(""), 8000);
+    return () => clearTimeout(timer);
+    // Only re-run when a new request arrives; message objects are stable per locale.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedPreset?.nonce]);
+
   const [ouLoaded, setOuLoaded] = useState<boolean>(false);
   const [loadingOus, setLoadingOus] = useState<boolean>(false);
 
@@ -608,6 +641,7 @@ gcloud access-context-manager cloud-bindings create \\
       const detectedId = (ws.resource_id || "").trim();
       if (/^C[A-Za-z0-9]+$/.test(detectedId)) {
         setResolvedCustomerId(detectedId);
+        setPrimaryDomain(ws.primary_domain ?? null);
         onCustomerIdResolved?.(detectedId, ws.principal_hint);
         setLoadingOus(true);
         try {
@@ -664,6 +698,7 @@ gcloud access-context-manager cloud-bindings create \\
       const detectedId = (ws.resource_id || "").trim();
       if (/^C[A-Za-z0-9]+$/.test(detectedId)) {
         setResolvedCustomerId(detectedId);
+        setPrimaryDomain(ws.primary_domain ?? null);
         onCustomerIdResolved?.(detectedId, ws.principal_hint);
         setLoadingOus(true);
         try {
@@ -940,6 +975,10 @@ gcloud access-context-manager cloud-bindings create \\
       dlp_custom_message: dlpCustomMessage,
       dlp_save_content: dlpSaveContent,
       data_boundary_mode: isDlpOnly ? "none" : modules.dataBoundaryMode,
+      allowed_domains:
+        isDlpOnly || modules.dataBoundaryMode === "none" || parsedAllowedDomains.domains.length === 0
+          ? undefined
+          : parsedAllowedDomains.domains,
       http_header_rules:
         isDlpOnly || httpHeaderRules.length === 0 ? undefined : httpHeaderRules,
       internal_urls: internalUrls
@@ -1128,6 +1167,12 @@ gcloud access-context-manager cloud-bindings create \\
 
   const anyDlpSelected = modules.dlpRules;
 
+  const parsedAllowedDomains = parseAllowedDomains(allowedDomainsText);
+  const effectiveDomains = effectiveAllowedDomains(primaryDomain, parsedAllowedDomains.domains);
+  const dataBoundaryPreview =
+    effectiveDomains.length > 0 ? dataBoundaryPolicyPreview(effectiveDomains) : null;
+  const showAllowedDomains = modules.dataBoundaryMode !== "none";
+
   const boundaryModes: Array<{
     value: CepDataBoundaryMode;
     label: string;
@@ -1172,10 +1217,10 @@ gcloud access-context-manager cloud-bindings create \\
 
             <div className="cep-assessment-banner">
         <div className="cep-assessment-banner-text">
-          <h3>
+          <h2>
             <SparklesIcon size={20} />
             <span>{m.assessModalTitle}</span>
-          </h3>
+          </h2>
           <p>{m.assessModalSubtitle}</p>
         </div>
         <button
@@ -1724,6 +1769,76 @@ gcloud access-context-manager cloud-bindings create \\
               </label>
             ))}
           </div>
+
+          {showAllowedDomains && (
+            <div className="cep-allowed-domains" data-testid="cep-allowed-domains">
+              <div className="cep-field">
+                <label htmlFor="cep-allowed-domains">{m.allowedDomainsTitle}</label>
+                <textarea
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  id="cep-allowed-domains"
+                  onChange={(event) => setAllowedDomainsText(event.target.value)}
+                  placeholder={m.allowedDomainsPlaceholder}
+                  rows={2}
+                  spellCheck={false}
+                  value={allowedDomainsText}
+                />
+                <small>{m.allowedDomainsHint}</small>
+              </div>
+
+              <ul
+                aria-label={m.allowedDomainsCount(effectiveDomains.length)}
+                className="cep-domain-chips"
+              >
+                {primaryDomain ? (
+                  <li className="cep-domain-chip cep-domain-chip-primary">
+                    <code>{primaryDomain}</code>
+                    <span>{m.allowedDomainsPrimaryBadge}</span>
+                  </li>
+                ) : (
+                  <li className="cep-domain-chip cep-domain-chip-pending">
+                    <span>{m.allowedDomainsPrimaryPending}</span>
+                  </li>
+                )}
+                {parsedAllowedDomains.domains
+                  .filter((domain) => domain !== primaryDomain)
+                  .map((domain) => (
+                    <li className="cep-domain-chip" key={domain}>
+                      <code>{domain}</code>
+                    </li>
+                  ))}
+              </ul>
+
+              {parsedAllowedDomains.invalid.length > 0 && (
+                <p className="cep-inline-note cep-domain-invalid" role="status">
+                  {m.allowedDomainsInvalid(parsedAllowedDomains.invalid.join(", "))}
+                </p>
+              )}
+
+              {dataBoundaryPreview && (
+                <details className="cep-domain-preview">
+                  <summary>
+                    {m.allowedDomainsPreviewTitle}
+                    <span className="cep-domain-count tabular-nums">
+                      {m.allowedDomainsCount(effectiveDomains.length)}
+                    </span>
+                  </summary>
+                  <dl className="cep-domain-preview-grid">
+                    <dt>AllowedDomainsForApps</dt>
+                    <dd><code>{dataBoundaryPreview.allowedDomainsForApps}</code></dd>
+                    <dt>RestrictAccountsToPatterns</dt>
+                    <dd><code>{dataBoundaryPreview.restrictAccountsToPatterns.join(", ")}</code></dd>
+                    <dt>RestrictSigninToPattern</dt>
+                    <dd><code>{dataBoundaryPreview.restrictSigninToPattern}</code></dd>
+                  </dl>
+                  {effectiveDomains.length > 1 && (
+                    <p className="cep-inline-note">{m.allowedDomainsPreviewNote}</p>
+                  )}
+                </details>
+              )}
+            </div>
+          )}
         </fieldset>
 
         <fieldset className="cep-fieldset cep-http-headers-fieldset">

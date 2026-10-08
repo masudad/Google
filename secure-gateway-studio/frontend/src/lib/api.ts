@@ -6,6 +6,8 @@ export interface ConnectionValidation {
   credential_kind: string;
   access_policy_id: string | null;
   read_only: true;
+  /** Workspace only: the tenant's primary domain, when the Directory returns it. */
+  primary_domain?: string | null;
 }
 
 export interface DeployerBootstrapResult {
@@ -118,6 +120,8 @@ export interface PreparedPlan {
       chrome_root_store_config_count: number | null;
       chrome_root_store_config_names: string[];
       chrome_root_store_enabled: boolean | null;
+      existing_resource_keys?: string[];
+      conflicting_resource_keys?: string[];
     };
   };
   plan: {
@@ -780,6 +784,11 @@ export interface CepProvisionConfig {
   /** Comprehensive DLP matrix state */
   dlp_matrix?: CepDlpMatrixState;
   data_boundary_mode?: CepDataBoundaryMode;
+  /**
+   * Corporate domains allowed by the data boundary sign-in policies in
+   * addition to the tenant's primary domain (secondary domains, aliases).
+   */
+  allowed_domains?: string[];
   http_header_rules?: CepHttpHeaderRule[];
   internal_urls?: string[];
   dlp_custom_message?: string;

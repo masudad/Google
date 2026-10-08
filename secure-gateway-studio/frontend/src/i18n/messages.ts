@@ -198,6 +198,8 @@ export interface WorkflowMessages {
   approvePlanDescription: string;
   generatePlan: string;
   runPreflight: string;
+  autoRenameAndRepreflight: string;
+  conflictingResourcesHint: (count: number) => string;
   preparingPlan: string;
   planReady: string;
   planBlocked: string;
@@ -390,6 +392,10 @@ export interface OperationsMessages {
   statusRunning: string;
   statusPending: string;
   statusFailed: string;
+  statusInterrupted: string;
+  statusRollingBack: string;
+  statusRolledBack: string;
+  statusRollbackFailed: string;
   t07DiagnosticsTitle: string;
   t07DiagnosticsIntro: string;
   t07Diagnostics: readonly {
@@ -517,6 +523,10 @@ export interface GuideMessages {
   openEasyPocCta: string;
   openSgwDeployerCta: string;
   easyPocGuide: EasyPocGuideMessages;
+  ceraTabLabel: string;
+  ceraTabSubtitle: string;
+  openCeraCta: string;
+  ceraGuide: EasyPocGuideMessages;
   eyebrow: string;
   title: string;
   intro: string;
@@ -588,6 +598,7 @@ export interface Messages {
     cepDeployer: string;
     easyPoc: string;
     sgwDeployer: string;
+    cera: string;
   };
   title: string;
   steps: readonly string[];
@@ -601,12 +612,16 @@ export interface Messages {
   managedChromeOnly: string;
   platformNote: string;
   infrastructureTitle: string;
+  infrastructureInfoLabel: string;
+  infrastructureInfo: string;
   dedicatedNetwork: string;
   recommended: string;
   dedicatedDescription: string;
   existingVpc: string;
   existingDescription: string;
   certificateTitle: string;
+  certificateInfoLabel: string;
+  certificateInfo: string;
   enterpriseCa: string;
   enterpriseCaDescription: string;
   publicCertificate: string;
@@ -643,6 +658,14 @@ export interface Messages {
   languages: {
     english: string;
     japanese: string;
+  };
+  errorBoundary: {
+    title: string;
+    body: string;
+    detailLabel: string;
+    retry: string;
+    reload: string;
+    backToList: string;
   };
   topbarAuth: {
     cloudPopoverTitle: string;
@@ -789,6 +812,15 @@ export interface CepDeployerMessages {
   dataBoundaryModeBlockNonCorpDesc: string;
   dataBoundaryModeNone: string;
   dataBoundaryModeNoneDesc: string;
+  allowedDomainsTitle: string;
+  allowedDomainsHint: string;
+  allowedDomainsPlaceholder: string;
+  allowedDomainsPrimaryBadge: string;
+  allowedDomainsPrimaryPending: string;
+  allowedDomainsCount: (count: number) => string;
+  allowedDomainsInvalid: (entries: string) => string;
+  allowedDomainsPreviewTitle: string;
+  allowedDomainsPreviewNote: string;
   internalUrlsTitle: string;
   internalUrlsPlaceholder: string;
   internalUrlsHint: string;
@@ -1114,6 +1146,7 @@ export interface CepDeployerMessages {
   assessRoiSecurityTitle: string; assessRoiSecurityDesc: string;
   assessApplyRecBtn: string;
   assessAppliedBanner: string;
+  ceraPresetAppliedBanner: (preset: string) => string;
   geminiArchDetailsToggle: string;
   assessShowDetails: string;
   assessHideDetails: string;
@@ -1520,6 +1553,7 @@ const en: Messages = {
     cepDeployer: "Easy PoC",
     easyPoc: "Easy PoC",
     sgwDeployer: "Secure Gateway Deployer",
+    cera: "CERA",
   },
   title: "New secure gateway setup",
   steps: ["Environment & TLS", "Access", "Review", "Apply"],
@@ -1536,12 +1570,18 @@ const en: Messages = {
   platformNote:
     "Select platforms for acceptance testing.",
   infrastructureTitle: "2. Infrastructure strategy",
+  infrastructureInfoLabel: "About the infrastructure strategy",
+  infrastructureInfo:
+    "Dedicated network creates a custom-mode VPC, a private subnet, Cloud NAT, and firewall rules used only by this deployment, so nothing in your current network changes. Existing VPC deploys into a VPC and subnet you already manage; Direct HTTPS switches to it automatically because the gateway has to reach the application on your network.",
   dedicatedNetwork: "Dedicated network",
   recommended: "Standard",
   dedicatedDescription: "Create a dedicated VPC for Secure Gateway.",
   existingVpc: "Existing VPC",
   existingDescription: "Deploy into an existing VPC.",
   certificateTitle: "3. Certificate strategy",
+  certificateInfoLabel: "About the certificate strategy",
+  certificateInfo:
+    "This decides who issues the TLS certificate that managed Chrome sees for the private hostname. Local PoC CA needs no inputs: the extension generates the root and server certificates and you upload the public root to the Chrome Root Store for the test OU after Apply. Enterprise PKI / CA Service issues internal certificates from your own CA, and Publicly trusted certificate uses a public DNS hostname with a certificate bundle stored in Secret Manager.",
   enterpriseCa: "Enterprise PKI / CA Service",
   enterpriseCaDescription: "Issue internal TLS certificates via Cloud CA Service.",
   publicCertificate: "Publicly trusted certificate",
@@ -1579,6 +1619,14 @@ const en: Messages = {
   lastSaved: "Last saved",
   justNow: "just now",
   languages: { english: "English", japanese: "日本語" },
+  errorBoundary: {
+    title: "This view could not be displayed",
+    body: "An unexpected error occurred while rendering this part of the console. Your saved drafts and deployment records are not affected. Try again, or reload the extension.",
+    detailLabel: "Technical detail",
+    retry: "Try again",
+    reload: "Reload",
+    backToList: "Back to deployments",
+  },
   topbarAuth: {
     cloudPopoverTitle: "Google Cloud Configuration",
     cloudPopoverDesc: "Shared across Easy PoC and Secure Gateway Deployer.",
@@ -1591,7 +1639,7 @@ const en: Messages = {
     cloudBootstrappingBtn: "Preparing Deployer SA…",
     cloudSwitchAccountBtn: "Switch Google Cloud Account",
     cloudSwitchingAccountBtn: "Switching Account…",
-    cloudSharedNote: "Shared across Easy PoC and Secure Gateway Deployer.",
+    cloudSharedNote: "Easy PoC uses the administrator OAuth session; Secure Gateway Deployer uses the dedicated deployer service account.",
     workspacePopoverTitle: "Google Workspace Authentication",
     workspacePopoverDesc: "Sign in once to share Customer ID, OUs, and Groups across both tools.",
     workspaceSignInBtn: "Sign in with Google",
@@ -1940,6 +1988,11 @@ const en: Messages = {
       "Bound to the configuration hash; invalidated if settings change.",
     generatePlan: "Run preflight and generate plan",
     runPreflight: "Run trusted preflight",
+    autoRenameAndRepreflight: "Auto-rename deployment & re-run preflight",
+    conflictingResourcesHint: (count: number) =>
+      count === 1
+        ? "1 existing resource conflicts with the current deployment name or hostname. Auto-rename to create an isolated deployment."
+        : `${count} existing resources conflict with the current deployment name or hostname. Auto-rename to create an isolated deployment.`,
     preparingPlan: "Discovering resources and generating plan…",
     planReady: "Plan ready",
     planBlocked: "Plan has blocking gates",
@@ -2230,6 +2283,10 @@ const en: Messages = {
     statusRunning: "Running",
     statusPending: "Pending",
     statusFailed: "Failed",
+    statusInterrupted: "Interrupted",
+    statusRollingBack: "Rolling back",
+    statusRolledBack: "Rolled back",
+    statusRollbackFailed: "Rollback failed",
     t07DiagnosticsTitle: "Managed Chrome client diagnostics",
     t07DiagnosticsIntro:
       "Common browser symptoms and quick fixes:",
@@ -2425,6 +2482,244 @@ const en: Messages = {
     sgwTabSubtitle: "VPN-less Private Web Apps · Direct HTTPS / ILB / Nginx",
     openEasyPocCta: "Open Easy PoC",
     openSgwDeployerCta: "Open Secure Gateway Deployer",
+    ceraTabLabel: "CERA Guide",
+    ceraTabSubtitle: "Chrome Egress Risk Analysis · Log-based evidence · 16:9 HTML deck",
+    openCeraCta: "Open CERA",
+    ceraGuide: {
+      eyebrow: "CERA · Chrome Egress Risk Analysis",
+      title: "How CERA Turns Chrome Log Events into an Egress Risk Report",
+      intro:
+        "Loads Chrome log events exported from the Google Admin Console, classifies every upload, paste, download, and print by destination and signed-in identity, and produces an in-app dashboard plus a downloadable 16:9 HTML slide deck. Processing runs entirely inside the extension: no file ever leaves the browser.",
+      pocNoticeTitle: "Read-only by design",
+      pocNoticeBody:
+        "CERA requests no additional OAuth scopes and calls no API. It only reads the CSV, TSV, or JSON files you drop into it. Identities are masked by default in the deck, CSV, and JSON exports; turn masking off only for internal forensic review.",
+      quickOverviewTitle: "Analysis Scenarios",
+      scenariosTitle: "Three Questions CERA Answers from Existing Logs",
+      scenariosIntro:
+        "The same Chrome log events that Easy PoC's audit-mode connectors generate become quantified evidence for the next control decision.",
+      scopeTag: "Local analysis",
+      targetLabel: "Input",
+      authRequirementLabel: "Required role",
+      scenarios: [
+        {
+          eyebrow: "Scenario 1 · Egress Channel Matrix",
+          title: "Where Does Corporate Data Actually Go?",
+          summary:
+            "Classifies each outbound action into personal Google accounts, Shadow AI, sanctioned AI, sanctioned suites, partners, messaging, or unmanaged destinations, and shows actions, users, sensitive hits, and block rates per channel.",
+          estimatedTime: "Time: ~10s per 100k events",
+          targetScope: "Admin Console export of Chrome log events, 7–30 days.",
+          authRequirement: "Reports privilege in the Admin Console to export the logs.",
+          nodes: [
+            { label: "Admin Console", detail: "Reporting → Audit → Chrome log events → Export", costBadge: "CSV / JSON" },
+            { label: "Column mapping", detail: "EN and JA headers auto-detected", costBadge: "Override UI" },
+            { label: "Channel classifier", detail: "Identity domain + destination catalog", costBadge: "8 channels" },
+            { label: "Dashboard", detail: "KPIs, matrix, daily trend, anomalies", costBadge: "In-app" },
+          ],
+          supports: [
+            { label: "Personal account detection", detail: "Signed-in account outside corporate and partner domains" },
+            { label: "GenAI catalog", detail: "Built-in list of consumer GenAI hosts plus your own additions" },
+            { label: "Sanctioned suites", detail: "Quick-add chips for Google Workspace, Microsoft 365, Salesforce, and more" },
+            { label: "Deduplication", detail: "Collapses connector retries within a 10-second window" },
+          ],
+        },
+        {
+          eyebrow: "Scenario 2 · Concentration & Timing",
+          title: "Who, When, and How Concentrated?",
+          summary:
+            "Surfaces daily anomalies, off-hours and weekend share, top-10% user concentration, destination HHI, multi-portal users, org-unit breakdown, and print and download exposure.",
+          estimatedTime: "Time: instant after load",
+          targetScope: "Same export; work hours and time-zone offset are configurable.",
+          authRequirement: "None beyond the exported file.",
+          nodes: [
+            { label: "Daily series", detail: "Uploads, pastes, sensitive hits per day", costBadge: "z-score ≥ 2" },
+            { label: "Hour histogram", detail: "Local-time distribution vs. work hours", costBadge: "Off-hours %" },
+            { label: "Org units", detail: "Top 5 OUs by egress and sensitive volume", costBadge: "OU view" },
+            { label: "Signals", detail: "Malware, unscanned, password reuse, unsafe sites", costBadge: "Side channels" },
+          ],
+          supports: [
+            { label: "Masked identities", detail: "Users appear as stable hashes unless masking is turned off" },
+            { label: "Forensic CSV", detail: "Per-action export for IR hand-off" },
+            { label: "Summary JSON", detail: "Machine-readable totals for ticketing or BI" },
+          ],
+        },
+        {
+          eyebrow: "Scenario 3 · Control Roadmap & Deck",
+          title: "Which Easy PoC Preset Closes the Gap?",
+          summary:
+            "Maps each measured channel to a suggested control with a Now / Next / Later horizon, and renders a 13-slide 16:9 HTML deck that opens in any browser and prints to PDF.",
+          estimatedTime: "Time: ~1s to build the deck",
+          targetScope: "Analysis result plus report title and organization name.",
+          authRequirement: "Workspace Admin only if you apply a preset in Easy PoC.",
+          nodes: [
+            { label: "Roadmap", detail: "Now / Next / Later with measured metrics", costBadge: "Evidence-linked" },
+            { label: "Easy PoC preset", detail: "personal_account · ai · full · endpoint · audit", costBadge: "1-click handoff" },
+            { label: "HTML deck", detail: "Self-contained, keyboard navigation, overview mode", costBadge: "16:9" },
+            { label: "PDF", detail: "Print with @page 13.333in × 7.5in", costBadge: "Ctrl/Cmd+P" },
+          ],
+          supports: [
+            { label: "Apply in Easy PoC", detail: "Jumps to Easy PoC with the preset pre-selected and the target scope untouched" },
+            { label: "Deck language", detail: "Japanese or English independent of the UI language" },
+            { label: "No tracking", detail: "The deck contains no scripts that call out; charts are inline SVG" },
+          ],
+        },
+      ],
+      implementationTitle: "What Is Implemented in CERA",
+      implementationIntro:
+        "A pure TypeScript analysis engine bundled with the extension. It parses, classifies, aggregates, and renders without a backend.",
+      implementationEyebrow: "Feature inventory",
+      implementationGroups: [
+        {
+          eyebrow: "Ingestion",
+          title: "Multi-file CSV, TSV & JSON with Header Aliases",
+          items: [
+            "Drag and drop several exports at once; files are merged and deduplicated before analysis.",
+            "English and Japanese Admin Console headers plus Reports API `parameters[]` are auto-mapped; a mapping panel lets you override any column.",
+            "A deterministic sample dataset is built in so the full flow can be demonstrated without customer data.",
+          ],
+        },
+        {
+          eyebrow: "Classification",
+          title: "Identity-aware Channel Model",
+          items: [
+            "Personal account: signed-in identity outside the corporate and partner domains, regardless of destination.",
+            "Shadow AI vs. sanctioned AI: destination catalog of consumer GenAI hosts compared with the hosts you approve.",
+            "Sanctioned suites, partners, messaging, and unmanaged destinations complete the eight-channel matrix.",
+          ],
+        },
+        {
+          eyebrow: "Analytics",
+          title: "Concentration, Anomalies & Side Signals",
+          items: [
+            "Daily z-score anomalies, off-hours and weekend share, destination HHI, top-10% user share, multi-portal users.",
+            "Org-unit and category breakdowns, DLP rule outcome summary, print and inbound download views.",
+            "Password reuse, unsafe site visits, malware and unscanned transfers, extension installs, and browser launches.",
+          ],
+        },
+        {
+          eyebrow: "Output",
+          title: "Dashboard, 16:9 HTML Deck, CSV & JSON",
+          items: [
+            "In-app dashboard with inline SVG charts rendered under the extension's strict CSP.",
+            "13-slide standalone HTML deck with keyboard navigation, overview grid, and print-to-PDF page size.",
+            "Forensic action CSV and summary JSON with the same masking setting as the deck.",
+          ],
+        },
+        {
+          eyebrow: "Handoff",
+          title: "Easy PoC Preset Shortcuts",
+          items: [
+            "Each suggested control carries an Easy PoC preset; one click opens Easy PoC with that preset applied.",
+            "Audit-mode baseline shortcut from the Load step for tenants that have not yet enabled connectors.",
+          ],
+        },
+      ],
+      stepLabel: (step) => `Step ${step}`,
+      technicalDeepDiveTitle: "3-Step Workflow",
+      technicalDeepDiveIntro:
+        "Load logs, confirm the classification settings, then read or export the report. Every step runs locally.",
+      technicalEyebrow: "Step-by-step workflow",
+      steps: [
+        {
+          title: "1. Load logs",
+          subtitle: "Export Chrome log events from the Admin Console and drop the files",
+          summary:
+            "Open Reporting → Audit and investigation → Chrome log events in the [Google Admin Console](https://admin.google.com/ac/ac/audit/chrome), set the date range, export CSV or JSON, then drop the files onto CERA.",
+          actions: [
+            "Enable audit-mode connectors first if the tenant has no Chrome log events yet; Easy PoC's `audit` preset does this for a pilot OU.",
+            "Export 7–30 days of events; several files can be dropped together.",
+            "Check the mapping panel if any required column shows as unmapped, then click Continue.",
+          ],
+          optionsBehavior: [
+            {
+              name: "Sample dataset",
+              behavior:
+                "Generates ~2,700 synthetic events for 36 users over 7 days so the dashboard and deck can be shown without customer data.",
+            },
+            {
+              name: "Column mapping",
+              behavior:
+                "English and Japanese headers are matched after NFKC normalization. Overrides are stored only in memory for the current session.",
+            },
+          ],
+          safetyNote:
+            "Files are read with the browser File API and never uploaded. Closing the tab discards everything.",
+        },
+        {
+          title: "2. Classification settings",
+          subtitle: "Corporate and partner domains, sanctioned hosts, work hours, masking",
+          summary:
+            "Confirm the corporate domain suggested from the data, add partner domains, approve the AI and SaaS hosts your organization sanctions, and set work hours and time zone.",
+          actions: [
+            "Accept or edit the suggested corporate domain chips.",
+            "Use quick-add chips for sanctioned suites such as Google Workspace or Microsoft 365.",
+            "Keep identity masking on for customer-facing decks; set the deck language, report title, and organization name.",
+          ],
+          optionsBehavior: [
+            {
+              name: "Identity masking (default: on)",
+              behavior:
+                "Replaces user e-mail addresses with stable pseudonyms in the dashboard tables, deck, CSV, and JSON.",
+            },
+            {
+              name: "Time-zone offset",
+              behavior:
+                "Timestamps without an explicit offset are interpreted in this zone; off-hours and weekend shares depend on it.",
+            },
+          ],
+        },
+        {
+          title: "3. Report & export",
+          subtitle: "Dashboard, suggested controls, HTML deck, CSV, JSON",
+          summary:
+            "Read the KPIs and channel matrix, review the Now / Next / Later roadmap, then download the 16:9 HTML deck or the forensic CSV and summary JSON.",
+          actions: [
+            "Click 'Download 16:9 HTML deck' and open the file in any browser; use arrow keys to navigate and P for the overview grid.",
+            "Print the deck with Ctrl/Cmd+P to produce a PDF with 13.333 × 7.5 inch pages.",
+            "Use 'Apply in Easy PoC' on a suggested control to open Easy PoC with that preset pre-selected.",
+          ],
+          safetyNote:
+            "The deck is a single HTML file with inline SVG and no external requests. Review masking before sharing outside the organization.",
+        },
+      ],
+      faqTitle: "CERA FAQ",
+      faqIntro: "Common questions about log export, classification, and sharing.",
+      faqEyebrow: "Troubleshooting",
+      faqs: [
+        {
+          id: "cera-no-events",
+          category: "Export",
+          question: "The Admin Console shows no Chrome log events to export.",
+          answer:
+            "Chrome log events appear only after connectors or audit-mode DLP rules are enabled for the OU. Apply Easy PoC's audit preset to a pilot OU, wait for users to browse for a few days, then export again.",
+          checklist: [
+            "Security event reporting connector enabled for the pilot OU",
+            "Users in the OU signed in to a managed Chrome profile or browser",
+            "Date range in the export covers the pilot period",
+          ],
+        },
+        {
+          id: "cera-unmapped",
+          category: "Mapping",
+          question: "Some columns show as unmapped after loading.",
+          answer:
+            "Open the column mapping panel and pick the matching header for timestamp, event, actor, URL, trigger, and result. Only timestamp and actor are strictly required; other columns degrade gracefully.",
+        },
+        {
+          id: "cera-personal",
+          category: "Classification",
+          question: "Why is a Google Workspace destination counted as a personal account?",
+          answer:
+            "CERA classifies by signed-in identity first. If the account that performed the action is outside the corporate and partner domains, the action is attributed to the personal account channel even when the destination is Google-owned. Add the missing corporate or partner domain in Step 2 if the attribution is wrong.",
+        },
+        {
+          id: "cera-share",
+          category: "Sharing",
+          question: "Can the HTML deck be shared with the customer?",
+          answer:
+            "The deck is self-contained and makes no network calls. Keep identity masking on, review the org-unit names and file names shown in the tables, and print to PDF if a fixed format is preferred.",
+        },
+      ],
+    },
     easyPocGuide: {
       eyebrow: "Easy PoC · Core CEP Protections",
       title: "How Easy PoC Configures Chrome Enterprise Premium",
@@ -3518,6 +3813,20 @@ const en: Messages = {
     dataBoundaryModeNone: "None",
     dataBoundaryModeNoneDesc:
       "Inherit clipboard and account settings from the parent OU.",
+    allowedDomainsTitle: "Corporate domains allowed to sign in",
+    allowedDomainsHint:
+      "The tenant's primary domain is detected from the Directory and always included. Add secondary domains and domain aliases here, separated by commas or new lines. Accounts on any other domain are blocked by AllowedDomainsForApps, RestrictAccountsToPatterns, and RestrictSigninToPattern.",
+    allowedDomainsPlaceholder: "example.co.jp, example-group.com",
+    allowedDomainsPrimaryBadge: "primary · detected",
+    allowedDomainsPrimaryPending:
+      "Primary domain: detected automatically at apply time",
+    allowedDomainsCount: (count) =>
+      count === 1 ? "1 domain will be allowed" : `${count} domains will be allowed`,
+    allowedDomainsInvalid: (entries) =>
+      `Not a valid domain and will be ignored: ${entries}`,
+    allowedDomainsPreviewTitle: "Policy values that will be written",
+    allowedDomainsPreviewNote:
+      "RestrictSigninToPattern is a single regular expression, so several domains become one alternation.",
     httpHeadersTitle: "SaaS Tenant Restriction Headers",
     httpHeadersSubtitle:
       "Inject HTTP headers on matching URLs to restrict SaaS logins to your corporate tenant.",
@@ -3943,6 +4252,7 @@ const en: Messages = {
     assessRoiSecurityDesc: "Control uploads, pastes, downloads, and watermarks in the browser.",
     assessApplyRecBtn: "Apply Configuration to PoC",
     assessAppliedBanner: "✓ Applied policy configuration and DLP matrix.",
+    ceraPresetAppliedBanner: (preset) => `✓ Preset "${preset}" was pre-selected from CERA. Review the target scope, then deploy when ready.`,
     geminiArchDetailsToggle: "View 3-Tier Security Architecture & CLI Commands",
     assessShowDetails: "Show Risk & Solution Details",
     assessHideDetails: "Hide Details",
@@ -4002,6 +4312,7 @@ const ja: Messages = {
     cepDeployer: "Easy PoC",
     easyPoc: "Easy PoC",
     sgwDeployer: "Secure Gateway Deployer",
+    cera: "CERA",
   },
   title: "セキュア ゲートウェイの新規セットアップ",
   steps: ["環境・証明書", "アクセス", "確認", "適用"],
@@ -4017,12 +4328,18 @@ const ja: Messages = {
   managedChromeOnly: "",
   platformNote: "検証対象のOSを選択します。複数選択可能です。",
   infrastructureTitle: "2. ネットワーク構成",
+  infrastructureInfoLabel: "ネットワーク構成の補足説明",
+  infrastructureInfo:
+    "専用ネットワークでは、このデプロイ専用のカスタムモードVPC、プライベートサブネット、Cloud NAT、ファイアウォールルールを新しく作成します。既存のネットワークには手を加えません。既存VPCでは、管理中のVPCとサブネットにそのままデプロイします。Direct HTTPS を選ぶと、ゲートウェイがアプリに直接到達する必要があるため、既存VPCに自動で切り替わります。",
   dedicatedNetwork: "専用ネットワーク",
   recommended: "標準",
   dedicatedDescription: "Secure Gateway専用の新しいVPCを作成します。",
   existingVpc: "既存VPC",
   existingDescription: "管理中の既存VPCへデプロイします。",
   certificateTitle: "3. 証明書方式",
+  certificateInfoLabel: "証明書方式の補足説明",
+  certificateInfo:
+    "管理対象Chromeがプライベートホスト名で受け取るTLS証明書を、誰が発行するかを決めます。ローカルPoC CAは入力不要で、拡張機能がルート証明書とサーバー証明書を生成し、適用後に公開ルートをテストOUの Chrome Root Store へ登録します。エンタープライズPKI / CA Serviceは組織のCAから内部証明書を発行し、パブリック証明書は公開DNSホスト名と Secret Manager に保存した証明書チェーンを使います。",
   enterpriseCa: "エンタープライズPKI / CA Service",
   enterpriseCaDescription: "組織CAまたはCloud CA Serviceで内部TLS証明書を発行します。",
   publicCertificate: "パブリック証明書",
@@ -4060,6 +4377,14 @@ const ja: Messages = {
   lastSaved: "最終保存",
   justNow: "数秒前",
   languages: { english: "English", japanese: "日本語" },
+  errorBoundary: {
+    title: "この画面を表示できませんでした",
+    body: "画面の描画中に予期しないエラーが発生しました。保存済みの下書きやデプロイ記録には影響しません。再試行するか、拡張機能を再読み込みしてください。",
+    detailLabel: "技術的な詳細",
+    retry: "再試行",
+    reload: "再読み込み",
+    backToList: "デプロイ一覧に戻る",
+  },
   topbarAuth: {
     cloudPopoverTitle: "Google Cloud 接続・プロジェクト設定",
     cloudPopoverDesc: "Easy PoC と Secure Gateway Deployer で共通利用します。",
@@ -4419,6 +4744,9 @@ const ja: Messages = {
       "承認は構成ハッシュに紐付き、設定を変更すると無効になります。",
     generatePlan: "事前確認を実行してプランを生成",
     runPreflight: "事前確認を実行",
+    autoRenameAndRepreflight: "新しいデプロイ名に自動変更して再確認",
+    conflictingResourcesHint: (count: number) =>
+      `現在のデプロイ名またはホスト名と競合する既存リソースが ${count} 件検出されました。デプロイ名を自動変更して別環境として再確認できます。`,
     preparingPlan: "環境を検査し、実行計画を作成しています…",
     planReady: "事前確認が完了し、実行計画を作成しました",
     planBlocked: "要対応の項目があります。解消後に再実行してください。",
@@ -4707,6 +5035,10 @@ const ja: Messages = {
     statusRunning: "実行中",
     statusPending: "待機中",
     statusFailed: "エラー",
+    statusInterrupted: "中断",
+    statusRollingBack: "ロールバック中",
+    statusRolledBack: "ロールバック済み",
+    statusRollbackFailed: "ロールバック失敗",
     t07DiagnosticsTitle: "管理対象Chromeクライアント診断",
     t07DiagnosticsIntro:
       "ブラウザのエラー表示から、ルーティング・IAM認可・証明書信頼のどこに原因があるか切り分けます。",
@@ -4899,6 +5231,244 @@ const ja: Messages = {
     sgwTabSubtitle: "ゼロトラスト社内Web接続・Direct HTTPS / ILB / Nginx・撤去",
     openEasyPocCta: "Easy PoC を開く",
     openSgwDeployerCta: "Secure Gateway Deployer を開く",
+    ceraTabLabel: "CERA ガイド",
+    ceraTabSubtitle: "Chrome Egress Risk Analysis・ログ根拠の可視化・16:9 HTML スライド",
+    openCeraCta: "CERA を開く",
+    ceraGuide: {
+      eyebrow: "CERA · Chrome Egress Risk Analysis",
+      title: "CERA が Chrome ログイベントから持ち出しリスクレポートを作る仕組み",
+      intro:
+        "Google 管理コンソールから書き出した Chrome ログイベントを読み込み、アップロード・貼り付け・ダウンロード・印刷を宛先とサインイン ID で分類して、アプリ内ダッシュボードと 16:9 の HTML スライドを生成します。処理はすべて拡張機能の中で完結し、ファイルがブラウザの外に出ることはありません。",
+      pocNoticeTitle: "読み取り専用の設計",
+      pocNoticeBody:
+        "CERA は追加の OAuth スコープを要求せず、API も呼び出しません。ドロップした CSV・TSV・JSON を読むだけです。スライド・CSV・JSON の出力では ID が初期設定でマスクされます。マスク解除は社内のフォレンジック確認に限って使ってください。",
+      quickOverviewTitle: "分析シナリオ",
+      scenariosTitle: "既存ログから CERA が答える 3 つの問い",
+      scenariosIntro:
+        "Easy PoC の監査モードで生成される Chrome ログイベントが、次の制御を決めるための定量的な根拠になります。",
+      scopeTag: "ローカル分析",
+      targetLabel: "入力",
+      authRequirementLabel: "必要な権限",
+      scenarios: [
+        {
+          eyebrow: "シナリオ 1 · 持ち出しチャネル マトリクス",
+          title: "社内データは実際にどこへ出ているか",
+          summary:
+            "送信アクションを個人 Google アカウント・シャドー AI・承認済み AI・承認済みスイート・パートナー・メッセージング・未管理の宛先に分類し、チャネルごとの件数・ユーザー数・機密検知数・ブロック率を示します。",
+          estimatedTime: "所要時間: 10 万件あたり約 10 秒",
+          targetScope: "管理コンソールから書き出した 7〜30 日分の Chrome ログイベント。",
+          authRequirement: "ログを書き出すための管理コンソールのレポート権限。",
+          nodes: [
+            { label: "管理コンソール", detail: "レポート → 監査 → Chrome ログイベント → エクスポート", costBadge: "CSV / JSON" },
+            { label: "列マッピング", detail: "英語・日本語ヘッダーを自動判定", costBadge: "手動上書き可" },
+            { label: "チャネル分類", detail: "ID ドメイン + 宛先カタログ", costBadge: "8 チャネル" },
+            { label: "ダッシュボード", detail: "KPI・マトリクス・日次推移・異常日", costBadge: "アプリ内" },
+          ],
+          supports: [
+            { label: "個人アカウント検知", detail: "社内・パートナー以外のドメインでサインインした操作" },
+            { label: "生成 AI カタログ", detail: "内蔵の消費者向け生成 AI ホスト一覧に独自ホストを追加可能" },
+            { label: "承認済みスイート", detail: "Google Workspace・Microsoft 365・Salesforce などをワンクリック追加" },
+            { label: "重複排除", detail: "10 秒以内のコネクタ再送をまとめて 1 件に集約" },
+          ],
+        },
+        {
+          eyebrow: "シナリオ 2 · 集中度と時間帯",
+          title: "誰が・いつ・どれだけ集中しているか",
+          summary:
+            "日次の異常日、時間外・週末の割合、上位 10% ユーザーへの集中、宛先 HHI、複数ポータル利用者、組織部門別の内訳、印刷とダウンロードの露出を示します。",
+          estimatedTime: "所要時間: 読み込み後すぐ",
+          targetScope: "同じエクスポート。勤務時間帯とタイムゾーンは設定で変更できます。",
+          authRequirement: "エクスポート済みファイル以外は不要。",
+          nodes: [
+            { label: "日次系列", detail: "日ごとのアップロード・貼り付け・機密検知", costBadge: "z スコア 2 以上" },
+            { label: "時間帯ヒストグラム", detail: "現地時間の分布と勤務時間帯の比較", costBadge: "時間外 %" },
+            { label: "組織部門", detail: "持ち出し量と機密検知の上位 5 OU", costBadge: "OU 別" },
+            { label: "シグナル", detail: "マルウェア・未スキャン・パスワード再利用・危険サイト", costBadge: "周辺指標" },
+          ],
+          supports: [
+            { label: "ID マスク", detail: "マスク解除しない限りユーザーは安定したハッシュで表示" },
+            { label: "フォレンジック CSV", detail: "IR 引き継ぎ用のアクション単位エクスポート" },
+            { label: "サマリー JSON", detail: "チケットや BI に取り込める機械可読の集計値" },
+          ],
+        },
+        {
+          eyebrow: "シナリオ 3 · 対策ロードマップとスライド",
+          title: "どの Easy PoC プリセットでギャップを埋めるか",
+          summary:
+            "計測した各チャネルを Now / Next / Later の対策案に対応付け、どのブラウザでも開けて PDF 印刷もできる 13 枚構成の 16:9 HTML スライドを生成します。",
+          estimatedTime: "所要時間: スライド生成は約 1 秒",
+          targetScope: "分析結果とレポート名・組織名。",
+          authRequirement: "Easy PoC でプリセットを適用する場合のみ Workspace 管理者権限。",
+          nodes: [
+            { label: "ロードマップ", detail: "Now / Next / Later と計測値の対応", costBadge: "根拠つき" },
+            { label: "Easy PoC プリセット", detail: "personal_account · ai · full · endpoint · audit", costBadge: "ワンクリック連携" },
+            { label: "HTML スライド", detail: "単一ファイル・キーボード操作・一覧モード", costBadge: "16:9" },
+            { label: "PDF", detail: "@page 13.333in × 7.5in で印刷", costBadge: "Ctrl/Cmd+P" },
+          ],
+          supports: [
+            { label: "Easy PoC で適用", detail: "対象スコープはそのままに、プリセットを選択済みの状態で Easy PoC を開く" },
+            { label: "スライド言語", detail: "UI の言語とは別に日本語・英語を選択可能" },
+            { label: "外部通信なし", detail: "スライドに外部へ通信するスクリプトはなく、グラフはインライン SVG" },
+          ],
+        },
+      ],
+      implementationTitle: "CERA に実装されている機能",
+      implementationIntro:
+        "拡張機能に同梱された TypeScript 製の分析エンジンです。バックエンドなしで解析・分類・集計・描画を行います。",
+      implementationEyebrow: "機能一覧",
+      implementationGroups: [
+        {
+          eyebrow: "取り込み",
+          title: "複数ファイルの CSV・TSV・JSON とヘッダー別名",
+          items: [
+            "複数のエクスポートを一度にドロップでき、分析前に結合と重複排除を行います。",
+            "英語・日本語の管理コンソール ヘッダーと Reports API の `parameters[]` を自動対応付けし、マッピング パネルで任意の列を上書きできます。",
+            "顧客データなしで一連の流れを見せられるよう、決定論的なサンプル データセットを内蔵しています。",
+          ],
+        },
+        {
+          eyebrow: "分類",
+          title: "サインイン ID を考慮したチャネル モデル",
+          items: [
+            "個人アカウント: 宛先に関係なく、社内・パートナー ドメイン以外でサインインした操作。",
+            "シャドー AI と承認済み AI: 消費者向け生成 AI ホストのカタログと、承認したホストの照合で判定。",
+            "承認済みスイート・パートナー・メッセージング・未管理の宛先を加えた 8 チャネルのマトリクス。",
+          ],
+        },
+        {
+          eyebrow: "分析",
+          title: "集中度・異常日・周辺シグナル",
+          items: [
+            "日次 z スコアによる異常日、時間外・週末の割合、宛先 HHI、上位 10% ユーザーの割合、複数ポータル利用者。",
+            "組織部門別・カテゴリ別の内訳、DLP ルールの結果集計、印刷と受信ダウンロードのビュー。",
+            "パスワード再利用、危険サイト閲覧、マルウェアと未スキャンの転送、拡張機能インストール、ブラウザ起動。",
+          ],
+        },
+        {
+          eyebrow: "出力",
+          title: "ダッシュボード・16:9 HTML スライド・CSV・JSON",
+          items: [
+            "拡張機能の厳格な CSP の下で描画するインライン SVG グラフつきのアプリ内ダッシュボード。",
+            "キーボード操作・一覧グリッド・PDF 印刷用ページサイズを備えた 13 枚構成の単一 HTML スライド。",
+            "スライドと同じマスク設定を適用したフォレンジック用アクション CSV とサマリー JSON。",
+          ],
+        },
+        {
+          eyebrow: "連携",
+          title: "Easy PoC プリセットへのショートカット",
+          items: [
+            "各対策案には Easy PoC のプリセットが紐づき、ワンクリックでそのプリセットを適用した状態の Easy PoC を開きます。",
+            "コネクタ未設定のテナント向けに、読み込みステップから監査モードのベースラインへ移動できます。",
+          ],
+        },
+      ],
+      stepLabel: (step) => `ステップ ${step}`,
+      technicalDeepDiveTitle: "3 ステップの操作手順",
+      technicalDeepDiveIntro:
+        "ログを読み込み、分類設定を確認し、レポートを閲覧または書き出します。すべてのステップがローカルで動作します。",
+      technicalEyebrow: "手順ガイド",
+      steps: [
+        {
+          title: "1. ログを読み込む",
+          subtitle: "管理コンソールから Chrome ログイベントを書き出してドロップ",
+          summary:
+            "[Google 管理コンソール](https://admin.google.com/ac/ac/audit/chrome) のレポート → 監査と調査 → Chrome ログイベントを開き、期間を指定して CSV または JSON を書き出し、CERA にドロップします。",
+          actions: [
+            "テナントに Chrome ログイベントがまだない場合は、先に監査モードのコネクタを有効化します。Easy PoC の `audit` プリセットで検証用 OU に設定できます。",
+            "7〜30 日分のイベントを書き出します。複数ファイルをまとめてドロップできます。",
+            "必須列が未対応と表示された場合はマッピング パネルを確認し、次へ進みます。",
+          ],
+          optionsBehavior: [
+            {
+              name: "サンプル データセット",
+              behavior:
+                "36 ユーザー・7 日分・約 2,700 件の合成イベントを生成し、顧客データなしでダッシュボードとスライドを確認できます。",
+            },
+            {
+              name: "列マッピング",
+              behavior:
+                "英語・日本語ヘッダーを NFKC 正規化後に照合します。上書き内容は現在のセッションのメモリ上にのみ保持されます。",
+            },
+          ],
+          safetyNote:
+            "ファイルはブラウザの File API で読み取るだけで、アップロードされません。タブを閉じるとすべて破棄されます。",
+        },
+        {
+          title: "2. 分類設定",
+          subtitle: "社内・パートナー ドメイン、承認済みホスト、勤務時間帯、マスク",
+          summary:
+            "データから提案された社内ドメインを確認し、パートナー ドメインを追加し、組織が承認する AI と SaaS のホストを指定し、勤務時間帯とタイムゾーンを設定します。",
+          actions: [
+            "提案された社内ドメインのチップを採用するか編集します。",
+            "Google Workspace や Microsoft 365 などの承認済みスイートはクイック追加チップを使います。",
+            "顧客向けスライドでは ID マスクをオンのままにし、スライド言語・レポート名・組織名を設定します。",
+          ],
+          optionsBehavior: [
+            {
+              name: "ID マスク 初期設定: オン",
+              behavior:
+                "ダッシュボードの表・スライド・CSV・JSON でユーザーのメールアドレスを安定した仮名に置き換えます。",
+            },
+            {
+              name: "タイムゾーン オフセット",
+              behavior:
+                "オフセットのないタイムスタンプをこのゾーンで解釈します。時間外・週末の割合はこの設定に依存します。",
+            },
+          ],
+        },
+        {
+          title: "3. レポートと書き出し",
+          subtitle: "ダッシュボード・対策案・HTML スライド・CSV・JSON",
+          summary:
+            "KPI とチャネル マトリクスを確認し、Now / Next / Later のロードマップを見た上で、16:9 HTML スライドまたはフォレンジック CSV・サマリー JSON をダウンロードします。",
+          actions: [
+            "「16:9 HTML スライドをダウンロード」を押し、任意のブラウザで開きます。矢印キーで移動、P キーで一覧表示です。",
+            "Ctrl/Cmd+P で印刷すると 13.333 × 7.5 インチのページで PDF になります。",
+            "対策案の「Easy PoC で適用」を押すと、そのプリセットを選択済みの状態で Easy PoC が開きます。",
+          ],
+          safetyNote:
+            "スライドはインライン SVG のみの単一 HTML ファイルで、外部通信はありません。社外に共有する前にマスク設定を確認してください。",
+        },
+      ],
+      faqTitle: "CERA FAQ",
+      faqIntro: "ログの書き出し・分類・共有に関するよくある質問です。",
+      faqEyebrow: "トラブルシューティング",
+      faqs: [
+        {
+          id: "cera-no-events",
+          category: "書き出し",
+          question: "管理コンソールに書き出せる Chrome ログイベントが表示されない。",
+          answer:
+            "Chrome ログイベントは、OU に対してコネクタまたは監査モードの DLP ルールが有効になって初めて記録されます。Easy PoC の audit プリセットを検証用 OU に適用し、数日間ユーザーに通常利用してもらってから再度書き出してください。",
+          checklist: [
+            "検証用 OU でセキュリティ イベント レポートのコネクタが有効",
+            "OU のユーザーが管理対象の Chrome プロファイルまたはブラウザにサインイン済み",
+            "書き出しの期間が検証期間を含んでいる",
+          ],
+        },
+        {
+          id: "cera-unmapped",
+          category: "マッピング",
+          question: "読み込み後に一部の列が未対応と表示される。",
+          answer:
+            "列マッピング パネルを開き、タイムスタンプ・イベント・実行者・URL・トリガー・結果に対応するヘッダーを選びます。必須なのはタイムスタンプと実行者のみで、他の列がなくても分析は続行できます。",
+        },
+        {
+          id: "cera-personal",
+          category: "分類",
+          question: "Google Workspace 宛ての操作が個人アカウントとして集計されるのはなぜか。",
+          answer:
+            "CERA はまずサインイン ID で分類します。操作を行ったアカウントが社内・パートナー ドメイン以外であれば、宛先が Google のサービスでも個人アカウント チャネルに計上されます。集計が合わない場合はステップ 2 で不足している社内またはパートナー ドメインを追加してください。",
+        },
+        {
+          id: "cera-share",
+          category: "共有",
+          question: "HTML スライドをそのまま顧客に共有できるか。",
+          answer:
+            "スライドは単一ファイルで外部通信を行いません。ID マスクをオンのままにし、表に表示される組織部門名やファイル名を確認した上で共有してください。固定フォーマットが必要な場合は PDF に印刷する選択肢があります。",
+        },
+      ],
+    },
     easyPocGuide: {
       eyebrow: "Easy PoC · 機能ガイド",
       title: "Easy PoC の機能構成と各タブで実行すること",
@@ -6011,6 +6581,19 @@ const ja: Messages = {
     dataBoundaryModeNone: "なし",
     dataBoundaryModeNoneDesc:
       "親OUの設定をそのまま継承します。",
+    allowedDomainsTitle: "サインインを許可する自社ドメイン",
+    allowedDomainsHint:
+      "テナントのプライマリドメインは Directory から自動検出され、常に許可対象に含まれます。セカンダリドメインやドメインエイリアスがある場合は、カンマまたは改行区切りでここに追加してください。それ以外のドメインのアカウントは AllowedDomainsForApps、RestrictAccountsToPatterns、RestrictSigninToPattern によりブロックされます。",
+    allowedDomainsPlaceholder: "example.co.jp, example-group.com",
+    allowedDomainsPrimaryBadge: "プライマリ · 自動検出",
+    allowedDomainsPrimaryPending:
+      "プライマリドメイン: 適用時に自動検出されます",
+    allowedDomainsCount: (count) => `${count} 件のドメインを許可します`,
+    allowedDomainsInvalid: (entries) =>
+      `ドメイン形式として無効なため無視されます: ${entries}`,
+    allowedDomainsPreviewTitle: "書き込まれるポリシー値",
+    allowedDomainsPreviewNote:
+      "RestrictSigninToPattern は正規表現 1 本のため、複数ドメインは 1 つの選択パターンにまとめられます。",
     httpHeadersTitle: "SaaS テナント制限・カスタム HTTP ヘッダー",
     httpHeadersSubtitle:
       "指定URLへの通信にHTTPヘッダーを付与し、SaaSへのログインを自社テナントのみに制限します。",
@@ -6435,6 +7018,7 @@ const ja: Messages = {
     assessRoiSecurityDesc: "機密データの送信・ダウンロード・画面キャプチャをポリシーと透かしで制御します。",
     assessApplyRecBtn: "この構成を PoC 設定に反映する",
     assessAppliedBanner: "✓ 選択した要件に基づき、ポリシー構成とDLPマトリクスを反映しました。",
+    ceraPresetAppliedBanner: (preset) => `✓ CERA からプリセット「${preset}」を選択した状態で開きました。対象範囲を確認のうえ、適用してください。`,
     geminiArchDetailsToggle: "3層セキュリティ境界アーキテクチャ・CLI コマンドを表示",
     assessShowDetails: "リスク・解決策の詳細を表示",
     assessHideDetails: "詳細を折りたたむ",

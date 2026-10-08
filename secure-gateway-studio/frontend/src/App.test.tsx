@@ -802,6 +802,50 @@ describe("Secure Gateway Studio mode screen", () => {
     });
   });
 
+  it("explains the infrastructure and certificate strategies from the heading info buttons", () => {
+    const { unmount } = render(
+      <EnvironmentStep
+        messages={getMessages("en")}
+        onPatch={vi.fn()}
+        state={defaultSetupState}
+      />,
+    );
+    const infrastructureTip = screen.getByRole("button", {
+      name: "About the infrastructure strategy",
+    });
+    const certificateTip = screen.getByRole("button", {
+      name: "About the certificate strategy",
+    });
+    expect(infrastructureTip).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(infrastructureTip);
+    expect(infrastructureTip).toHaveAttribute("aria-expanded", "true");
+    expect(
+      document.getElementById(infrastructureTip.getAttribute("aria-controls") as string),
+    ).toHaveTextContent(/Cloud NAT/);
+    fireEvent.pointerDown(certificateTip);
+    fireEvent.click(certificateTip);
+    expect(infrastructureTip).toHaveAttribute("aria-expanded", "false");
+    expect(certificateTip).toHaveAttribute("aria-expanded", "true");
+    expect(
+      document.getElementById(certificateTip.getAttribute("aria-controls") as string),
+    ).toHaveTextContent(/Chrome Root Store/);
+    unmount();
+
+    render(
+      <EnvironmentStep
+        messages={getMessages("ja")}
+        onPatch={vi.fn()}
+        state={defaultSetupState}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "ネットワーク構成の補足説明" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "証明書方式の補足説明" }),
+    ).toBeInTheDocument();
+  });
+
   it("models direct private HTTPS as a separate deployment without Nginx fields", () => {
     const onPatch = vi.fn();
     const directState = {
@@ -859,7 +903,7 @@ describe("Secure Gateway Studio mode screen", () => {
     });
   });
 
-  it("allows launching a private sample VM directly from Option A", () => {
+  it("allows launching a private sample VM directly from Option A with dedicated naming and recall fidelity", () => {
     const onPatch = vi.fn();
     const directState = {
       ...defaultSetupState,
@@ -886,7 +930,8 @@ describe("Secure Gateway Studio mode screen", () => {
         directHttpsLaunchSampleVm: true,
         networkStrategy: "dedicated",
         certificateStrategy: "local_poc",
-        deploymentName: "secure-gateway-http-offload",
+        deploymentName: "secure-gateway-direct-https-demo",
+        privateHostname: "demo-server-https.internal",
       }),
     );
 
@@ -895,8 +940,8 @@ describe("Secure Gateway Studio mode screen", () => {
       directHttpsLaunchSampleVm: true,
       networkStrategy: "dedicated" as const,
       certificateStrategy: "local_poc" as const,
-      deploymentName: "secure-gateway-http-offload",
-      privateHostname: "secgw-backend.internal",
+      deploymentName: "secure-gateway-direct-https-demo",
+      privateHostname: "demo-server-https.internal",
       sourceImage: "projects/debian-cloud/global/images/debian-12-bookworm-v20260730",
     };
 
@@ -918,16 +963,24 @@ describe("Secure Gateway Studio mode screen", () => {
     ).toHaveValue("projects/debian-cloud/global/images/debian-12-bookworm-v20260730");
     expect(
       screen.getByRole("textbox", { name: "Private application hostname" }),
-    ).toHaveValue("secgw-backend.internal");
+    ).toHaveValue("demo-server-https.internal");
     expect(isEnvironmentReady(sampleVmOptionAState)).toBe(true);
     expect(isCertificateReady(sampleVmOptionAState)).toBe(true);
-    expect(toDeploymentSpec(sampleVmOptionAState, "en")).toMatchObject({
+    const sampleSpec = toDeploymentSpec(sampleVmOptionAState, "en");
+    expect(sampleSpec).toMatchObject({
+      name: "secure-gateway-direct-https-demo",
       backend_kind: "managed_sample",
       network_strategy: "dedicated",
       certificate_strategy: "local_poc",
-      private_hostname: "secgw-backend.internal",
+      private_hostname: "demo-server-https.internal",
       existing_backend_url: null,
     });
+
+    const recalled = recallSetupStateFromSpec(defaultSetupState, sampleSpec, 2);
+    expect(recalled.backendKind).toBe("direct_https");
+    expect(recalled.directHttpsLaunchSampleVm).toBe(true);
+    expect(recalled.deploymentName).toBe("secure-gateway-direct-https-demo");
+    expect(recalled.privateHostname).toBe("demo-server-https.internal");
   });
 
   it("requires an explicit existing VPC for direct private HTTPS", () => {
@@ -1789,6 +1842,81 @@ describe("Secure Gateway Studio mode screen", () => {
     expect(
       screen.getByText(/GCP と Workspace のアカウントが別々の場合の手順/),
     ).toBeInTheDocument();
+  });
+
+  it("offers a CERA Guide tab with an Open CERA call to action", () => {
+    render(<App />);
+
+    fireEvent.click(
+      within(screen.getByRole("navigation", { name: "Primary navigation" })).getByRole("button", { name: "Guide" }),
+    );
+
+    const ceraTab = screen.getByRole("tab", { name: /CERA Guide/i });
+    fireEvent.click(ceraTab);
+    expect(ceraTab).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /Easy PoC Guide/i })).toHaveAttribute("aria-selected", "false");
+    expect(screen.getByRole("tab", { name: /Secure Gateway Deployer Guide/i })).toHaveAttribute("aria-selected", "false");
+    expect(
+      screen.getByRole("heading", { name: "How CERA Turns Chrome Log Events into an Egress Risk Report" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Three Questions CERA Answers from Existing Logs" })).toBeInTheDocument();
+    expect(screen.getAllByText(/^Step [1-3]$/)).toHaveLength(3);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open CERA" }));
+    expect(
+      screen.getByRole("heading", { name: "Turn Chrome log events into an egress risk briefing" }),
+    ).toBeInTheDocument();
+  });
+
+  it("routes to CERA from primary navigation and analyzes the built-in sample dataset locally", async () => {
+    const createObjectURL = vi.fn((_blob: Blob) => "blob:cera-deck");
+    const revokeObjectURL = vi.fn();
+    Object.defineProperty(URL, "createObjectURL", { configurable: true, value: createObjectURL });
+    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: revokeObjectURL });
+
+    render(<App />);
+
+    fireEvent.click(
+      within(screen.getByRole("navigation", { name: "Primary navigation" })).getByRole("button", { name: "CERA" }),
+    );
+    expect(
+      screen.getByRole("heading", { name: "Turn Chrome log events into an egress risk briefing" }),
+    ).toBeInTheDocument();
+    // Local-only build: Easy PoC handoff buttons are hidden because the capability is absent.
+    expect(screen.queryByRole("button", { name: /Easy PoC/i })).not.toBeInTheDocument();
+
+    const continueButton = screen.getByRole("button", { name: "Continue" });
+    expect(continueButton).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Load sample dataset" }));
+    expect(screen.getByText(/events recognised/)).toBeInTheDocument();
+    expect(continueButton).toBeEnabled();
+    fireEvent.click(continueButton);
+
+    expect(screen.getByRole("heading", { name: "Classification settings" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Run analysis" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Chrome Egress Risk Analysis" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Threat-vector matrix" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Apply countermeasure in Easy PoC/i })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Download 16:9 HTML slide deck" })[0]);
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    const deckBlob = createObjectURL.mock.calls[0][0] as Blob;
+    expect(deckBlob.type).toContain("text/html");
+    const deckHtml = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.readAsText(deckBlob);
+    });
+    expect(deckHtml).toMatch(/^<!DOCTYPE html>/i);
+    expect(deckHtml).toContain("Chrome Egress Risk Analysis");
+    expect(deckHtml).toContain('<section class="slide" data-index="13"');
+
+    fireEvent.click(screen.getByRole("button", { name: "Download summary JSON" }));
+    expect(createObjectURL).toHaveBeenCalledTimes(2);
   });
 
   it("includes production Nginx autoscaling limits in the desired state", () => {
@@ -2703,6 +2831,96 @@ describe("Secure Gateway Studio mode screen", () => {
       expect(onApprove).toHaveBeenCalledWith(true);
     });
     expect(confirmSpy).not.toHaveBeenCalled();
+  });
+
+  it("auto-renames deployment name and private hostname and re-runs preflight in a single click when resource conflicts exist", async () => {
+    const state: SetupState = {
+      ...defaultSetupState,
+      currentStep: 5,
+      backendKind: "direct_https",
+      directHttpsLaunchSampleVm: true,
+      networkStrategy: "dedicated",
+      certificateStrategy: "local_poc",
+      deploymentName: "secure-gateway-direct-https-demo",
+      privateHostname: "demo-server-https.internal",
+      projectId: "enterprise-secgw-01",
+      customerId: "C01234567",
+      cloudConnection: "connected",
+      cloudIdentity: "sgw-studio-deployer@enterprise-secgw-01.iam.gserviceaccount.com",
+      workspaceConnection: "connected",
+      workspaceIdentity: "admin@example.com",
+      targetOuId: "03-test-ou",
+      managedChromeAccessLevel: "NONE",
+      testOuConfirmed: true,
+      principals: [{ id: "p1", type: "user", value: "user@example.com" }],
+    };
+    const spec = toDeploymentSpec(state, "ja");
+    const plan = restoredPlan(spec, "a".repeat(64));
+    plan.plan.changes = [
+      {
+        action: "conflict",
+        provider: "compute",
+        resource_type: "network",
+        resource_name: "secure-gateway-direct-https-demo-vpc",
+        risk: "blocking",
+        owned_after_apply: false,
+        summary: "Existing resource has an incompatible configuration.",
+        dependencies: [],
+      },
+    ];
+    plan.plan.gates = [
+      {
+        gate_id: "existing-resource-safety",
+        title: "Existing resource safety",
+        status: "blocked",
+        blocking: true,
+        detail: "1 existing resource(s) conflict with the desired configuration.",
+      },
+    ];
+
+    const onPatch = vi.fn();
+    const onPrepare = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <ReviewStep
+        approval={null}
+        busy={false}
+        error=""
+        messages={getMessages("ja")}
+        onApprove={vi.fn().mockResolvedValue(undefined)}
+        onBootstrapCloud={vi.fn()}
+        onPatch={onPatch}
+        onPrepare={onPrepare}
+        onValidateCloud={vi.fn().mockResolvedValue(undefined)}
+        preparedPlan={plan}
+        state={state}
+      />,
+    );
+
+    const renameButtons = screen.getAllByRole("button", {
+      name: "新しいデプロイ名に自動変更して再確認",
+    });
+    expect(renameButtons.length).toBeGreaterThanOrEqual(1);
+    expect(
+      screen.getByText(/compute:network:secure-gateway-direct-https-demo-vpc/),
+    ).toBeInTheDocument();
+
+    fireEvent.click(renameButtons[0]!);
+
+    expect(onPatch).toHaveBeenCalledWith({
+      deploymentName: "secure-gateway-direct-https-demo-2",
+      privateHostname: "demo-server-https-2.internal",
+      approvalConfirmed: false,
+    });
+    await waitFor(() => {
+      expect(onPrepare).toHaveBeenCalledWith(
+        expect.objectContaining({
+          deploymentName: "secure-gateway-direct-https-demo-2",
+          privateHostname: "demo-server-https-2.internal",
+          approvalConfirmed: false,
+        }),
+      );
+    });
   });
 });
 

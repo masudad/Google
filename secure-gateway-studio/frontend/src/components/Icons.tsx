@@ -279,3 +279,30 @@ export function SparklesIcon(props: IconProps) {
   );
 }
 
+
+export function ChartIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M4 19.5h16" {...strokeProps} />
+      <path d="M6.5 16V11m5 5V6.5m5 9.5v-7" {...strokeProps} />
+    </IconBase>
+  );
+}
+
+export function UploadIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M12 16V5m0 0-4 4m4-4 4 4" {...strokeProps} />
+      <path d="M5 15.5v2.2A1.8 1.8 0 0 0 6.8 19.5h10.4a1.8 1.8 0 0 0 1.8-1.8v-2.2" {...strokeProps} />
+    </IconBase>
+  );
+}
+
+export function DownloadIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M12 5v11m0 0-4-4m4 4 4-4" {...strokeProps} />
+      <path d="M5 15.5v2.2A1.8 1.8 0 0 0 6.8 19.5h10.4a1.8 1.8 0 0 0 1.8-1.8v-2.2" {...strokeProps} />
+    </IconBase>
+  );
+}

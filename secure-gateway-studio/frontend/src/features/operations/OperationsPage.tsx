@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import type { Messages } from "../../i18n/messages";
 import {
   type AcceptanceReadiness,
@@ -16,7 +16,10 @@ import {
   verifySystemAcceptance,
 } from "../../lib/api";
 import { CheckIcon, DocumentIcon, ShieldIcon } from "../../components/Icons";
+import { ErrorBoundary } from "../../components/ErrorBoundary";
+import { formatDateTime } from "../../lib/format";
 import { DeploymentManager } from "./DeploymentManager";
+import { runStatusText } from "./run-status";
 
 export type OperationsView = "deployments" | "evidence";
 
@@ -47,7 +50,18 @@ export function OperationsPage({
   const [summary, setSummary] = useState("");
   const [evidence, setEvidence] = useState("");
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const managerRef = useRef<HTMLDivElement | null>(null);
   const copy = messages.operations;
+
+  useEffect(() => {
+    if (!selectedRunId) return;
+    const node = managerRef.current;
+    // jsdom does not implement scrollIntoView; guard so tests and unusual
+    // embedders degrade to "no scroll" instead of throwing.
+    if (node && typeof node.scrollIntoView === "function") {
+      node.scrollIntoView({ block: "start", behavior: "smooth" });
+    }
+  }, [selectedRunId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -209,36 +223,26 @@ export function OperationsPage({
                     <th>{copy.runId}</th>
                     <th>{copy.status}</th>
                     <th>{copy.started}</th>
-                    <th>{copy.operationsCount}</th>
+                    <th className="num">{copy.operationsCount}</th>
                     <th><span className="sr-only">{copy.manage}</span></th>
                   </tr>
                 </thead>
                 <tbody>
                   {runs.map((run) => {
-                    const statusText =
-                      run.status === "succeeded"
-                        ? copy.statusSucceeded || "Success"
-                        : run.status === "deleted" || run.status === "torn_down" || run.status === "clean"
-                          ? copy.statusDeleted || "Deleted"
-                          : run.status === "running"
-                            ? copy.statusRunning || "Running"
-                            : run.status === "pending"
-                              ? copy.statusPending || "Pending"
-                              : run.status === "failed"
-                                ? copy.statusFailed || "Failed"
-                                : run.status;
+                    const selected = run.run_id === selectedRunId;
                     return (
-                      <tr key={run.run_id}>
-                        <td><code>{run.run_id.slice(0, 12)}</code></td>
+                      <tr aria-selected={selected} className={selected ? "is-selected" : undefined} key={run.run_id}>
+                        <td><code title={run.run_id}>{run.run_id.slice(0, 12)}</code></td>
                         <td>
                           <span className={`status-pill status-${run.status}`}>
-                            {statusText}
+                            {runStatusText(run.status, copy)}
                           </span>
                         </td>
-                        <td>{new Date(run.started_at).toLocaleString()}</td>
-                        <td>{run.operations.length}</td>
+                        <td>{formatDateTime(run.started_at)}</td>
+                        <td className="num">{run.operations.length}</td>
                         <td>
                           <button
+                            aria-pressed={selected}
                             className="table-action"
                             onClick={() => setSelectedRunId(run.run_id)}
                             type="button"
@@ -257,15 +261,30 @@ export function OperationsPage({
       )}
 
       {!loading && !error && view === "deployments" && selectedRunId ? (
-        <DeploymentManager
-          copy={copy}
-          onClose={() => {
-            setSelectedRunId(null);
-            void listDeploymentRuns().then(setRuns);
+        <div className="deployment-manager-anchor" ref={managerRef}>
+        <ErrorBoundary
+          compact
+          copy={messages.errorBoundary}
+          resetKey={selectedRunId}
+          secondaryAction={{
+            label: messages.errorBoundary.backToList,
+            onClick: () => {
+              setSelectedRunId(null);
+              void listDeploymentRuns().then(setRuns);
+            },
           }}
-          onRecallSpecification={onRecallSpecification}
-          runId={selectedRunId}
-        />
+        >
+          <DeploymentManager
+            copy={copy}
+            onClose={() => {
+              setSelectedRunId(null);
+              void listDeploymentRuns().then(setRuns);
+            }}
+            onRecallSpecification={onRecallSpecification}
+            runId={selectedRunId}
+          />
+        </ErrorBoundary>
+        </div>
       ) : null}
 
       {!loading && !error && view === "evidence" && (
@@ -363,7 +382,7 @@ export function OperationsPage({
                           <>
                             <small>
                               {copy.evidenceSource(result.source)} ·{" "}
-                              {new Date(result.recorded_at).toLocaleString()}
+                              {formatDateTime(result.recorded_at)}
                             </small>
                             <details>
                               <summary>{copy.viewEvidence}</summary>
@@ -502,7 +521,7 @@ export function OperationsPage({
                       <small>{event.actor}</small>
                     </span>
                     <time dateTime={event.created_at}>
-                      {new Date(event.created_at).toLocaleString()}
+                      {formatDateTime(event.created_at)}
                     </time>
                   </li>
                 ))}

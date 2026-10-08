@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { ArrowRightIcon } from "../../components/Icons";
 import type { Messages } from "../../i18n/messages";
 import type { SetupState } from "../../lib/setup-state";
+import { formatTime } from "../../lib/format";
 import { PostureSummary } from "./PostureSummary";
 import { Stepper } from "./Stepper";
 
@@ -67,7 +68,7 @@ export function WizardLayout({
         <span>
           {messages.lastSaved}:{" "}
           {Date.parse(state.updatedAt) > 0
-            ? new Date(state.updatedAt).toLocaleTimeString()
+            ? formatTime(state.updatedAt)
             : messages.justNow}
         </span>
       </footer>

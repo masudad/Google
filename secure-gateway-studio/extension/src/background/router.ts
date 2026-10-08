@@ -1535,7 +1535,10 @@ export async function route(
       target_group_email:
         spec?.principals.find((principal) => principal.type === "group")?.value ?? null,
       teardown_available: teardownPlan?.can_destroy === true,
-      specification: spec ?? null,
+      // The domain spec keeps `platforms` as a Set, which the extension
+      // message channel serialises to `{}`. The UI needs the JSON form, with
+      // nulls kept because its DeploymentSpec type is nullable, not optional.
+      specification: spec ? specToJson(spec, false) : null,
     };
   }
 

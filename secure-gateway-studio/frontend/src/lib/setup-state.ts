@@ -182,6 +182,43 @@ export const defaultSetupState: SetupState = {
   updatedAt: new Date(0).toISOString(),
 };
 
+const DEFAULT_DEPLOYMENT_NAMES = new Set([
+  "secure-gateway-ilb-https-offload",
+  "secure-gateway-http-offload",
+  "secure-gateway-private-https",
+  "secure-gateway-direct-https-demo",
+  "secure-gateway-poc",
+]);
+
+const DEFAULT_PRIVATE_HOSTNAMES = new Set([
+  "demo-server-http.internal",
+  "demo-server-ilb.internal",
+  "demo-server-https.internal",
+  "secgw-backend.internal",
+]);
+
+export function resolveDefaultDeploymentName(
+  current: string,
+  targetDefault: string,
+): string {
+  const trimmed = current.trim();
+  if (!trimmed || DEFAULT_DEPLOYMENT_NAMES.has(trimmed)) {
+    return targetDefault;
+  }
+  return current;
+}
+
+export function resolveDefaultPrivateHostname(
+  current: string,
+  targetDefault: string,
+): string {
+  const trimmed = current.trim();
+  if (!trimmed || DEFAULT_PRIVATE_HOSTNAMES.has(trimmed)) {
+    return targetDefault;
+  }
+  return current;
+}
+
 export function effectiveBackendKind(
   state: Pick<SetupState, "backendKind" | "directHttpsLaunchSampleVm">,
 ): BackendKind {
@@ -189,6 +226,53 @@ export function effectiveBackendKind(
     return "managed_sample";
   }
   return state.backendKind;
+}
+
+function incrementHyphenatedSlug(value: string, maxLength: number): string {
+  const trimmed =
+    value
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9-]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "secgw-poc";
+  const match = trimmed.match(/^(.*?)-(\d+)$/);
+  const base = match ? match[1] || "secgw-poc" : trimmed;
+  const nextNumber = match ? Number(match[2]) + 1 : 2;
+  const suffix = `-${nextNumber}`;
+  const allowedBaseLength = Math.max(1, maxLength - suffix.length);
+  const clippedBase = base.slice(0, allowedBaseLength).replace(/-+$/g, "") || "secgw";
+  return `${clippedBase}${suffix}`;
+}
+
+export function incrementDeploymentIdentity(
+  state: Pick<
+    SetupState,
+    "deploymentName" | "privateHostname" | "backendKind" | "directHttpsLaunchSampleVm"
+  >,
+): Pick<SetupState, "deploymentName" | "privateHostname"> {
+  const nextDeploymentName = incrementHyphenatedSlug(state.deploymentName, 40);
+  const effectiveKind = effectiveBackendKind(state);
+  if (effectiveKind === "direct_https") {
+    return {
+      deploymentName: nextDeploymentName,
+      privateHostname: state.privateHostname,
+    };
+  }
+  const hostTrimmed = state.privateHostname.trim().toLowerCase();
+  const dotIndex = hostTrimmed.indexOf(".");
+  if (dotIndex > 0) {
+    const firstLabel = hostTrimmed.slice(0, dotIndex);
+    const domainRest = hostTrimmed.slice(dotIndex);
+    const nextFirstLabel = incrementHyphenatedSlug(firstLabel, 48);
+    return {
+      deploymentName: nextDeploymentName,
+      privateHostname: `${nextFirstLabel}${domainRest}`,
+    };
+  }
+  return {
+    deploymentName: nextDeploymentName,
+    privateHostname: `${incrementHyphenatedSlug(hostTrimmed || "demo-server", 40)}.internal`,
+  };
 }
 
 export function constrainSetupStateToRuntime(
@@ -204,10 +288,14 @@ export function constrainSetupStateToRuntime(
   return {
     ...state,
     backendKind: "managed_sample",
-    deploymentName:
-      state.deploymentName === "secure-gateway-ilb-https-offload"
-        ? "secure-gateway-http-offload"
-        : state.deploymentName,
+    deploymentName: resolveDefaultDeploymentName(
+      state.deploymentName,
+      "secure-gateway-http-offload",
+    ),
+    privateHostname: resolveDefaultPrivateHostname(
+      state.privateHostname,
+      "demo-server-http.internal",
+    ),
     existingBackendConnectivityConfirmed: false,
   };
 }
@@ -465,6 +553,52 @@ export interface NonSensitiveRecallRecord {
   };
 }
 
+const RECALLABLE_PLATFORMS: readonly ChromePlatform[] = [
+  "macos",
+  "windows",
+  "linux",
+  "chromeos",
+];
+const RECALLABLE_PRINCIPAL_TYPES: readonly PrincipalType[] = ["user", "group", "domain"];
+
+/**
+ * Specifications reach the UI through serialising channels (extension
+ * messaging, JSON files). A `Set` becomes `{}` and absent arrays become
+ * `undefined`, so never spread or `.includes` on them directly.
+ */
+export function specPlatformList(value: unknown): ChromePlatform[] {
+  const raw = Array.isArray(value)
+    ? value
+    : value instanceof Set
+      ? [...value]
+      : [];
+  return RECALLABLE_PLATFORMS.filter((platform) => raw.includes(platform));
+}
+
+export function specPrincipalList(
+  value: unknown,
+): Array<{ type: PrincipalType; value: string }> {
+  if (!Array.isArray(value)) return [];
+  const principals: Array<{ type: PrincipalType; value: string }> = [];
+  for (const entry of value) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const { type, value: principalValue } = entry as {
+      type?: unknown;
+      value?: unknown;
+    };
+    if (
+      typeof principalValue !== "string" ||
+      principalValue.trim() === "" ||
+      typeof type !== "string" ||
+      !RECALLABLE_PRINCIPAL_TYPES.includes(type as PrincipalType)
+    ) {
+      continue;
+    }
+    principals.push({ type: type as PrincipalType, value: principalValue });
+  }
+  return principals;
+}
+
 export function buildNonSensitiveRecallRecord(
   spec: DeploymentSpec,
   metadata?: { runId?: string | null; configurationHash?: string | null },
@@ -484,35 +618,32 @@ export function buildNonSensitiveRecallRecord(
     configuration: {
       name: spec.name,
       mode: spec.mode,
-      platforms: [...spec.platforms],
+      platforms: specPlatformList(spec.platforms),
       project_id: spec.project_id,
       region: spec.region,
       zone: spec.zone,
       secondary_zone: spec.secondary_zone,
       backend_kind: spec.backend_kind,
       network_strategy: spec.network_strategy,
-      vpc_name: spec.vpc_name,
-      subnet_name: spec.subnet_name,
+      vpc_name: spec.vpc_name ?? null,
+      subnet_name: spec.subnet_name ?? null,
       subnet_cidr: spec.subnet_cidr,
       proxy_subnet_cidr: spec.proxy_subnet_cidr,
       private_hostname: spec.private_hostname,
       gateway_id: spec.gateway_id,
       certificate_strategy: spec.certificate_strategy,
-      ca_pool: spec.ca_pool,
-      ca_name: spec.ca_name,
-      public_certificate_secret: spec.public_certificate_secret,
+      ca_pool: spec.ca_pool ?? null,
+      ca_name: spec.ca_name ?? null,
+      public_certificate_secret: spec.public_certificate_secret ?? null,
       customer_id: spec.customer_id,
       target_ou_id: spec.target_ou_id,
-      managed_chrome_access_level: spec.managed_chrome_access_level,
-      principals: spec.principals.map((principal) => ({
-        type: principal.type,
-        value: principal.value,
-      })),
-      existing_backend_url: spec.existing_backend_url,
-      existing_backend_location: spec.existing_backend_location,
-      application_egress_region: spec.application_egress_region,
-      upstream_vpc_project_id: spec.upstream_vpc_project_id,
-      source_image: spec.source_image,
+      managed_chrome_access_level: spec.managed_chrome_access_level ?? null,
+      principals: specPrincipalList(spec.principals),
+      existing_backend_url: spec.existing_backend_url ?? null,
+      existing_backend_location: spec.existing_backend_location ?? null,
+      application_egress_region: spec.application_egress_region ?? null,
+      upstream_vpc_project_id: spec.upstream_vpc_project_id ?? null,
+      source_image: spec.source_image ?? null,
     },
   };
 }
@@ -522,23 +653,32 @@ export function recallSetupStateFromSpec(
   spec: DeploymentSpec,
   targetStep = 2,
 ): SetupState {
-  const sameProject = current.projectId.trim() === spec.project_id.trim();
-  const sameCustomer = current.customerId.trim() === spec.customer_id.trim();
+  const platforms = specPlatformList(spec.platforms);
+  const principals = specPrincipalList(spec.principals);
+  const specName = typeof spec.name === "string" ? spec.name : "";
+  const privateHostname =
+    typeof spec.private_hostname === "string" ? spec.private_hostname : "";
+  const sameProject = current.projectId.trim() === (spec.project_id ?? "").trim();
+  const sameCustomer = current.customerId.trim() === (spec.customer_id ?? "").trim();
+  const isDirectHttpsSampleVmRecall =
+    spec.backend_kind === "managed_sample" &&
+    (specName.startsWith("secure-gateway-direct-https-demo") ||
+      privateHostname.startsWith("demo-server-https"));
   return {
     ...current,
     schemaVersion: 9,
     currentStep: Math.max(0, Math.min(6, targetStep)),
-    deploymentName: spec.name,
+    deploymentName: specName,
     mode: "poc",
     platforms: {
-      macos: spec.platforms.includes("macos"),
-      windows: spec.platforms.includes("windows"),
-      linux: spec.platforms.includes("linux"),
-      chromeos: spec.platforms.includes("chromeos"),
+      macos: platforms.includes("macos"),
+      windows: platforms.includes("windows"),
+      linux: platforms.includes("linux"),
+      chromeos: platforms.includes("chromeos"),
     },
     networkStrategy: spec.network_strategy,
     certificateStrategy: spec.certificate_strategy,
-    projectId: spec.project_id,
+    projectId: spec.project_id ?? "",
     accessPolicyId: sameProject ? current.accessPolicyId : "",
     cloudIdentity: sameProject ? current.cloudIdentity : "",
     cloudConnection:
@@ -552,9 +692,9 @@ export function recallSetupStateFromSpec(
         ? "connected"
         : "not_connected",
     workspaceConnectionError: "",
-    region: spec.region,
-    zone: spec.zone,
-    secondaryZone: spec.secondary_zone,
+    region: spec.region ?? "",
+    zone: spec.zone ?? "",
+    secondaryZone: spec.secondary_zone ?? "",
     sourceImage: spec.source_image ?? "",
     offloadMinReplicas: String(spec.offload_min_replicas || 2),
     offloadMaxReplicas: String(spec.offload_max_replicas || 20),
@@ -562,34 +702,36 @@ export function recallSetupStateFromSpec(
     vpcName: spec.vpc_name ?? "",
     subnetName: spec.subnet_name ?? "",
     proxySubnetCidr: spec.proxy_subnet_cidr || "10.42.1.0/24",
-    backendKind: spec.backend_kind,
-    directHttpsLaunchSampleVm: false,
+    backendKind: isDirectHttpsSampleVmRecall
+      ? "direct_https"
+      : spec.backend_kind,
+    directHttpsLaunchSampleVm: isDirectHttpsSampleVmRecall,
     existingBackendUrl: spec.existing_backend_url ?? "",
     existingBackendLocation: spec.existing_backend_location ?? "gcp",
     existingBackendConnectivityConfirmed:
-      spec.existing_backend_connectivity_confirmed,
+      spec.existing_backend_connectivity_confirmed === true,
     applicationEgressRegion: spec.application_egress_region ?? "",
     upstreamVpcProjectId: spec.upstream_vpc_project_id ?? "",
-    privateHostname: spec.private_hostname,
+    privateHostname,
     caPool: spec.ca_pool ?? "",
     caName: spec.ca_name ?? "",
     publicCertificateSecret: spec.public_certificate_secret ?? "",
-    customerId: spec.customer_id,
-    targetOuId: spec.target_ou_id,
+    customerId: spec.customer_id ?? "",
+    targetOuId: spec.target_ou_id ?? "",
     managedChromeAccessLevel: spec.managed_chrome_access_level ?? "NONE",
     chromeEnterprisePremiumLicenseConfirmed:
-      spec.chrome_enterprise_premium_license_confirmed,
-    workspaceServicesConfirmed: spec.workspace_services_confirmed,
-    endpointVerificationConfirmed: spec.endpoint_verification_confirmed,
+      spec.chrome_enterprise_premium_license_confirmed === true,
+    workspaceServicesConfirmed: spec.workspace_services_confirmed === true,
+    endpointVerificationConfirmed: spec.endpoint_verification_confirmed === true,
     principals:
-      spec.principals.length > 0
-        ? spec.principals.map((principal, index) => ({
+      principals.length > 0
+        ? principals.map((principal, index) => ({
             id: `principal-${index + 1}`,
             type: principal.type,
             value: principal.value,
           }))
         : defaultSetupState.principals,
-    testOuConfirmed: spec.test_ou_confirmed,
+    testOuConfirmed: spec.test_ou_confirmed === true,
     approvalConfirmed: false,
     updatedAt: new Date().toISOString(),
   };

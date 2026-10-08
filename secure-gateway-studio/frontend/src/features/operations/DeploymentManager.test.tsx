@@ -272,6 +272,72 @@ describe("DeploymentManager", () => {
     expect(api.startTeardown).not.toHaveBeenCalled();
   });
 
+  it("labels failed and interrupted runs in the header instead of Success", async () => {
+    vi.mocked(api.getDeploymentDetails).mockResolvedValue({
+      ...details,
+      run: { ...details.run, status: "failed", completed_at: null },
+    });
+
+    const { unmount } = render(
+      <DeploymentManager
+        copy={getMessages("en").operations}
+        onClose={() => undefined}
+        runId="run-123"
+      />,
+    );
+
+    await screen.findByText("montreal-436802");
+    const pill = screen.getByText("Failed");
+    expect(pill).toHaveClass("status-pill", "status-failed");
+    expect(screen.queryByText("Success")).not.toBeInTheDocument();
+    unmount();
+
+    vi.mocked(api.getDeploymentDetails).mockResolvedValue({
+      ...details,
+      run: { ...details.run, status: "interrupted", completed_at: null },
+    });
+    render(
+      <DeploymentManager
+        copy={getMessages("ja").operations}
+        onClose={() => undefined}
+        runId="run-123"
+      />,
+    );
+    await screen.findByText("montreal-436802");
+    expect(screen.getByText("中断")).toHaveClass("status-interrupted");
+    expect(screen.queryByText(/interrupted/)).not.toBeInTheDocument();
+  });
+
+  it("reports a torn-down run even when the original apply failed", async () => {
+    vi.mocked(api.getDeploymentDetails).mockResolvedValue({
+      ...details,
+      run: { ...details.run, status: "failed" },
+    });
+    vi.mocked(api.getLatestTeardownRun).mockResolvedValue({
+      teardown_id: "teardown-done",
+      source_run_id: "run-123",
+      plan_hash: teardownPlan.plan_hash,
+      status: "succeeded",
+      started_at: "2026-08-04T00:02:00Z",
+      completed_at: "2026-08-04T00:03:00Z",
+      operations: [],
+    });
+
+    render(
+      <DeploymentManager
+        copy={getMessages("en").operations}
+        onClose={() => undefined}
+        runId="run-123"
+      />,
+    );
+
+    await screen.findByText("montreal-436802");
+    await waitFor(() =>
+      expect(screen.getByText("Torn down")).toHaveClass("status-torn_down"),
+    );
+    expect(screen.queryByText("Failed")).not.toBeInTheDocument();
+  });
+
   it("loads local-backend details that omit extension-only access policy fields", async () => {
     (
       api.runtimeCapabilities as { postDeploymentAccessUpdate: boolean }
@@ -336,50 +402,7 @@ describe("DeploymentManager", () => {
   });
 
   it("allows recalling non-sensitive deployment configuration into the wizard from DeploymentManager", async () => {
-    const spec: api.DeploymentSpec = {
-      name: "secure-gateway-http-offload",
-      mode: "poc",
-      platforms: ["macos", "windows"],
-      locale: "ja",
-      project_id: "montreal-436802",
-      region: "asia-northeast1",
-      zone: "asia-northeast1-a",
-      secondary_zone: "asia-northeast1-b",
-      backend_kind: "managed_sample",
-      network_strategy: "dedicated",
-      vpc_name: null,
-      subnet_name: null,
-      subnet_cidr: "10.42.0.0/24",
-      proxy_subnet_cidr: "10.42.1.0/24",
-      private_hostname: "demo.internal",
-      gateway_id: "default",
-      certificate_strategy: "local_poc",
-      ca_pool: null,
-      ca_name: null,
-      public_certificate_secret: null,
-      customer_id: "C01234567",
-      target_ou_id: "03pilot",
-      managed_chrome_access_level: "NONE",
-      chrome_enterprise_premium_license_confirmed: true,
-      workspace_services_confirmed: true,
-      endpoint_verification_confirmed: true,
-      principals: [{ type: "group", value: "run-owner@example.com" }],
-      test_ou_confirmed: true,
-      existing_backend_url: null,
-      existing_backend_location: null,
-      existing_backend_connectivity_confirmed: false,
-      application_egress_region: null,
-      upstream_vpc_project_id: null,
-      source_image: "projects/debian-cloud/global/images/debian-12-bookworm-v20260701",
-      offload_min_replicas: 2,
-      offload_max_replicas: 20,
-      offload_cpu_target: 0.6,
-      schema_version: 1,
-      certificate_lifetime_days: 90,
-      allow_external_ips: false,
-      require_cloud_nat: true,
-      require_human_approval: true,
-    };
+    const spec = recallSpec;
     vi.mocked(api.getDeploymentDetails).mockResolvedValue({
       ...details,
       specification: spec,
@@ -402,5 +425,84 @@ describe("DeploymentManager", () => {
     fireEvent.click(recallBtn);
     expect(onRecallSpecification).toHaveBeenCalledWith(spec);
   });
+
+  it("keeps the overview alive when the specification arrives with Set-serialised platforms", async () => {
+    // Regression: the worker's `/details` route returned the domain spec whose
+    // `platforms` is a Set. `chrome.runtime.sendMessage` serialises a Set to
+    // `{}`, and `[...spec.platforms]` then threw during render, which unmounted
+    // the whole application (white screen) when Manage was clicked.
+    const serialised = {
+      ...recallSpec,
+      platforms: {} as unknown as api.DeploymentSpec["platforms"],
+      principals: undefined as unknown as api.DeploymentSpec["principals"],
+    };
+    vi.mocked(api.getDeploymentDetails).mockResolvedValue({
+      ...details,
+      specification: serialised,
+    });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      render(
+        <DeploymentManager
+          copy={getMessages("en").operations}
+          onClose={() => undefined}
+          onRecallSpecification={() => undefined}
+          runId="run-123"
+        />,
+      );
+
+      expect(await screen.findByText("montreal-436802")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Copy configuration JSON" })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Copy configuration JSON" }));
+      expect(screen.getByText("montreal-436802")).toBeInTheDocument();
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
 });
+
+const recallSpec: api.DeploymentSpec = {
+  name: "secure-gateway-http-offload",
+  mode: "poc",
+  platforms: ["macos", "windows"],
+  locale: "ja",
+  project_id: "montreal-436802",
+  region: "asia-northeast1",
+  zone: "asia-northeast1-a",
+  secondary_zone: "asia-northeast1-b",
+  backend_kind: "managed_sample",
+  network_strategy: "dedicated",
+  vpc_name: null,
+  subnet_name: null,
+  subnet_cidr: "10.42.0.0/24",
+  proxy_subnet_cidr: "10.42.1.0/24",
+  private_hostname: "demo.internal",
+  gateway_id: "default",
+  certificate_strategy: "local_poc",
+  ca_pool: null,
+  ca_name: null,
+  public_certificate_secret: null,
+  customer_id: "C01234567",
+  target_ou_id: "03pilot",
+  managed_chrome_access_level: "NONE",
+  chrome_enterprise_premium_license_confirmed: true,
+  workspace_services_confirmed: true,
+  endpoint_verification_confirmed: true,
+  principals: [{ type: "group", value: "run-owner@example.com" }],
+  test_ou_confirmed: true,
+  existing_backend_url: null,
+  existing_backend_location: null,
+  existing_backend_connectivity_confirmed: false,
+  application_egress_region: null,
+  upstream_vpc_project_id: null,
+  source_image: "projects/debian-cloud/global/images/debian-12-bookworm-v20260701",
+  offload_min_replicas: 2,
+  offload_max_replicas: 20,
+  offload_cpu_target: 0.6,
+  schema_version: 1,
+  certificate_lifetime_days: 90,
+  allow_external_ips: false,
+  require_cloud_nat: true,
+  require_human_approval: true,
+};
 

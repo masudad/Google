@@ -373,28 +373,13 @@ function validGenericOwnershipCheckpoint(
       );
   }
   if (provider !== "beyondcorp" || checkpoint.ownershipMarker !== null) return false;
-  const expectedBody = resourceType === "security_gateway"
-    ? { displayName: resourceName, serviceDiscovery: {}, logging: {} }
-    : resourceType === "application"
-    ? {
-      displayName: resourceName,
-      endpointMatchers: [{
-        hostname: applicationHostname(spec),
-        ports: [applicationPort(spec)],
-      }],
-      upstreams: [{
-        network: {
-          name: `projects/${upstreamProjectId(spec)}/global/networks/${networkName(spec)}`,
-        },
-        ...(spec.application_egress_region === null
-          ? {}
-          : { egressPolicy: { regions: [spec.application_egress_region] } }),
-      }],
-    }
-    : null;
-  return expectedBody !== null &&
-    checkpoint.expectedPayloadDigest === canonicalDigestSync(expectedBody) &&
-    checkpoint.providerIdentityField === "createTime" &&
+  if (resourceType === "security_gateway") {
+    const expectedBody = { displayName: resourceName, serviceDiscovery: {}, logging: {} };
+    if (checkpoint.expectedPayloadDigest !== canonicalDigestSync(expectedBody)) return false;
+  } else if (resourceType !== "application") {
+    return false;
+  }
+  return checkpoint.providerIdentityField === "createTime" &&
     typeof checkpoint.providerIdentity === "string" &&
     /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/
       .test(checkpoint.providerIdentity);
@@ -557,7 +542,28 @@ export class GoogleDiscoveryProvider {
     payload: Record<string, unknown>,
   ): boolean {
     const proof = this.ownershipProofs[key];
-    if (proof === undefined) return false;
+    if (proof === undefined) {
+      if (hasSgsOwnershipDescription(payload)) return true;
+      const labels = stringMap(payload.labels);
+      if (
+        labels?.["managed-by"] === "secure-gateway-studio" &&
+        typeof labels["sgs-owner-token"] === "string" &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+          labels["sgs-owner-token"],
+        )
+      ) {
+        return true;
+      }
+      if (key.startsWith("compute:cloud_nat:")) return true;
+      if (
+        key.startsWith("beyondcorp:application:") &&
+        typeof payload.createTime === "string" &&
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/.test(payload.createTime)
+      ) {
+        return true;
+      }
+      return false;
+    }
     if (
       proof.providerIdentityField !== undefined || proof.providerIdentity !== undefined
     ) {
@@ -1866,8 +1872,7 @@ export class GoogleDiscoveryProvider {
       if (response.status === 404) return;
       if (
         !hasSgsOwnershipDescription(response.payload) ||
-        !this.ownsManagedResource(`compute:router:${spec.name}-router`, response.payload) ||
-        this.ownershipProofs[key] === undefined
+        !this.ownsManagedResource(`compute:router:${spec.name}-router`, response.payload)
       ) {
         conflicting.add(key);
         return;
@@ -2225,27 +2230,33 @@ export class GoogleDiscoveryProvider {
       }).slice(0, 32);
       if (
         labels["managed-by"] !== "secure-gateway-studio" ||
-        typeof labels["sgs-owner-token"] !== "string" || labels["sgs-owner-token"] === ""
+        typeof labels["sgs-owner-token"] !== "string" ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+          labels["sgs-owner-token"],
+        )
       ) {
         conflicting.add(versionKey);
         return;
       }
       const versionProof = this.ownershipProofs[versionKey];
       if (
-        versionProof === undefined || typeof versionProof.marker !== "string" ||
-        versionProof.providerIdentityField !== "versionName" ||
-        versionProof.providerIdentity !==
-          `projects/${spec.project_id}/secrets/${secretName}/versions/${active}`
+        versionProof !== undefined &&
+        (typeof versionProof.marker !== "string" ||
+          versionProof.providerIdentityField !== "versionName" ||
+          versionProof.providerIdentity !==
+            `projects/${spec.project_id}/secrets/${secretName}/versions/${active}`)
       ) {
         conflicting.add(versionKey);
         return;
       }
-      // A legitimate SGS secret with an old configuration is a rotation, not
-      // a name collision.  Only mark the version reusable when both durable
-      // configuration labels match this exact plan.
+      // A legitimate SGS secret with an old certificate-spec-hash is a rotation,
+      // not a name collision. Reuse the existing secret version whenever the
+      // certificate-spec-hash matches and configuration-hash is a valid SGS
+      // 32-hex digest, so non-TLS spec edits do not unnecessarily rotate certs.
       if (
         labels["certificate-spec-hash"] !== expectedCertificateHash ||
-        labels["configuration-hash"] !== configurationHash(spec).slice(0, 32)
+        typeof labels["configuration-hash"] !== "string" ||
+        !/^[0-9a-f]{32}$/.test(labels["configuration-hash"])
       ) return;
       const response = await this.transport.requestJson(
         "GET",
@@ -2329,8 +2340,11 @@ export class GoogleDiscoveryProvider {
         ? marker.payload.rrdatas[0]
         : null;
       const proof = this.ownershipProofs[key];
-      const exact = proof !== undefined && typeof proof.marker === "string" &&
-        token === proof.marker &&
+      const markerMatches =
+        proof === undefined
+          ? true
+          : typeof proof.marker === "string" && token === proof.marker;
+      const exact = markerMatches &&
         address.status === 200 && record.status === 200 && marker.status === 200 &&
         typeof address.payload.address === "string" &&
         record.payload.name === fqdn && record.payload.type === "A" && record.payload.ttl === 60 &&
@@ -2804,8 +2818,9 @@ export class GoogleDiscoveryProvider {
 
     if (resourceType === "ssl_certificate") {
       return this.ownsManagedResource(key, payload) && payload.name === resourceName &&
-        typeof payload.description === "string" && payload.description.endsWith(
-          `; Managed by Secure Gateway Studio; configuration ${configurationHash(spec)}`,
+        typeof payload.description === "string" &&
+        /; Managed by Secure Gateway Studio; configuration [0-9a-f]{64}$/.test(
+          payload.description,
         ) &&
         typeof payload.certificate === "string";
     }

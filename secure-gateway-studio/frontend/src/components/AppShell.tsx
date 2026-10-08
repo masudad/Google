@@ -4,6 +4,7 @@ import type { Messages } from "../i18n/messages";
 import type { OperationsView } from "../features/operations/OperationsPage";
 import {
   BookIcon,
+  ChartIcon,
   CheckCircleIcon,
   ChevronDownIcon,
   ChevronUpIcon,
@@ -19,7 +20,7 @@ import {
 } from "./Icons";
 import { LanguageMenu } from "./LanguageMenu";
 
-export type AppView = "setup" | OperationsView | "guide" | "cepDeployer";
+export type AppView = "setup" | OperationsView | "guide" | "cepDeployer" | "cera";
 
 interface AppShellProps {
   children: ReactNode;
@@ -209,7 +210,19 @@ export function AppShell({
             </button>
           )}
 
-          {/* 3. Secure Gateway Deployer (Collapsible dropdown parent) */}
+          {/* 3. CERA (local-only log analysis, no extra permissions) */}
+          <button
+            aria-label={messages.nav.cera}
+            aria-current={activeView === "cera" ? "page" : undefined}
+            className={activeView === "cera" ? "nav-item active" : "nav-item"}
+            onClick={() => onNavigate("cera")}
+            type="button"
+          >
+            <ChartIcon size={24} />
+            <span>{messages.nav.cera}</span>
+          </button>
+
+          {/* 4. Secure Gateway Deployer (Collapsible dropdown parent) */}
           <div className={`nav-dropdown-group ${isSgwActive ? "active-parent" : ""} ${showSgwSubmenu ? "open" : ""}`}>
             <button
               aria-label={messages.nav.sgwDeployer}
@@ -272,9 +285,9 @@ export function AppShell({
               <strong className="product-main-title">{messages.mainTitle}</strong>
               <span className="product-sub-title">{messages.productName}</span>
             </div>
-            <span className="local-status">
+            <span className="local-status" title={messages.localOnly}>
               <LockIcon size={16} />
-              {messages.localOnly}
+              <span className="local-status-label">{messages.localOnly}</span>
             </span>
           </div>
           <div className="header-actions">

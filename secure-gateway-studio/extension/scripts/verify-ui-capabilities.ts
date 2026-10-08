@@ -80,8 +80,8 @@ const appSource = await readFile(
   "utf8",
 );
 assert.match(appSource, /runtimeCapabilities\.recommendedPocSourceImage/);
-assert.match(appSource, /getRecommendedPocSourceImage\(setup\.projectId\)/);
-assert.match(appSource, /setupForPlan = \{ \.\.\.setup, sourceImage: recommendedImage\.value \}/);
+assert.match(appSource, /getRecommendedPocSourceImage\((?:setup|baseSetup)\.projectId\)/);
+assert.match(appSource, /setupForPlan = \{ \.\.\.(?:setup|baseSetup), sourceImage: recommendedImage\.value \}/);
 assert.match(appSource, /findRecoverableDeploymentRun\(await listDeploymentRuns\(\)\)/);
 assert.match(
   appSource,

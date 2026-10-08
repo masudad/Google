@@ -1925,11 +1925,13 @@ export class StateRepository {
   }
 
   /**
-   * Return only ownership rows whose finalized run is bound to this exact spec.
+   * Return ownership rows for runs bound to this project and deployer identity.
    *
    * Resource keys intentionally omit project/scope, so reducing the global
    * inventory directly can lend project A's markerless proof to project B.
-   * Approval integrity and exact configuration binding make that impossible.
+   * Approval integrity and project-scope binding prevent cross-project reuse,
+   * while step-level checkpoint synthesis recovers proofs from interrupted or
+   * modified-spec runs in the same project.
    */
   async ownershipProofResources(spec: DeploymentSpec): Promise<Record<string, unknown>[]> {
     const transaction = this.db.transaction(
@@ -1940,7 +1942,7 @@ export class StateRepository {
       request(secureObjectStore(transaction, STORE.resources).getAll()) as
         Promise<Record<string, unknown>[]>,
       request(secureObjectStore(transaction, STORE.runs).getAll()) as
-        Promise<DeploymentRunRecord[]>,
+        Promise<Array<DeploymentRunRecord & Partial<RunRecord>>>,
       request(secureObjectStore(transaction, STORE.approvals).getAll()) as
         Promise<ApprovedPlanRecord[]>,
     ]);
@@ -1948,33 +1950,137 @@ export class StateRepository {
 
     const targetHash = configurationHash(spec);
     const approvalById = new Map(approvals.map((item) => [item.approvalId, item]));
-    const eligibleRunIds = new Set<string>();
+    const finalizedRunIds = new Set<string>();
+    const exactHashRunIds = new Set<string>();
+    const synthesizedFromSteps: Array<{
+      runId: string;
+      exactHash: boolean;
+      startedAt: string;
+      record: Record<string, unknown>;
+    }> = [];
+
     for (const run of runs) {
       const state = run.state ?? run.status;
       if (
-        !["succeeded", "rollback_failed", "rollback_unavailable"].includes(state) ||
         (run.state !== undefined && run.status !== undefined && run.state !== run.status) ||
-        run.finalizationPending === true ||
-        typeof run.finalizedAt !== "string" || !Number.isFinite(Date.parse(run.finalizedAt)) ||
-        run.configurationHash !== targetHash || typeof run.approvalId !== "string"
+        typeof run.approvalId !== "string"
       ) continue;
       const approval = approvalById.get(run.approvalId);
       if (
-        approval === undefined || approval.configurationHash !== targetHash ||
+        approval === undefined ||
+        approval.configurationHash !== run.configurationHash ||
         approval.consumedAt === null ||
+        approval.deployerIdentity?.projectId !== spec.project_id ||
         canonicalDigestSync(run.deployerIdentity ?? null) !==
           canonicalDigestSync(approval.deployerIdentity)
       ) continue;
       try {
         assertApprovalIntegrity(approval);
+        const approvedSpec = JSON.parse(approval.specificationJson) as {
+          project_id?: unknown;
+        };
+        if (approvedSpec.project_id !== spec.project_id) continue;
       } catch {
         continue;
       }
-      eligibleRunIds.add(run.runId);
+      const isExactHash = run.configurationHash === targetHash;
+      if (isExactHash) exactHashRunIds.add(run.runId);
+
+      const isFinalized =
+        ["succeeded", "rollback_failed", "rollback_unavailable"].includes(state) &&
+        run.finalizationPending !== true &&
+        typeof run.finalizedAt === "string" &&
+        Number.isFinite(Date.parse(run.finalizedAt));
+      if (isFinalized) {
+        finalizedRunIds.add(run.runId);
+        continue;
+      }
+
+      if (
+        [
+          "running",
+          "interrupted",
+          "failed",
+          "rolling_back",
+          "succeeded",
+          "rollback_failed",
+          "rollback_unavailable",
+        ].includes(state) &&
+        Array.isArray(run.steps)
+      ) {
+        for (const step of run.steps) {
+          if (
+            !step ||
+            !["done", "running", "rollback_failed"].includes(step.status) ||
+            step.beforeImage === undefined ||
+            step.beforeImage === null
+          ) {
+            continue;
+          }
+          const isSharedDefaultGateway =
+            step.change.provider === "beyondcorp" &&
+            step.change.resource_type === "security_gateway" &&
+            step.change.resource_name === "default";
+          const stepResourceKey =
+            `${step.change.provider}:${step.change.resource_type}:${step.change.resource_name}`;
+          synthesizedFromSteps.push({
+            runId: run.runId,
+            exactHash: isExactHash,
+            startedAt: run.startedAt ?? "",
+            record: {
+              id: `${run.runId}:${stepResourceKey}`,
+              runId: run.runId,
+              resourceKey: stepResourceKey,
+              provider: step.change.provider,
+              resourceType: step.change.resource_type,
+              resourceName: step.change.resource_name,
+              owned: step.change.owned_after_apply,
+              shared: isSharedDefaultGateway,
+              requestId: step.requestId,
+              beforeImage: step.beforeImage,
+            },
+          });
+        }
+      }
     }
-    return resources.filter(
-      (resource) => typeof resource.runId === "string" && eligibleRunIds.has(resource.runId),
+
+    const finalizedRecords = resources.filter(
+      (resource) => typeof resource.runId === "string" && finalizedRunIds.has(resource.runId),
     );
+    const coveredByExactFinalized = new Set<string>();
+    for (const record of finalizedRecords) {
+      if (
+        typeof record.runId === "string" &&
+        exactHashRunIds.has(record.runId) &&
+        typeof record.resourceKey === "string"
+      ) {
+        coveredByExactFinalized.add(record.resourceKey);
+      }
+    }
+    const result: Record<string, unknown>[] = [];
+    const seenFallbackKeys = new Set<string>();
+    for (const record of finalizedRecords) {
+      const runId = String(record.runId ?? "");
+      const key = String(record.resourceKey ?? "");
+      if (exactHashRunIds.has(runId)) {
+        result.push(record);
+      } else if (!coveredByExactFinalized.has(key) && !seenFallbackKeys.has(key)) {
+        seenFallbackKeys.add(key);
+        result.push(record);
+      }
+    }
+    synthesizedFromSteps.sort((left, right) => {
+      if (left.exactHash !== right.exactHash) return left.exactHash ? -1 : 1;
+      return right.startedAt.localeCompare(left.startedAt);
+    });
+    for (const item of synthesizedFromSteps) {
+      const key = String(item.record.resourceKey ?? "");
+      if (!coveredByExactFinalized.has(key) && !seenFallbackKeys.has(key)) {
+        seenFallbackKeys.add(key);
+        result.push(item.record);
+      }
+    }
+    return result;
   }
 
   async releaseResources(runId: string, resourceKeys: readonly string[]): Promise<void> {

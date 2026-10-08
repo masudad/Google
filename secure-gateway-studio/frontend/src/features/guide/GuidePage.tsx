@@ -1,11 +1,13 @@
 import { useState, type ReactNode } from "react";
-import type { Messages } from "../../i18n/messages";
-import { BookIcon, CheckIcon, CodeIcon, InfoIcon, NetworkIcon, ShieldIcon } from "../../components/Icons";
+import type { EasyPocGuideMessages, Messages } from "../../i18n/messages";
+import { BookIcon, ChartIcon, CheckIcon, CodeIcon, InfoIcon, NetworkIcon, ShieldIcon } from "../../components/Icons";
 import { runtimeCapabilities } from "../../lib/api";
+
+type GuideTab = "easyPoc" | "cera" | "sgw";
 
 interface GuidePageProps {
   messages: Messages;
-  onNavigate?: (view: "setup" | "evidence" | "guide" | "deployments" | "cepDeployer") => void;
+  onNavigate?: (view: "setup" | "evidence" | "guide" | "deployments" | "cepDeployer" | "cera") => void;
 }
 
 export function renderInlineLinks(text: string): ReactNode {
@@ -40,47 +42,53 @@ export function renderInlineLinks(text: string): ReactNode {
   return parts;
 }
 
+function scenarioArchitectures(guide: EasyPocGuideMessages) {
+  return guide.scenarios.map((scenario) => ({
+    eyebrow: scenario.eyebrow,
+    title: scenario.title,
+    summary: scenario.summary,
+    estimatedCost: scenario.estimatedTime,
+    costFixed: scenario.targetScope,
+    costVariable: scenario.authRequirement,
+    nodes: scenario.nodes,
+    supports: scenario.supports,
+  }));
+}
+
 export function GuidePage({ messages, onNavigate }: GuidePageProps) {
   const guide = messages.guide;
-  const [activeGuideTab, setActiveGuideTab] = useState<"easyPoc" | "sgw">(() =>
+  const [activeGuideTab, setActiveGuideTab] = useState<GuideTab>(() =>
     runtimeCapabilities.cepDeployer ? "easyPoc" : "sgw",
   );
 
   const isEasyPoc = activeGuideTab === "easyPoc";
-  const activeGuide = isEasyPoc ? guide.easyPocGuide : guide;
+  const isCera = activeGuideTab === "cera";
+  const isScenarioGuide = isEasyPoc || isCera;
+  const scenarioGuide: EasyPocGuideMessages | null = isEasyPoc ? guide.easyPocGuide : isCera ? guide.ceraGuide : null;
+  const activeGuide = scenarioGuide ?? guide;
+  const activeTabId = isEasyPoc ? "guide-tab-easy-poc" : isCera ? "guide-tab-cera" : "guide-tab-sgw";
 
-  const architectures = isEasyPoc
-    ? guide.easyPocGuide.scenarios.map((scenario) => ({
-        eyebrow: scenario.eyebrow,
-        title: scenario.title,
-        summary: scenario.summary,
-        estimatedCost: scenario.estimatedTime,
-        costFixed: scenario.targetScope,
-        costVariable: scenario.authRequirement,
-        nodes: scenario.nodes,
-        supports: scenario.supports,
-      }))
+  const architectures = scenarioGuide
+    ? scenarioArchitectures(scenarioGuide)
     : runtimeCapabilities.internalHttpsLbArchitecture
       ? guide.architectures
       : guide.architectures.filter((_architecture, index) => index !== 1);
 
-  const architectureTitle = isEasyPoc
-    ? guide.easyPocGuide.scenariosTitle
+  const architectureTitle = scenarioGuide
+    ? scenarioGuide.scenariosTitle
     : runtimeCapabilities.internalHttpsLbArchitecture
       ? guide.architectureTitle
       : guide.extensionArchitectureTitle;
 
-  const architectureIntro = isEasyPoc
-    ? guide.easyPocGuide.scenariosIntro
+  const architectureIntro = scenarioGuide
+    ? scenarioGuide.scenariosIntro
     : runtimeCapabilities.internalHttpsLbArchitecture
       ? guide.architectureIntro
       : guide.extensionArchitectureIntro;
 
-  const costTag = isEasyPoc ? guide.easyPocGuide.scopeTag : guide.costTag;
-  const fixedCostLabel = isEasyPoc ? guide.easyPocGuide.targetLabel : guide.fixedCostLabel;
-  const variableCostLabel = isEasyPoc
-    ? guide.easyPocGuide.authRequirementLabel
-    : guide.variableCostLabel;
+  const costTag = scenarioGuide ? scenarioGuide.scopeTag : guide.costTag;
+  const fixedCostLabel = scenarioGuide ? scenarioGuide.targetLabel : guide.fixedCostLabel;
+  const variableCostLabel = scenarioGuide ? scenarioGuide.authRequirementLabel : guide.variableCostLabel;
 
   return (
     <main className="guide-page">
@@ -207,10 +215,28 @@ export function GuidePage({ messages, onNavigate }: GuidePageProps) {
         <button
           type="button"
           role="tab"
-          id="guide-tab-sgw"
-          aria-selected={!isEasyPoc}
+          id="guide-tab-cera"
+          aria-selected={isCera}
           aria-controls="guide-tabpanel-content"
-          className={`guide-mode-tab ${!isEasyPoc ? "active" : ""}`}
+          className={`guide-mode-tab ${isCera ? "active" : ""}`}
+          onClick={() => setActiveGuideTab("cera")}
+        >
+          <span className="guide-mode-tab-icon" aria-hidden="true">
+            <ChartIcon size={24} />
+          </span>
+          <span className="guide-mode-tab-copy">
+            <strong>{guide.ceraTabLabel}</strong>
+            <small>{guide.ceraTabSubtitle}</small>
+          </span>
+        </button>
+
+        <button
+          type="button"
+          role="tab"
+          id="guide-tab-sgw"
+          aria-selected={!isScenarioGuide}
+          aria-controls="guide-tabpanel-content"
+          className={`guide-mode-tab ${!isScenarioGuide ? "active" : ""}`}
           onClick={() => setActiveGuideTab("sgw")}
         >
           <span className="guide-mode-tab-icon" aria-hidden="true">
@@ -227,7 +253,7 @@ export function GuidePage({ messages, onNavigate }: GuidePageProps) {
       <div
         id="guide-tabpanel-content"
         role="tabpanel"
-        aria-labelledby={isEasyPoc ? "guide-tab-easy-poc" : "guide-tab-sgw"}
+        aria-labelledby={activeTabId}
         className="guide-tabpanel"
       >
         {/* Active Guide Banner + Direct Action CTA */}
@@ -248,6 +274,15 @@ export function GuidePage({ messages, onNavigate }: GuidePageProps) {
                   >
                     <ShieldIcon size={18} />
                     <span>{guide.openEasyPocCta}</span>
+                  </button>
+                ) : isCera ? (
+                  <button
+                    type="button"
+                    className="guide-cta-button"
+                    onClick={() => onNavigate("cera")}
+                  >
+                    <ChartIcon size={18} />
+                    <span>{guide.openCeraCta}</span>
                   </button>
                 ) : (
                   <button
