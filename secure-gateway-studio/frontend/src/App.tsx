@@ -918,11 +918,9 @@ export function App() {
   }
 
   const nextLabel =
-    setup.currentStep === 5
-      ? messages.workflow.continueToApply
-      : setup.currentStep === 6
-        ? messages.workflow.applyChanges
-        : undefined;
+    setup.currentStep === 5 || setup.currentStep === 6
+      ? messages.workflow.applyChanges
+      : undefined;
 
   async function handleSignOut() {
     if (!window.confirm(messages.signOutConfirm)) {

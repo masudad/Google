@@ -648,7 +648,7 @@ describe("Secure Gateway Studio mode screen", () => {
       ),
     );
 
-    expect(screen.getByRole("button", { name: "Continue to Apply" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Apply approved changes" })).toBeEnabled();
   });
 
   it("allows a semantically identical approved Option B plan returned in a different key order", async () => {
@@ -694,7 +694,7 @@ describe("Secure Gateway Studio mode screen", () => {
       ),
     );
 
-    expect(screen.getByRole("button", { name: "Continue to Apply" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Apply approved changes" })).toBeEnabled();
   });
 
   it("resumes an interrupted Apply and continues polling the same run", async () => {
@@ -2130,11 +2130,54 @@ describe("Secure Gateway Studio mode screen", () => {
       }),
     ).not.toBeInTheDocument();
 
+    const attestation = screen.getByRole("checkbox", {
+      name: "I confirm this is a non-production test OU",
+    });
+    expect(attestation).toBeDisabled();
+    expect(attestation).not.toBeChecked();
+
     fireEvent.change(ouSelect, { target: { value: "03-test-ou" } });
     expect(onPatch).toHaveBeenCalledWith({
       targetOuId: "03-test-ou",
-      testOuConfirmed: true,
+      testOuConfirmed: false,
     });
+  });
+
+  it("keeps the non-production OU attestation unchecked until the operator ticks it", () => {
+    const onPatch = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+
+    render(
+      <AccessStep
+        messages={getMessages("en")}
+        onPatch={onPatch}
+        state={{
+          ...defaultSetupState,
+          projectId: "enterprise-secgw-01",
+          customerId: "C012abcde",
+          cloudConnection: "connected",
+          workspaceConnection: "connected",
+          targetOuId: "03-test-ou",
+        }}
+      />,
+    );
+
+    const attestation = screen.getByRole("checkbox", {
+      name: "I confirm this is a non-production test OU",
+    });
+    expect(attestation).toBeEnabled();
+    expect(attestation).not.toBeChecked();
+
+    fireEvent.click(attestation);
+    expect(onPatch).toHaveBeenCalledWith({ testOuConfirmed: true });
   });
 
   it("shows ADC reauthentication instead of false catalog permission errors", async () => {
@@ -2774,8 +2817,7 @@ describe("Secure Gateway Studio mode screen", () => {
     expect(onRecall).toHaveBeenCalledWith(spec);
   });
 
-  it("bootstraps the deployer service account and approves the plan in a single click when checking the approval box", async () => {
-    const confirmSpy = vi.spyOn(window, "confirm");
+  function reviewBootstrapFixture() {
     const state: SetupState = {
       ...defaultSetupState,
       currentStep: 5,
@@ -2792,7 +2834,6 @@ describe("Secure Gateway Studio mode screen", () => {
     };
     const spec = toDeploymentSpec(state, "ja");
     const plan = restoredPlan(spec, "a".repeat(64));
-
     const onBootstrapCloud = vi.fn().mockResolvedValue({
       project_id: "enterprise-secgw-01",
       operator_email: "admin@example.com",
@@ -2805,7 +2846,6 @@ describe("Secure Gateway Studio mode screen", () => {
     });
     const onValidateCloud = vi.fn().mockResolvedValue(undefined);
     const onApprove = vi.fn().mockResolvedValue(undefined);
-
     render(
       <ReviewStep
         approval={null}
@@ -2821,6 +2861,12 @@ describe("Secure Gateway Studio mode screen", () => {
         state={state}
       />,
     );
+    return { onBootstrapCloud, onValidateCloud, onApprove };
+  }
+
+  it("asks for consent, then bootstraps the deployer and approves the plan when the approval box is checked", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const { onBootstrapCloud, onValidateCloud, onApprove } = reviewBootstrapFixture();
 
     const approvalCheckbox = screen.getByRole("checkbox");
     fireEvent.click(approvalCheckbox);
@@ -2830,7 +2876,22 @@ describe("Secure Gateway Studio mode screen", () => {
       expect(onValidateCloud).toHaveBeenCalledWith(true);
       expect(onApprove).toHaveBeenCalledWith(true);
     });
-    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    expect(String(confirmSpy.mock.calls[0]?.[0])).toContain("デプロイヤーSA");
+  });
+
+  it("creates nothing and leaves the plan unapproved when the deployer consent dialog is declined", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const { onBootstrapCloud, onValidateCloud, onApprove } = reviewBootstrapFixture();
+
+    const approvalCheckbox = screen.getByRole("checkbox");
+    fireEvent.click(approvalCheckbox);
+
+    await waitFor(() => expect(confirmSpy).toHaveBeenCalledTimes(1));
+    expect(onBootstrapCloud).not.toHaveBeenCalled();
+    expect(onValidateCloud).not.toHaveBeenCalled();
+    expect(onApprove).not.toHaveBeenCalled();
+    expect(approvalCheckbox).not.toBeChecked();
   });
 
   it("auto-renames deployment name and private hostname and re-runs preflight in a single click when resource conflicts exist", async () => {

@@ -2029,10 +2029,7 @@ export function AccessStep({
           label={copy.targetOuId}
           loadingLabel={copy.optionsLoading}
           onChange={(targetOuId) =>
-            onPatch({
-              targetOuId,
-              testOuConfirmed: Boolean(targetOuId.trim()),
-            })
+            onPatch({ targetOuId, testOuConfirmed: false })
           }
           onRetry={() => void loadOptions()}
           placeholder={copy.chooseOption}
@@ -2425,6 +2422,7 @@ export function ReviewStep({
       onValidateCloud &&
       state.projectId.trim()
     ) {
+      if (!globalThis.confirm(copy.bootstrapConfirm)) return;
       const bootstrapped = await handleReviewBootstrap();
       if (!bootstrapped) {
         return;
