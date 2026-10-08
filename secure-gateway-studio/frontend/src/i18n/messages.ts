@@ -716,6 +716,8 @@ export interface CepDeployerMessages {
   targetGroupImpact: string;
   targetGroupConfirmationLabel: string;
   targetGroupConfirmationHint: string;
+  targetGroupConfirmationMatched: string;
+  targetGroupConfirmationMismatch: string;
   copyTargetGroupEmail: string;
   groupLoadFailed: string;
   customGroupInputPlaceholder: string;
@@ -3690,6 +3692,8 @@ const en: Messages = {
     targetGroupConfirmationLabel: "Confirm the target group email",
     targetGroupConfirmationHint:
       "Cleared after each change. Type the group email above to confirm.",
+    targetGroupConfirmationMatched: "Group email confirmed. Deploy and rollback are unlocked for this group.",
+    targetGroupConfirmationMismatch: "Does not match the selected group email yet.",
     copyTargetGroupEmail: "Copy Group Email",
     groupLoadFailed: "Groups could not be loaded. Enter the group email manually.",
     customGroupInputPlaceholder: "e.g. poc-team@yourdomain.com",
@@ -6459,6 +6463,8 @@ const ja: Messages = {
     targetGroupConfirmationLabel: "確認のため、対象グループのメールアドレスを入力",
     targetGroupConfirmationHint:
       "誤適用防止のため、上に表示されたグループのメールアドレスを入力してください。",
+    targetGroupConfirmationMatched: "グループのアドレスを確認しました。このグループへの適用とロールバックが有効になります。",
+    targetGroupConfirmationMismatch: "選択中のグループのアドレスとまだ一致していません。",
     copyTargetGroupEmail: "グループアドレスを入力",
     groupLoadFailed: "グループ一覧を取得できませんでした。メールアドレスを直接入力できます。",
     customGroupInputPlaceholder: "例: poc-security@yourdomain.com",

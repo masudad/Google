@@ -6883,6 +6883,32 @@ h1 {
   margin-bottom: 6px;
 }
 
+/* Typed group confirmation inside the impact box */
+.cep-group-confirmation {
+  margin-top: 2px;
+  gap: 6px;
+}
+
+.cep-group-confirmation label {
+  color: #78350f;
+}
+
+.cep-group-confirmation input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.cep-group-confirmation .cep-group-confirmation-status {
+  color: #78350f;
+}
+
+.cep-group-confirmation .cep-group-confirmation-status.is-matched {
+  color: var(--success);
+}
+
+.cep-group-confirmation .cep-group-confirmation-status.is-mismatch {
+  color: var(--danger);
+}
+
 .cep-autofill-btn {
   font-size: 11.5px;
   font-weight: 600;

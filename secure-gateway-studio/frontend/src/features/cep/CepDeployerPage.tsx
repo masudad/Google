@@ -326,6 +326,10 @@ export function CepDeployerPage({
   const [ouError, setOuError] = useState<boolean>(false);
   const [groups, setGroups] = useState<SetupOption[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<string>("");
+  // Typed by the operator; never derived from the selection. The extension
+  // router rejects group mutations whose confirmation does not match the
+  // resolved group email or id.
+  const [targetGroupConfirmation, setTargetGroupConfirmation] = useState<string>("");
   const [loadingGroups, setLoadingGroups] = useState<boolean>(false);
   const [groupsLoaded, setGroupsLoaded] = useState<boolean>(false);
   const [groupsError, setGroupsError] = useState<boolean>(false);
@@ -746,6 +750,7 @@ gcloud access-context-manager cloud-bindings create \\
   const handleLoadGroups = async () => {
     if (loadingGroups) return;
     setSelectedGroup("");
+    setTargetGroupConfirmation("");
     if (canonicalCustomerId === "") {
       setGroupsError(true);
       setGroupsLoaded(true);
@@ -801,9 +806,17 @@ gcloud access-context-manager cloud-bindings create \\
   const targetOuConfirmed =
     selectedUnit !== undefined &&
     selectedUnit.label !== "/";
+  const normalizedGroupKey = selectedGroup.trim().toLowerCase();
+  const normalizedGroupConfirmation = targetGroupConfirmation.trim().toLowerCase();
   const targetGroupConfirmed =
     targetType === "group" &&
-    selectedGroup.trim() !== "";
+    normalizedGroupKey !== "" &&
+    normalizedGroupConfirmation === normalizedGroupKey;
+  const targetGroupConfirmationMismatch =
+    targetType === "group" &&
+    normalizedGroupKey !== "" &&
+    normalizedGroupConfirmation !== "" &&
+    normalizedGroupConfirmation !== normalizedGroupKey;
   const targetConfirmed = targetType === "group" ? targetGroupConfirmed : targetOuConfirmed;
 
   const anyStep1ModuleSelected =
@@ -956,7 +969,7 @@ gcloud access-context-manager cloud-bindings create \\
       target_ou_path: targetType === "group" ? undefined : selectedUnit?.label,
       target_ou_confirmation: targetType === "group" ? undefined : selectedUnit?.label,
       target_group_key: targetType === "group" ? selectedGroup.trim() : undefined,
-      target_group_confirmation: targetType === "group" ? selectedGroup.trim() : undefined,
+      target_group_confirmation: targetType === "group" ? targetGroupConfirmation.trim() : undefined,
       create_sub_ous: isDlpOnly || targetType === "group" ? false : autoSubOus,
       core_policies: isDlpOnly ? false : modules.corePolicies,
       force_extensions: isDlpOnly ? false : modules.forceExtensions,
@@ -1080,7 +1093,7 @@ gcloud access-context-manager cloud-bindings create \\
         target_ou_id: targetType === "group" ? undefined : selectedOu,
         target_ou_path: targetType === "group" ? undefined : selectedUnit?.label,
         target_group_key: targetType === "group" ? selectedGroup.trim() : undefined,
-        target_group_confirmation: targetType === "group" ? selectedGroup.trim() : undefined,
+        target_group_confirmation: targetType === "group" ? targetGroupConfirmation.trim() : undefined,
         rollback_modules: activeTab === "dlp" ? ["dlpRules"] : undefined,
         delete_dlp_rules: true,
         access_level: modules.accessLevel,
@@ -1500,6 +1513,7 @@ gcloud access-context-manager cloud-bindings create \\
                     id="cep-target-group"
                     onChange={(event) => {
                       setSelectedGroup(event.target.value);
+                      setTargetGroupConfirmation("");
                     }}
                     value={selectedGroup}
                   >
@@ -1523,6 +1537,7 @@ gcloud access-context-manager cloud-bindings create \\
                     value={selectedGroup}
                     onChange={(e) => {
                       setSelectedGroup(e.target.value);
+                      setTargetGroupConfirmation("");
                     }}
                     placeholder={m.customGroupInputPlaceholder}
                   />
@@ -1538,6 +1553,38 @@ gcloud access-context-manager cloud-bindings create \\
                 </div>
                 <div className="cep-ou-confirmation-row">
                   <code>{selectedGroup.trim()}</code>
+                </div>
+                <div className="cep-field cep-group-confirmation">
+                  <label htmlFor="cep-target-group-confirmation">
+                    {m.targetGroupConfirmationLabel}
+                  </label>
+                  <input
+                    aria-describedby="cep-target-group-confirmation-hint"
+                    aria-invalid={targetGroupConfirmationMismatch}
+                    autoComplete="off"
+                    id="cep-target-group-confirmation"
+                    onChange={(event) => setTargetGroupConfirmation(event.target.value)}
+                    spellCheck={false}
+                    type="text"
+                    value={targetGroupConfirmation}
+                  />
+                  <small
+                    className={
+                      targetGroupConfirmed
+                        ? "cep-group-confirmation-status is-matched"
+                        : targetGroupConfirmationMismatch
+                          ? "cep-group-confirmation-status is-mismatch"
+                          : "cep-group-confirmation-status"
+                    }
+                    id="cep-target-group-confirmation-hint"
+                    role="status"
+                  >
+                    {targetGroupConfirmed
+                      ? m.targetGroupConfirmationMatched
+                      : targetGroupConfirmationMismatch
+                        ? m.targetGroupConfirmationMismatch
+                        : m.targetGroupConfirmationHint}
+                  </small>
                 </div>
               </div>
             )}
@@ -2685,7 +2732,7 @@ gcloud access-context-manager cloud-bindings create \\
             className="danger-action cep-rollback"
             disabled={
               canonicalCustomerId === "" ||
-              (targetType === "group" ? selectedGroup.trim() === "" : selectedOu === "") ||
+              (targetType === "group" ? !targetGroupConfirmed : selectedOu === "") ||
               busy !== null
             }
             onClick={handleRollback}

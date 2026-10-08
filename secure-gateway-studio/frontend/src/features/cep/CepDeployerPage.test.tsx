@@ -488,7 +488,7 @@ describe("CepDeployerPage", () => {
     expect(screen.getAllByPlaceholderText(m.customGroupInputPlaceholder)[0]).toBeInTheDocument();
   });
 
-  it("enables deploy button immediately when selecting a Google Group from the dropdown", async () => {
+  it("keeps deploy and rollback locked after selecting a Google Group until the operator types the matching email", async () => {
     renderPage();
 
     // Switch to Group tab
@@ -498,15 +498,40 @@ describe("CepDeployerPage", () => {
 
     expect(screen.getByText(m.btnDeploy)).toBeDisabled();
 
-    // Select group
+    // Selecting a group shows the impact box but does not unlock mutations
     fireEvent.change(groupSelect, { target: { value: "sec-poc@example.com" } });
-
-    // Impact message appears and deploy is enabled immediately without double input
     expect(screen.getByText(m.targetGroupImpact)).toBeInTheDocument();
+    const confirmation = screen.getByLabelText(m.targetGroupConfirmationLabel);
+    expect(confirmation).toHaveValue("");
+    expect(screen.getByText(m.targetGroupConfirmationHint)).toBeInTheDocument();
+    expect(screen.getByText(m.btnDeploy)).toBeDisabled();
+    expect(screen.getByText(m.btnRollback)).toBeDisabled();
+    // Read-only script download only needs a selected group
+    expect(screen.getByRole("button", { name: m.btnDownloadScript })).toBeEnabled();
+
+    // A near miss stays locked and is flagged
+    fireEvent.change(confirmation, { target: { value: "sec-poc@example.co" } });
+    expect(screen.getByText(m.targetGroupConfirmationMismatch)).toBeInTheDocument();
+    expect(confirmation).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByText(m.btnDeploy)).toBeDisabled();
+    expect(screen.getByText(m.btnRollback)).toBeDisabled();
+
+    // Case and surrounding whitespace are tolerated, like the extension router
+    fireEvent.change(confirmation, { target: { value: " Sec-PoC@Example.com " } });
+    expect(screen.getByText(m.targetGroupConfirmationMatched)).toBeInTheDocument();
+    expect(confirmation).toHaveAttribute("aria-invalid", "false");
     expect(screen.getByText(m.btnDeploy)).toBeEnabled();
+    expect(screen.getByText(m.btnRollback)).toBeEnabled();
+
+    // Changing the group clears the confirmation and locks again
+    const manualInputs = screen.getAllByPlaceholderText(m.customGroupInputPlaceholder);
+    fireEvent.change(manualInputs[0], { target: { value: "other-team@example.com" } });
+    expect(screen.getByLabelText(m.targetGroupConfirmationLabel)).toHaveValue("");
+    expect(screen.getByText(m.btnDeploy)).toBeDisabled();
+    expect(screen.getByText(m.btnRollback)).toBeDisabled();
   });
 
-  it("sends target_type group and confirmation in provision payload", async () => {
+  it("sends target_type group and the operator-typed confirmation in the provision payload", async () => {
     const provision = vi.spyOn(api, "provisionCepPolicies").mockResolvedValue(
       emptyResult({ message: "Applied 5 CEP settings to the target Group." }),
     );
@@ -518,8 +543,11 @@ describe("CepDeployerPage", () => {
     const groupSelects = await screen.findAllByLabelText(m.selectTargetGroup);
     const groupSelect = groupSelects[0];
 
-    // Select group
+    // Select group and type the confirmation
     fireEvent.change(groupSelect, { target: { value: "sec-poc@example.com" } });
+    fireEvent.change(screen.getByLabelText(m.targetGroupConfirmationLabel), {
+      target: { value: " Sec-PoC@example.com " },
+    });
 
     // Deploy
     fireEvent.click(screen.getByText(m.btnDeploy));
@@ -529,7 +557,7 @@ describe("CepDeployerPage", () => {
         expect.objectContaining({
           target_type: "group",
           target_group_key: "sec-poc@example.com",
-          target_group_confirmation: "sec-poc@example.com",
+          target_group_confirmation: "Sec-PoC@example.com",
           create_sub_ous: false,
         }),
       );
@@ -537,7 +565,7 @@ describe("CepDeployerPage", () => {
     expect(screen.getByText("Applied 5 CEP settings to the target Group.")).toBeInTheDocument();
   });
 
-  it("supports manual group email entry and rolls back with group target", async () => {
+  it("supports manual group email entry and rolls back with the typed confirmation", async () => {
     const rollback = vi.spyOn(api, "rollbackCepPolicies").mockResolvedValue(emptyResult());
     vi.spyOn(window, "confirm").mockReturnValue(true);
 
@@ -549,6 +577,13 @@ describe("CepDeployerPage", () => {
     // Type custom group email
     const manualInputs = await screen.findAllByPlaceholderText(m.customGroupInputPlaceholder);
     fireEvent.change(manualInputs[0], { target: { value: "custom-sec@example.com" } });
+
+    // Rollback stays locked until the email is typed again as confirmation
+    expect(screen.getByText(m.btnRollback)).toBeDisabled();
+    fireEvent.change(screen.getByLabelText(m.targetGroupConfirmationLabel), {
+      target: { value: "custom-sec@example.com" },
+    });
+    expect(screen.getByText(m.btnRollback)).toBeEnabled();
 
     // Rollback
     fireEvent.click(screen.getByText(m.btnRollback));
