@@ -3,13 +3,15 @@ import type { Locale } from "../../lib/setup-state";
 import {
   ChartIcon,
   CheckCircleIcon,
+  CloudIcon,
   DownloadIcon,
   ExclamationCircleIcon,
   ExternalLinkIcon,
   ShieldIcon,
   UploadIcon,
 } from "../../components/Icons";
-import { parseLogFile } from "./csv";
+import { ApiError, fetchChromeAuditActivityPage, runtimeCapabilities, signInSession } from "../../lib/api";
+import { parseLogFile, parsedFileFromActivities } from "./csv";
 import { autoMapColumns, mergeMappings, normalizeFile, type NormalizedFile } from "./columns";
 import { SANCTIONED_PRESETS } from "./domains";
 import { ALL_CHANNELS, analyze, defaultSettings, suggestCorporateDomains } from "./analyze";
@@ -48,6 +50,28 @@ type Step = 1 | 2 | 3;
 const CERA_LOGS_URL = "https://goo.gle/cera-logs";
 const CERA_HELP_URL = "https://support.google.com/a/answer/9393909";
 const MAX_FILE_BYTES = 200 * 1024 * 1024;
+
+/** Look-back periods for the signed-in fetch; the Reports API keeps ~6 months. */
+const AUDIT_PERIOD_DAYS = [7, 30, 90, 180] as const;
+type AuditPeriodDays = (typeof AUDIT_PERIOD_DAYS)[number];
+/** 1000 activities per page; 200 pages bounds one click at ~200k activities. */
+const AUDIT_MAX_PAGES = 200;
+
+type AuditFetchStatus = "idle" | "running" | "done" | "empty" | "cancelled" | "consent" | "error";
+
+interface AuditFetchState {
+  status: AuditFetchStatus;
+  pages: number;
+  events: number;
+  days: number;
+  message: string;
+}
+
+const IDLE_AUDIT_FETCH: AuditFetchState = { status: "idle", pages: 0, events: 0, days: 30, message: "" };
+
+function compactDateStamp(date: Date): string {
+  return `${date.getUTCFullYear()}${String(date.getUTCMonth() + 1).padStart(2, "0")}${String(date.getUTCDate()).padStart(2, "0")}`;
+}
 
 function SvgChart({ markup, className = "" }: { markup: string; className?: string }) {
   return <div className={`cera-chart ${className}`} dangerouslySetInnerHTML={{ __html: markup }} />;
@@ -265,6 +289,92 @@ export function CeraPage({ locale, workspaceIdentity = "", showEasyPoc = false, 
     setTzHours(9);
   };
 
+  // Live fetch through the signed-in Workspace administrator (extension only).
+  const canAutoFetch = runtimeCapabilities.chromeAuditFetch;
+  const [auditDays, setAuditDays] = useState<AuditPeriodDays>(30);
+  const [auditFetch, setAuditFetch] = useState<AuditFetchState>(IDLE_AUDIT_FETCH);
+  const auditCancelRef = useRef(false);
+  const auditRunningRef = useRef(false);
+  const auditFetching = auditFetch.status === "running";
+
+  const handleFetchAudit = useCallback(async () => {
+    if (auditRunningRef.current) return;
+    auditRunningRef.current = true;
+    auditCancelRef.current = false;
+    const days = auditDays;
+    const end = new Date();
+    const start = new Date(end.getTime() - days * 86_400_000);
+    setAuditFetch({ status: "running", pages: 0, events: 0, days, message: "" });
+
+    const items: Record<string, unknown>[] = [];
+    let pages = 0;
+    let events = 0;
+    let pageToken: string | null = null;
+    let cancelled = false;
+    let final: AuditFetchState;
+    try {
+      do {
+        const page = await fetchChromeAuditActivityPage({
+          start_time: start.toISOString(),
+          end_time: end.toISOString(),
+          page_token: pageToken,
+        });
+        pages += 1;
+        events += page.event_count;
+        for (const item of page.items) items.push(item);
+        pageToken = page.next_page_token;
+        setAuditFetch({ status: "running", pages, events, days, message: "" });
+        if (auditCancelRef.current) {
+          cancelled = true;
+          break;
+        }
+        if (pages >= AUDIT_MAX_PAGES) break;
+      } while (pageToken);
+      // Carry the final page/event counters into the completion notice.
+      final = { status: cancelled ? "cancelled" : "done", pages, events, days, message: "" };
+    } catch (error) {
+      const consent = error instanceof ApiError && (error.code === "consent-required" || error.status === 401);
+      final = {
+        status: consent ? "consent" : "error",
+        pages,
+        events,
+        days,
+        message: consent ? "" : error instanceof Error ? error.message : String(error),
+      };
+    }
+    auditRunningRef.current = false;
+
+    if (items.length > 0) {
+      // Whatever was fetched is loaded exactly like a dropped JSON export;
+      // a failure on page N must not throw away pages 1..N-1.
+      const name = m.ingest.autoFetchFileName(compactDateStamp(start), compactDateStamp(end));
+      addParsedFiles([parsedFileFromActivities(name, items)], []);
+      if (!reportTitle) setReportTitle(m.settings.reportTitlePlaceholder);
+    } else if (final.status === "done") {
+      final = { ...final, status: "empty" };
+    }
+    setAuditFetch(final);
+  }, [auditDays, addParsedFiles, m, reportTitle]);
+
+  const handleCancelAudit = () => {
+    auditCancelRef.current = true;
+  };
+
+  const handleAuditSignIn = useCallback(async () => {
+    try {
+      const session = await signInSession();
+      if (!session.authenticated) return;
+    } catch (error) {
+      setAuditFetch((current) => ({
+        ...current,
+        status: "error",
+        message: error instanceof Error ? error.message : String(error),
+      }));
+      return;
+    }
+    await handleFetchAudit();
+  }, [handleFetchAudit]);
+
   const removeFile = (id: string) => {
     setFiles((current) => current.filter((file) => file.id !== id));
     setResult(null);
@@ -446,10 +556,87 @@ export function CeraPage({ locale, workspaceIdentity = "", showEasyPoc = false, 
                   <button className="btn btn-secondary" onClick={handleSample} type="button">
                     {m.ingest.sample}
                   </button>
+                  {canAutoFetch ? (
+                    <button
+                      aria-busy={auditFetching}
+                      className="btn btn-secondary"
+                      disabled={auditFetching}
+                      onClick={() => void handleFetchAudit()}
+                      type="button"
+                    >
+                      <CloudIcon size={15} />
+                      <span>{auditFetching ? m.ingest.autoFetchRunning : m.ingest.autoFetch}</span>
+                    </button>
+                  ) : null}
                 </div>
                 <small className="cera-muted">{m.ingest.sampleHint}</small>
+                {canAutoFetch ? (
+                  <div className="cera-fetch-row">
+                    <label className="cera-fetch-period">
+                      <span>{m.ingest.autoFetchPeriod}</span>
+                      <select
+                        disabled={auditFetching}
+                        onChange={(event) => setAuditDays(Number(event.target.value) as AuditPeriodDays)}
+                        value={auditDays}
+                      >
+                        {AUDIT_PERIOD_DAYS.map((days) => (
+                          <option key={days} value={days}>
+                            {m.ingest.autoFetchDays(days)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    {auditFetching ? (
+                      <span className="cera-fetch-progress" aria-live="polite" role="status">
+                        <span aria-hidden="true" className="cera-fetch-spinner" />
+                        <span className="tabular-nums">{m.ingest.autoFetchProgress(auditFetch.pages, auditFetch.events)}</span>
+                        <button className="btn btn-link btn-sm" onClick={handleCancelAudit} type="button">
+                          {m.ingest.autoFetchCancel}
+                        </button>
+                      </span>
+                    ) : null}
+                    <small className="cera-muted cera-fetch-hint">{m.ingest.autoFetchHint}</small>
+                  </div>
+                ) : null}
                 <input accept=".csv,.tsv,.txt,.json,text/csv,text/tab-separated-values,application/json" className="cera-hidden-input" multiple onChange={handleInput} ref={inputRef} type="file" aria-label={m.ingest.browse} />
               </div>
+
+              {auditFetch.status === "done" || auditFetch.status === "cancelled" ? (
+                <div className="cera-notice cera-notice-success" role="status">
+                  <CheckCircleIcon size={18} />
+                  <span>
+                    {auditFetch.status === "done"
+                      ? m.ingest.autoFetchDone(auditFetch.events, auditFetch.days)
+                      : m.ingest.autoFetchCancelled(auditFetch.events)}
+                  </span>
+                </div>
+              ) : null}
+              {auditFetch.status === "empty" ? (
+                <div className="cera-notice cera-notice-warning" role="status">
+                  <ExclamationCircleIcon size={18} />
+                  <span>{m.ingest.autoFetchEmpty(auditFetch.days)}</span>
+                </div>
+              ) : null}
+              {auditFetch.status === "consent" ? (
+                <div className="cera-notice cera-notice-warning" role="alert">
+                  <ExclamationCircleIcon size={18} />
+                  <div className="cera-notice-body">
+                    <span>{m.ingest.autoFetchConsent}</span>
+                    <button className="btn btn-secondary btn-sm" onClick={() => void handleAuditSignIn()} type="button">
+                      {m.ingest.autoFetchSignIn}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+              {auditFetch.status === "error" ? (
+                <div className="cera-notice cera-notice-danger" role="alert">
+                  <ExclamationCircleIcon size={18} />
+                  <div className="cera-notice-body">
+                    <span>{m.ingest.autoFetchFailed(auditFetch.message)}</span>
+                    <small>{m.ingest.autoFetchPrivilegeHint}</small>
+                  </div>
+                </div>
+              ) : null}
 
               {fileErrors.length > 0 ? (
                 <div className="cera-notice cera-notice-warning" role="alert">

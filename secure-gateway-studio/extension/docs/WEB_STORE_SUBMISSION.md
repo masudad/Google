@@ -423,6 +423,7 @@ added by 0.2.1.
 | `chrome.management.policy` | sensitive | Reads Chrome policy schemas and applies policies to the confirmed non-root target organizational unit. Chrome policy inheritance can also affect descendant OUs; the screen discloses that scope and requires the exact OU path again before each write. |
 | `chrome.management.profiles.readonly` | sensitive | Preflight signals: managed profile counts and last policy sync, shown before a plan is approved. Read only. |
 | `apps.licensing` | sensitive | Confirms Chrome Enterprise Premium licence availability and, only after an explicit click, assigns licences to the users resolved in the selected pilot OU. |
+| `admin.reports.audit.readonly` **new in 0.2.74** | sensitive | Reads Chrome log events (`activity/users/all/applications/chrome`) through the Admin SDK Reports API when the administrator clicks **Fetch with signed-in account** in the CERA tab, replacing the manual Admin Console CSV export. Read only; one page per request, bounded to the selected 7–180 day window. Fetched events are held in page memory like a dropped file and are never written to storage, logged, or sent anywhere but back to that page. The Reports API accepts no narrower scope. |
 
 ### Scope justification
 
@@ -432,16 +433,22 @@ reference, not as submission text.
 
 #### Single box (1000 characters, the cap is 1000)
 
-    Configures Chrome Enterprise Premium and Secure Gateway in one Workspace tenant, a deployment project, and an optional admin-selected upstream VPC project. No backend or developer data. openid/userinfo.email bind approvals to the verified admin.
+    Configures Chrome Enterprise Premium and Secure Gateway in one Workspace tenant, a deployment project, and an optional upstream VPC. No backend or developer data. openid/userinfo.email bind approvals to the verified admin.
 
-    Directory scopes populate OU/group selectors, read the primary domain, list pilot-OU users, and optionally create CEP Users/CEP Browsers sub-OUs. chrome.management.policy reads live schemas and applies policies. cloud-identity.policies creates supported DLP rules; apps.licensing assigns pilot users. cloud-platform reads preflight and performs the confirmed initial deployer/IAM bootstrap; later Cloud mutations use only the pinned deployer custom role.
+    Directory scopes fill OU/group pickers, read the primary domain, list pilot-OU users, and may create CEP sub-OUs. chrome.management.policy reads schemas and applies policies. cloud-identity.policies creates supported DLP rules; apps.licensing assigns pilot users. admin.reports.audit.readonly reads Chrome log events into the in-page CERA report; nothing is stored. cloud-platform reads preflight and runs the confirmed deployer/IAM bootstrap; later Cloud mutations use only the pinned deployer role.
 
-    Read-only scopes are used where possible. orgunit.readonly cannot create OUs, policies.readonly cannot create rules, chrome.management.policy has no narrower writable scope, apps.licensing has no read-only scope, and nothing narrower than cloud-platform spans the Cloud services used.
+    Read-only scopes where possible: orgunit.readonly cannot create OUs, policies.readonly cannot create rules, chrome.management.policy has no narrower write scope, apps.licensing and Reports offer none, and no narrower scope spans the Cloud services cloud-platform covers.
 
 #### If the form asks per scope
 
 Some consent-screen flows ask once per scope instead. Each of these is
 independently under the limit.
+
+**`admin.reports.audit.readonly`** (under 1000 characters)
+
+    Reads Chrome log events from the Admin SDK Reports API (activity/users/all/applications/chrome) when the administrator clicks "Fetch with signed-in account" in the CERA tab. CERA turns those events (uploads, pastes, prints, downloads, unsafe-site visits) into an in-browser egress risk report that the administrator could otherwise only build by exporting CSV from the Admin Console by hand.
+
+    The request runs as the signed-in Workspace administrator, who must already hold the Reports privilege; the extension adds no authority the Admin Console does not already grant that person. Each call reads one page of at most 1000 activities inside the explicitly selected 7-180 day window and the administrator can stop between pages. Events stay in the page's memory exactly like a dropped file: nothing is written to extension storage, logged, or transmitted anywhere other than back to that page. The Reports API publishes no narrower scope than audit.readonly, and the scope is read-only by definition.
 
 **`admin.directory.orgunit`** (599 characters)
 
@@ -509,6 +516,10 @@ Cover, in order:
 6. The read-only cleanup inspection resolving live Chrome Policy state and
    reporting all retained Chrome Policy, OU, access-level, and DLP candidates
    for manual ownership review.
+7. The CERA tab: choose a period, click **Fetch with signed-in account**, show
+   the page/event progress and the loaded file row, then the generated report
+   (`admin.reports.audit.readonly`). Show that nothing is saved: reload the
+   extension page and the fetched events are gone.
 
 ### URLs
 

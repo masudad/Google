@@ -49,6 +49,22 @@ export interface CeraMessages {
     readError: (name: string) => string;
     noRows: (name: string) => string;
     totalRows: (rows: number, events: number) => string;
+    /** Live fetch through the signed-in Workspace administrator (extension build only). */
+    autoFetch: string;
+    autoFetchHint: string;
+    autoFetchPeriod: string;
+    autoFetchDays: (days: number) => string;
+    autoFetchRunning: string;
+    autoFetchProgress: (pages: number, events: number) => string;
+    autoFetchCancel: string;
+    autoFetchDone: (events: number, days: number) => string;
+    autoFetchEmpty: (days: number) => string;
+    autoFetchCancelled: (events: number) => string;
+    autoFetchConsent: string;
+    autoFetchSignIn: string;
+    autoFetchFailed: (message: string) => string;
+    autoFetchPrivilegeHint: string;
+    autoFetchFileName: (from: string, to: string) => string;
   };
   mapping: {
     title: string;
@@ -374,7 +390,7 @@ const en: CeraMessages = {
     title: "Turn Chrome log events into an egress risk briefing",
     intro:
       "Load Chrome log events exported from the Admin Console, classify every upload, paste, print and download into four egress vectors, and export a 16:9 HTML slide deck. Nothing leaves this browser.",
-    localBadge: "Local processing only · no upload · no new permissions",
+    localBadge: "Local processing only · no upload · nothing stored",
     steps: ["1. Load logs", "2. Classification", "3. Report"],
     stepHints: [
       "CSV / TSV / JSON exports, multiple files",
@@ -414,6 +430,28 @@ const en: CeraMessages = {
     readError: (name) => `Could not read ${name}.`,
     noRows: (name) => `${name} has no data rows.`,
     totalRows: (rows, events) => `${rows.toLocaleString()} rows · ${events.toLocaleString()} events recognised`,
+    autoFetch: "Fetch with signed-in account",
+    autoFetchHint:
+      "Reads Chrome log events through the Admin SDK Reports API as the signed-in Workspace administrator. Needs the Reports privilege and the Chrome Enterprise Premium reporting connector. Events stay in this page's memory, nothing is stored.",
+    autoFetchPeriod: "Period",
+    autoFetchDays: (days) => `Last ${days} days`,
+    autoFetchRunning: "Fetching…",
+    autoFetchProgress: (pages, events) =>
+      `${pages.toLocaleString()} page${pages === 1 ? "" : "s"} · ${events.toLocaleString()} events so far`,
+    autoFetchCancel: "Stop",
+    autoFetchDone: (events, days) =>
+      `Loaded ${events.toLocaleString()} events from the last ${days} days.`,
+    autoFetchEmpty: (days) =>
+      `No Chrome log events in the last ${days} days. Check that the reporting connector is enabled for the target OU, then try again.`,
+    autoFetchCancelled: (events) =>
+      `Stopped. ${events.toLocaleString()} events fetched so far were loaded.`,
+    autoFetchConsent:
+      "The signed-in account has not granted read access to Chrome audit logs yet. Sign in again to grant it, then fetch again.",
+    autoFetchSignIn: "Sign in again",
+    autoFetchFailed: (message) => `Fetch failed: ${message}`,
+    autoFetchPrivilegeHint:
+      "If this persists, confirm the account holds the Reports privilege in Admin Console › Admin roles, or export CSV manually.",
+    autoFetchFileName: (from, to) => `chrome-log-events-${from}-${to}.json`,
   },
   mapping: {
     title: "Column mapping",
@@ -735,7 +773,7 @@ const ja: CeraMessages = {
     title: "Chromeログイベントから社外送信リスクを可視化する",
     intro:
       "管理コンソールから書き出したChromeログイベントを読み込み、アップロード・貼り付け・印刷・ダウンロードを4つの送信経路に分類し、16:9のHTMLスライドとして出力します。データはこのブラウザの外に出ません。",
-    localBadge: "ローカル処理のみ · アップロードなし · 追加権限なし",
+    localBadge: "ローカル処理のみ · アップロードなし · 保存なし",
     steps: ["1. ログ読み込み", "2. 分類設定", "3. レポート"],
     stepHints: ["CSV / TSV / JSON、複数ファイル可", "会社ドメイン、承認済みアプリ、匿名化", "ダッシュボード、スライド、CSV"],
     back: "戻る",
@@ -771,6 +809,28 @@ const ja: CeraMessages = {
     readError: (name) => `${name} を読み込めませんでした。`,
     noRows: (name) => `${name} にデータ行がありません。`,
     totalRows: (rows, events) => `${rows.toLocaleString()} 行 · ${events.toLocaleString()} イベントを認識`,
+    autoFetch: "ログイン中のアカウントで自動取得",
+    autoFetchHint:
+      "ログイン中の Workspace 管理者として Admin SDK Reports API から Chromeログイベントを読み込みます。レポート権限と Chrome Enterprise Premium のレポート コネクタが必要です。取得したイベントはこの画面のメモリ上にのみ置き、保存しません。",
+    autoFetchPeriod: "期間",
+    autoFetchDays: (days) => `直近 ${days} 日`,
+    autoFetchRunning: "取得中…",
+    autoFetchProgress: (pages, events) =>
+      `${pages.toLocaleString()} ページ · ${events.toLocaleString()} イベント取得済み`,
+    autoFetchCancel: "停止",
+    autoFetchDone: (events, days) =>
+      `直近 ${days} 日分のイベント ${events.toLocaleString()} 件を読み込みました。`,
+    autoFetchEmpty: (days) =>
+      `直近 ${days} 日に Chromeログイベントがありません。対象の組織部門でレポート コネクタが有効か確認してから、もう一度お試しください。`,
+    autoFetchCancelled: (events) =>
+      `停止しました。取得済みの ${events.toLocaleString()} 件を読み込みました。`,
+    autoFetchConsent:
+      "ログイン中のアカウントは Chrome 監査ログの読み取りをまだ許可していません。再ログインして許可してから、もう一度取得してください。",
+    autoFetchSignIn: "再ログイン",
+    autoFetchFailed: (message) => `取得に失敗しました: ${message}`,
+    autoFetchPrivilegeHint:
+      "続く場合は、管理コンソール › 管理者ロール でこのアカウントにレポート権限があるか確認するか、CSV を手動で書き出してください。",
+    autoFetchFileName: (from, to) => `chrome-log-events-${from}-${to}.json`,
   },
   mapping: {
     title: "列マッピング",

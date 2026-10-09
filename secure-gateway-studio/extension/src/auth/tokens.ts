@@ -29,7 +29,11 @@
  * event or evidence export.
  */
 
-/** Scopes the product requests, mirroring `google_rest.DEFAULT_SCOPES`. */
+/**
+ * Scopes the product requests. `google_rest.DEFAULT_SCOPES` in the local
+ * application is the historical baseline; the Reports scope below is
+ * extension-only because the CERA tab exists only in this build.
+ */
 export const DEFAULT_SCOPES = [
   "https://www.googleapis.com/auth/userinfo.email",
   "https://www.googleapis.com/auth/admin.directory.group.readonly",
@@ -45,6 +49,11 @@ export const DEFAULT_SCOPES = [
   "https://www.googleapis.com/auth/chrome.management.policy",
   "https://www.googleapis.com/auth/chrome.management.profiles.readonly",
   "https://www.googleapis.com/auth/apps.licensing",
+  // CERA reads Chrome log events (uploads, downloads, pastes, unsafe sites)
+  // through the Admin SDK Reports API instead of a manual CSV export. The
+  // Reports API accepts no narrower scope; this one is read-only and covers
+  // the audit activity feed only. Events stay in page memory, never stored.
+  "https://www.googleapis.com/auth/admin.reports.audit.readonly",
 ] as const;
 
 /**

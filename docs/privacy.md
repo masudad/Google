@@ -96,6 +96,17 @@ It handles:
   the log view, the extension first verifies the marker and then requests only
   its strict sanitized diagnostic field mask; it excludes URL paths, query
   strings, IP addresses, principals, and free-form payloads.
+- **Your Chrome log events, when you ask for them** — the CERA tab can read
+  Chrome Enterprise Premium log events (uploads, downloads, pastes, prints,
+  unsafe-site visits, with the acting user, URL, and device fields the Admin
+  Console export also contains) through the Admin SDK Reports API, only after
+  you click **Fetch with signed-in account** and choose a period of 7 to 180
+  days. The request runs with your own administrator authority. The events are
+  held in the page's memory exactly like a file you drop onto the tab; they are
+  never written to extension storage, logged, included in evidence, or sent
+  anywhere other than back to that page, and they are gone when the page is
+  closed or reloaded. The report, slide deck, and forensic CSV that CERA builds
+  from them are created in the page and saved only where you choose.
 - **Authentication information** — short-lived Google OAuth and impersonated
   access tokens used to call the APIs. These tokens are never persisted.
 - **An existing public-certificate secret, when you select one** — the exact

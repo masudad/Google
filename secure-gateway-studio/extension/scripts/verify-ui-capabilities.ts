@@ -10,6 +10,7 @@ import {
 } from "../../frontend/src/lib/setup-state.ts";
 
 assert.equal(extensionCapabilities.cepDeployer, true);
+assert.equal(extensionCapabilities.chromeAuditFetch, true);
 assert.equal(extensionCapabilities.internalHttpsLbArchitecture, true);
 assert.equal(extensionCapabilities.sessionSignIn, true);
 assert.equal(extensionCapabilities.sessionSignOut, true);
@@ -17,6 +18,7 @@ assert.equal(extensionCapabilities.recommendedPocSourceImage, true);
 assert.equal(extensionCapabilities.userDataDisclosure, true);
 assert.equal(extensionCapabilities.vpcNetworkCatalog, true);
 assert.equal(localCapabilities.cepDeployer, false);
+assert.equal(localCapabilities.chromeAuditFetch, false);
 assert.equal(localCapabilities.internalHttpsLbArchitecture, true);
 assert.equal(localCapabilities.sessionSignIn, false);
 assert.equal(localCapabilities.sessionSignOut, false);

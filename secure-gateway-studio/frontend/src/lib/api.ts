@@ -927,6 +927,42 @@ export async function signOutSession(): Promise<void> {
   await postJson<{ success: boolean }>("/api/v1/auth/sign-out", {});
 }
 
+/** One page of Admin SDK Reports API Chrome activities, as served by the worker. */
+export interface ChromeAuditActivityPage {
+  application: "chrome";
+  start_time: string;
+  end_time: string;
+  /** Raw `Activity` resources (`id`, `actor`, `events[]`), unchanged. */
+  items: Record<string, unknown>[];
+  item_count: number;
+  event_count: number;
+  next_page_token: string | null;
+}
+
+export interface ChromeAuditActivityPageRequest {
+  /** RFC 3339, inclusive lower bound. */
+  start_time: string;
+  /** RFC 3339, exclusive upper bound. */
+  end_time: string;
+  page_token?: string | null;
+  /** 1..1000; the worker defaults to 1000. */
+  max_results?: number;
+}
+
+/**
+ * Read one page of Chrome log events with the signed-in administrator.
+ *
+ * CERA drives pagination itself: a page per call keeps every extension message
+ * bounded, lets the page render progress, and allows cancelling between pages.
+ * Only the extension build serves this route; check
+ * `runtimeCapabilities.chromeAuditFetch` before offering it.
+ */
+export async function fetchChromeAuditActivityPage(
+  request: ChromeAuditActivityPageRequest,
+): Promise<ChromeAuditActivityPage> {
+  return await postJson<ChromeAuditActivityPage>("/api/v1/cera/chrome-audit-events", request);
+}
+
 export interface CepGeminiZeroTrustConfig {
   project_id: string;
   policy_id?: string;

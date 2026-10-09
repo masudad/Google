@@ -179,6 +179,7 @@ In compliance with the Google API Services User Data Policy, only scopes strictl
 | `.../auth/chrome.management.policy` | CEP / SGW | Applies Chrome policies to target organizational units. |
 | `.../auth/chrome.management.profiles.readonly`| CEP | Verifies profile-level Chrome policy application. |
 | `.../auth/apps.licensing` | CEP | Reads current CEP SKU assignments and performs an explicitly requested per-user assignment. |
+| `.../auth/admin.reports.audit.readonly` | CERA | Reads Chrome log events through the Admin SDK Reports API when the administrator explicitly clicks **Fetch with signed-in account** in the CERA tab, replacing a manual Admin Console CSV export. Read-only; the Reports API offers no narrower scope. Fetched events stay in page memory and are never stored, logged, or transmitted to the developer. |
 | `.../auth/cloud-platform` | SGW Deployer | Used for read-only preflight, the explicitly confirmed one-time creation and pinning of the deployer service account/custom role/IAM bindings, and multi-service SGW orchestration. Every post-bootstrap Cloud mutation runs through that impersonated deployer; it never falls back to administrator authority. |
 | `.../auth/userinfo.email` | Core | Displays the signed-in administrator email in the local audit log and evidence bundle. |
 

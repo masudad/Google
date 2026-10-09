@@ -144,9 +144,11 @@ Every requested OAuth scope is accounted for below:
 | `chrome.management.policy` | Resolving Chrome schemas/targets and applying explicitly selected Chrome policies to the confirmed non-root pilot OU. Chrome OU inheritance can also affect descendant OUs, which the UI discloses before Apply. |
 | `chrome.management.profiles.readonly` | Verifying managed-profile state and policy application without changing profiles. |
 | `apps.licensing` | Reading current Chrome Enterprise Premium assignments and performing the separately selected per-user assignment in the selected pilot OU; this API offers no read-only scope. Each request has a five-second deadline. A timed-out/response-lost POST is followed by an exact product/SKU/user GET and retains the durable CEP lease when the outcome remains unknown. |
+| `admin.reports.audit.readonly` | Reading Chrome log events (`activity/users/all/applications/chrome`) through the Admin SDK Reports API when the operator clicks **Fetch with signed-in account** in the CERA tab, replacing the manual Admin Console CSV export. Read-only; the Reports API accepts no narrower scope. Requests run as the signed-in Workspace administrator, one page per call, bounded to the selected 7–180 day window. Fetched events are held in page memory like a dropped file and are never written to extension storage, logged, or transmitted anywhere but back to that page. |
 
 The write-capable organizational-unit scope, customer-read scope, and Cloud
-Identity policy scope were added in version 0.2.0. Chrome re-prompts for consent
+Identity policy scope were added in version 0.2.0; the Reports audit read scope
+was added in version 0.2.74. Chrome re-prompts for consent
 when the requested scope set grows, and the OAuth client in Google Cloud must
 list the complete current set before that prompt can succeed. The Google Cloud
 project that owns that OAuth client must also have Admin SDK, Chrome Policy,

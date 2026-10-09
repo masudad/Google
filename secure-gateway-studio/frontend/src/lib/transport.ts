@@ -26,6 +26,8 @@ export class ApiError extends Error {
 export const runtimeCapabilities = {
   bootstrapAccessPolicyId: false,
   cepDeployer: false,
+  /** CERA can read Chrome log events through the signed-in administrator. */
+  chromeAuditFetch: false,
   internalHttpsLbArchitecture: true,
   postDeploymentAccessUpdate: false,
   sessionSignIn: false,

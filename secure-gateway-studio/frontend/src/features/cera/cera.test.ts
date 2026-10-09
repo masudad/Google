@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseDelimited, parseLogFile, sniffDelimiter, toCsv } from "./csv";
+import { parseDelimited, parseLogFile, parsedFileFromActivities, sniffDelimiter, toCsv } from "./csv";
 import {
   autoMapColumns,
   classifyEventKind,
@@ -81,6 +81,109 @@ describe("csv parsing", () => {
     const csv = toCsv(["a"], [["=HYPERLINK(\"x\")"], ["plain"]]);
     expect(csv).toContain("'=HYPERLINK");
     expect(csv.startsWith("\uFEFF")).toBe(true);
+  });
+
+  it("builds a loadable file from live Reports API activities", () => {
+    const items = [
+      {
+        id: { time: "2026-10-01T01:02:03.000Z", uniqueQualifier: "1", applicationName: "chrome" },
+        actor: { email: "c@example.co.jp", profileId: "42" },
+        ipAddress: "203.0.113.5",
+        events: [
+          {
+            type: "CHROME_EVENTS",
+            name: "SENSITIVE_DATA_TRANSFER",
+            parameters: [
+              { name: "TRIGGER_TYPE", value: "WEB_CONTENT_UPLOAD" },
+              { name: "URL", value: "https://chatgpt.com/" },
+              { name: "EVENT_RESULT", value: "WARNED" },
+              { name: "CONTENT_SIZE", intValue: "2048" },
+              { name: "DEVICE_PLATFORM", value: "Windows 11" },
+            ],
+          },
+          {
+            type: "CHROME_EVENTS",
+            name: "CONTENT_TRANSFER",
+            parameters: [
+              { name: "TRIGGER_TYPE", value: "FILE_DOWNLOAD" },
+              { name: "URL", value: "https://drive.google.com/" },
+              { name: "EVENT_RESULT", value: "ALLOWED" },
+            ],
+          },
+        ],
+      },
+      {
+        id: { time: "2026-10-01T02:00:00.000Z" },
+        actor: { email: "d@example.co.jp" },
+        events: [],
+      },
+    ];
+    const parsed = parsedFileFromActivities("chrome-log-events-20260901-20261001.json", items);
+    expect(parsed.format).toBe("json");
+    expect(parsed.rows).toHaveLength(3);
+    expect(parsed.rows[0].event).toBe("SENSITIVE_DATA_TRANSFER");
+    expect(parsed.rows[0].ipAddress).toBe("203.0.113.5");
+    expect(parsed.rows[1].TRIGGER_TYPE).toBe("FILE_DOWNLOAD");
+    expect(parsed.rows[2].actor).toBe("d@example.co.jp");
+    const { mapping } = autoMapColumns(parsed.headers);
+    expect(mapping.timestamp).toBe("time");
+    expect(mapping.actor).toBe("actor");
+    expect(mapping.event).toBe("event");
+    expect(mapping.trigger).toBe("TRIGGER_TYPE");
+    expect(mapping.result).toBe("EVENT_RESULT");
+    expect(mapping.devicePlatform).toBe("DEVICE_PLATFORM");
+    const normalized = normalizeFile(parsed, {}, 0);
+    // The event-less activity keeps its timestamp/actor row, as a JSON export would.
+    expect(normalized.events).toHaveLength(3);
+    // WEB_CONTENT_UPLOAD is the paste vector, FILE_DOWNLOAD the download vector.
+    expect(normalized.events[0].trigger).toBe("web_content_upload");
+    expect(normalized.events[0].result).toBe("warned");
+    expect(normalized.events[1].trigger).toBe("file_download");
+    expect(normalized.events[2].actor).toBe("d@example.co.jp");
+  });
+
+  it("flattens nested messageValue parameters and surfaces rule names", () => {
+    const items = [
+      {
+        id: { time: "2026-10-01T03:00:00.000Z" },
+        actor: { email: "e@example.co.jp" },
+        events: [
+          {
+            name: "DLP_EVENT",
+            parameters: [
+              { name: "TRIGGER_TYPE", value: "FILE_UPLOAD" },
+              { name: "URL", value: "https://wetransfer.com/" },
+              { name: "EVENT_RESULT", value: "BLOCKED" },
+              {
+                name: "TRIGGERED_RULE_INFO",
+                multiMessageValue: [
+                  { parameter: [{ name: "RULE_NAME", value: "Block PII upload" }, { name: "ACTION", value: "BLOCK" }] },
+                  { parameter: [{ name: "RULE_NAME", value: "Audit all uploads" }, { name: "ACTION", value: "REPORT" }] },
+                ],
+              },
+              {
+                name: "SCAN_RESULT",
+                messageValue: { parameter: [{ name: "DETECTOR", value: "CREDIT_CARD_NUMBER" }, { name: "COUNT", intValue: "3" }] },
+              },
+              { name: "FLAGS", multiValue: ["a", "b"] },
+              { name: "EMPTY" },
+            ],
+          },
+        ],
+      },
+    ];
+    const parsed = parsedFileFromActivities("live.json", items);
+    expect(parsed.rows).toHaveLength(1);
+    const row = parsed.rows[0];
+    expect(row.TRIGGERED_RULE_INFO).toBe("RULE_NAME=Block PII upload; ACTION=BLOCK | RULE_NAME=Audit all uploads; ACTION=REPORT");
+    expect(row.SCAN_RESULT).toBe("DETECTOR=CREDIT_CARD_NUMBER; COUNT=3");
+    expect(row.TRIGGERED_RULE_NAMES).toBe("Block PII upload; Audit all uploads");
+    expect(row.FLAGS).toBe("a; b");
+    expect(row.EMPTY).toBe("");
+    const { mapping } = autoMapColumns(parsed.headers);
+    expect(mapping.rules).toBe("TRIGGERED_RULE_NAMES");
+    const normalized = normalizeFile(parsed, {}, 0);
+    expect(normalized.events[0].rules).toContain("Block PII upload");
   });
 });
 

@@ -66,6 +66,11 @@ import {
   type Transport,
 } from "../providers/executor.ts";
 import {
+  ChromeAuditRequestError,
+  fetchChromeAuditPage,
+  normalizeChromeAuditPageRequest,
+} from "../providers/chrome-audit.ts";
+import {
   CepMutationLeaseBusy,
   openDatabase,
   StateRepository,
@@ -757,6 +762,7 @@ const PORTED = new Set([
   "POST /api/v1/cep/script",
   "POST /api/v1/cep/assign-licenses",
   "POST /api/v1/cep/gemini-zero-trust",
+  "POST /api/v1/cera/chrome-audit-events",
 ]);
 
 /**
@@ -2479,6 +2485,22 @@ export async function route(
           useDeployer ? cloud : cloudAdmin,
         )
       ).provisionGeminiZeroTrust(request_));
+  }
+
+  if (key === "POST /api/v1/cera/chrome-audit-events") {
+    // Read-only Reports API page for the CERA tab. It authorizes against the
+    // signed-in Workspace administrator's Reports privilege, so it runs on the
+    // administrator transport and never touches the impersonated deployer.
+    let normalized;
+    try {
+      normalized = normalizeChromeAuditPageRequest(body);
+    } catch (error) {
+      if (error instanceof ChromeAuditRequestError) {
+        throw new RouteError(400, error.code, error.message);
+      }
+      throw error;
+    }
+    return fetchChromeAuditPage(context.administratorTransport, normalized);
   }
 
   throw new RouteError(
