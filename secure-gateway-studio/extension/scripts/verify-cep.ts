@@ -49,6 +49,70 @@ import {
 } from "../src/storage/repository.ts";
 import { canonicalDigestSync } from "../src/domain/canonical.ts";
 import { AuthenticationError } from "../src/auth/tokens.ts";
+import {
+  CEP_DLP_PLATFORM_SUPPORT,
+  CEP_DLP_PLATFORM_SUPPORT_VERIFIED_ON,
+  isDlpOperationEnforceable,
+  platformsForDeviceScope,
+} from "../src/providers/cep-platform-support.ts";
+import {
+  DLP_PLATFORM_SUPPORT,
+  DLP_PLATFORM_SUPPORT_VERIFIED_ON,
+  isOperationEnforceable,
+  platformsForScope,
+} from "../../frontend/src/features/cep/platform-support.ts";
+
+// -- Platform support tables must not drift ------------------------------------
+//
+// The UI locks cells and the worker skips rules from two copies of the same
+// table (the frontend bundle must not import worker code). Both copies and
+// their scope resolution have to agree, otherwise the UI shows one truth and
+// the tenant gets another.
+{
+  const scopes = [
+    "all",
+    "byod_only",
+    "corp_only",
+    "desktop_byod",
+    "mobile_byod",
+    "android_byod",
+    "ios_byod",
+    "android_all",
+    "ios_all",
+  ] as const;
+  const operations = ["upload", "download", "paste", "print", "watermark"] as const;
+  check(
+    "frontend and extension platform support tables are identical",
+    JSON.stringify(CEP_DLP_PLATFORM_SUPPORT) === JSON.stringify(DLP_PLATFORM_SUPPORT) &&
+      CEP_DLP_PLATFORM_SUPPORT_VERIFIED_ON === DLP_PLATFORM_SUPPORT_VERIFIED_ON,
+    JSON.stringify({ extension: CEP_DLP_PLATFORM_SUPPORT, frontend: DLP_PLATFORM_SUPPORT }),
+  );
+  check(
+    "frontend and extension agree on which scope/operation pairs are enforceable",
+    scopes.every(
+      (scope) =>
+        JSON.stringify(platformsForDeviceScope(scope)) === JSON.stringify(platformsForScope(scope)) &&
+        operations.every(
+          (operation) =>
+            isDlpOperationEnforceable(scope, operation) === isOperationEnforceable(scope, operation),
+        ),
+    ),
+  );
+  check(
+    "mobile-only scopes enforce download and watermark but not upload/paste/print; desktop and mixed scopes enforce everything",
+    (["android_byod", "ios_byod", "android_all", "ios_all", "mobile_byod"] as const).every(
+      (scope) =>
+        isDlpOperationEnforceable(scope, "download") &&
+        isDlpOperationEnforceable(scope, "watermark") &&
+        !isDlpOperationEnforceable(scope, "upload") &&
+        !isDlpOperationEnforceable(scope, "paste") &&
+        !isDlpOperationEnforceable(scope, "print"),
+    ) &&
+      (["all", "byod_only", "corp_only", "desktop_byod"] as const).every((scope) =>
+        operations.every((operation) => isDlpOperationEnforceable(scope, operation)),
+      ),
+  );
+}
 
 interface Recorded {
   method: string;
@@ -5462,6 +5526,8 @@ for (const mode of ["412-commit", "503-commit", "response-loss-commit"] as const
   // AUTO_CREATE_CORP_OWNED creates secgw_corp_owned_device, while android_byod / ios_byod rows
   // and per-rule deviceScope ("byod_only", "corp_only", "android_byod", "ios_byod") automatically
   // create and bind their corresponding ACM access levels in Cloud Identity DLP contextCondition.
+  // Chrome on Android / iOS enforces download rules only, so the OS rows are exercised with
+  // download; the upload / paste cells they also carry must be reported as skipped, not created.
   const { transport: byodMobileTransport, calls: byodMobileCalls } = stubTransport();
   const byodMobileRes = (await route(
     context(byodMobileTransport, "999"),
@@ -5475,7 +5541,7 @@ for (const mode of ["412-commit", "503-commit", "response-loss-commit"] as const
         universal_upload: { upload: "blockContent", deviceScope: "byod_only", byodOnly: true },
         payment_card: { upload: "warnUser", paste: "off", print: "off", deviceScope: "corp_only", byodOnly: false },
         android_byod: { upload: "blockContent", download: "blockContent", paste: "off", print: "off", deviceScope: "android_byod", byodOnly: true },
-        ios_byod: { upload: "blockContent", download: "off", paste: "warnUser", print: "off", deviceScope: "ios_byod", byodOnly: true },
+        ios_byod: { upload: "off", download: "warnUser", paste: "warnUser", print: "off", deviceScope: "ios_byod", byodOnly: true },
       },
     },
   )) as ProvisionResult;
@@ -5485,6 +5551,8 @@ for (const mode of ["412-commit", "503-commit", "response-loss-commit"] as const
   const findDlpValue = (name: string) => dlpPosts.find((v) => v.displayName === name);
   const uploadByodRule = findDlpValue("CEP PoC - Universal file upload protection - upload");
   const paymentCorpRule = findDlpValue("CEP PoC - Payment card numbers - upload");
+  const androidDownloadRule = findDlpValue("CEP PoC - Android BYOD access control - download");
+  const iosDownloadRule = findDlpValue("CEP PoC - iOS BYOD access control - download");
   const androidUploadRule = findDlpValue("CEP PoC - Android BYOD access control - upload");
   const iosPasteRule = findDlpValue("CEP PoC - iOS BYOD access control - paste");
   check(
@@ -5494,18 +5562,38 @@ for (const mode of ["412-commit", "503-commit", "response-loss-commit"] as const
         "!access_levels.meets_access_requirements(['accessPolicies/999/accessLevels/secgw_corp_owned'])" &&
       (paymentCorpRule?.condition as { contextCondition?: string } | undefined)?.contextCondition ===
         "access_levels.meets_access_requirements(['accessPolicies/999/accessLevels/secgw_corp_owned'])" &&
-      (androidUploadRule?.condition as { contextCondition?: string } | undefined)?.contextCondition ===
+      (androidDownloadRule?.condition as { contextCondition?: string } | undefined)?.contextCondition ===
         "access_levels.meets_access_requirements(['accessPolicies/999/accessLevels/secgw_android_byod'])" &&
-      (iosPasteRule?.condition as { contextCondition?: string } | undefined)?.contextCondition ===
+      (androidDownloadRule?.triggers as string[] | undefined)?.[0] === "google.workspace.chrome.file.v1.download" &&
+      (iosDownloadRule?.condition as { contextCondition?: string } | undefined)?.contextCondition ===
         "access_levels.meets_access_requirements(['accessPolicies/999/accessLevels/secgw_ios_byod'])",
     JSON.stringify({
       success: byodMobileRes.success,
       uploadByodRule,
       paymentCorpRule,
-      androidUploadRule,
-      iosPasteRule,
+      androidDownloadRule,
+      iosDownloadRule,
       skipped: byodMobileRes.skipped_items,
     }),
+  );
+  check(
+    "Android/iOS-only scopes never create upload or paste rules Chrome on mobile does not enforce; each is reported in skipped_items with the platform and operation",
+    androidUploadRule === undefined &&
+      iosPasteRule === undefined &&
+      byodMobileRes.skipped_items.some(
+        (s) =>
+          s.startsWith("DLP android_byod (android_byod) upload:") &&
+          s.includes("Chrome on Android does not enforce \"upload\"") &&
+          s.includes("platform support verified"),
+      ) &&
+      byodMobileRes.skipped_items.some(
+        (s) =>
+          s.startsWith("DLP ios_byod (ios_byod) paste:") &&
+          s.includes("Chrome on iOS does not enforce \"paste\""),
+      ) &&
+      !byodMobileRes.skipped_items.some((s) => s.includes("(android_byod) download")) &&
+      !byodMobileRes.skipped_items.some((s) => s.includes("(ios_byod) download")),
+    JSON.stringify(byodMobileRes.skipped_items),
   );
 
   // Rollback with delete_dlp_rules: true also deletes Android BYOD and iOS BYOD DLP rules
@@ -5526,12 +5614,88 @@ for (const mode of ["412-commit", "503-commit", "response-loss-commit"] as const
     "rollback with delete_dlp_rules: true deletes Android BYOD and iOS BYOD DLP rules alongside standard rules",
     byodMobileRollbackRes.success === true &&
       byodMobileRollbackRes.created_items.some((s) =>
-        s.includes('Deleted DLP rule "CEP PoC - Android BYOD access control - upload"'),
+        s.includes('Deleted DLP rule "CEP PoC - Android BYOD access control - download"'),
       ) &&
       byodMobileRollbackRes.created_items.some((s) =>
-        s.includes('Deleted DLP rule "CEP PoC - iOS BYOD access control - paste"'),
+        s.includes('Deleted DLP rule "CEP PoC - iOS BYOD access control - download"'),
       ),
     JSON.stringify(byodMobileRollbackRes),
+  );
+
+  // Mixed scopes (desktop + mobile) keep creating upload / paste / print rules because desktop
+  // Chrome enforces them; the mobile-only limitation never leaks into "all" or "byod_only".
+  // Platform-partial operations (watermark on mobile) are still created.
+  const { transport: mixedScopeTransport, calls: mixedScopeCalls } = stubTransport();
+  const mixedScopeRes = (await route(
+    context(mixedScopeTransport, "999"),
+    "POST",
+    "/api/v1/cep/provision",
+    {
+      ...DLP_CONFIG,
+      access_level: "AUTO_CREATE_CORP_OWNED",
+      internal_urls: ["https://intranet.example.com/"],
+      dlp_matrix: {
+        universal_upload: { upload: "blockContent", deviceScope: "byod_only", byodOnly: true },
+        payment_card: { upload: "off", paste: "warnUser", print: "blockContent", deviceScope: "all", byodOnly: false },
+        universal_download: { download: "blockContent", deviceScope: "mobile_byod", byodOnly: true },
+        watermark: { watermark: true, deviceScope: "ios_all", byodOnly: false },
+        genai_block: { upload: "blockContent", paste: "blockContent", deviceScope: "mobile_byod", byodOnly: true },
+      },
+    },
+  )) as ProvisionResult;
+  const mixedPosts = mixedScopeCalls
+    .filter((c) => c.method === "POST" && c.url.includes("cloudidentity.googleapis.com"))
+    .map((c) => (c.body?.setting as { value?: Record<string, unknown> } | undefined)?.value ?? {});
+  const mixedNames = mixedPosts.map((v) => v.displayName);
+  check(
+    "mixed desktop+mobile scopes still create upload/paste/print rules, mobile-only download and watermark rules are created, and mobile-only upload/paste rules are skipped",
+    mixedScopeRes.success === true &&
+      mixedNames.includes("CEP PoC - Universal file upload protection - upload") &&
+      mixedNames.includes("CEP PoC - Payment card numbers - paste") &&
+      mixedNames.includes("CEP PoC - Payment card numbers - print") &&
+      mixedNames.includes("CEP PoC - Universal file download protection - download") &&
+      mixedNames.includes("CEP PoC - Watermark internal pages - navigation") &&
+      !mixedNames.includes("CEP PoC - Consumer GenAI data protection - upload") &&
+      !mixedNames.includes("CEP PoC - Consumer GenAI data protection - paste") &&
+      mixedScopeRes.skipped_items.some((s) => s.startsWith("DLP genai_block (mobile_byod) upload:") && s.includes("Android / iOS")) &&
+      mixedScopeRes.skipped_items.some((s) => s.startsWith("DLP genai_block (mobile_byod) paste:")) &&
+      !mixedScopeRes.skipped_items.some((s) => s.includes("DLP genai_block (mobile_byod)") && s.includes("access-level CEL")),
+    JSON.stringify({ names: mixedNames, skipped: mixedScopeRes.skipped_items }),
+  );
+
+  // Legacy per-rule actions for the OS rows expand to download only.
+  const { transport: legacyMobileTransport, calls: legacyMobileCalls } = stubTransport();
+  const legacyMobileRes = (await route(
+    context(legacyMobileTransport, "999"),
+    "POST",
+    "/api/v1/cep/provision",
+    {
+      ...DLP_CONFIG,
+      access_level: "AUTO_CREATE_CORP_OWNED",
+      internal_urls: [],
+      dlp_rule_actions: {
+        universal_upload: "off",
+        universal_download: "off",
+        payment_card: "off",
+        national_id: "off",
+        access_level: "off",
+        android_byod: "blockContent",
+        ios_byod: "warnUser",
+        watermark: "off",
+        genai_block: "off",
+      },
+    },
+  )) as ProvisionResult;
+  const legacyNames = legacyMobileCalls
+    .filter((c) => c.method === "POST" && c.url.includes("cloudidentity.googleapis.com"))
+    .map((c) => ((c.body?.setting as { value?: Record<string, unknown> } | undefined)?.value ?? {}).displayName);
+  check(
+    "legacy dlp_rule_actions for android_byod / ios_byod expand to the download rule only",
+    legacyMobileRes.success === true &&
+      legacyNames.includes("CEP PoC - Android BYOD access control - download") &&
+      legacyNames.includes("CEP PoC - iOS BYOD access control - download") &&
+      legacyNames.filter((name) => String(name).includes("BYOD access control")).length === 2,
+    JSON.stringify({ names: legacyNames, skipped: legacyMobileRes.skipped_items }),
   );
 
   // When project_id is empty, resolveAccessLevel and ensureRules emit manual Admin Console steps
@@ -5549,8 +5713,8 @@ for (const mode of ["412-commit", "503-commit", "response-loss-commit"] as const
       dlp_matrix: {
         universal_upload: { upload: "blockContent", deviceScope: "byod_only", byodOnly: true },
         payment_card: { upload: "warnUser", paste: "off", print: "off", deviceScope: "all", byodOnly: false },
-        android_byod: { upload: "blockContent", download: "off", paste: "off", print: "off", deviceScope: "android_byod", byodOnly: true },
-        ios_byod: { upload: "off", download: "off", paste: "warnUser", print: "off", deviceScope: "ios_byod", byodOnly: true },
+        android_byod: { upload: "off", download: "blockContent", paste: "off", print: "off", deviceScope: "android_byod", byodOnly: true },
+        ios_byod: { upload: "off", download: "warnUser", paste: "off", print: "off", deviceScope: "ios_byod", byodOnly: true },
       },
     },
   )) as ProvisionResult;
@@ -5608,17 +5772,13 @@ for (const mode of ["412-commit", "503-commit", "response-loss-commit"] as const
             },
           ],
         },
-        payment_card: {
-          upload: "blockContent",
-          paste: "off",
-          print: "off",
+        universal_download: {
+          download: "blockContent",
           deviceScope: "android_byod",
           byodOnly: true,
           extraRows: [
             {
-              upload: "warnUser",
-              paste: "off",
-              print: "off",
+              download: "warnUser",
               deviceScope: "ios_byod",
               byodOnly: true,
             },
@@ -5636,11 +5796,11 @@ for (const mode of ["412-commit", "503-commit", "response-loss-commit"] as const
   const dupUploadCorp = extraDlpPosts.find(
     (v) => v.displayName === "CEP PoC - Universal file upload protection (corp_only) - upload",
   );
-  const primaryPaymentAndroid = extraDlpPosts.find(
-    (v) => v.displayName === "CEP PoC - Payment card numbers - upload",
+  const primaryDownloadAndroid = extraDlpPosts.find(
+    (v) => v.displayName === "CEP PoC - Universal file download protection - download",
   );
-  const dupPaymentIos = extraDlpPosts.find(
-    (v) => v.displayName === "CEP PoC - Payment card numbers (ios_byod) - upload",
+  const dupDownloadIos = extraDlpPosts.find(
+    (v) => v.displayName === "CEP PoC - Universal file download protection (ios_byod) - download",
   );
   check(
     "extraRows creates separate Cloud Identity DLP rules per duplicated row with distinct displayNames, actions, and contextCondition CEL",
@@ -5657,16 +5817,20 @@ for (const mode of ["412-commit", "503-commit", "response-loss-commit"] as const
         ((dupUploadCorp?.action as { chromeAction?: Record<string, unknown> } | undefined)?.chromeAction ?? {})
           .auditOnly,
       ) &&
-      (primaryPaymentAndroid?.condition as { contextCondition?: string } | undefined)?.contextCondition ===
+      (primaryDownloadAndroid?.condition as { contextCondition?: string } | undefined)?.contextCondition ===
         "access_levels.meets_access_requirements(['accessPolicies/999/accessLevels/secgw_android_byod'])" &&
-      (dupPaymentIos?.condition as { contextCondition?: string } | undefined)?.contextCondition ===
-        "access_levels.meets_access_requirements(['accessPolicies/999/accessLevels/secgw_ios_byod'])",
+      (dupDownloadIos?.condition as { contextCondition?: string } | undefined)?.contextCondition ===
+        "access_levels.meets_access_requirements(['accessPolicies/999/accessLevels/secgw_ios_byod'])" &&
+      Boolean(
+        ((dupDownloadIos?.action as { chromeAction?: Record<string, unknown> } | undefined)?.chromeAction ?? {})
+          .warnUser,
+      ),
     JSON.stringify({
       success: extraRowsRes.success,
       primaryUpload,
       dupUploadCorp,
-      primaryPaymentAndroid,
-      dupPaymentIos,
+      primaryDownloadAndroid,
+      dupDownloadIos,
       skipped: extraRowsRes.skipped_items,
     }),
   );
@@ -5691,7 +5855,7 @@ for (const mode of ["412-commit", "503-commit", "response-loss-commit"] as const
         s.includes('Deleted DLP rule "CEP PoC - Universal file upload protection (corp_only) - upload"'),
       ) &&
       extraRowsRollbackRes.created_items.some((s) =>
-        s.includes('Deleted DLP rule "CEP PoC - Payment card numbers (ios_byod) - upload"'),
+        s.includes('Deleted DLP rule "CEP PoC - Universal file download protection (ios_byod) - download"'),
       ),
     JSON.stringify(extraRowsRollbackRes),
   );

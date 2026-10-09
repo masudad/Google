@@ -5,8 +5,20 @@ import type {
   CepDlpDeviceScope,
   CepDlpMatrixRuleConfig,
   CepDlpMatrixState,
+  CepDlpOperation,
   CepDlpRuleId,
 } from "../../lib/api";
+import {
+  DLP_OPERATIONS,
+  DLP_PLATFORMS,
+  DLP_PLATFORM_SUPPORT,
+  DLP_PLATFORM_SUPPORT_VERIFIED_ON,
+  isOperationEnforceable,
+  supportForScope,
+  type DlpPlatform,
+  type DlpSupportLevel,
+  type ScopeOperationSupport,
+} from "./platform-support";
 
 interface DlpMatrixTableProps {
   messages: Messages;
@@ -157,14 +169,59 @@ export function DlpMatrixTable({
 
   const currentMatrix = { ...DEFAULT_DLP_MATRIX, ...matrix };
 
+  const ACTIONABLE_OPERATIONS = ["upload", "download", "paste", "print"] as const;
+  type ActionableOperation = (typeof ACTIONABLE_OPERATIONS)[number];
+
+  /** The scope a row is evaluated against; the OS rows default to their OS. */
+  function effectiveRowScope(id: CepDlpRuleId, row: CepDlpMatrixRuleConfig | undefined): CepDlpDeviceScope {
+    if (row?.deviceScope) return row.deviceScope;
+    if (id === "android_byod") return "android_byod";
+    if (id === "ios_byod") return "ios_byod";
+    if (row?.byodOnly) return "byod_only";
+    return "all";
+  }
+
+  /**
+   * Switch off every operation the row's platforms cannot enforce. A rule the
+   * mobile browser ignores must never leave this component as warn/block.
+   */
+  function sanitizeRow(id: CepDlpRuleId, row: CepDlpMatrixRuleConfig): CepDlpMatrixRuleConfig {
+    const scope = effectiveRowScope(id, row);
+    let next = row;
+    for (const operation of ACTIONABLE_OPERATIONS) {
+      const action = next[operation];
+      if (action !== undefined && action !== "off" && !isOperationEnforceable(scope, operation)) {
+        next = { ...next, [operation]: "off" };
+      }
+    }
+    if (next.extraRows) {
+      const extraRows = next.extraRows.map((extra) => sanitizeRow(id, { ...extra, extraRows: undefined }));
+      next = { ...next, extraRows };
+    }
+    return next;
+  }
+
+  function sanitizeMatrix(state: CepDlpMatrixState): CepDlpMatrixState {
+    const next: CepDlpMatrixState = {};
+    for (const [id, row] of Object.entries(state) as Array<[CepDlpRuleId, CepDlpMatrixRuleConfig | undefined]>) {
+      if (row !== undefined) next[id] = sanitizeRow(id, row);
+    }
+    return next;
+  }
+
+  function emit(state: CepDlpMatrixState) {
+    onChange(sanitizeMatrix(state));
+  }
+
   function updateRule(id: CepDlpRuleId, updater: (prev: CepDlpMatrixRuleConfig) => CepDlpMatrixRuleConfig) {
     const existing = currentMatrix[id] ?? {};
     const updated = updater(existing);
-    onChange({ ...currentMatrix, [id]: updated });
+    emit({ ...currentMatrix, [id]: updated });
   }
 
-  function cycleAction(id: CepDlpRuleId, op: "upload" | "download" | "paste" | "print") {
+  function cycleAction(id: CepDlpRuleId, op: ActionableOperation) {
     updateRule(id, (prev) => {
+      if (!isOperationEnforceable(effectiveRowScope(id, prev), op)) return prev;
       const current = prev[op] ?? "off";
       const nextIndex = (ACTION_CYCLE.indexOf(current) + 1) % ACTION_CYCLE.length;
       const nextAction = ACTION_CYCLE[nextIndex];
@@ -294,9 +351,10 @@ export function DlpMatrixTable({
   function cycleExtraAction(
     id: CepDlpRuleId,
     extraIndex: number,
-    op: "upload" | "download" | "paste" | "print",
+    op: ActionableOperation,
   ) {
     updateExtraRow(id, extraIndex, (prev) => {
+      if (!isOperationEnforceable(effectiveRowScope(id, prev), op)) return prev;
       const current = prev[op] ?? "off";
       const nextIndex = (ACTION_CYCLE.indexOf(current) + 1) % ACTION_CYCLE.length;
       const nextAction = ACTION_CYCLE[nextIndex];
@@ -350,7 +408,7 @@ export function DlpMatrixTable({
     const uploadScope: CepDlpDeviceScope = hasAnyByod && hasAnyCorp ? aggregateByodScope : "all";
     const uploadAction: CepDlpAction = hasAnyByod ? "blockContent" : "warnUser";
 
-    onChange({
+    emit({
       universal_upload: {
         upload: uploadAction,
         deviceScope: uploadScope,
@@ -444,7 +502,7 @@ export function DlpMatrixTable({
   function applyPreset(presetName: "recommended" | "strict" | "byod_mobile" | "genai" | "audit" | "gemini") {
     switch (presetName) {
       case "recommended":
-        onChange({
+        emit({
           universal_upload: { upload: "warnUser", byodOnly: false },
           universal_download: { download: "warnUser", byodOnly: false },
           payment_card: { upload: "warnUser", paste: "warnUser", print: "warnUser", byodOnly: false },
@@ -457,7 +515,7 @@ export function DlpMatrixTable({
         });
         break;
       case "strict":
-        onChange({
+        emit({
           universal_upload: { upload: "warnUser", byodOnly: false },
           universal_download: { download: "warnUser", byodOnly: false },
           payment_card: { upload: "blockContent", paste: "blockContent", print: "blockContent", byodOnly: false },
@@ -471,7 +529,7 @@ export function DlpMatrixTable({
         break;
       case "byod_mobile":
         onEnsureAccessLevel?.("AUTO_CREATE_CORP_OWNED");
-        onChange({
+        emit({
           universal_upload: { upload: "blockContent", byodOnly: true, deviceScope: "byod_only" },
           universal_download: { download: "blockContent", byodOnly: true, deviceScope: "byod_only" },
           payment_card: { upload: "blockContent", paste: "warnUser", print: "blockContent", byodOnly: false, deviceScope: "all" },
@@ -484,7 +542,7 @@ export function DlpMatrixTable({
         });
         break;
       case "genai":
-        onChange({
+        emit({
           universal_upload: { upload: "off", byodOnly: false },
           universal_download: { download: "off", byodOnly: false },
           payment_card: { upload: "warnUser", paste: "warnUser", print: "off", byodOnly: false },
@@ -497,7 +555,7 @@ export function DlpMatrixTable({
         });
         break;
       case "audit":
-        onChange({
+        emit({
           universal_upload: { upload: "auditOnly", byodOnly: false },
           universal_download: { download: "auditOnly", byodOnly: false },
           payment_card: { upload: "auditOnly", paste: "auditOnly", print: "auditOnly", byodOnly: false },
@@ -511,7 +569,7 @@ export function DlpMatrixTable({
         break;
       case "gemini":
         onEnsureAccessLevel?.("AUTO_CREATE_CORP_OWNED");
-        onChange({
+        emit({
           universal_upload: { upload: "warnUser", byodOnly: false },
           universal_download: { download: "warnUser", byodOnly: false },
           payment_card: { upload: "blockContent", paste: "blockContent", print: "blockContent", byodOnly: false },
@@ -622,6 +680,7 @@ export function DlpMatrixTable({
                 extraRow.upload,
                 () => cycleExtraAction(id, extraIdx, "upload"),
                 `${extraLabel} ${m.dlpColUpload}`,
+                cellSupport(id, "upload", extraRow),
               )}
             </td>
           ) : (
@@ -633,6 +692,7 @@ export function DlpMatrixTable({
                 extraRow.download,
                 () => cycleExtraAction(id, extraIdx, "download"),
                 `${extraLabel} ${m.dlpColDownload}`,
+                cellSupport(id, "download", extraRow),
               )}
             </td>
           ) : (
@@ -644,6 +704,7 @@ export function DlpMatrixTable({
                 extraRow.paste,
                 () => cycleExtraAction(id, extraIdx, "paste"),
                 `${extraLabel} ${m.dlpColPaste}`,
+                cellSupport(id, "paste", extraRow),
               )}
             </td>
           ) : (
@@ -655,6 +716,7 @@ export function DlpMatrixTable({
                 extraRow.print,
                 () => cycleExtraAction(id, extraIdx, "print"),
                 `${extraLabel} ${m.dlpColPrint}`,
+                cellSupport(id, "print", extraRow),
               )}
             </td>
           ) : (
@@ -673,6 +735,7 @@ export function DlpMatrixTable({
                   ? `${m.dlpActionBadgeWarn} + ${m.dlpColWatermark}`
                   : m.dlpActionBadgeOff}
               </button>
+              {renderWatermarkNote(id, extraRow)}
             </td>
           ) : (
             <td className="cell-na">—</td>
@@ -683,7 +746,98 @@ export function DlpMatrixTable({
     });
   }
 
-  function renderActionBadge(action: CepDlpAction | undefined, onClick: () => void, label: string) {
+  function cellSupport(
+    id: CepDlpRuleId,
+    operation: CepDlpOperation,
+    row?: CepDlpMatrixRuleConfig,
+  ): ScopeOperationSupport {
+    return supportForScope(effectiveRowScope(id, row ?? currentMatrix[id]), operation);
+  }
+
+  function platformName(platform: DlpPlatform): string {
+    switch (platform) {
+      case "desktop":
+        return m.dlpPlatformNameDesktop;
+      case "android":
+        return m.dlpPlatformNameAndroid;
+      case "ios":
+        return m.dlpPlatformNameIos;
+    }
+  }
+
+  function supportLevelLabel(level: DlpSupportLevel): string {
+    switch (level) {
+      case "supported":
+        return m.dlpPlatformSupported;
+      case "partial":
+        return m.dlpPlatformPartial;
+      case "unsupported":
+        return m.dlpPlatformUnsupported;
+    }
+  }
+
+  function operationLabel(operation: CepDlpOperation): string {
+    switch (operation) {
+      case "upload":
+        return m.dlpColUpload;
+      case "download":
+        return m.dlpColDownload;
+      case "paste":
+        return m.dlpColPaste;
+      case "print":
+        return m.dlpColPrint;
+      case "watermark":
+        return m.dlpColWatermark;
+    }
+  }
+
+  const PLATFORM_ICONS: Record<DlpPlatform, string> = { desktop: "💻", android: "🤖", ios: "🍎" };
+  const LEVEL_MARKS: Record<DlpSupportLevel, string> = { supported: "✓", partial: "△", unsupported: "—" };
+
+  /** Column-header summary: which platforms enforce this operation. */
+  function renderPlatformChips(operation: CepDlpOperation) {
+    return (
+      <span className="dlp-col-platforms" aria-label={m.dlpPlatformColumnHint(operationLabel(operation))}>
+        {DLP_PLATFORMS.map((platform) => {
+          const level = DLP_PLATFORM_SUPPORT[platform][operation];
+          return (
+            <span
+              className={`dlp-platform-chip is-${level}`}
+              key={platform}
+              title={`${platformName(platform)}: ${supportLevelLabel(level)}`}
+            >
+              <span aria-hidden="true">{PLATFORM_ICONS[platform]}</span>
+              <span className="sr-only">{platformName(platform)}: </span>
+              {LEVEL_MARKS[level]}
+            </span>
+          );
+        })}
+      </span>
+    );
+  }
+
+  function renderActionBadge(
+    action: CepDlpAction | undefined,
+    onClick: () => void,
+    label: string,
+    support?: ScopeOperationSupport,
+  ) {
+    if (support?.level === "unsupported") {
+      const platforms = support.unsupportedPlatforms.map(platformName).join(" / ");
+      return (
+        <button
+          aria-disabled="true"
+          aria-label={`${label}: ${m.dlpSupportUnsupportedBadge}`}
+          className="dlp-badge dlp-badge-unsupported"
+          disabled
+          title={m.dlpSupportUnsupportedHint(platforms)}
+          type="button"
+        >
+          {m.dlpSupportUnsupportedBadge}
+        </button>
+      );
+    }
+
     const act = action ?? "off";
     const badgeClass =
       act === "blockContent"
@@ -714,6 +868,13 @@ export function DlpMatrixTable({
         {text}
       </button>
     );
+  }
+
+  /** Watermark cells on mobile-only scopes apply the warning and screenshot block only. */
+  function renderWatermarkNote(id: CepDlpRuleId, row?: CepDlpMatrixRuleConfig) {
+    const support = cellSupport(id, "watermark", row);
+    if (support.level !== "partial") return null;
+    return <small className="dlp-cell-note">{m.dlpSupportPartialBadge}</small>;
   }
 
   const envItems: Array<{ key: keyof CompanyDeviceEnvState; icon: string; label: string }> = [
@@ -835,11 +996,12 @@ export function DlpMatrixTable({
           <thead>
             <tr>
               <th scope="col" className="col-threat">{m.dlpColThreat}</th>
-              <th scope="col" className="col-op">{m.dlpColUpload}</th>
-              <th scope="col" className="col-op">{m.dlpColDownload}</th>
-              <th scope="col" className="col-op">{m.dlpColPaste}</th>
-              <th scope="col" className="col-op">{m.dlpColPrint}</th>
-              <th scope="col" className="col-op">{m.dlpColWatermark}</th>
+              {DLP_OPERATIONS.map((operation) => (
+                <th scope="col" className="col-op" key={operation}>
+                  <span className="dlp-col-title">{operationLabel(operation)}</span>
+                  {renderPlatformChips(operation)}
+                </th>
+              ))}
               <th scope="col" className="col-scope">{m.dlpColDeviceScope}</th>
             </tr>
           </thead>
@@ -858,6 +1020,7 @@ export function DlpMatrixTable({
                   currentMatrix.universal_upload?.upload,
                   () => cycleAction("universal_upload", "upload"),
                   `${m.dlpRowUniversalUpload} ${m.dlpColUpload}`,
+                  cellSupport("universal_upload", "upload"),
                 )}
               </td>
               <td className="cell-na">—</td>
@@ -885,6 +1048,7 @@ export function DlpMatrixTable({
                   currentMatrix.universal_download?.download,
                   () => cycleAction("universal_download", "download"),
                   `${m.dlpRowUniversalDownload} ${m.dlpColDownload}`,
+                  cellSupport("universal_download", "download"),
                 )}
               </td>
               <td className="cell-na">—</td>
@@ -910,6 +1074,7 @@ export function DlpMatrixTable({
                   currentMatrix.payment_card?.upload,
                   () => cycleAction("payment_card", "upload"),
                   `${m.dlpRowPaymentCard} ${m.dlpColUpload}`,
+                  cellSupport("payment_card", "upload"),
                 )}
               </td>
               <td className="cell-na">—</td>
@@ -918,6 +1083,7 @@ export function DlpMatrixTable({
                   currentMatrix.payment_card?.paste,
                   () => cycleAction("payment_card", "paste"),
                   `${m.dlpRowPaymentCard} ${m.dlpColPaste}`,
+                  cellSupport("payment_card", "paste"),
                 )}
               </td>
               <td>
@@ -925,6 +1091,7 @@ export function DlpMatrixTable({
                   currentMatrix.payment_card?.print,
                   () => cycleAction("payment_card", "print"),
                   `${m.dlpRowPaymentCard} ${m.dlpColPrint}`,
+                  cellSupport("payment_card", "print"),
                 )}
               </td>
               <td className="cell-na">—</td>
@@ -952,6 +1119,7 @@ export function DlpMatrixTable({
                   currentMatrix.national_id?.upload,
                   () => cycleAction("national_id", "upload"),
                   `${m.dlpRowNationalId} ${m.dlpColUpload}`,
+                  cellSupport("national_id", "upload"),
                 )}
               </td>
               <td className="cell-na">—</td>
@@ -960,6 +1128,7 @@ export function DlpMatrixTable({
                   currentMatrix.national_id?.paste,
                   () => cycleAction("national_id", "paste"),
                   `${m.dlpRowNationalId} ${m.dlpColPaste}`,
+                  cellSupport("national_id", "paste"),
                 )}
               </td>
               <td>
@@ -967,6 +1136,7 @@ export function DlpMatrixTable({
                   currentMatrix.national_id?.print,
                   () => cycleAction("national_id", "print"),
                   `${m.dlpRowNationalId} ${m.dlpColPrint}`,
+                  cellSupport("national_id", "print"),
                 )}
               </td>
               <td className="cell-na">—</td>
@@ -991,6 +1161,7 @@ export function DlpMatrixTable({
                   currentMatrix.access_level?.upload,
                   () => cycleAction("access_level", "upload"),
                   `${m.dlpRowAccessLevel} ${m.dlpColUpload}`,
+                  cellSupport("access_level", "upload"),
                 )}
               </td>
               <td>
@@ -998,6 +1169,7 @@ export function DlpMatrixTable({
                   currentMatrix.access_level?.download,
                   () => cycleAction("access_level", "download"),
                   `${m.dlpRowAccessLevel} ${m.dlpColDownload}`,
+                  cellSupport("access_level", "download"),
                 )}
               </td>
               <td>
@@ -1005,6 +1177,7 @@ export function DlpMatrixTable({
                   currentMatrix.access_level?.paste,
                   () => cycleAction("access_level", "paste"),
                   `${m.dlpRowAccessLevel} ${m.dlpColPaste}`,
+                  cellSupport("access_level", "paste"),
                 )}
               </td>
               <td>
@@ -1012,6 +1185,7 @@ export function DlpMatrixTable({
                   currentMatrix.access_level?.print,
                   () => cycleAction("access_level", "print"),
                   `${m.dlpRowAccessLevel} ${m.dlpColPrint}`,
+                  cellSupport("access_level", "print"),
                 )}
               </td>
               <td className="cell-na">—</td>
@@ -1031,6 +1205,7 @@ export function DlpMatrixTable({
                   currentMatrix.android_byod?.upload,
                   () => cycleAction("android_byod", "upload"),
                   `${m.dlpRowAndroidByod} ${m.dlpColUpload}`,
+                  cellSupport("android_byod", "upload"),
                 )}
               </td>
               <td>
@@ -1038,6 +1213,7 @@ export function DlpMatrixTable({
                   currentMatrix.android_byod?.download,
                   () => cycleAction("android_byod", "download"),
                   `${m.dlpRowAndroidByod} ${m.dlpColDownload}`,
+                  cellSupport("android_byod", "download"),
                 )}
               </td>
               <td>
@@ -1045,6 +1221,7 @@ export function DlpMatrixTable({
                   currentMatrix.android_byod?.paste,
                   () => cycleAction("android_byod", "paste"),
                   `${m.dlpRowAndroidByod} ${m.dlpColPaste}`,
+                  cellSupport("android_byod", "paste"),
                 )}
               </td>
               <td>
@@ -1052,6 +1229,7 @@ export function DlpMatrixTable({
                   currentMatrix.android_byod?.print,
                   () => cycleAction("android_byod", "print"),
                   `${m.dlpRowAndroidByod} ${m.dlpColPrint}`,
+                  cellSupport("android_byod", "print"),
                 )}
               </td>
               <td className="cell-na">—</td>
@@ -1071,6 +1249,7 @@ export function DlpMatrixTable({
                   currentMatrix.ios_byod?.upload,
                   () => cycleAction("ios_byod", "upload"),
                   `${m.dlpRowIosByod} ${m.dlpColUpload}`,
+                  cellSupport("ios_byod", "upload"),
                 )}
               </td>
               <td>
@@ -1078,6 +1257,7 @@ export function DlpMatrixTable({
                   currentMatrix.ios_byod?.download,
                   () => cycleAction("ios_byod", "download"),
                   `${m.dlpRowIosByod} ${m.dlpColDownload}`,
+                  cellSupport("ios_byod", "download"),
                 )}
               </td>
               <td>
@@ -1085,6 +1265,7 @@ export function DlpMatrixTable({
                   currentMatrix.ios_byod?.paste,
                   () => cycleAction("ios_byod", "paste"),
                   `${m.dlpRowIosByod} ${m.dlpColPaste}`,
+                  cellSupport("ios_byod", "paste"),
                 )}
               </td>
               <td>
@@ -1092,6 +1273,7 @@ export function DlpMatrixTable({
                   currentMatrix.ios_byod?.print,
                   () => cycleAction("ios_byod", "print"),
                   `${m.dlpRowIosByod} ${m.dlpColPrint}`,
+                  cellSupport("ios_byod", "print"),
                 )}
               </td>
               <td className="cell-na">—</td>
@@ -1123,6 +1305,7 @@ export function DlpMatrixTable({
                     ? `${m.dlpActionBadgeWarn} + ${m.dlpColWatermark}`
                     : m.dlpActionBadgeOff}
                 </button>
+                {renderWatermarkNote("watermark")}
               </td>
               <td>
                 {renderScopeSelect("watermark", m.dlpRowWatermark)}
@@ -1144,6 +1327,7 @@ export function DlpMatrixTable({
                   currentMatrix.genai_block?.upload,
                   () => cycleAction("genai_block", "upload"),
                   `${m.dlpRowGenAiBlock} ${m.dlpColUpload}`,
+                  cellSupport("genai_block", "upload"),
                 )}
               </td>
               <td className="cell-na">—</td>
@@ -1152,6 +1336,7 @@ export function DlpMatrixTable({
                   currentMatrix.genai_block?.paste,
                   () => cycleAction("genai_block", "paste"),
                   `${m.dlpRowGenAiBlock} ${m.dlpColPaste}`,
+                  cellSupport("genai_block", "paste"),
                 )}
               </td>
               <td className="cell-na">—</td>
@@ -1164,6 +1349,54 @@ export function DlpMatrixTable({
           </tbody>
         </table>
       </div>
+
+      <p className="dlp-platform-legend">
+        <span>💻 {m.dlpPlatformNameDesktop}</span>
+        <span>🤖 {m.dlpPlatformNameAndroid}</span>
+        <span>🍎 {m.dlpPlatformNameIos}</span>
+        <span className="dlp-platform-legend-marks">
+          ✓ {m.dlpPlatformSupported} · △ {m.dlpPlatformPartial} · — {m.dlpPlatformUnsupported}
+        </span>
+      </p>
+
+      <details className="dlp-platform-details">
+        <summary>📱 {m.dlpPlatformDetailsTitle}</summary>
+        <p className="dlp-platform-details-intro">{m.dlpPlatformDetailsIntro}</p>
+        <table className="dlp-platform-table" aria-label={m.dlpPlatformDetailsTitle}>
+          <thead>
+            <tr>
+              <th scope="col">{m.dlpPlatformColOperation}</th>
+              {DLP_PLATFORMS.map((platform) => (
+                <th scope="col" key={platform}>
+                  {PLATFORM_ICONS[platform]} {platformName(platform)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {DLP_OPERATIONS.map((operation) => (
+              <tr key={operation}>
+                <th scope="row">{operationLabel(operation)}</th>
+                {DLP_PLATFORMS.map((platform) => {
+                  const level = DLP_PLATFORM_SUPPORT[platform][operation];
+                  return (
+                    <td className={`dlp-platform-cell is-${level}`} key={platform}>
+                      <span aria-hidden="true">{LEVEL_MARKS[level]}</span> {supportLevelLabel(level)}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <ul className="dlp-platform-notes">
+          <li>{m.dlpPlatformNoteMobileGap}</li>
+          <li>{m.dlpPlatformNoteWatermark}</li>
+          <li>{m.dlpPlatformNoteManagedProfile}</li>
+          <li>{m.dlpPlatformNoteDeviceAttributes}</li>
+        </ul>
+        <p className="dlp-platform-verified">{m.dlpPlatformVerified(DLP_PLATFORM_SUPPORT_VERIFIED_ON)}</p>
+      </details>
       <div className="dlp-action-params-card">
         <h4>⚙️ {m.dlpActionParamsTitle}</h4>
         <p className="dlp-action-params-subtitle">{m.dlpActionParamsSubtitle}</p>

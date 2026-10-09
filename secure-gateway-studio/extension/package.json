@@ -1,7 +1,7 @@
 {
   "name": "@secure-gateway-studio/extension",
   "private": true,
-  "version": "0.2.74",
+  "version": "0.2.75",
   "type": "module",
   "description": "Manifest V3 extension replacing the local FastAPI agent.",
   "scripts": {

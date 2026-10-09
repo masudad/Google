@@ -36,6 +36,10 @@ import {
   MANAGED_CHROME_ACCESS_LEVEL_SPECS,
   type ManagedChromeAccessLevelKind,
 } from "./catalog.ts";
+import {
+  isDlpOperationEnforceable,
+  unenforceableRuleReason,
+} from "./cep-platform-support.ts";
 import type { Transport } from "./executor.ts";
 import { validateLicenseAssignment } from "./licensing.ts";
 import { canonicalJson } from "../domain/canonical.ts";
@@ -1160,21 +1164,24 @@ function resolveDlpMatrix(config: CepProvisionConfig): CepDlpMatrixState {
     print: "off",
     byodOnly: false,
   };
+  // The OS rows only expand to the operations Chrome on that OS enforces; a
+  // legacy caller asking for "block everything on Android" gets the download
+  // rule, and the rest is reported as skipped by ensureRules.
   const androidByodAction = config.dlp_rule_actions?.android_byod ?? "off";
   expanded.android_byod = {
-    upload: androidByodAction,
+    upload: "off",
     download: androidByodAction,
-    paste: androidByodAction,
-    print: androidByodAction,
+    paste: "off",
+    print: "off",
     byodOnly: true,
     deviceScope: "android_byod",
   };
   const iosByodAction = config.dlp_rule_actions?.ios_byod ?? "off";
   expanded.ios_byod = {
-    upload: iosByodAction,
+    upload: "off",
     download: iosByodAction,
-    paste: iosByodAction,
-    print: iosByodAction,
+    paste: "off",
+    print: "off",
     byodOnly: true,
     deviceScope: "ios_byod",
   };
@@ -3083,6 +3090,9 @@ export class CepProvider {
                 : "off"
               : matrixRule[operation];
           if (selectedAction === undefined || selectedAction === "off") continue;
+          // A rule no platform in the scope enforces would exist in the tenant
+          // and never fire; ensureRules reports it as skipped instead.
+          if (!isDlpOperationEnforceable(deviceScope, operation)) continue;
 
           const operationLabel = operation === "watermark" ? "navigation" : operation;
           let displayName = `${base.displayName} - ${operationLabel}`;
@@ -3190,6 +3200,27 @@ export class CepProvider {
         if (!selected) continue;
 
         const scope = effectiveRuleDeviceScope(id, rule);
+        // Operations the targeted platforms ignore are dropped by dlpRules;
+        // say so here, once per row and operation, so the result is honest
+        // about what the mobile browser will and will not enforce.
+        const rowOperations: CepDlpOperation[] = [
+          ...operationKeys.filter((operation) => {
+            const action = rule[operation];
+            return action !== undefined && action !== "off";
+          }),
+          ...(rule.watermark === true ? (["watermark"] as const) : []),
+        ];
+        let enforceableOperations = 0;
+        for (const operation of rowOperations) {
+          if (isDlpOperationEnforceable(scope, operation)) {
+            enforceableOperations += 1;
+            continue;
+          }
+          skipped.push(`DLP ${id} (${scope}) ${operation}: ${unenforceableRuleReason(scope, operation)}`);
+        }
+        // Nothing left to create for this row: do not resolve an Access Level
+        // for it, and do not report a missing one.
+        if (enforceableOperations === 0) continue;
         if (
           id !== "access_level" &&
           osSpecificScopes.has(scope) &&

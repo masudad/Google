@@ -6502,6 +6502,178 @@ h1 {
   border-color: #cbd5e1;
 }
 
+/* Locked cell: the targeted platforms do not enforce this operation. */
+.dlp-badge-unsupported,
+.dlp-badge-unsupported:hover,
+.dlp-badge-unsupported:active {
+  background: repeating-linear-gradient(135deg, #f8fafc 0 6px, #eef2f7 6px 12px);
+  color: #64748b;
+  border-color: #cbd5e1;
+  border-style: dashed;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.dlp-cell-note {
+  display: block;
+  margin-top: 4px;
+  font-size: 10.5px;
+  line-height: 1.3;
+  color: var(--ink-600);
+  max-width: 150px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Column header: which platforms enforce the operation */
+.dlp-col-title {
+  display: block;
+}
+
+.dlp-col-platforms {
+  display: inline-flex;
+  gap: 4px;
+  margin-top: 4px;
+  font-weight: 600;
+  font-size: 10.5px;
+  line-height: 1;
+}
+
+.dlp-platform-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 5px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #475569;
+  font-variant-numeric: tabular-nums;
+}
+
+.dlp-platform-chip.is-supported {
+  border-color: #86efac;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.dlp-platform-chip.is-partial {
+  border-color: #fcd34d;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.dlp-platform-chip.is-unsupported {
+  border-color: #e2e8f0;
+  background: #f8fafc;
+  color: #94a3b8;
+}
+
+.dlp-platform-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 8px 0 0;
+  font-size: 11.5px;
+  color: var(--ink-600);
+}
+
+.dlp-platform-legend-marks {
+  margin-left: auto;
+}
+
+.dlp-platform-details {
+  margin: 10px 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.dlp-platform-details > summary {
+  cursor: pointer;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-800);
+  list-style: none;
+}
+
+.dlp-platform-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.dlp-platform-details > summary::before {
+  content: "▸";
+  display: inline-block;
+  width: 14px;
+  color: var(--ink-600);
+}
+
+.dlp-platform-details[open] > summary::before {
+  content: "▾";
+}
+
+.dlp-platform-details-intro,
+.dlp-platform-notes,
+.dlp-platform-verified {
+  margin: 0 14px 10px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink-700);
+}
+
+.dlp-platform-notes {
+  padding-left: 18px;
+}
+
+.dlp-platform-notes li + li {
+  margin-top: 4px;
+}
+
+.dlp-platform-verified {
+  color: var(--ink-600);
+  font-size: 11.5px;
+}
+
+.dlp-platform-table {
+  width: calc(100% - 28px);
+  margin: 0 14px 10px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.dlp-platform-table th,
+.dlp-platform-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: center;
+}
+
+.dlp-platform-table thead th {
+  background: #f1f5f9;
+  font-weight: 700;
+  color: var(--ink-800);
+}
+
+.dlp-platform-table tbody th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--ink-800);
+}
+
+.dlp-platform-cell.is-supported {
+  color: #166534;
+}
+
+.dlp-platform-cell.is-partial {
+  color: #92400e;
+}
+
+.dlp-platform-cell.is-unsupported {
+  color: #94a3b8;
+}
+
 /* Scope pill */
 .dlp-scope-pill {
   display: inline-block;

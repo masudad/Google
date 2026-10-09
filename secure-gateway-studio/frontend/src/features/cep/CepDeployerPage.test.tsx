@@ -1135,28 +1135,39 @@ describe("CepDeployerPage", () => {
 
     const payload = provision.mock.calls[0]?.[0];
     expect(payload?.dlp_rules).toBe(true);
+    // Upload rules are not enforced by Chrome on Android / iOS, so the mobile-only BYOD
+    // row is switched off while the company-owned audit row it was split from remains.
     expect(payload?.dlp_matrix?.universal_upload).toEqual(
       expect.objectContaining({
-        upload: "blockContent",
+        upload: "off",
+        deviceScope: "mobile_byod",
+        byodOnly: true,
+        extraRows: [expect.objectContaining({ upload: "auditOnly", deviceScope: "corp_only" })],
+      }),
+    );
+    expect(payload?.dlp_matrix?.universal_download).toEqual(
+      expect.objectContaining({
+        download: "blockContent",
         deviceScope: "mobile_byod",
         byodOnly: true,
       }),
     );
+    // The OS rows keep the one operation mobile Chrome enforces.
     expect(payload?.dlp_matrix?.android_byod).toEqual(
       expect.objectContaining({
-        upload: "blockContent",
+        upload: "off",
         download: "blockContent",
-        paste: "warnUser",
-        print: "blockContent",
+        paste: "off",
+        print: "off",
         deviceScope: "android_byod",
       }),
     );
     expect(payload?.dlp_matrix?.ios_byod).toEqual(
       expect.objectContaining({
-        upload: "blockContent",
+        upload: "off",
         download: "blockContent",
-        paste: "warnUser",
-        print: "blockContent",
+        paste: "off",
+        print: "off",
         deviceScope: "ios_byod",
       }),
     );

@@ -967,6 +967,26 @@ export interface CepDeployerMessages {
   dlpRemoveRowBtn: string;
   dlpExtraRowScopeHint: string;
 
+  // Platform coverage of each operation (desktop vs Android vs iOS)
+  dlpPlatformNameDesktop: string;
+  dlpPlatformNameAndroid: string;
+  dlpPlatformNameIos: string;
+  dlpPlatformSupported: string;
+  dlpPlatformPartial: string;
+  dlpPlatformUnsupported: string;
+  dlpPlatformColumnHint: (operation: string) => string;
+  dlpSupportUnsupportedBadge: string;
+  dlpSupportUnsupportedHint: (platforms: string) => string;
+  dlpSupportPartialBadge: string;
+  dlpPlatformDetailsTitle: string;
+  dlpPlatformDetailsIntro: string;
+  dlpPlatformColOperation: string;
+  dlpPlatformNoteMobileGap: string;
+  dlpPlatformNoteWatermark: string;
+  dlpPlatformNoteManagedProfile: string;
+  dlpPlatformNoteDeviceAttributes: string;
+  dlpPlatformVerified: (date: string) => string;
+
   dlpActionParamsTitle: string;
   dlpActionParamsSubtitle: string;
   dlpCustomMessageLabel: string;
@@ -2742,7 +2762,7 @@ const en: Messages = {
           eyebrow: "Scenario 1 · Browser DLP & Deep Scanning",
           title: "Real-Time File, Clipboard, Print, and Watermark Controls",
           summary:
-            "Inspects uploads, downloads, bulk pastes, and print actions via Chrome Connectors and Cloud Identity DLP, with granular desktop/mobile BYOD and company-owned device scoping plus row duplication.",
+            "Inspects uploads, downloads, bulk pastes, and print actions via Chrome Connectors and Cloud Identity DLP, with granular desktop/mobile BYOD and company-owned device scoping plus row duplication. Chrome on Android and iOS enforces the download rules today; the matrix marks what each platform enforces.",
           estimatedTime: "Time: ~30s",
           targetScope: "Pilot OU or Google Group.",
           authRequirement: "Workspace Super Admin.",
@@ -3967,7 +3987,7 @@ const en: Messages = {
 
     dlpMatrixTitle: "DLP Control Matrix",
     dlpMatrixSubtitle:
-      "Configure Block, Warn, or Off across Upload, Download, Paste, Print, Watermark, and Device/OS Scope.",
+      "Configure Block, Warn, or Off across Upload, Download, Paste, Print, Watermark, and Device/OS Scope. Chrome on Android and iOS enforces the download rules today; each column shows which platforms enforce it.",
     dlpColThreat: "Data & Threat Category",
     dlpColUpload: "Upload",
     dlpColDownload: "Download",
@@ -4000,9 +4020,9 @@ const en: Messages = {
     dlpRowAccessLevel: "Unmanaged / Context-Aware non-compliant devices",
     dlpRowAccessLevelDesc: "Enforces DLP controls via CEL access_levels.meets_access_requirements.",
     dlpRowAndroidByod: "Android BYOD device controls",
-    dlpRowAndroidByodDesc: "Enforces DLP controls on Android BYOD devices via OsType.ANDROID && !is_corp_owned_device.",
+    dlpRowAndroidByodDesc: "Targets personal Android devices via OsType.ANDROID && !is_corp_owned_device. Chrome on Android enforces download rules; upload, paste and print rules are not enforced yet.",
     dlpRowIosByod: "iPhone / iOS BYOD device controls",
-    dlpRowIosByodDesc: "Enforces DLP controls on iPhone and iPad BYOD devices via OsType.IOS && !is_corp_owned_device.",
+    dlpRowIosByodDesc: "Targets personal iPhone and iPad devices via OsType.IOS && !is_corp_owned_device. Chrome on iOS enforces download rules; upload, paste and print rules are not enforced yet.",
     dlpRowWatermark: "Internal sites / Watermark",
     dlpRowWatermarkDesc: "Applies dynamic watermarks and restricts screenshots on internal URLs.",
     dlpRowGenAiBlock: "Unapproved GenAI · allow Gemini",
@@ -4028,6 +4048,31 @@ const en: Messages = {
       "Add another row for this category to split actions across device scopes such as BYOD Block and Company-Owned Audit.",
     dlpRemoveRowBtn: "× Remove",
     dlpExtraRowScopeHint: "Additional device-scoped rule for this category.",
+
+    dlpPlatformNameDesktop: "PC · Windows / macOS / Linux / ChromeOS",
+    dlpPlatformNameAndroid: "Android",
+    dlpPlatformNameIos: "iPhone / iPad",
+    dlpPlatformSupported: "Enforced",
+    dlpPlatformPartial: "Partial",
+    dlpPlatformUnsupported: "Not enforced",
+    dlpPlatformColumnHint: (operation) => `Platforms that enforce ${operation} rules`,
+    dlpSupportUnsupportedBadge: "Not enforced",
+    dlpSupportUnsupportedHint: (platforms) =>
+      `Chrome on ${platforms} does not enforce this rule yet, so it is not created for this scope.`,
+    dlpSupportPartialBadge: "Mobile: warning + screenshot block only",
+    dlpPlatformDetailsTitle: "Platform coverage by operation",
+    dlpPlatformDetailsIntro:
+      "Which Chrome platforms enforce each Data protection rule created by this tool. Cells for scopes that only match unsupported platforms are locked.",
+    dlpPlatformColOperation: "Operation",
+    dlpPlatformNoteMobileGap:
+      "Chrome on Android and iPhone / iPad enforces download rules. Upload, paste and print rules are not enforced on mobile yet, so mobile-only scopes cannot select them and no such rule is created.",
+    dlpPlatformNoteWatermark:
+      "On mobile, the watermark row applies the URL warning and the screenshot block only; the watermark overlay itself is desktop-only.",
+    dlpPlatformNoteManagedProfile:
+      "Mobile enforcement requires Chrome signed in to a managed profile. Update Chrome to the latest version before testing.",
+    dlpPlatformNoteDeviceAttributes:
+      "Device attributes such as OS type and company ownership come from Google endpoint management. Mobile devices need basic or advanced management; otherwise the device-scoped rows do not match them.",
+    dlpPlatformVerified: (date) => `Platform support status verified on ${date}.`,
 
     dlpActionParamsTitle: "Action Parameters",
     dlpActionParamsSubtitle: "Optional message and evidence settings for triggered DLP rules",
@@ -6736,7 +6781,7 @@ const ja: Messages = {
 
     dlpMatrixTitle: "DLP コントロール マトリクス",
     dlpMatrixSubtitle:
-      "対象スコープ内の端末に対し、会社所有 / BYOD や PC / Android / iPhone の構成に合わせてアップロード・ダウンロード・貼り付け・印刷・透かしの動作を設定します。",
+      "対象スコープ内の端末に対し、会社所有 / BYOD や PC / Android / iPhone の構成に合わせてアップロード・ダウンロード・貼り付け・印刷・透かしの動作を設定します。Android / iPhone の Chrome で現在適用されるのはダウンロードのルールで、各列の表示で対応状況を確認できます。",
     dlpEnvBuilderTitle: "自社環境の端末・OS構成セレクター",
     dlpEnvBuilderSubtitle:
       "社内に存在する端末とOSのチェックを入れるだけで、会社所有とBYOD・Android・iPhoneの分離ルールを自動構成できます。",
@@ -6768,9 +6813,9 @@ const ja: Messages = {
     dlpRowAccessLevel: "未管理・BYOD端末からの操作一括制御",
     dlpRowAccessLevelDesc: "会社所有以外のBYODや未管理端末からのアップロード・ダウンロード・貼り付け・印刷を制御します。",
     dlpRowAndroidByod: "Android BYOD · 私物 Android からの操作制御",
-    dlpRowAndroidByodDesc: "私物Android端末からのファイル転送・貼り付け・印刷を個別に制限します。",
+    dlpRowAndroidByodDesc: "私物 Android 端末を対象にします。Android の Chrome で適用されるのはダウンロードのルールで、アップロード・貼り付け・印刷のルールはまだ適用されません。",
     dlpRowIosByod: "iPhone / iOS BYOD · 私物 iPhone からの操作制御",
-    dlpRowIosByodDesc: "私物iPhone / iPadからのファイル転送・貼り付け・印刷を個別に制限します。",
+    dlpRowIosByodDesc: "私物 iPhone / iPad を対象にします。iOS の Chrome で適用されるのはダウンロードのルールで、アップロード・貼り付け・印刷のルールはまだ適用されません。",
     dlpRowWatermark: "社内機密サイト保護・透かし",
     dlpRowWatermarkDesc: "登録した社内サイトに動的透かしを表示し、画面キャプチャを制限します。",
     dlpRowGenAiBlock: "未承認の生成AI利用ブロック · Geminiのみ許可",
@@ -6796,6 +6841,31 @@ const ja: Messages = {
       "同じ項目で行を追加し、BYODはブロック・会社所有は監査のみといった端末区分別の出し分けを設定します。",
     dlpRemoveRowBtn: "× 削除",
     dlpExtraRowScopeHint: "端末区分別の追加ルール行です。",
+
+    dlpPlatformNameDesktop: "PC · Windows / macOS / Linux / ChromeOS",
+    dlpPlatformNameAndroid: "Android",
+    dlpPlatformNameIos: "iPhone / iPad",
+    dlpPlatformSupported: "適用",
+    dlpPlatformPartial: "一部適用",
+    dlpPlatformUnsupported: "未対応",
+    dlpPlatformColumnHint: (operation) => `${operation}のルールが適用されるプラットフォーム`,
+    dlpSupportUnsupportedBadge: "未対応",
+    dlpSupportUnsupportedHint: (platforms) =>
+      `${platforms} の Chrome ではこのルールはまだ適用されないため、この端末区分では作成しません。`,
+    dlpSupportPartialBadge: "モバイルは警告とスクリーンショット抑止のみ",
+    dlpPlatformDetailsTitle: "操作別のプラットフォーム対応状況",
+    dlpPlatformDetailsIntro:
+      "このツールが作成するデータ保護ルールが、どの Chrome で適用されるかの一覧です。未対応のプラットフォームだけを対象にする端末区分では、該当セルは選択できません。",
+    dlpPlatformColOperation: "操作",
+    dlpPlatformNoteMobileGap:
+      "Android と iPhone / iPad の Chrome で適用されるのはダウンロードのルールです。アップロード・貼り付け・印刷のルールはモバイルではまだ適用されないため、モバイルのみの端末区分では選択できず、ルールも作成しません。",
+    dlpPlatformNoteWatermark:
+      "モバイルでは、透かし行は URL の警告とスクリーンショット抑止だけが働きます。透かしの表示そのものは PC のみです。",
+    dlpPlatformNoteManagedProfile:
+      "モバイルで適用するには、管理対象プロファイルで Chrome にログインしている必要があります。検証前に Chrome を最新版に更新してください。",
+    dlpPlatformNoteDeviceAttributes:
+      "OS 種別や会社所有かどうかといった端末属性は Google エンドポイント管理の情報を使います。モバイル端末は基本管理または詳細管理の対象である必要があり、対象外の端末には端末区分付きの行は一致しません。",
+    dlpPlatformVerified: (date) => `対応状況の確認日: ${date}`,
 
     dlpActionParamsTitle: "追加アクション パラメータ",
     dlpActionParamsSubtitle: "DLPルール発動時の表示メッセージと証拠保存設定",
