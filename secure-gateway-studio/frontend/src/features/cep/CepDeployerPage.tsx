@@ -244,6 +244,13 @@ interface SaasHeaderPreset {
 
 const SAAS_HEADER_PRESETS: readonly SaasHeaderPreset[] = [
   {
+    id: "gws",
+    app: "Google Workspace",
+    patterns: ["https://accounts.google.com", "https://*.google.com"],
+    headerNames: ["X-GoogApps-Allowed-Domains"],
+    placeholder: "example.com",
+  },
+  {
     id: "slack",
     app: "Slack",
     patterns: ["https://slack.com", "https://*.slack.com"],

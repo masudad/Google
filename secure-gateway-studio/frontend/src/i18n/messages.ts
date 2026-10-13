@@ -3814,7 +3814,7 @@ const en: Messages = {
       "Paste and upload inspection for external AI tools plus personal account blocking.",
     presetPersonalAccount: "Block personal Google accounts",
     presetPersonalAccountDesc:
-      "Enforces AllowedDomainsForApps, RestrictAccountsToPatterns, RestrictSigninToPattern, BrowserSignin, and disables Guest and Incognito modes.",
+      "Enforces AllowedDomainsForApps, RestrictAccountsToPatterns, RestrictSigninToPattern, BrowserSignin, ProfileSeparationSettings, DeveloperTools blocking, and disables Guest and Incognito modes.",
     presetEndpoint: "Endpoint hardening",
     presetEndpointDesc:
       "Enhanced Safe Browsing, real-time URL checks, Endpoint Verification, Context-Aware Access, and personal account blocking.",
@@ -3825,13 +3825,13 @@ const en: Messages = {
       "Each module is applied in its own batch.",
     moduleCorePolicies: "Chrome core security policies",
     moduleCorePoliciesDesc:
-      "Enhanced Safe Browsing, password reuse warnings, and Chrome cloud/profile reporting.",
+      "Enhanced Safe Browsing, password reuse warnings, cloud reporting, GenAI default policy, and disabling Gemini in Chrome & Google Lens overlay.",
     moduleForceExtensions: "Force-install Endpoint Verification",
     moduleForceExtensionsDesc:
       "Pushes Google's Endpoint Verification extension for device posture signals.",
     moduleConnectors: "Content inspection connectors",
     moduleConnectorsDesc:
-      "Real-time URL checks, file upload/download inspection, and security event reporting.",
+      "Real-time URL checks, file upload/download inspection, print analysis, and security event reporting.",
     accessLevelTitle: "Context-Aware Access Level",
     accessLevelSelectPrompt: "Select an Access Level to enforce",
     accessLevelHint:
@@ -3877,10 +3877,10 @@ const en: Messages = {
     dataBoundaryModeTitle: "Data boundary",
     dataBoundaryModeCopyPaste: "Inspect pasted content + block personal accounts",
     dataBoundaryModeCopyPasteDesc:
-      "Inspects pasted text and enforces AllowedDomainsForApps, RestrictAccountsToPatterns, RestrictSigninToPattern, BrowserSignin, and Guest/Incognito blocking.",
+      "Inspects pasted text and enforces AllowedDomainsForApps, RestrictAccountsToPatterns, RestrictSigninToPattern, BrowserSignin, ProfileSeparationSettings, DeveloperTools blocking, and Guest/Incognito blocking.",
     dataBoundaryModeBlockNonCorp: "Block non-corporate / personal Google accounts",
     dataBoundaryModeBlockNonCorpDesc:
-      "Enforces AllowedDomainsForApps, RestrictAccountsToPatterns, RestrictSigninToPattern, BrowserSignin, and disables Guest and Incognito modes.",
+      "Enforces AllowedDomainsForApps, RestrictAccountsToPatterns, RestrictSigninToPattern, BrowserSignin, ProfileSeparationSettings, DeveloperTools blocking, and disables Guest and Incognito modes.",
     dataBoundaryModeNone: "None",
     dataBoundaryModeNoneDesc:
       "Inherit clipboard and account settings from the parent OU.",
@@ -3977,17 +3977,27 @@ const en: Messages = {
       "Complete these settings in the Admin Console before testing.",
     manualChecklistItems: [
       {
-        title: "Turn on sensitive content storage",
-        detail: "Security > Access and data control > Data protection.",
+        title: "Enable Chrome management for signed-in users",
+        detail: "Devices > Chrome > Settings > Users & browsers > Chrome management for signed-in users.",
+        href: "https://admin.google.com/ac/chrome/settings/user",
+      },
+      {
+        title: "Assign Context-Aware Access levels to Gemini apps",
+        detail: "Security > Access and data control > Context-Aware Access > Assign access levels to Gemini app, Gemini Notebook, and Workspace Studio with Active + Block.",
+        href: "https://admin.google.com/ac/caa/apps",
+      },
+      {
+        title: "Turn on sensitive content storage & OCR",
+        detail: "Security > Access and data control > Data protection > Sensitive content & Optical character recognition.",
         href: "https://admin.google.com/ac/dp",
       },
       {
-        title: "Turn on optical character recognition",
-        detail: "Required to inspect text inside images.",
-        href: "https://admin.google.com/ac/dp",
+        title: "Restrict ChromeOS device sign-in to corporate domain",
+        detail: "Devices > Chrome > Settings > Device settings > Sign-in restriction (*@yourdomain.com).",
+        href: "https://admin.google.com/ac/chrome/settings/device",
       },
       {
-        title: "Enable automatic CEP licensing",
+        title: "Configure CEP license assignment on pilot OU",
         detail: "Billing > License settings for the pilot OU.",
         href: "https://admin.google.com/ac/billing/licensesettings",
       },
@@ -4071,7 +4081,7 @@ const en: Messages = {
     dlpRowIosByod: "iPhone / iOS BYOD device controls",
     dlpRowIosByodDesc: "Targets personal iPhone and iPad devices via OsType.IOS && !is_corp_owned_device. Chrome on iOS enforces download rules; upload, paste and print rules are not enforced yet.",
     dlpRowWatermark: "Internal sites / Watermark",
-    dlpRowWatermarkDesc: "Applies dynamic watermarks and restricts screenshots on internal URLs.",
+    dlpRowWatermarkDesc: "Applies dynamic watermarks and restricts screenshots on internal URLs. Sensitive text masking on web pages can also be enabled in the Admin Console rule editor.",
     dlpRowGenAiBlock: "Unapproved GenAI · allow Gemini",
     dlpRowGenAiBlockDesc: "Blocks unapproved AI sites while allowing corporate Gemini.",
 
@@ -4154,7 +4164,7 @@ const en: Messages = {
     geminiLayer2Bullet1:
       "Require managed Chrome browsers or corporate IP ranges.",
     geminiLayer2Bullet2:
-      "Assign Workspace CAA policies directly to the Gemini app.",
+      "Assign Workspace CAA policies to Gemini app, Gemini Notebook, and Workspace Studio.",
     geminiLayer3Title: "3. VPC Service Controls & Agent Gateway",
     geminiLayer3Desc:
       "Protect Discovery Engine APIs inside a VPC-SC perimeter.",
@@ -6646,7 +6656,7 @@ const ja: Messages = {
       "外部AIツールへの貼り付け・アップロード検査と、個人Googleアカウントのブロックを有効化します。",
     presetPersonalAccount: "個人アカウントのブロック",
     presetPersonalAccountDesc:
-      "AllowedDomainsForApps、RestrictAccountsToPatterns、RestrictSigninToPattern、BrowserSignin、ゲスト・シークレットモード禁止を一括設定します。",
+      "AllowedDomainsForApps、RestrictAccountsToPatterns、RestrictSigninToPattern、BrowserSignin、プロファイル分離強制、デベロッパーツール無効化、ゲスト・シークレットモード禁止を一括設定します。",
     presetEndpoint: "端末ハードニング",
     presetEndpointDesc:
       "強化セーフブラウジング、リアルタイムURL検査、Endpoint Verification、アクセス制御、個人アカウントのブロックを有効化します。",
@@ -6657,13 +6667,13 @@ const ja: Messages = {
       "モジュール単位で個別に適用します。",
     moduleCorePolicies: "Chrome コアセキュリティポリシー",
     moduleCorePoliciesDesc:
-      "強化セーフブラウジング、パスワード使い回し警告、クラウドレポートを有効化します。",
+      "強化セーフブラウジング、パスワード使い回し警告、クラウドレポート、生成AIデフォルト制御、Chrome内Gemini統合・Googleレンズオーバーレイの無効化を設定します。",
     moduleForceExtensions: "Endpoint Verification の強制インストール",
     moduleForceExtensionsDesc:
       "Endpoint Verification拡張機能を自動配信し、端末状態を収集します。",
     moduleConnectors: "コンテンツ検査コネクタ",
     moduleConnectorsDesc:
-      "リアルタイムURL検査、ファイルのアップロード・ダウンロード検査、イベント送信を有効化します。",
+      "リアルタイムURL検査、ファイルのアップロード・ダウンロード検査、ページ印刷時の分析コネクタ、セキュリティイベント送信を有効化します。",
     accessLevelTitle: "コンテキストアウェアアクセスレベル",
     accessLevelSelectPrompt: "適用するアクセスレベルを選択",
     accessLevelHint:
@@ -6709,10 +6719,10 @@ const ja: Messages = {
     dataBoundaryModeTitle: "データ境界",
     dataBoundaryModeCopyPaste: "貼り付け内容を検査する ＋ 個人アカウントをブロック",
     dataBoundaryModeCopyPasteDesc:
-      "貼り付けテキストを検査し、AllowedDomainsForApps、RestrictAccountsToPatterns、RestrictSigninToPattern、BrowserSignin、ゲスト・シークレットモード禁止を設定します。",
+      "貼り付けテキストを検査し、AllowedDomainsForApps、RestrictAccountsToPatterns、RestrictSigninToPattern、BrowserSignin、プロファイル分離強制、デベロッパーツール無効化、ゲスト・シークレットモード禁止を設定します。",
     dataBoundaryModeBlockNonCorp: "個人・非社用の Google アカウントを遮断する",
     dataBoundaryModeBlockNonCorpDesc:
-      "AllowedDomainsForApps、RestrictAccountsToPatterns、RestrictSigninToPattern、BrowserSignin、ゲスト・シークレットモード禁止を一括設定します。",
+      "AllowedDomainsForApps、RestrictAccountsToPatterns、RestrictSigninToPattern、BrowserSignin、プロファイル分離強制、デベロッパーツール無効化、ゲスト・シークレットモード禁止を一括設定します。",
     dataBoundaryModeNone: "なし",
     dataBoundaryModeNoneDesc:
       "親OUの設定をそのまま継承します。",
@@ -6808,17 +6818,27 @@ const ja: Messages = {
       "API非対応のため、動作テスト前にGoogle管理コンソールで設定してください。",
     manualChecklistItems: [
       {
-        title: "機密コンテンツの保存を有効化",
-        detail: "セキュリティ › アクセスとデータ管理 › データ保護",
+        title: "ログイン ユーザーに対する Chrome 管理を有効化",
+        detail: "デバイス › Chrome › 設定 › ユーザーとブラウザの設定 › ログイン ユーザーに対する Chrome 管理",
+        href: "https://admin.google.com/ac/chrome/settings/user",
+      },
+      {
+        title: "Gemini アプリへのコンテキストアウェア アクセス割り当て",
+        detail: "セキュリティ › アクセスとデータ管理 › コンテキストアウェア アクセス › アクセスレベルの割り当てで Gemini アプリ・Gemini Notebook・Workspace Studio にアクティブ＋操作をブロックを設定します。",
+        href: "https://admin.google.com/ac/caa/apps",
+      },
+      {
+        title: "機密コンテンツの保存と光学文字認識 · OCR を有効化",
+        detail: "セキュリティ › アクセスとデータ管理 › データ保護で機密コンテンツの保存と画像内テキスト検出を有効化します。",
         href: "https://admin.google.com/ac/dp",
       },
       {
-        title: "光学文字認識 · OCR を有効化",
-        detail: "画像内のテキスト検出に使用します。",
-        href: "https://admin.google.com/ac/dp",
+        title: "ChromeOS デバイスのログイン制限",
+        detail: "デバイス › Chrome › 設定 › デバイスの設定 › ログインの制限で *@自社ドメイン を指定します。",
+        href: "https://admin.google.com/ac/chrome/settings/device",
       },
       {
-        title: "CEP ライセンスの自動割り当てを有効化",
+        title: "CEP ライセンスの自動割り当て設定",
         detail: "お支払い › ライセンス設定でパイロットOUに設定します。",
         href: "https://admin.google.com/ac/billing/licensesettings",
       },
@@ -6901,7 +6921,7 @@ const ja: Messages = {
     dlpRowIosByod: "iPhone / iOS BYOD · 私物 iPhone からの操作制御",
     dlpRowIosByodDesc: "私物 iPhone / iPad を対象にします。iOS の Chrome で適用されるのはダウンロードのルールで、アップロード・貼り付け・印刷のルールはまだ適用されません。",
     dlpRowWatermark: "社内機密サイト保護・透かし",
-    dlpRowWatermarkDesc: "登録した社内サイトに動的透かしを表示し、画面キャプチャを制限します。",
+    dlpRowWatermarkDesc: "登録した社内サイトに動的透かしを表示し、画面キャプチャ・画面共有を制限します。管理コンソールのルール編集からページ上の機密テキストのマスキングも併用できます。",
     dlpRowGenAiBlock: "未承認の生成AI利用ブロック · Geminiのみ許可",
     dlpRowGenAiBlockDesc: "未承認の外部AIサイトを遮断し、社内Geminiのみ利用を許可します。",
 
@@ -6984,7 +7004,7 @@ const ja: Messages = {
     geminiLayer2Bullet1:
       "管理対象Chromeブラウザまたは社内IPアドレスを条件に設定します。",
     geminiLayer2Bullet2:
-      "Google WorkspaceのCAA設定でGeminiアプリを保護します。",
+      "Google WorkspaceのCAA設定でGeminiアプリ・Gemini Notebook・Workspace Studioを保護します。",
     geminiLayer3Title: "3. VPC Service Controls & Agent Gateway",
     geminiLayer3Desc:
       "API境界でDiscovery Engineを隔離・保護します。",

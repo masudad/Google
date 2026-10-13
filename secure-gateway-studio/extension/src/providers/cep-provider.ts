@@ -1251,6 +1251,57 @@ const CEP_POLICIES: readonly CepPolicyDefinition[] = [
     schema: "chrome.users.CloudProfileReportingEnabled",
     fields: [{ name: /cloudProfileReporting/i, value: () => true }],
   },
+  {
+    module: "core",
+    ou: "users",
+    label: "Generative AI default policy (GenAiDefaultSettings)",
+    schema: "chrome.users.GenAiDefaultSettings",
+    schemaMatcher: /GenAiDefaultSettings/i,
+    fields: [
+      {
+        name: /^genAiDefaultSettings$/i,
+        enumHint: {
+          prefer: /ALLOWED_WITHOUT_LOGGING/i,
+          avoid: /UNSPECIFIED|UNSET|(?:^|_)ALLOWED$|DISABLED/i,
+        },
+        value: () => "GEN_AI_DEFAULT_SETTINGS_ENUM_ALLOWED_WITHOUT_LOGGING",
+      },
+    ],
+  },
+  {
+    module: "core",
+    ou: "users",
+    label: "Disable Gemini in Chrome integration (GeminiSettings)",
+    schema: "chrome.users.GeminiSettings",
+    schemaMatcher: /\.GeminiSettings$/i,
+    fields: [
+      {
+        name: /^geminiSettings$/i,
+        enumHint: {
+          prefer: /DISABLED/i,
+          avoid: /UNSPECIFIED|UNSET|ENABLED/i,
+        },
+        value: () => "GEMINI_SETTINGS_ENUM_DISABLED",
+      },
+    ],
+  },
+  {
+    module: "core",
+    ou: "users",
+    label: "Disable Google Lens overlay (LensOverlaySettings)",
+    schema: "chrome.users.LensOverlaySettings",
+    schemaMatcher: /LensOverlaySettings/i,
+    fields: [
+      {
+        name: /^lensOverlaySettings$/i,
+        enumHint: {
+          prefer: /DISABLED/i,
+          avoid: /UNSPECIFIED|UNSET|ENABLED/i,
+        },
+        value: () => "LENS_OVERLAY_SETTINGS_ENUM_DISABLED",
+      },
+    ],
+  },
 
   // -- Extensions -------------------------------------------------------------
   {
@@ -1288,6 +1339,14 @@ const CEP_POLICIES: readonly CepPolicyDefinition[] = [
     schema: "chrome.users.OnFileDownloadedConnectorPolicy",
     schemaMatcher: /FileDownloaded|DownloadScanning/i,
     fields: connectorFields(/FileDownloaded.*Configuration$/i),
+  },
+  {
+    module: "connectors",
+    ou: "users",
+    label: "Print content inspection (OnPrintAnalysisConnectorPolicy)",
+    schema: "chrome.users.OnPrintAnalysisConnectorPolicy",
+    schemaMatcher: /PrintAnalysisConnector|OnPrint.*Connector|PrintScanning/i,
+    fields: connectorFields(/Print.*Configuration$/i),
   },
   {
     module: "connectors",
@@ -1407,6 +1466,26 @@ const CEP_POLICIES: readonly CepPolicyDefinition[] = [
   {
     module: "dataBoundary",
     ou: "users",
+    label: "Enforce enterprise profile separation (ProfileSeparationSettings)",
+    schema: "chrome.users.ProfileSeparationSettings",
+    schemaMatcher: /ProfileSeparationSettings/i,
+    appliesTo: (config) =>
+      config.data_boundary_mode === "copy_paste" ||
+      config.data_boundary_mode === "block_non_corp",
+    fields: [
+      {
+        name: /^profileSeparationSettings$/i,
+        enumHint: {
+          prefer: /ENFORCED/i,
+          avoid: /UNSPECIFIED|SUGGESTED|DISABLED/i,
+        },
+        value: () => "PROFILE_SEPARATION_SETTINGS_ENUM_ENFORCED",
+      },
+    ],
+  },
+  {
+    module: "dataBoundary",
+    ou: "users",
     label: "Disable Chrome guest mode (BrowserGuestModeEnabled)",
     schema: "chrome.users.BrowserGuestModeEnabled",
     schemaMatcher: /BrowserGuestModeEnabled/i,
@@ -1435,6 +1514,35 @@ const CEP_POLICIES: readonly CepPolicyDefinition[] = [
         name: /^incognitoModeAvailability$/i,
         enumHint: { prefer: /UNAVAILABLE|DISABLED|DISALLOW/i, avoid: /UNSPECIFIED|(?:^|_)AVAILABLE$|FORCED/i },
         value: () => "INCOGNITO_MODE_AVAILABILITY_ENUM_UNAVAILABLE",
+      },
+    ],
+  },
+  {
+    module: "dataBoundary",
+    ou: "users",
+    label: "Disable Developer Tools and extension developer mode (DeveloperTools)",
+    schema: "chrome.users.DeveloperTools",
+    schemaMatcher: /\.DeveloperTools$|DeveloperToolsAvailability/i,
+    appliesTo: (config) =>
+      config.data_boundary_mode === "copy_paste" ||
+      config.data_boundary_mode === "block_non_corp",
+    fields: [
+      {
+        name: /^developerToolsAvailability$/i,
+        enumHint: {
+          prefer: /NEVER_ALLOW|DISALLOW/i,
+          avoid: /UNSPECIFIED|ALWAYS_ALLOW|EXCEPT_FORCE/i,
+        },
+        value: () => "DEVELOPER_TOOLS_AVAILABILITY_ENUM_NEVER_ALLOW_DEVELOPER_TOOLS",
+      },
+      {
+        name: /^extensionDeveloperModeSettings$/i,
+        enumHint: {
+          prefer: /DISALLOW/i,
+          avoid: /UNSPECIFIED|UNSET|(?:^|_)ALLOW$/i,
+        },
+        value: () => "EXTENSION_DEVELOPER_MODE_SETTINGS_ENUM_DISALLOW",
+        optional: true,
       },
     ],
   },

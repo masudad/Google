@@ -170,6 +170,40 @@ const SCHEMA_FIELDS: Record<string, StubField[]> = {
   "chrome.users.CloudProfileReportingEnabled": [
     { name: "cloudProfileReportingEnabled", type: "TYPE_BOOL" },
   ],
+  "chrome.users.GenAiDefaultSettings": [
+    {
+      name: "genAiDefaultSettings",
+      type: "TYPE_ENUM",
+      enums: [
+        "GEN_AI_DEFAULT_SETTINGS_ENUM_UNSET_DEFAULTS",
+        "GEN_AI_DEFAULT_SETTINGS_ENUM_ALLOWED",
+        "GEN_AI_DEFAULT_SETTINGS_ENUM_ALLOWED_WITHOUT_LOGGING",
+        "GEN_AI_DEFAULT_SETTINGS_ENUM_DISABLED",
+      ],
+    },
+  ],
+  "chrome.users.GeminiSettings": [
+    {
+      name: "geminiSettings",
+      type: "TYPE_ENUM",
+      enums: [
+        "GEMINI_SETTINGS_ENUM_UNSET",
+        "GEMINI_SETTINGS_ENUM_ENABLED",
+        "GEMINI_SETTINGS_ENUM_DISABLED",
+      ],
+    },
+  ],
+  "chrome.users.LensOverlaySettings": [
+    {
+      name: "lensOverlaySettings",
+      type: "TYPE_ENUM",
+      enums: [
+        "LENS_OVERLAY_SETTINGS_ENUM_UNSET",
+        "LENS_OVERLAY_SETTINGS_ENUM_ENABLED",
+        "LENS_OVERLAY_SETTINGS_ENUM_DISABLED",
+      ],
+    },
+  ],
   "chrome.users.apps.InstallType": [{ name: "appInstallType", type: "TYPE_STRING" }],
   "chrome.users.RealtimeUrlCheck": [
     { name: "realtimeUrlCheckEnabled", type: "TYPE_BOOL" },
@@ -203,6 +237,20 @@ const SCHEMA_FIELDS: Record<string, StubField[]> = {
       name: "delayDeliveryUntilVerdict",
       type: "TYPE_ENUM",
       enums: ["DELAY_UNSPECIFIED", "DELAY_NONE", "DELAY_DOWNLOADS"],
+    },
+  ],
+  "chrome.users.OnPrintAnalysisConnectorPolicy": [
+    {
+      name: "onPrintAnalysisConnectorConfiguration",
+      type: "TYPE_ENUM",
+      enums: ["ANALYSIS_CONNECTOR_UNSPECIFIED", "DISABLED", "SCAN_ALL_PRINT"],
+    },
+    { name: "printConfiguration", type: "TYPE_MESSAGE" },
+    { name: "serviceProvider", type: "TYPE_STRING" },
+    {
+      name: "delayDeliveryUntilVerdict",
+      type: "TYPE_ENUM",
+      enums: ["DELAY_UNSPECIFIED", "DELAY_NONE", "DELAY_UPLOAD"],
     },
   ],
   "chrome.users.OnSecurityEvent": [
@@ -250,6 +298,17 @@ const SCHEMA_FIELDS: Record<string, StubField[]> = {
       ],
     },
   ],
+  "chrome.users.ProfileSeparationSettings": [
+    {
+      name: "profileSeparationSettings",
+      type: "TYPE_ENUM",
+      enums: [
+        "PROFILE_SEPARATION_SETTINGS_ENUM_SUGGESTED",
+        "PROFILE_SEPARATION_SETTINGS_ENUM_ENFORCED",
+        "PROFILE_SEPARATION_SETTINGS_ENUM_DISABLED",
+      ],
+    },
+  ],
   "chrome.users.BrowserGuestModeEnabled": [
     { name: "browserGuestModeEnabled", type: "TYPE_BOOL" },
   ],
@@ -262,6 +321,26 @@ const SCHEMA_FIELDS: Record<string, StubField[]> = {
         "INCOGNITO_MODE_AVAILABILITY_ENUM_AVAILABLE",
         "INCOGNITO_MODE_AVAILABILITY_ENUM_UNAVAILABLE",
         "INCOGNITO_MODE_AVAILABILITY_ENUM_FORCED",
+      ],
+    },
+  ],
+  "chrome.users.DeveloperTools": [
+    {
+      name: "developerToolsAvailability",
+      type: "TYPE_ENUM",
+      enums: [
+        "DEVELOPER_TOOLS_AVAILABILITY_ENUM_ALWAYS_ALLOW_DEVELOPER_TOOLS",
+        "DEVELOPER_TOOLS_AVAILABILITY_ENUM_ALLOW_DEVELOPER_TOOLS_EXCEPT_FORCE_INSTALLED",
+        "DEVELOPER_TOOLS_AVAILABILITY_ENUM_NEVER_ALLOW_DEVELOPER_TOOLS",
+      ],
+    },
+    {
+      name: "extensionDeveloperModeSettings",
+      type: "TYPE_ENUM",
+      enums: [
+        "EXTENSION_DEVELOPER_MODE_SETTINGS_ENUM_UNSET",
+        "EXTENSION_DEVELOPER_MODE_SETTINGS_ENUM_ALLOW",
+        "EXTENSION_DEVELOPER_MODE_SETTINGS_ENUM_DISALLOW",
       ],
     },
   ],
@@ -1214,6 +1293,94 @@ for (const [path, payload] of [
     "IncognitoModeAvailability disables incognito mode (INCOGNITO_MODE_AVAILABILITY_ENUM_UNAVAILABLE)",
     incognitoVal === "INCOGNITO_MODE_AVAILABILITY_ENUM_UNAVAILABLE",
     JSON.stringify(incognitoVal),
+  );
+
+  const profileSepReq = requests.find(
+    (request) =>
+      (request.policyValue as { policySchema?: string }).policySchema ===
+      "chrome.users.ProfileSeparationSettings",
+  );
+  const profileSepVal = (
+    (profileSepReq?.policyValue as { value?: Record<string, unknown> })?.value ?? {}
+  ).profileSeparationSettings;
+  check(
+    "ProfileSeparationSettings enforces enterprise profile separation (PROFILE_SEPARATION_SETTINGS_ENUM_ENFORCED)",
+    profileSepVal === "PROFILE_SEPARATION_SETTINGS_ENUM_ENFORCED",
+    JSON.stringify(profileSepVal),
+  );
+
+  const devToolsReq = requests.find(
+    (request) =>
+      (request.policyValue as { policySchema?: string }).policySchema ===
+      "chrome.users.DeveloperTools",
+  );
+  const devToolsVal = (
+    (devToolsReq?.policyValue as { value?: Record<string, unknown> })?.value ?? {}
+  );
+  check(
+    "DeveloperTools disables Developer Tools and extension developer mode",
+    devToolsVal.developerToolsAvailability ===
+      "DEVELOPER_TOOLS_AVAILABILITY_ENUM_NEVER_ALLOW_DEVELOPER_TOOLS" &&
+      devToolsVal.extensionDeveloperModeSettings ===
+        "EXTENSION_DEVELOPER_MODE_SETTINGS_ENUM_DISALLOW",
+    JSON.stringify(devToolsVal),
+  );
+
+  const genAiDefaultReq = requests.find(
+    (request) =>
+      (request.policyValue as { policySchema?: string }).policySchema ===
+      "chrome.users.GenAiDefaultSettings",
+  );
+  const genAiDefaultVal = (
+    (genAiDefaultReq?.policyValue as { value?: Record<string, unknown> })?.value ?? {}
+  ).genAiDefaultSettings;
+  check(
+    "GenAiDefaultSettings sets generative AI default policy without model improvement logging",
+    genAiDefaultVal === "GEN_AI_DEFAULT_SETTINGS_ENUM_ALLOWED_WITHOUT_LOGGING",
+    JSON.stringify(genAiDefaultVal),
+  );
+
+  const geminiSettingsReq = requests.find(
+    (request) =>
+      (request.policyValue as { policySchema?: string }).policySchema ===
+      "chrome.users.GeminiSettings",
+  );
+  const geminiSettingsVal = (
+    (geminiSettingsReq?.policyValue as { value?: Record<string, unknown> })?.value ?? {}
+  ).geminiSettings;
+  check(
+    "GeminiSettings disables Gemini in Chrome integration (GEMINI_SETTINGS_ENUM_DISABLED)",
+    geminiSettingsVal === "GEMINI_SETTINGS_ENUM_DISABLED",
+    JSON.stringify(geminiSettingsVal),
+  );
+
+  const lensOverlayReq = requests.find(
+    (request) =>
+      (request.policyValue as { policySchema?: string }).policySchema ===
+      "chrome.users.LensOverlaySettings",
+  );
+  const lensOverlayVal = (
+    (lensOverlayReq?.policyValue as { value?: Record<string, unknown> })?.value ?? {}
+  ).lensOverlaySettings;
+  check(
+    "LensOverlaySettings disables Google Lens overlay (LENS_OVERLAY_SETTINGS_ENUM_DISABLED)",
+    lensOverlayVal === "LENS_OVERLAY_SETTINGS_ENUM_DISABLED",
+    JSON.stringify(lensOverlayVal),
+  );
+
+  const printConnectorReq = requests.find(
+    (request) =>
+      (request.policyValue as { policySchema?: string }).policySchema ===
+      "chrome.users.OnPrintAnalysisConnectorPolicy",
+  );
+  const printConnectorVal = (
+    (printConnectorReq?.policyValue as { value?: Record<string, unknown> })?.value ?? {}
+  );
+  check(
+    "OnPrintAnalysisConnectorPolicy enables print content analysis scanning",
+    printConnectorVal.onPrintAnalysisConnectorConfiguration === "SCAN_ALL_PRINT" &&
+      printConnectorVal.serviceProvider === "google",
+    JSON.stringify(printConnectorVal),
   );
 
   // Connector policies carry several fields, and each enum has to come from
