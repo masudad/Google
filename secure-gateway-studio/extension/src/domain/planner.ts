@@ -279,14 +279,63 @@ export function requiredPermissions(spec: DeploymentSpec): Set<string> {
   return permissions;
 }
 
-function classify(resource: DesiredResource, snapshot: DiscoverySnapshot): ResourceChange {
+function computeForceRecreatedKeys(
+  spec: DeploymentSpec,
+  resources: DesiredResource[],
+  snapshot: DiscoverySnapshot,
+): Set<string> {
+  const recreated = new Set<string>();
+  if (!spec.force_overwrite) return recreated;
+  const conflicting = new Set(snapshot.conflicting_resource_keys ?? []);
+  for (const resource of resources) {
+    const resourceKey = key(resource);
+    if (!resource.mustExist && conflicting.has(resourceKey)) {
+      recreated.add(resourceKey);
+    }
+  }
+  if (recreated.size === 0) return recreated;
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+    const recreatingNetwork = [...recreated].some((k) => k.startsWith("compute:network:"));
+    const recreatingSubnet = [...recreated].some((k) => k.startsWith("compute:subnetwork:"));
+    for (const resource of resources) {
+      const resourceKey = key(resource);
+      if (recreated.has(resourceKey) || resource.mustExist || resource.shared) continue;
+      const deps = resource.dependencies ?? [];
+      const depRecreated = deps.some((dep) => recreated.has(dep));
+      const implicitNetworkDep =
+        recreatingNetwork &&
+        (resource.provider === "compute" || resource.provider === "dns");
+      const implicitSubnetDep =
+        recreatingSubnet &&
+        ((resource.provider === "compute" && resource.resourceType !== "network") ||
+          (resource.provider === "dns" && resource.resourceType === "record_set"));
+      if (depRecreated || implicitNetworkDep || implicitSubnetDep) {
+        recreated.add(resourceKey);
+        changed = true;
+      }
+    }
+  }
+  return recreated;
+}
+
+function classify(
+  resource: DesiredResource,
+  snapshot: DiscoverySnapshot,
+  forceRecreatedKeys: ReadonlySet<string> = new Set(),
+): ResourceChange {
   const resourceKey = key(resource);
   const conflicting = new Set(snapshot.conflicting_resource_keys ?? []);
   const existing = new Set(snapshot.existing_resource_keys ?? []);
 
   let action: ChangeAction;
   let risk: RiskLevel;
-  if (conflicting.has(resourceKey)) {
+  if (forceRecreatedKeys.has(resourceKey) && !resource.mustExist) {
+    action = "create";
+    risk = resource.risk === "blocking" ? "high" : resource.risk;
+  } else if (conflicting.has(resourceKey)) {
     action = "conflict";
     risk = "blocking";
   } else if (existing.has(resourceKey)) {
@@ -568,8 +617,10 @@ function pathBResources(
       provider: "chromepolicy",
       resourceType: "group_extension_configuration",
       name: groupEmail,
-      risk: "blocking",
-      summary: "A group policy overrides the target OU Secure Gateway configuration",
+      risk: spec.force_overwrite ? "high" : "blocking",
+      summary: spec.force_overwrite
+        ? "Clear conflicting group policy override for Secure Enterprise Browser"
+        : "A group policy overrides the target OU Secure Gateway configuration",
       shared: true,
     });
   }
@@ -938,8 +989,10 @@ function pathAResources(
       provider: "chromepolicy",
       resourceType: "group_extension_configuration",
       name: groupEmail,
-      risk: "blocking",
-      summary: "A group policy overrides the target OU Secure Gateway configuration",
+      risk: spec.force_overwrite ? "high" : "blocking",
+      summary: spec.force_overwrite
+        ? "Clear conflicting group policy override for Secure Enterprise Browser"
+        : "A group policy overrides the target OU Secure Gateway configuration",
       shared: true,
     });
   }
@@ -1357,8 +1410,10 @@ export function buildPlan(
   spec: DeploymentSpec,
   snapshot: DiscoverySnapshot = {},
 ): DeploymentPlan {
-  const changes = desiredResources(spec, snapshot).map((resource) =>
-    classify(resource, snapshot),
+  const desired = desiredResources(spec, snapshot);
+  const forceRecreatedKeys = computeForceRecreatedKeys(spec, desired, snapshot);
+  const changes = desired.map((resource) =>
+    classify(resource, snapshot, forceRecreatedKeys),
   );
   const gateList = gates(spec, snapshot, changes);
   const publicCertificateBinding =
@@ -1457,7 +1512,16 @@ function pathIlbResources(
     ...chromePolicyResources(spec),
   );
   for (const groupEmail of snapshot.chrome_extension_group_conflicts ?? []) {
-    resources.push({ provider: "chromepolicy", resourceType: "group_extension_configuration", name: groupEmail, risk: "blocking", summary: "A group policy overrides the target OU Secure Gateway configuration", shared: true });
+    resources.push({
+      provider: "chromepolicy",
+      resourceType: "group_extension_configuration",
+      name: groupEmail,
+      risk: spec.force_overwrite ? "high" : "blocking",
+      summary: spec.force_overwrite
+        ? "Clear conflicting group policy override for Secure Enterprise Browser"
+        : "A group policy overrides the target OU Secure Gateway configuration",
+      shared: true,
+    });
   }
   return resources;
 }

@@ -1088,6 +1088,22 @@ export function EnvironmentStep({
           </label>
         )}
       </div>
+      <label className="confirmation-row">
+        <input
+          checked={Boolean(state.forceOverwrite)}
+          onChange={(event) =>
+            onPatch({
+              forceOverwrite: event.target.checked,
+              approvalConfirmed: false,
+            })
+          }
+          type="checkbox"
+        />
+        <span>
+          <strong>{copy.forceOverwriteLabel}</strong>
+          <small className="field-hint">{copy.forceOverwriteHint}</small>
+        </span>
+      </label>
       <h3 className="subsection-title">{copy.network}</h3>
       <div className="protocol-category-block">
         <div className="protocol-category-header is-https">
@@ -2247,6 +2263,15 @@ export function ReviewStep({
     void onPrepare({ ...state, ...patch });
   }
 
+  function handleForceOverwriteAndRepreflight() {
+    const patch = {
+      forceOverwrite: true,
+      approvalConfirmed: false,
+    };
+    onPatch(patch);
+    void onPrepare({ ...state, ...patch });
+  }
+
   const [preflightProgress, setPreflightProgress] = useState(0);
   const [preflightStage, setPreflightStage] = useState(1);
   const [bootstrapBusy, setBootstrapBusy] = useState(false);
@@ -2674,14 +2699,24 @@ export function ReviewStep({
           {busy && !preparedPlan ? copy.preparingPlan : copy.runPreflight}
         </button>
         {hasResourceConflict && (
-          <button
-            className="connection-action secondary"
-            disabled={busy}
-            onClick={handleAutoRenameAndRepreflight}
-            type="button"
-          >
-            {copy.autoRenameAndRepreflight}
-          </button>
+          <>
+            <button
+              className="connection-action"
+              disabled={busy}
+              onClick={handleForceOverwriteAndRepreflight}
+              type="button"
+            >
+              {copy.forceOverwriteAndRepreflight}
+            </button>
+            <button
+              className="connection-action secondary"
+              disabled={busy}
+              onClick={handleAutoRenameAndRepreflight}
+              type="button"
+            >
+              {copy.autoRenameAndRepreflight}
+            </button>
+          </>
         )}
         {preparedPlan && (
           <p className={`plan-result ${gatesReady ? "pass" : "blocked"}`}>

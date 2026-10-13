@@ -2981,6 +2981,24 @@ describe("Secure Gateway Studio mode screen", () => {
       screen.getByText(/compute:network:secure-gateway-direct-https-demo-vpc/),
     ).toBeInTheDocument();
 
+    const forceOverwriteButtons = screen.getAllByRole("button", {
+      name: "既存リソースを強制上書きして再確認",
+    });
+    expect(forceOverwriteButtons.length).toBeGreaterThanOrEqual(1);
+    fireEvent.click(forceOverwriteButtons[0]!);
+    expect(onPatch).toHaveBeenCalledWith({
+      forceOverwrite: true,
+      approvalConfirmed: false,
+    });
+    await waitFor(() => {
+      expect(onPrepare).toHaveBeenCalledWith(
+        expect.objectContaining({
+          forceOverwrite: true,
+          approvalConfirmed: false,
+        }),
+      );
+    });
+
     fireEvent.click(renameButtons[0]!);
 
     expect(onPatch).toHaveBeenCalledWith({

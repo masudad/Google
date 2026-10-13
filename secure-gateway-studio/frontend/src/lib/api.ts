@@ -73,6 +73,7 @@ export interface DeploymentSpec {
   allow_external_ips: false;
   require_cloud_nat: true;
   require_human_approval: true;
+  force_overwrite?: boolean;
 }
 
 export interface PreflightDiagnostic {

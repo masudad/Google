@@ -787,18 +787,28 @@ export async function applyPathA(
       );
       if (existing.length > 0) {
         if (
-          existing.length !== 1 ||
-          !isCloudNatRetry(context.beforeImage, routerUrl, change.resource_name, expected) ||
-          !isCompatibleCloudNat(existing[0], expected)
+          existing.length === 1 &&
+          isCloudNatRetry(context.beforeImage, routerUrl, change.resource_name, expected) &&
+          isCompatibleCloudNat(existing[0], expected)
         ) {
+          return;
+        }
+        if (!spec.force_overwrite) {
           throw new ProviderExecutionError("cloud-nat-reconciliation-failed");
         }
-        return;
       }
-      nats.push(expected);
+      const nextNats = spec.force_overwrite
+        ? nats.filter(
+            (nat) =>
+              typeof nat !== "object" ||
+              nat === null ||
+              (nat as { name?: unknown }).name !== change.resource_name,
+          )
+        : nats;
+      nextNats.push(expected);
       await transport.requestJson("PATCH", routerUrl, {
         params: { requestId: context.requestId(change) },
-        jsonBody: { nats },
+        jsonBody: { nats: nextNats },
       });
       return;
     }
@@ -839,6 +849,18 @@ export async function applyPathA(
               acceptedStatuses: [409],
             });
             if (response.status === 409 && !(await reconcile())) {
+              if (spec.force_overwrite) {
+                await transport.requestJson("DELETE", resourceUrl, {
+                  acceptedStatuses: [404],
+                });
+                await transport.requestJson("POST", collection, {
+                  jsonBody: {
+                    accountId: change.resource_name,
+                    serviceAccount: { description: marker, displayName },
+                  },
+                });
+                if (await reconcile()) return;
+              }
               throw new ProviderExecutionError("named-resource-reconciliation-failed");
             }
           },
@@ -900,19 +922,42 @@ export async function applyPathA(
           change,
           identity,
           async () => {
-            const response = await transport.requestJson("POST", collection, {
-              jsonBody: {
-                description: marker,
-                dnsName: `${spec.private_hostname}.`,
-                name: change.resource_name,
-                privateVisibilityConfig: {
-                  networks: [{ networkUrl: expectedNetwork }],
-                },
-                visibility: "private",
+            const zoneBody = {
+              description: marker,
+              dnsName: `${spec.private_hostname}.`,
+              name: change.resource_name,
+              privateVisibilityConfig: {
+                networks: [{ networkUrl: expectedNetwork }],
               },
+              visibility: "private",
+            };
+            const response = await transport.requestJson("POST", collection, {
+              jsonBody: zoneBody,
               acceptedStatuses: [409],
             });
             if (response.status === 409 && !(await reconcile())) {
+              if (spec.force_overwrite) {
+                const rrsetsRes = await transport.requestJson("GET", `${resourceUrl}/rrsets`, {
+                  acceptedStatuses: [404],
+                });
+                if (rrsetsRes.status !== 404 && Array.isArray(rrsetsRes.payload.rrsets)) {
+                  const deletions = (rrsetsRes.payload.rrsets as Array<Record<string, unknown>>)
+                    .filter((r) => r.type !== "NS" && r.type !== "SOA");
+                  if (deletions.length > 0) {
+                    await transport.requestJson("POST", `${resourceUrl}/changes`, {
+                      jsonBody: { deletions },
+                      acceptedStatuses: [404],
+                    });
+                  }
+                }
+                await transport.requestJson("DELETE", resourceUrl, {
+                  acceptedStatuses: [404],
+                });
+                await transport.requestJson("POST", collection, {
+                  jsonBody: zoneBody,
+                });
+                if (await reconcile()) return;
+              }
               throw new ProviderExecutionError("named-resource-reconciliation-failed");
             }
           },
@@ -974,27 +1019,48 @@ export async function applyPathA(
         change,
         identity,
         async () => {
+          const additions = [
+            {
+              name: fqdn,
+              rrdatas: [address],
+              ttl: 60,
+              type: "A",
+            },
+            {
+              name: markerName,
+              rrdatas: [marker],
+              ttl: 60,
+              type: "TXT",
+            },
+          ];
           const response = await transport.requestJson("POST", `${resourceUrl}/changes`, {
             params: { clientOperationId: ownershipToken },
-            jsonBody: {
-              additions: [
-                {
-                  name: fqdn,
-                  rrdatas: [address],
-                  ttl: 60,
-                  type: "A",
-                },
-                {
-                  name: markerName,
-                  rrdatas: [marker],
-                  ttl: 60,
-                  type: "TXT",
-                },
-              ],
-            },
+            jsonBody: { additions },
             acceptedStatuses: [409],
           });
           if (response.status === 409 && !(await reconcile())) {
+            if (spec.force_overwrite) {
+              const deletions: Record<string, unknown>[] = [];
+              const existingA = await transport.requestJson(
+                "GET",
+                `${resourceUrl}/rrsets/${encodeURIComponent(fqdn)}/A`,
+                { acceptedStatuses: [404] },
+              );
+              if (existingA.status === 200) deletions.push(existingA.payload);
+              const existingTxt = await transport.requestJson(
+                "GET",
+                `${resourceUrl}/rrsets/${encodeURIComponent(markerName)}/TXT`,
+                { acceptedStatuses: [404] },
+              );
+              if (existingTxt.status === 200) deletions.push(existingTxt.payload);
+              await transport.requestJson("POST", `${resourceUrl}/changes`, {
+                jsonBody: {
+                  ...(deletions.length > 0 ? { deletions } : {}),
+                  additions,
+                },
+              });
+              if (await reconcile()) return;
+            }
             throw new ProviderExecutionError("named-resource-reconciliation-failed");
           }
         },

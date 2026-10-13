@@ -89,6 +89,7 @@ export interface DeploymentSpec {
   allow_external_ips: false;
   require_cloud_nat: boolean;
   require_human_approval: boolean;
+  force_overwrite?: boolean;
 }
 
 const RESOURCE_NAME = /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
@@ -257,6 +258,7 @@ const DEFAULTS = {
   allow_external_ips: false,
   require_cloud_nat: true,
   require_human_approval: true,
+  force_overwrite: false,
 } as const;
 
 function requireInt(value: unknown, field: string, min: number, max: number): number {
@@ -357,6 +359,7 @@ export function parseDeploymentSpec(input: Record<string, unknown>): DeploymentS
     allow_external_ips: false,
     require_cloud_nat: raw.require_cloud_nat as boolean,
     require_human_approval: raw.require_human_approval as boolean,
+    force_overwrite: Boolean(raw.force_overwrite),
   };
 
   enforceEnterpriseInvariants(spec);
@@ -612,6 +615,9 @@ export function specToJson(spec: DeploymentSpec, excludeNone = true): Record<str
     platforms: [...spec.platforms].sort(),
     principals: spec.principals.map((principal) => ({ ...principal })),
   };
+  if (!spec.force_overwrite) {
+    delete payload.force_overwrite;
+  }
   if (excludeNone) {
     for (const key of Object.keys(payload)) {
       if (payload[key] === null || payload[key] === undefined) delete payload[key];

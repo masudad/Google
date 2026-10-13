@@ -114,6 +114,7 @@ export interface SetupState {
   testOuAvailable: boolean;
   testOuConfirmed: boolean;
   approvalConfirmed: boolean;
+  forceOverwrite?: boolean;
   updatedAt: string;
 }
 
@@ -179,6 +180,7 @@ export const defaultSetupState: SetupState = {
   testOuAvailable: true,
   testOuConfirmed: false,
   approvalConfirmed: false,
+  forceOverwrite: false,
   updatedAt: new Date(0).toISOString(),
 };
 
@@ -392,6 +394,7 @@ export function toDeploymentSpec(
     allow_external_ips: false,
     require_cloud_nat: true,
     require_human_approval: true,
+    ...(setup.forceOverwrite ? { force_overwrite: true } : {}),
   };
 }
 
@@ -550,6 +553,7 @@ export interface NonSensitiveRecallRecord {
     application_egress_region: string | null;
     upstream_vpc_project_id: string | null;
     source_image: string | null;
+    force_overwrite?: boolean;
   };
 }
 
@@ -644,6 +648,7 @@ export function buildNonSensitiveRecallRecord(
       application_egress_region: spec.application_egress_region ?? null,
       upstream_vpc_project_id: spec.upstream_vpc_project_id ?? null,
       source_image: spec.source_image ?? null,
+      ...(spec.force_overwrite ? { force_overwrite: true } : {}),
     },
   };
 }
@@ -733,6 +738,7 @@ export function recallSetupStateFromSpec(
         : defaultSetupState.principals,
     testOuConfirmed: spec.test_ou_confirmed === true,
     approvalConfirmed: false,
+    forceOverwrite: spec.force_overwrite === true,
     updatedAt: new Date().toISOString(),
   };
 }

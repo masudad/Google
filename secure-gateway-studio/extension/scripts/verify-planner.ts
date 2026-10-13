@@ -292,6 +292,98 @@ for (const testCase of golden.cases) {
   }
 }
 
+// Verify force_overwrite converts conflicting managed resources and their dependents to CREATE while protecting mustExist shared VPCs
+{
+  const baseCase = golden.cases.find((candidate) =>
+    candidate.spec.backend_kind === "managed_sample" && candidate.spec.mode === "poc"
+  );
+  if (baseCase !== undefined) {
+    const dedicatedInput = {
+      ...baseCase.spec,
+      network_strategy: "dedicated",
+      vpc_name: null,
+      subnet_name: null,
+    };
+    const defaultSpec = parseDeploymentSpec({ ...dedicatedInput });
+    const explicitFalseSpec = parseDeploymentSpec({ ...dedicatedInput, force_overwrite: false });
+    const forceSpec = parseDeploymentSpec({ ...dedicatedInput, force_overwrite: true });
+
+    if (configurationHash(defaultSpec) !== configurationHash(explicitFalseSpec)) {
+      failures.push("force_overwrite: false changed configurationHash");
+    }
+    if (configurationHash(defaultSpec) === configurationHash(forceSpec)) {
+      failures.push("force_overwrite: true did not bind into configurationHash");
+    }
+
+    const conflictSnapshot = {
+      ...baseCase.snapshot,
+      conflicting_resource_keys: [
+        `compute:subnetwork:${forceSpec.name}-subnet`,
+        `beyondcorp:application:${forceSpec.name}-app`,
+        "chromepolicy:group_extension_configuration:ops@example.com",
+      ],
+      existing_resource_keys: [
+        ...(baseCase.snapshot.existing_resource_keys ?? []),
+        ...(forceSpec.source_image ? [`compute:source_image:${forceSpec.source_image}`] : []),
+        ...(forceSpec.managed_chrome_access_level
+          ? [`accesscontextmanager:access_level:${forceSpec.managed_chrome_access_level}`]
+          : []),
+        `compute:router:${forceSpec.name}-router`,
+        `compute:internal_address:${forceSpec.name}-offload-ip`,
+      ],
+      chrome_extension_group_conflicts: ["ops@example.com"],
+    };
+
+    const blockedPlan = buildPlan(defaultSpec, conflictSnapshot);
+    if (blockedPlan.can_apply !== false) {
+      failures.push("force_overwrite: default plan with conflicts should be blocked");
+    }
+
+    const forcedPlan = buildPlan(forceSpec, conflictSnapshot);
+    const conflictChanges = forcedPlan.changes.filter((c) => c.action === "conflict");
+    if (conflictChanges.length !== 0) {
+      failures.push(`force_overwrite: expected 0 conflict changes, got ${conflictChanges.length}: ${conflictChanges.map(x => `${x.provider}:${x.resource_type}:${x.resource_name}`).join(", ")}`);
+    }
+    const routerChange = forcedPlan.changes.find(
+      (c) => c.provider === "compute" && c.resource_type === "router"
+    );
+    const ipChange = forcedPlan.changes.find(
+      (c) => c.provider === "compute" && c.resource_type === "internal_address" && c.resource_name === `${forceSpec.name}-offload-ip`
+    );
+    const groupChange = forcedPlan.changes.find(
+      (c) => c.provider === "chromepolicy" && c.resource_type === "group_extension_configuration"
+    );
+    if (
+      routerChange?.action !== "create" ||
+      ipChange?.action !== "create" ||
+      groupChange?.action !== "create" ||
+      groupChange.owned_after_apply !== true
+    ) {
+      failures.push("force_overwrite: failed to cascade CREATE onto subnet dependents and group policy override");
+    }
+
+    // Verify mustExist shared VPC remains conflict even when force_overwrite is true
+    const sharedVpcSpec = parseDeploymentSpec({
+      ...baseCase.spec,
+      network_strategy: "existing",
+      vpc_name: "shared-corp-vpc",
+      subnet_name: "shared-corp-subnet",
+      force_overwrite: true,
+    });
+    const missingSharedVpcPlan = buildPlan(sharedVpcSpec, {
+      ...baseCase.snapshot,
+      existing_resource_keys: [],
+      conflicting_resource_keys: ["compute:network:shared-corp-vpc"],
+    });
+    const vpcChange = missingSharedVpcPlan.changes.find(
+      (c) => c.provider === "compute" && c.resource_type === "network"
+    );
+    if (vpcChange?.action !== "conflict" || missingSharedVpcPlan.can_apply !== false) {
+      failures.push("force_overwrite: mustExist shared VPC must never be overwritten or created");
+    }
+  }
+}
+
 if (failures.length > 0) {
   console.error(`FAIL ${failures.length} difference(s) across ${compared} Path B cases\n`);
   for (const failure of failures) console.error(`  ${failure}`);

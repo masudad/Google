@@ -639,6 +639,35 @@ export async function applyProduction(
             acceptedStatuses: [409],
           });
           if (response.status === 409 && !(await reconcile())) {
+            if (spec.force_overwrite) {
+              const existingSecret = await transport.requestJson("GET", resourceUrl, {
+                acceptedStatuses: [404],
+              });
+              if (existingSecret.status === 200) {
+                const etag =
+                  typeof existingSecret.payload.etag === "string" &&
+                  existingSecret.payload.etag !== ""
+                    ? existingSecret.payload.etag
+                    : undefined;
+                await transport.requestJson("PATCH", resourceUrl, {
+                  params: { updateMask: "labels" },
+                  jsonBody: {
+                    ...(etag ? { etag } : {}),
+                    labels,
+                  },
+                  acceptedStatuses: [400, 404, 409],
+                });
+                if (await reconcile()) return;
+              }
+              await transport.requestJson("DELETE", resourceUrl, {
+                acceptedStatuses: [404],
+              });
+              await transport.requestJson("POST", collection, {
+                params: { secretId: change.resource_name },
+                jsonBody: { labels, replication: { automatic: {} } },
+              });
+              if (await reconcile()) return;
+            }
             throw new ProviderExecutionError("secret-reconciliation-failed");
           }
         },

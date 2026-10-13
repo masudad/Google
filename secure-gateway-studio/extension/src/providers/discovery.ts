@@ -1441,12 +1441,13 @@ export class GoogleDiscoveryProvider {
             conflicting.add(`chromepolicy:group_extension_configuration:${email}`);
             diagnostics.push({
               code: "chrome-extension-group-policy-conflict",
-              severity: "error",
+              severity: spec.force_overwrite ? "warning" : "error",
               message:
                 `Group ${email} overrides Secure Enterprise Browser managed configuration ` +
                 "for an approved principal.",
-              remediation:
-                "Remove the incompatible group override or configure it for the same Secure Gateway before Apply.",
+              remediation: spec.force_overwrite
+                ? "Force overwrite is enabled: Apply will clear the conflicting group policy override."
+                : "Remove the incompatible group override or configure it for the same Secure Gateway before Apply.",
             });
           } catch (error) {
             diagnostics.push(this.diagnostic("chrome-group-policy", error));

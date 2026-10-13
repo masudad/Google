@@ -548,6 +548,7 @@ type PersistedBeforeImage =
       kind: "chrome_policy";
       /** Missing means a legacy checkpoint whose send outcome is ambiguous. */
       phase?: SharedMutationPhase;
+      targetResource?: string;
       schemaName: string;
       appId: string | null;
       previous: Record<string, unknown>;
@@ -1500,6 +1501,14 @@ export class GoogleResourceExecutor {
         }
 
         if (!replayingAmbiguousSend) {
+          if (spec.force_overwrite) {
+            await this.forceClearExistingGenericResource(
+              change,
+              spec,
+              resourceUrl,
+              requestId,
+            );
+          }
           checkpoint = { ...checkpoint, phase: "sending" };
           await this.captureBefore(change, checkpoint);
         }
@@ -2144,6 +2153,123 @@ export class GoogleResourceExecutor {
     }
   }
 
+  private derivedDeleteRequestId(seed: string): string {
+    const hex = canonicalDigestSync(`force-overwrite-delete:${seed}`);
+    return [
+      hex.slice(0, 8),
+      hex.slice(8, 12),
+      `5${hex.slice(13, 16)}`,
+      `8${hex.slice(17, 20)}`,
+      hex.slice(20, 32),
+    ].join("-");
+  }
+
+  private async forceDeleteUrlIfPresent(
+    url: string,
+    seed: string,
+  ): Promise<void> {
+    const existing = await this.requestWithStatus("GET", url, {
+      acceptedStatuses: [404],
+    });
+    if (existing.status === 404) return;
+    await this.requestWithStatus("DELETE", url, {
+      params: { requestId: this.derivedDeleteRequestId(`${seed}:${url}`) },
+      acceptedStatuses: [400, 404, 409],
+    });
+  }
+
+  private async forceDeleteComputeDependents(
+    resourceType: string,
+    spec: DeploymentSpec,
+    seed: string,
+  ): Promise<void> {
+    const computeBase = `https://compute.googleapis.com/compute/v1/projects/${spec.project_id}`;
+    const regionBase = `${computeBase}/regions/${spec.region}`;
+    const zoneBase = `${computeBase}/zones/${spec.zone}`;
+    const globalBase = `${computeBase}/global`;
+    const prefix = spec.name;
+
+    const dependentUrls: string[] = [
+      `${regionBase}/forwardingRules/${prefix}-offload-fr`,
+      `${regionBase}/forwardingRules/${prefix}-ilb-fr`,
+      `${regionBase}/targetHttpsProxies/${prefix}-ilb-proxy`,
+      `${regionBase}/urlMaps/${prefix}-ilb-map`,
+      `${regionBase}/sslCertificates/${prefix}-ilb-cert`,
+      `${regionBase}/backendServices/${prefix}-offload-bs`,
+      `${regionBase}/backendServices/${prefix}-ilb-bs`,
+      `${regionBase}/autoscalers/${prefix}-offload-autoscaler`,
+      `${regionBase}/instanceGroupManagers/${prefix}-offload-mig`,
+      `${zoneBase}/instanceGroups/${prefix}-backend-ig`,
+      `${regionBase}/healthChecks/${prefix}-offload-hc`,
+      `${regionBase}/healthChecks/${prefix}-ilb-hc`,
+      `${zoneBase}/instances/${prefix}-offload`,
+      `${zoneBase}/instances/${prefix}-backend`,
+      `${globalBase}/instanceTemplates/${prefix}-offload-template`,
+    ];
+
+    if (resourceType === "subnetwork" || resourceType === "network") {
+      dependentUrls.push(
+        `${regionBase}/addresses/${prefix}-offload-ip`,
+        `${regionBase}/addresses/${prefix}-backend-ip`,
+        `${regionBase}/routers/${prefix}-router`,
+      );
+    }
+    if (resourceType === "network") {
+      dependentUrls.push(
+        `${globalBase}/firewalls/${prefix}-gateway-ingress`,
+        `${globalBase}/firewalls/${prefix}-backend-ingress`,
+        `${globalBase}/firewalls/${prefix}-health-check-ingress`,
+        `${globalBase}/firewalls/${prefix}-ilb-proxy-ingress`,
+        `${globalBase}/firewalls/${prefix}-ilb-health-ingress`,
+        `${regionBase}/subnetworks/${prefix}-proxy-subnet`,
+        `${regionBase}/subnetworks/${prefix}-subnet`,
+      );
+    }
+
+    for (const depUrl of dependentUrls) {
+      await this.forceDeleteUrlIfPresent(depUrl, seed);
+    }
+  }
+
+  private async forceClearExistingGenericResource(
+    change: ResourceChange,
+    spec: DeploymentSpec,
+    resourceUrl: string,
+    requestId: string,
+  ): Promise<void> {
+    const existing = await this.requestWithStatus("GET", resourceUrl, {
+      acceptedStatuses: [404],
+    });
+    if (existing.status === 404) return;
+
+    if (change.provider === "beyondcorp" && change.resource_type === "security_gateway") {
+      const appUrl = `${resourceUrl}/applications/${spec.name}-app`;
+      await this.forceDeleteUrlIfPresent(appUrl, `${requestId}:app`);
+      if (change.resource_name === "default") {
+        const inventory = await this.gatewayApplicationInventory(resourceUrl);
+        if (inventory === "nonempty") return;
+      }
+    }
+
+    const deleteReqId = this.derivedDeleteRequestId(requestId);
+    const del = await this.requestWithStatus("DELETE", resourceUrl, {
+      params: { requestId: deleteReqId },
+      acceptedStatuses: [400, 404, 409],
+    });
+    if (del.status === 400 || del.status === 409) {
+      await this.forceDeleteComputeDependents(change.resource_type, spec, deleteReqId);
+      await this.deleteExact(resourceUrl, {
+        requestId: this.derivedDeleteRequestId(`${deleteReqId}:retry`),
+      });
+    }
+    if (change.provider === "compute" && change.resource_type === "instance") {
+      const diskUrl =
+        `https://compute.googleapis.com/compute/v1/projects/${spec.project_id}` +
+        `/zones/${spec.zone}/disks/${change.resource_name}`;
+      await this.forceDeleteUrlIfPresent(diskUrl, `${requestId}:disk`);
+    }
+  }
+
   private async deleteExact(
     url: string,
     options: { requestId?: string } = {},
@@ -2745,6 +2871,8 @@ export class GoogleResourceExecutor {
         return this.setChromeConfiguration(change, spec);
       case "chromepolicy:service_discovery_proxy":
         return this.setServiceDiscoveryProxy(change, spec);
+      case "chromepolicy:group_extension_configuration":
+        return this.clearConflictingGroupPolicy(change, spec);
       default:
         // Everything else belongs to the Nginx offload path.
         return applyPathA(this.pathAContext(requestId, beforeImage), change, spec);
@@ -3319,9 +3447,10 @@ export class GoogleResourceExecutor {
     spec: DeploymentSpec,
     schemaName: string,
     appId: string | null,
+    targetResource = `orgunits/${spec.target_ou_id}`,
   ): Promise<Record<string, unknown>> {
     const targetKey: Record<string, unknown> = {
-      targetResource: `orgunits/${spec.target_ou_id}`,
+      targetResource,
     };
     if (appId !== null) targetKey.additionalTargetKeys = { app_id: `chrome:${appId}` };
     const policies: Record<string, unknown>[] = [];
@@ -3374,17 +3503,26 @@ export class GoogleResourceExecutor {
     resolved: Record<string, unknown>,
     schemaName: string,
     appId: string | null,
+    targetResource = `orgunits/${spec.target_ou_id}`,
   ): Record<string, unknown> | null {
     const policies = resolved.resolvedPolicies;
     if (!Array.isArray(policies)) {
       throw new ProviderExecutionError("chrome-policy-resolve-response-invalid");
     }
     const expectedTarget: Record<string, unknown> = {
-      targetResource: `orgunits/${spec.target_ou_id}`,
+      targetResource,
     };
     if (appId !== null) {
       expectedTarget.additionalTargetKeys = { app_id: `chrome:${appId}` };
     }
+    const isGroupTarget = targetResource.startsWith("groups/");
+    const validSourcePrefix = (res: string | null): boolean => {
+      if (res === null) return true;
+      if (isGroupTarget) {
+        return res.startsWith("groups/") || res.startsWith("orgunits/");
+      }
+      return res.startsWith("orgunits/");
+    };
     const direct: Record<string, unknown>[] = [];
     for (const item of policies) {
       if (typeof item !== "object" || item === null || Array.isArray(item)) {
@@ -3400,10 +3538,7 @@ export class GoogleResourceExecutor {
       }
       const sourceResource = validatedChromePolicySourceResource(policy.sourceKey);
       const addedSourceResource = validatedChromePolicySourceResource(policy.addedSourceKey);
-      if (
-        (sourceResource !== null && !sourceResource.startsWith("orgunits/")) ||
-        (addedSourceResource !== null && !addedSourceResource.startsWith("orgunits/"))
-      ) {
+      if (!validSourcePrefix(sourceResource) || !validSourcePrefix(addedSourceResource)) {
         throw new ProviderExecutionError("chrome-policy-resolve-response-invalid");
       }
       const value = policy.value;
@@ -3418,7 +3553,7 @@ export class GoogleResourceExecutor {
       ) {
         throw new ProviderExecutionError("chrome-policy-resolve-response-invalid");
       }
-      if (sourceResource === `orgunits/${spec.target_ou_id}`) {
+      if (sourceResource === targetResource) {
         direct.push(structuredClone(fields as Record<string, unknown>));
       }
     }
@@ -3474,20 +3609,30 @@ export class GoogleResourceExecutor {
     ) {
       throw new ProviderExecutionError("chrome-policy-managed-state-missing");
     }
-    const current = await this.resolveChromePolicy(spec, before.schemaName, before.appId);
+    const targetResource = before.targetResource ?? `orgunits/${spec.target_ou_id}`;
+    const policyCollection = targetResource.startsWith("groups/") ? "groups" : "orgunits";
+    const current = await this.resolveChromePolicy(
+      spec,
+      before.schemaName,
+      before.appId,
+      targetResource,
+    );
     const currentDirect = this.directChromePolicyValues(
       spec,
       current,
       before.schemaName,
       before.appId,
+      targetResource,
     );
-    if (canonicalJson(currentDirect) !== canonicalJson(before.managedAfter)) {
+    const expectedAfter =
+      Object.keys(before.managedAfter).length === 0 ? null : before.managedAfter;
+    if (canonicalJson(currentDirect) !== canonicalJson(expectedAfter)) {
       // A different direct value means another administrator changed or
       // inherited this policy after Apply. Never erase that change.
       throw new ProviderExecutionError("chrome-policy-current-state-changed");
     }
     const targetKey: Record<string, unknown> = {
-      targetResource: `orgunits/${spec.target_ou_id}`,
+      targetResource,
     };
     if (before.appId !== null) {
       targetKey.additionalTargetKeys = { app_id: `chrome:${before.appId}` };
@@ -3497,10 +3642,11 @@ export class GoogleResourceExecutor {
       before.previous,
       before.schemaName,
       before.appId,
+      targetResource,
     );
     const base =
       `https://chromepolicy.googleapis.com/v1/customers/${spec.customer_id}` +
-      "/policies/orgunits";
+      `/policies/${policyCollection}`;
     if (values !== null) {
       await this.workspaceRequest("POST", `${base}:batchModify`, {
         body: {
@@ -3660,6 +3806,115 @@ export class GoogleResourceExecutor {
       value: "PROXY_MODE_ENUM_USER_CONFIGURED",
       appId: null,
     });
+  }
+
+  private async clearConflictingGroupPolicy(
+    change: ResourceChange,
+    spec: DeploymentSpec,
+  ): Promise<void> {
+    const schemaName = "chrome.users.apps.ManagedConfiguration";
+    const appId = SECURE_ENTERPRISE_BROWSER;
+    const persisted = this.before.get(this.key(change));
+    let persistedPolicy:
+      | Extract<PersistedBeforeImage, { kind: "chrome_policy" }>
+      | undefined;
+    if (persisted !== undefined) {
+      if (!isBeforeImage(persisted, "chrome_policy")) {
+        throw new ProviderExecutionError("chrome-policy-retry-state-invalid");
+      }
+      persistedPolicy = persisted;
+      if (
+        persistedPolicy.schemaName !== schemaName ||
+        persistedPolicy.appId !== appId ||
+        persistedPolicy.managedAfter === undefined ||
+        typeof persistedPolicy.targetResource !== "string" ||
+        !persistedPolicy.targetResource.startsWith("groups/")
+      ) {
+        throw new ProviderExecutionError("chrome-policy-retry-state-invalid");
+      }
+      const phase = sharedMutationPhase(persistedPolicy);
+      if (phase === "sending") {
+        throw new ProviderExecutionError("chrome-policy-mutation-outcome-ambiguous");
+      }
+      if (phase === "rejected") {
+        throw new ProviderExecutionError("chrome-policy-mutation-definitively-rejected");
+      }
+      if (phase === "applied") return;
+    }
+
+    let targetResource = persistedPolicy?.targetResource;
+    if (!targetResource) {
+      const groupPayload = await this.workspaceRequest(
+        "GET",
+        `https://admin.googleapis.com/admin/directory/v1/groups/${encodeURIComponent(change.resource_name)}`,
+      );
+      const rawId = groupPayload.id;
+      if (typeof rawId !== "string" || rawId.trim() === "") {
+        throw new ProviderExecutionError("chrome-group-policy-target-invalid");
+      }
+      targetResource = `groups/${rawId.trim().replace(/^groups\//, "")}`;
+    }
+
+    const previous = await this.resolveChromePolicy(spec, schemaName, appId, targetResource);
+    const directBefore = this.directChromePolicyValues(
+      spec,
+      previous,
+      schemaName,
+      appId,
+      targetResource,
+    );
+    if (persistedPolicy !== undefined) {
+      const originalDirect = this.directChromePolicyValues(
+        spec,
+        persistedPolicy.previous,
+        schemaName,
+        appId,
+        targetResource,
+      );
+      if (canonicalJson(directBefore) !== canonicalJson(originalDirect)) {
+        throw new ProviderExecutionError("chrome-policy-current-state-changed");
+      }
+    }
+
+    const checkpoint: Extract<PersistedBeforeImage, { kind: "chrome_policy" }> =
+      persistedPolicy ?? {
+        kind: "chrome_policy",
+        phase: "prepared",
+        targetResource,
+        schemaName,
+        appId,
+        previous,
+        managedAfter: {},
+      };
+    if (persistedPolicy === undefined) {
+      await this.captureBefore(change, checkpoint);
+    }
+    await this.captureBefore(change, { ...checkpoint, phase: "sending" });
+    try {
+      await this.workspaceRequest(
+        "POST",
+        `https://chromepolicy.googleapis.com/v1/customers/${spec.customer_id}/policies/groups:batchInherit`,
+        {
+          body: {
+            requests: [
+              {
+                policyTargetKey: {
+                  targetResource,
+                  additionalTargetKeys: { app_id: `chrome:${appId}` },
+                },
+                policySchema: schemaName,
+              },
+            ],
+          },
+        },
+      );
+    } catch (error) {
+      if (isDefiniteMutationRejection(error)) {
+        await this.captureBefore(change, { ...checkpoint, phase: "rejected" });
+      }
+      throw error;
+    }
+    await this.captureBefore(change, { ...checkpoint, phase: "applied" });
   }
 }
 

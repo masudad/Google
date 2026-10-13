@@ -206,6 +206,9 @@ export interface WorkflowMessages {
   generatePlan: string;
   runPreflight: string;
   autoRenameAndRepreflight: string;
+  forceOverwriteLabel: string;
+  forceOverwriteHint: string;
+  forceOverwriteAndRepreflight: string;
   conflictingResourcesHint: (count: number) => string;
   preparingPlan: string;
   planReady: string;
@@ -2051,10 +2054,14 @@ const en: Messages = {
     generatePlan: "Run preflight and generate plan",
     runPreflight: "Run preflight",
     autoRenameAndRepreflight: "Auto-rename deployment & re-run preflight",
+    forceOverwriteLabel: "Force overwrite and recreate conflicting resources",
+    forceOverwriteHint:
+      "When enabled, conflicting GCP resources, Private DNS records, BeyondCorp apps, and Chrome group overrides are replaced or recreated during Apply.",
+    forceOverwriteAndRepreflight: "Force overwrite existing resources & re-run preflight",
     conflictingResourcesHint: (count: number) =>
       count === 1
-        ? "1 existing resource conflicts with the current deployment name or hostname. Auto-rename to create an isolated deployment."
-        : `${count} existing resources conflict with the current deployment name or hostname. Auto-rename to create an isolated deployment.`,
+        ? "1 existing resource conflicts with the current deployment name or hostname. Force overwrite existing resources or auto-rename to continue."
+        : `${count} existing resources conflict with the current deployment name or hostname. Force overwrite existing resources or auto-rename to continue.`,
     preparingPlan: "Discovering resources and generating plan…",
     planReady: "Plan ready",
     planBlocked: "Plan has blocking gates",
@@ -4867,8 +4874,12 @@ const ja: Messages = {
     generatePlan: "事前確認を実行してプランを生成",
     runPreflight: "事前確認を実行",
     autoRenameAndRepreflight: "新しいデプロイ名に自動変更して再確認",
+    forceOverwriteLabel: "競合時に既存リソースを強制上書き・再作成する",
+    forceOverwriteHint:
+      "有効にすると、既存の同名 GCP リソース・Private DNS・BeyondCorp アプリ・競合する Chrome グループ設定を Apply 時に削除・上書きして再作成します。",
+    forceOverwriteAndRepreflight: "既存リソースを強制上書きして再確認",
     conflictingResourcesHint: (count: number) =>
-      `現在のデプロイ名またはホスト名と競合する既存リソースが ${count} 件検出されました。デプロイ名を自動変更して別環境として再確認できます。`,
+      `現在のデプロイ名またはホスト名と競合する既存リソースが ${count} 件検出されました。既存リソースを強制上書きして再確認するか、新しいデプロイ名に自動変更してください。`,
     preparingPlan: "環境を検査し、実行計画を作成しています…",
     planReady: "事前確認が完了し、実行計画を作成しました",
     planBlocked: "要対応の項目があります。解消後に再実行してください。",
