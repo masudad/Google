@@ -307,7 +307,6 @@
 
         // 5. Automatically switch to the target initial view once the React sidebar mounts.
         function activateInitialView() {
-          if (!INITIAL_VIEW || INITIAL_VIEW === "guide") return;
           var attempts = 0;
           var interval = setInterval(function() {
             attempts += 1;
@@ -317,20 +316,30 @@
               return;
             }
             clearInterval(interval);
-            var buttons = Array.from(nav.querySelectorAll("button"));
-            var targetBtn = null;
-            if (INITIAL_VIEW === "cepDeployer") {
-              targetBtn = buttons.find(function(b) { return /Easy PoC/i.test(b.textContent || ""); });
-            } else if (INITIAL_VIEW === "cera") {
-              targetBtn = buttons.find(function(b) { return /\bCERA\b/i.test(b.textContent || ""); });
-            } else if (INITIAL_VIEW === "setup") {
-              targetBtn = buttons.find(function(b) { return /新規セットアップ|New Setup|Secure Gateway/i.test(b.textContent || ""); });
-            } else if (INITIAL_VIEW === "deployments") {
-              targetBtn = buttons.find(function(b) { return /デプロイ管理|Deployments/i.test(b.textContent || ""); });
-            } else if (INITIAL_VIEW === "evidence") {
-              targetBtn = buttons.find(function(b) { return /受入証跡|Evidence/i.test(b.textContent || ""); });
+            if (INITIAL_VIEW && INITIAL_VIEW !== "guide") {
+              var buttons = Array.from(nav.querySelectorAll("button"));
+              var targetBtn = null;
+              if (INITIAL_VIEW === "cepDeployer") {
+                targetBtn = buttons.find(function(b) { return /Easy PoC/i.test(b.textContent || ""); });
+              } else if (INITIAL_VIEW === "cera") {
+                targetBtn = buttons.find(function(b) { return /\bCERA\b/i.test(b.textContent || ""); });
+              } else if (INITIAL_VIEW === "setup") {
+                targetBtn = buttons.find(function(b) { return /新規セットアップ|New Setup|Secure Gateway/i.test(b.textContent || ""); });
+              } else if (INITIAL_VIEW === "deployments") {
+                targetBtn = buttons.find(function(b) { return /デプロイ管理|Deployments/i.test(b.textContent || ""); });
+              } else if (INITIAL_VIEW === "evidence") {
+                targetBtn = buttons.find(function(b) { return /受入証跡|Evidence/i.test(b.textContent || ""); });
+              }
+              if (targetBtn) targetBtn.click();
             }
-            if (targetBtn) targetBtn.click();
+            // In live Google Sheets (google.script.run present), auto-trigger Customer ID & OU detection
+            // on Easy PoC open because Apps Script has already completed OAuth consent.
+            if (EDITION === "easy-poc" && INITIAL_VIEW === "cepDeployer" && ((typeof google !== "undefined" && google.script && google.script.run) || typeof window.__sgsGasMock === "function")) {
+              setTimeout(function() {
+                var detectBtn = document.querySelector(".cep-auto-detect-btn") || document.querySelector("#btn-auto-detect-customer-id");
+                if (detectBtn && !detectBtn.disabled) detectBtn.click();
+              }, 220);
+            }
           }, 80);
         }
 

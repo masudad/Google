@@ -379,7 +379,6 @@ ${extraCss}
 
         // 5. Automatically switch to the target initial view once the React sidebar mounts.
         function activateInitialView() {
-          if (!INITIAL_VIEW || INITIAL_VIEW === "guide") return;
           var attempts = 0;
           var interval = setInterval(function() {
             attempts += 1;
@@ -389,20 +388,30 @@ ${extraCss}
               return;
             }
             clearInterval(interval);
-            var buttons = Array.from(nav.querySelectorAll("button"));
-            var targetBtn = null;
-            if (INITIAL_VIEW === "cepDeployer") {
-              targetBtn = buttons.find(function(b) { return /Easy PoC/i.test(b.textContent || ""); });
-            } else if (INITIAL_VIEW === "cera") {
-              targetBtn = buttons.find(function(b) { return /\\bCERA\\b/i.test(b.textContent || ""); });
-            } else if (INITIAL_VIEW === "setup") {
-              targetBtn = buttons.find(function(b) { return /新規セットアップ|New Setup|Secure Gateway/i.test(b.textContent || ""); });
-            } else if (INITIAL_VIEW === "deployments") {
-              targetBtn = buttons.find(function(b) { return /デプロイ管理|Deployments/i.test(b.textContent || ""); });
-            } else if (INITIAL_VIEW === "evidence") {
-              targetBtn = buttons.find(function(b) { return /受入証跡|Evidence/i.test(b.textContent || ""); });
+            if (INITIAL_VIEW && INITIAL_VIEW !== "guide") {
+              var buttons = Array.from(nav.querySelectorAll("button"));
+              var targetBtn = null;
+              if (INITIAL_VIEW === "cepDeployer") {
+                targetBtn = buttons.find(function(b) { return /Easy PoC/i.test(b.textContent || ""); });
+              } else if (INITIAL_VIEW === "cera") {
+                targetBtn = buttons.find(function(b) { return /\\bCERA\\b/i.test(b.textContent || ""); });
+              } else if (INITIAL_VIEW === "setup") {
+                targetBtn = buttons.find(function(b) { return /新規セットアップ|New Setup|Secure Gateway/i.test(b.textContent || ""); });
+              } else if (INITIAL_VIEW === "deployments") {
+                targetBtn = buttons.find(function(b) { return /デプロイ管理|Deployments/i.test(b.textContent || ""); });
+              } else if (INITIAL_VIEW === "evidence") {
+                targetBtn = buttons.find(function(b) { return /受入証跡|Evidence/i.test(b.textContent || ""); });
+              }
+              if (targetBtn) targetBtn.click();
             }
-            if (targetBtn) targetBtn.click();
+            // In live Google Sheets (google.script.run present), auto-trigger Customer ID & OU detection
+            // on Easy PoC open because Apps Script has already completed OAuth consent.
+            if (EDITION === "easy-poc" && INITIAL_VIEW === "cepDeployer" && ((typeof google !== "undefined" && google.script && google.script.run) || typeof window.__sgsGasMock === "function")) {
+              setTimeout(function() {
+                var detectBtn = document.querySelector(".cep-auto-detect-btn") || document.querySelector("#btn-auto-detect-customer-id");
+                if (detectBtn && !detectBtn.disabled) detectBtn.click();
+              }, 220);
+            }
           }, 80);
         }
 
@@ -420,58 +429,26 @@ ${extraCss}
 `;
 }
 
-function createEasyPocCodeGs() {
-  return `/**
- * Chrome Enterprise Premium (CEP) Easy PoC & CERA — Google Sheets + Apps Script Edition
- *
- * Container-bound Apps Script modeled after CERA 2.0:
- * - Adds the "🛡️ CEP Easy PoC" menu to the Google Sheets toolbar on open.
- * - Launches the self-contained CEP Easy PoC & CERA console inside a Google Sheets modal.
- * - Executes all Google Workspace / Chrome Policy / Cloud Identity DLP / Reports API calls
- *   directly from the user's own Google Workspace session via UrlFetchApp + ScriptApp.getOAuthToken().
- * - Automatically logs applied policies, DLP rules, license assignments, and rollbacks into
- *   formatted Google Sheets tabs ("📊 CEP 適用サマリー", "📜 CEP 実行トレース").
- */
+function createSharedProxyAndQuotaHelpersGs(defaultSpreadsheetId) {
+  return `
+var DEFAULT_SPREADSHEET_ID = ${JSON.stringify(defaultSpreadsheetId)};
 
-var SUMMARY_SHEET_NAME = "📊 CEP 適用サマリー";
-var TRACE_SHEET_NAME = "📜 CEP 実行トレース";
-
-function onOpen() {
-  SpreadsheetApp.getUi()
-    .createMenu("🛡️ CEP Easy PoC")
-    .addItem("🚀 CEP Easy PoC コンソールを開く", "openCepEasyPocDialog")
-    .addItem("📊 CERA ログ分析を開く (Chrome 監査ログ)", "openCeraDialog")
-    .addItem("📖 セットアップガイドを開く", "openGuideDialog")
-    .addSeparator()
-    .addItem("📋 シートに監査・サマリータブを初期化", "initializeCepWorkbookSheets")
-    .addToUi();
-}
-
-function openCepEasyPocDialog() {
-  showStudioDialog_("cepDeployer", "🛡️ Chrome Enterprise Premium — Easy PoC デプロイコンソール");
-}
-
-function openCeraDialog() {
-  showStudioDialog_("cera", "📊 CERA — Chrome Egress Risk Analysis");
-}
-
-function openGuideDialog() {
-  showStudioDialog_("guide", "📖 CEP Easy PoC & CERA ガイド");
-}
-
-function showStudioDialog_(initialView, title) {
-  ensureWorkbookSheetsQuietly_();
-  var rawHtml = HtmlService.createHtmlOutputFromFile("Index").getContent();
-  var injected = rawHtml.replace(
-    "<head>",
-    "<head><script>window.__SGS_INITIAL_VIEW = " + JSON.stringify(initialView) + ";</script>"
-  );
-  var output = HtmlService.createHtmlOutput(injected)
-    .setTitle(title)
-    .setWidth(1380)
-    .setHeight(860)
-    .setSandboxMode(HtmlService.SandboxMode.IFRAME);
-  SpreadsheetApp.getUi().showModalDialog(output, title);
+function sgsGetTargetSpreadsheet_() {
+  try {
+    var active = SpreadsheetApp.getActiveSpreadsheet();
+    if (active) return active;
+  } catch (e) {}
+  var propId = "";
+  try {
+    propId = PropertiesService.getScriptProperties().getProperty("SGS_SPREADSHEET_ID") || "";
+  } catch (e) {}
+  var targetId = propId || DEFAULT_SPREADSHEET_ID;
+  if (targetId) {
+    try {
+      return SpreadsheetApp.openById(targetId);
+    } catch (e) {}
+  }
+  return null;
 }
 
 /**
@@ -487,32 +464,166 @@ function sgsGetAuthToken() {
 }
 
 /**
+ * Extracts and remembers a Google Cloud project_id if present in the URL or JSON body,
+ * and auto-discovers an active GCP project via Cloud Resource Manager if Apps Script's
+ * Default Cloud Project needs a quota/billing project for Chrome Policy or ACM APIs.
+ */
+function sgsRememberOrDiscoverQuotaProject_(token, url, bodyStr, forceDiscover) {
+  var userProps = null;
+  try {
+    userProps = PropertiesService.getUserProperties();
+  } catch (e) {}
+
+  var candidate = "";
+  var urlMatch = String(url || "").match(/\\/projects\\/([a-z][a-z0-9-]{4,29})(?:\\/|$|\\?)/i) ||
+                 String(url || "").match(/[?&]project(?:_id)?=([a-z][a-z0-9-]{4,29})(?:&|$)/i);
+  if (urlMatch && urlMatch[1] && urlMatch[1].indexOf("sys-") !== 0) {
+    candidate = urlMatch[1];
+  }
+  if (!candidate && bodyStr) {
+    try {
+      var parsedBody = JSON.parse(bodyStr);
+      if (parsedBody && typeof parsedBody.project_id === "string" && /^[a-z][a-z0-9-]{4,29}$/i.test(parsedBody.project_id)) {
+        candidate = parsedBody.project_id;
+      }
+    } catch (e) {}
+  }
+  if (candidate && userProps) {
+    try { userProps.setProperty("SGS_QUOTA_PROJECT", candidate); } catch (e) {}
+    return candidate;
+  }
+  if (userProps) {
+    try {
+      var saved = userProps.getProperty("SGS_QUOTA_PROJECT") || "";
+      if (saved) return saved;
+    } catch (e) {}
+  }
+  if (!forceDiscover) return "";
+
+  try {
+    var crmResp = UrlFetchApp.fetch(
+      "https://cloudresourcemanager.googleapis.com/v1/projects?filter=lifecycleState%3AACTIVE&pageSize=15",
+      {
+        method: "get",
+        headers: { Authorization: "Bearer " + token },
+        muteHttpExceptions: true
+      }
+    );
+    if (crmResp.getResponseCode() >= 200 && crmResp.getResponseCode() < 300) {
+      var crmData = JSON.parse(crmResp.getContentText() || "{}");
+      var projects = Array.isArray(crmData.projects) ? crmData.projects : [];
+      var chosen = "";
+      for (var i = 0; i < projects.length; i++) {
+        var pid = String((projects[i] && projects[i].projectId) || "");
+        if (pid && pid.indexOf("sys-") !== 0 && pid.indexOf("gam-") !== 0) {
+          chosen = pid;
+          break;
+        }
+      }
+      if (!chosen && projects.length > 0) {
+        chosen = String(projects[0].projectId || "");
+      }
+      if (chosen && userProps) {
+        try { userProps.setProperty("SGS_QUOTA_PROJECT", chosen); } catch (e) {}
+      }
+      return chosen;
+    }
+  } catch (e) {}
+  return "";
+}
+
+/**
  * Proxies Google API requests from the modal UI through Apps Script UrlFetchApp.
- * Each request completes in ~0.2-2s, avoiding any 6-minute execution limit issues.
+ * Works out-of-the-box on Apps Script's Default Cloud Project by combining
+ * enabledAdvancedServices with automatic X-Goog-User-Project + Service Usage fallback.
  */
 function sgsProxyFetch(req) {
   var url = String((req && req.url) || "");
   if (!/^https:\\/\\/([a-z0-9-]+\\.)*googleapis\\.com\\//i.test(url)) {
     throw new Error("Blocked non-googleapis URL: " + url);
   }
+  var token = ScriptApp.getOAuthToken();
   var headers = Object.assign({}, (req && req.headers) || {});
   if (!headers["Authorization"] && !headers["authorization"]) {
-    headers["Authorization"] = "Bearer " + ScriptApp.getOAuthToken();
+    headers["Authorization"] = "Bearer " + token;
   }
   var method = String((req && req.method) || "GET").toUpperCase();
-  var params = {
-    method: method.toLowerCase(),
-    headers: headers,
-    muteHttpExceptions: true
-  };
-  if (req && req.body !== undefined && req.body !== null && method !== "GET" && method !== "HEAD") {
-    params.payload = String(req.body);
-    params.contentType = headers["Content-Type"] || headers["content-type"] || "application/json";
+  var bodyStr = (req && req.body !== undefined && req.body !== null && method !== "GET" && method !== "HEAD")
+    ? String(req.body)
+    : null;
+
+  var quotaProject = sgsRememberOrDiscoverQuotaProject_(token, url, bodyStr, false);
+  var hostMatch = url.match(/^https:\\/\\/([a-z0-9-]+\\.googleapis\\.com)\\//i);
+  var serviceHost = hostMatch ? hostMatch[1].toLowerCase() : "";
+  if (
+    quotaProject &&
+    !headers["X-Goog-User-Project"] &&
+    !headers["x-goog-user-project"] &&
+    (serviceHost === "chromepolicy.googleapis.com" ||
+     serviceHost === "chromemanagement.googleapis.com" ||
+     serviceHost === "accesscontextmanager.googleapis.com")
+  ) {
+    headers["X-Goog-User-Project"] = quotaProject;
   }
 
-  var resp = UrlFetchApp.fetch(url, params);
+  function buildParams_(hdrs) {
+    var p = {
+      method: method.toLowerCase(),
+      headers: hdrs,
+      muteHttpExceptions: true
+    };
+    if (bodyStr !== null) {
+      p.payload = bodyStr;
+      p.contentType = hdrs["Content-Type"] || hdrs["content-type"] || "application/json";
+    }
+    return p;
+  }
+
+  var resp = UrlFetchApp.fetch(url, buildParams_(headers));
   var status = resp.getResponseCode();
   var bodyText = resp.getContentText();
+
+  // If Default Cloud Project returns 403 SERVICE_DISABLED / accessNotConfigured,
+  // auto-discover an active GCP project, enable the target API via Service Usage, and retry!
+  if (
+    status === 403 &&
+    serviceHost &&
+    (bodyText.indexOf("SERVICE_DISABLED") !== -1 ||
+     bodyText.indexOf("accessNotConfigured") !== -1 ||
+     bodyText.indexOf("has not been used in project") !== -1 ||
+     bodyText.indexOf("USER_PROJECT_DENIED") !== -1)
+  ) {
+    var fallbackProject = quotaProject || sgsRememberOrDiscoverQuotaProject_(token, url, bodyStr, true);
+    if (fallbackProject) {
+      try {
+        UrlFetchApp.fetch(
+          "https://serviceusage.googleapis.com/v1/projects/" +
+            encodeURIComponent(fallbackProject) +
+            "/services/" +
+            encodeURIComponent(serviceHost) +
+            ":enable",
+          {
+            method: "post",
+            contentType: "application/json",
+            payload: "{}",
+            headers: {
+              Authorization: "Bearer " + token,
+              "X-Goog-User-Project": fallbackProject
+            },
+            muteHttpExceptions: true
+          }
+        );
+        Utilities.sleep(1200);
+      } catch (e) {}
+      var retryHeaders = Object.assign({}, headers, { "X-Goog-User-Project": fallbackProject });
+      var retryResp = UrlFetchApp.fetch(url, buildParams_(retryHeaders));
+      if (retryResp.getResponseCode() < 400 || retryResp.getResponseCode() !== 403) {
+        resp = retryResp;
+        status = retryResp.getResponseCode();
+        bodyText = retryResp.getContentText();
+      }
+    }
+  }
 
   // Enrich openidconnect userinfo if Workspace restricts sub claim
   if (url.indexOf("https://openidconnect.googleapis.com/v1/userinfo") === 0 && status >= 200 && status < 300) {
@@ -546,26 +657,121 @@ function sgsProxyFetch(req) {
     bodyText: bodyText
   };
 }
+`;
+}
+
+function createEasyPocCodeGs() {
+  return `/**
+ * Chrome Enterprise Premium (CEP) Easy PoC & CERA — Google Sheets + Apps Script Edition
+ *
+ * Modeled after CERA 2.0 (Zero-Config Default Cloud Project):
+ * - Adds the "🛡️ CEP Easy PoC" menu to the Google Sheets toolbar on open (and supports direct Web App execution via doGet).
+ * - Launches the self-contained CEP Easy PoC & CERA console inside a Google Sheets modal.
+ * - Executes all Google Workspace / Chrome Policy / Cloud Identity DLP / Reports API calls
+ *   directly from the user's own Google Workspace session via UrlFetchApp + ScriptApp.getOAuthToken().
+ * - Automatically logs applied policies, DLP rules, license assignments, and rollbacks into
+ *   formatted Google Sheets tabs ("📊 CEP 適用サマリー", "📜 CEP 実行トレース").
+ */
+
+var SUMMARY_SHEET_NAME = "📊 CEP 適用サマリー";
+var TRACE_SHEET_NAME = "📜 CEP 実行トレース";
+${createSharedProxyAndQuotaHelpersGs("19xMGUHJFjF8SSiXV0kO-e8p49YqT1-xTEeo4raZMCv8")}
+
+function onOpen() {
+  try {
+    SpreadsheetApp.getUi()
+      .createMenu("🛡️ CEP Easy PoC")
+      .addItem("🚀 CEP Easy PoC コンソールを開く", "openCepEasyPocDialog")
+      .addItem("📊 CERA ログ分析を開く (Chrome 監査ログ)", "openCeraDialog")
+      .addItem("📖 セットアップガイドを開く", "openGuideDialog")
+      .addSeparator()
+      .addItem("📋 シートに監査・サマリータブを初期化", "initializeCepWorkbookSheets")
+      .addToUi();
+  } catch (e) {}
+}
+
+function doGet(e) {
+  ensureWorkbookSheetsQuietly_();
+  var view = (e && e.parameter && e.parameter.view) ? String(e.parameter.view) : "cepDeployer";
+  var rawHtml = HtmlService.createHtmlOutputFromFile("Index").getContent();
+  var injected = rawHtml.replace(
+    "<head>",
+    "<head><script>window.__SGS_INITIAL_VIEW = " + JSON.stringify(view) + ";</script>"
+  );
+  return HtmlService.createHtmlOutput(injected)
+    .setTitle("🛡️ Chrome Enterprise Premium — Easy PoC & CERA")
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
 
 /**
- * Initializes the summary and audit trace tabs in the active Google Spreadsheet.
+ * One-click helper to install an onOpen trigger onto the template Google Sheet
+ * and initialize its summary & audit tabs.
+ */
+function installOnTargetSpreadsheet() {
+  var ss = sgsGetTargetSpreadsheet_();
+  if (!ss) throw new Error("Target spreadsheet not found.");
+  ensureWorkbookSheetsQuietly_();
+  var triggers = ScriptApp.getProjectTriggers();
+  var exists = triggers.some(function(t) {
+    return t.getHandlerFunction() === "onOpen" && t.getTriggerSourceId() === ss.getId();
+  });
+  if (!exists) {
+    ScriptApp.newTrigger("onOpen").forSpreadsheet(ss).onOpen().create();
+  }
+  return { spreadsheetId: ss.getId(), url: ss.getUrl() };
+}
+
+function openCepEasyPocDialog() {
+  showStudioDialog_("cepDeployer", "🛡️ Chrome Enterprise Premium — Easy PoC デプロイコンソール");
+}
+
+function openCeraDialog() {
+  showStudioDialog_("cera", "📊 CERA — Chrome Egress Risk Analysis");
+}
+
+function openGuideDialog() {
+  showStudioDialog_("guide", "📖 CEP Easy PoC & CERA ガイド");
+}
+
+function showStudioDialog_(initialView, title) {
+  ensureWorkbookSheetsQuietly_();
+  var rawHtml = HtmlService.createHtmlOutputFromFile("Index").getContent();
+  var injected = rawHtml.replace(
+    "<head>",
+    "<head><script>window.__SGS_INITIAL_VIEW = " + JSON.stringify(initialView) + ";</script>"
+  );
+  var output = HtmlService.createHtmlOutput(injected)
+    .setTitle(title)
+    .setWidth(1380)
+    .setHeight(860)
+    .setSandboxMode(HtmlService.SandboxMode.IFRAME);
+  SpreadsheetApp.getUi().showModalDialog(output, title);
+}
+
+/**
+ * Initializes the summary and audit trace tabs in the target Google Spreadsheet.
  */
 function initializeCepWorkbookSheets() {
   ensureWorkbookSheetsQuietly_();
-  SpreadsheetApp.getActiveSpreadsheet().toast(
-    "「" + SUMMARY_SHEET_NAME + "」と「" + TRACE_SHEET_NAME + "」シートを準備しました。",
-    "🛡️ CEP Easy PoC",
-    5
-  );
+  var ss = sgsGetTargetSpreadsheet_();
+  if (ss) {
+    try {
+      ss.toast(
+        "「" + SUMMARY_SHEET_NAME + "」と「" + TRACE_SHEET_NAME + "」シートを準備しました。",
+        "🛡️ CEP Easy PoC",
+        5
+      );
+    } catch (e) {}
+  }
 }
 
 function ensureWorkbookSheetsQuietly_() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = sgsGetTargetSpreadsheet_();
   if (!ss) return;
 
   var summary = ss.getSheetByName(SUMMARY_SHEET_NAME);
   if (!summary) {
-    summary = ss.insertSheet(SUMMARY_SHEET_NAME, 0);
+    summary = ss.insertSheet(SUMMARY_SHEET_NAME, 1);
     summary.getRange("A1:E1").merge().setValue("🛡️ Chrome Enterprise Premium (CEP) Easy PoC — 適用状況サマリー")
       .setBackground("#1a73e8").setFontColor("#ffffff").setFontWeight("bold").setFontSize(13);
     summary.getRange("A3:B8").setValues([
@@ -589,7 +795,7 @@ function ensureWorkbookSheetsQuietly_() {
 
   var trace = ss.getSheetByName(TRACE_SHEET_NAME);
   if (!trace) {
-    trace = ss.insertSheet(TRACE_SHEET_NAME, 1);
+    trace = ss.insertSheet(TRACE_SHEET_NAME, 2);
     trace.getRange("A1:F1").setValues([["日時 (ISO)", "操作種別", "対象スコープ", "結果", "適用件数", "詳細トレース"]])
       .setBackground("#1a73e8").setFontColor("#ffffff").setFontWeight("bold");
     trace.setColumnWidth(1, 180);
@@ -612,16 +818,16 @@ function sgsRecordSheetAudit(event) {
   var res = event.response || {};
   var ts = event.timestamp || new Date().toISOString();
 
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = sgsGetTargetSpreadsheet_();
   if (!ss) return { ok: true };
   ensureWorkbookSheetsQuietly_();
 
   var summary = ss.getSheetByName(SUMMARY_SHEET_NAME);
   var trace = ss.getSheetByName(TRACE_SHEET_NAME);
 
-  if (path === "/api/v1/connections/workspace/validate" && res.customer_id) {
+  if (path === "/api/v1/connections/workspace/validate" && (res.resource_id || res.customer_id)) {
     summary.getRange("B3").setValue(ts);
-    summary.getRange("B5").setValue(res.customer_id || "-");
+    summary.getRange("B5").setValue(res.resource_id || res.customer_id || "-");
     summary.getRange("B6").setValue(res.primary_domain || "-");
     return { ok: true };
   }
@@ -679,8 +885,8 @@ function createSgwDeployerCodeGs() {
   return `/**
  * Secure Gateway Deployer — Google Sheets + Apps Script Edition
  *
- * Container-bound Apps Script modeled after CERA 2.0:
- * - Adds the "🌐 Secure Gateway" menu to the Google Sheets toolbar on open.
+ * Modeled after CERA 2.0 (Zero-Config Default Cloud Project):
+ * - Adds the "🌐 Secure Gateway" menu to the Google Sheets toolbar on open (and supports direct Web App execution via doGet).
  * - Launches the 4-Step Secure Gateway Deployer & Operations Manager inside a Google Sheets modal.
  * - Proxies all Google Cloud / BeyondCorp / Compute / DNS / Secret Manager / Chrome Policy REST calls
  *   through Apps Script UrlFetchApp (< 2s per call, zero 6-minute execution limit issues).
@@ -689,17 +895,47 @@ function createSgwDeployerCodeGs() {
 
 var SGW_SUMMARY_SHEET = "🌐 SGW 構成・リソース一覧";
 var SGW_LOG_SHEET = "📜 SGW 実行・監査ログ";
+${createSharedProxyAndQuotaHelpersGs("1V0ZIXaL-DIUuSogmX2MlyyWnDl9LQ06ayfCmcPYuyCQ")}
 
 function onOpen() {
-  SpreadsheetApp.getUi()
-    .createMenu("🌐 Secure Gateway")
-    .addItem("🚀 Secure Gateway 新規セットアップを開く", "openSgwSetupDialog")
-    .addItem("📦 デプロイ管理・削除を開く", "openSgwDeploymentsDialog")
-    .addItem("📄 受入証跡を開く", "openSgwEvidenceDialog")
-    .addItem("📖 アーキテクチャ & ガイドを開く", "openSgwGuideDialog")
-    .addSeparator()
-    .addItem("📋 シートに構成・監査タブを初期化", "initializeSgwWorkbookSheets")
-    .addToUi();
+  try {
+    SpreadsheetApp.getUi()
+      .createMenu("🌐 Secure Gateway")
+      .addItem("🚀 Secure Gateway 新規セットアップを開く", "openSgwSetupDialog")
+      .addItem("📦 デプロイ管理・削除を開く", "openSgwDeploymentsDialog")
+      .addItem("📄 受入証跡を開く", "openSgwEvidenceDialog")
+      .addItem("📖 アーキテクチャ & ガイドを開く", "openSgwGuideDialog")
+      .addSeparator()
+      .addItem("📋 シートに構成・監査タブを初期化", "initializeSgwWorkbookSheets")
+      .addToUi();
+  } catch (e) {}
+}
+
+function doGet(e) {
+  ensureSgwSheetsQuietly_();
+  var view = (e && e.parameter && e.parameter.view) ? String(e.parameter.view) : "setup";
+  var rawHtml = HtmlService.createHtmlOutputFromFile("Index").getContent();
+  var injected = rawHtml.replace(
+    "<head>",
+    "<head><script>window.__SGS_INITIAL_VIEW = " + JSON.stringify(view) + ";</script>"
+  );
+  return HtmlService.createHtmlOutput(injected)
+    .setTitle("🌐 Chrome Enterprise Premium — Secure Gateway Deployer")
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+function installOnTargetSpreadsheet() {
+  var ss = sgsGetTargetSpreadsheet_();
+  if (!ss) throw new Error("Target spreadsheet not found.");
+  ensureSgwSheetsQuietly_();
+  var triggers = ScriptApp.getProjectTriggers();
+  var exists = triggers.some(function(t) {
+    return t.getHandlerFunction() === "onOpen" && t.getTriggerSourceId() === ss.getId();
+  });
+  if (!exists) {
+    ScriptApp.newTrigger("onOpen").forSpreadsheet(ss).onOpen().create();
+  }
+  return { spreadsheetId: ss.getId(), url: ss.getUrl() };
 }
 
 function openSgwSetupDialog() {
@@ -733,87 +969,27 @@ function showSgwDialog_(initialView, title) {
   SpreadsheetApp.getUi().showModalDialog(output, title);
 }
 
-function sgsGetAuthToken() {
-  var token = ScriptApp.getOAuthToken();
-  var email = "";
-  try {
-    email = Session.getActiveUser().getEmail() || "";
-  } catch (e) {}
-  return { token: token, email: email };
-}
-
-function sgsProxyFetch(req) {
-  var url = String((req && req.url) || "");
-  if (!/^https:\\/\\/([a-z0-9-]+\\.)*googleapis\\.com\\//i.test(url)) {
-    throw new Error("Blocked non-googleapis URL: " + url);
-  }
-  var headers = Object.assign({}, (req && req.headers) || {});
-  if (!headers["Authorization"] && !headers["authorization"]) {
-    headers["Authorization"] = "Bearer " + ScriptApp.getOAuthToken();
-  }
-  var method = String((req && req.method) || "GET").toUpperCase();
-  var params = {
-    method: method.toLowerCase(),
-    headers: headers,
-    muteHttpExceptions: true
-  };
-  if (req && req.body !== undefined && req.body !== null && method !== "GET" && method !== "HEAD") {
-    params.payload = String(req.body);
-    params.contentType = headers["Content-Type"] || headers["content-type"] || "application/json";
-  }
-
-  var resp = UrlFetchApp.fetch(url, params);
-  var status = resp.getResponseCode();
-  var bodyText = resp.getContentText();
-
-  if (url.indexOf("https://openidconnect.googleapis.com/v1/userinfo") === 0 && status >= 200 && status < 300) {
-    try {
-      var parsed = JSON.parse(bodyText || "{}");
-      var activeEmail = "";
-      try { activeEmail = Session.getActiveUser().getEmail() || ""; } catch (e) {}
-      if (!parsed.email && activeEmail) parsed.email = activeEmail;
-      if (parsed.email && parsed.email_verified === undefined) parsed.email_verified = true;
-      if (!parsed.sub && parsed.email) {
-        var digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, parsed.email.toLowerCase());
-        parsed.sub = digest.map(function(b) { return ("0" + (b & 0xff).toString(16)).slice(-2); }).join("").slice(0, 32);
-      }
-      bodyText = JSON.stringify(parsed);
-    } catch (e) {}
-  }
-
-  var rawHeaders = resp.getAllHeaders() || {};
-  var cleanHeaders = {};
-  Object.keys(rawHeaders).forEach(function(k) {
-    var v = rawHeaders[k];
-    cleanHeaders[k] = Array.isArray(v) ? v.join(", ") : String(v);
-  });
-  if (!cleanHeaders["content-type"] && !cleanHeaders["Content-Type"]) {
-    cleanHeaders["content-type"] = "application/json";
-  }
-
-  return {
-    status: status,
-    headers: cleanHeaders,
-    bodyText: bodyText
-  };
-}
-
 function initializeSgwWorkbookSheets() {
   ensureSgwSheetsQuietly_();
-  SpreadsheetApp.getActiveSpreadsheet().toast(
-    "「" + SGW_SUMMARY_SHEET + "」と「" + SGW_LOG_SHEET + "」シートを準備しました。",
-    "🌐 Secure Gateway Deployer",
-    5
-  );
+  var ss = sgsGetTargetSpreadsheet_();
+  if (ss) {
+    try {
+      ss.toast(
+        "「" + SGW_SUMMARY_SHEET + "」と「" + SGW_LOG_SHEET + "」シートを準備しました。",
+        "🌐 Secure Gateway Deployer",
+        5
+      );
+    } catch (e) {}
+  }
 }
 
 function ensureSgwSheetsQuietly_() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = sgsGetTargetSpreadsheet_();
   if (!ss) return;
 
   var summary = ss.getSheetByName(SGW_SUMMARY_SHEET);
   if (!summary) {
-    summary = ss.insertSheet(SGW_SUMMARY_SHEET, 0);
+    summary = ss.insertSheet(SGW_SUMMARY_SHEET, 1);
     summary.getRange("A1:F1").merge().setValue("🌐 Chrome Enterprise Premium — Secure Gateway 構成・リソース一覧")
       .setBackground("#1a73e8").setFontColor("#ffffff").setFontWeight("bold").setFontSize(13);
     summary.getRange("A3:B9").setValues([
@@ -839,7 +1015,7 @@ function ensureSgwSheetsQuietly_() {
 
   var logSheet = ss.getSheetByName(SGW_LOG_SHEET);
   if (!logSheet) {
-    logSheet = ss.insertSheet(SGW_LOG_SHEET, 1);
+    logSheet = ss.insertSheet(SGW_LOG_SHEET, 2);
     logSheet.getRange("A1:E1").setValues([["日時 (ISO)", "エンドポイント", "ステータス", "構成ハッシュ / ID", "詳細"]])
       .setBackground("#1a73e8").setFontColor("#ffffff").setFontWeight("bold");
     logSheet.setColumnWidth(1, 180);
@@ -858,7 +1034,7 @@ function sgsRecordSheetAudit(event) {
   var res = event.response || {};
   var ts = event.timestamp || new Date().toISOString();
 
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = sgsGetTargetSpreadsheet_();
   if (!ss) return { ok: true };
   ensureSgwSheetsQuietly_();
 
@@ -866,15 +1042,20 @@ function sgsRecordSheetAudit(event) {
   var logSheet = ss.getSheetByName(SGW_LOG_SHEET);
 
   if (path === "/api/v1/plans" && res && res.plan_id) {
-    var spec = (req && req.specification) || {};
+    var spec = (req && req.specification) || res.specification || {};
+    var planBlock = res.plan || {};
+    var ready = Boolean(res.ready_to_approve || planBlock.can_apply);
+    var changes = Array.isArray(res.resource_changes)
+      ? res.resource_changes
+      : (Array.isArray(planBlock.changes) ? planBlock.changes : []);
+
     summary.getRange("B3").setValue(ts);
     summary.getRange("B5").setValue(spec.project_id || "-");
-    summary.getRange("B6").setValue((spec.deployment_name || "-") + " / " + (spec.region || "-"));
+    summary.getRange("B6").setValue((spec.deployment_name || spec.name || "-") + " / " + (spec.region || "-"));
     summary.getRange("B7").setValue((spec.private_hostname || "-") + " (" + (spec.backend_kind || "-") + ")");
     summary.getRange("B8").setValue((spec.target_ou_id || "-") + (spec.force_overwrite ? " [強制上書きON]" : ""));
-    summary.getRange("B9").setValue(res.ready_to_approve ? "✅ プリフライト完了 (承認可能)" : "⚠️ プリフライト要確認");
+    summary.getRange("B9").setValue(ready ? "✅ プリフライト完了 (承認可能)" : "⚠️ プリフライト要確認");
 
-    var changes = Array.isArray(res.resource_changes) ? res.resource_changes : [];
     if (changes.length > 0) {
       var lastRow = Math.max(11, summary.getLastRow());
       if (lastRow > 11) {
@@ -894,7 +1075,7 @@ function sgsRecordSheetAudit(event) {
     }
 
     if (logSheet) {
-      logSheet.appendRow([ts, "POST /api/v1/plans", res.ready_to_approve ? "READY" : "BLOCKED", res.plan_id, "Changes: " + changes.length]);
+      logSheet.appendRow([ts, "POST /api/v1/plans", ready ? "READY" : "BLOCKED", res.plan_id, "Changes: " + changes.length]);
     }
     return { ok: true };
   }
@@ -935,18 +1116,70 @@ function createEasyPocAppsscriptJson() {
   return JSON.stringify(
     {
       timeZone: "Asia/Tokyo",
-      dependencies: {},
+      dependencies: {
+        enabledAdvancedServices: [
+          {
+            userSymbol: "AdminDirectory",
+            serviceId: "admin",
+            version: "directory_v1",
+          },
+          {
+            userSymbol: "AdminReports",
+            serviceId: "admin",
+            version: "reports_v1",
+          },
+          {
+            userSymbol: "AdminLicenseManager",
+            serviceId: "licensing",
+            version: "v1",
+          },
+          {
+            userSymbol: "CloudIdentityGroups",
+            serviceId: "cloudidentity",
+            version: "v1",
+          },
+          {
+            userSymbol: "Drive",
+            serviceId: "drive",
+            version: "v3",
+          },
+          {
+            userSymbol: "Sheets",
+            serviceId: "sheets",
+            version: "v4",
+          },
+          {
+            userSymbol: "Slides",
+            serviceId: "slides",
+            version: "v1",
+          },
+          {
+            userSymbol: "Docs",
+            serviceId: "docs",
+            version: "v1",
+          },
+        ],
+      },
+      webapp: {
+        executeAs: "USER_ACCESSING",
+        access: "DOMAIN",
+      },
       exceptionLogging: "STACKDRIVER",
       runtimeVersion: "V8",
       oauthScopes: [
         "openid",
         "https://www.googleapis.com/auth/userinfo.email",
-        "https://www.googleapis.com/auth/spreadsheets.currentonly",
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive",
+        "https://www.googleapis.com/auth/presentations",
+        "https://www.googleapis.com/auth/documents",
         "https://www.googleapis.com/auth/script.external_request",
+        "https://www.googleapis.com/auth/script.scriptapp",
         "https://www.googleapis.com/auth/admin.directory.orgunit",
         "https://www.googleapis.com/auth/admin.directory.group.readonly",
         "https://www.googleapis.com/auth/admin.directory.customer.readonly",
         "https://www.googleapis.com/auth/admin.directory.user.readonly",
+        "https://www.googleapis.com/auth/admin.directory.rolemanagement",
         "https://www.googleapis.com/auth/cloud-identity.policies",
         "https://www.googleapis.com/auth/chrome.management.policy",
         "https://www.googleapis.com/auth/chrome.management.profiles.readonly",
@@ -964,14 +1197,43 @@ function createSgwDeployerAppsscriptJson() {
   return JSON.stringify(
     {
       timeZone: "Asia/Tokyo",
-      dependencies: {},
+      dependencies: {
+        enabledAdvancedServices: [
+          {
+            userSymbol: "AdminDirectory",
+            serviceId: "admin",
+            version: "directory_v1",
+          },
+          {
+            userSymbol: "CloudIdentityGroups",
+            serviceId: "cloudidentity",
+            version: "v1",
+          },
+          {
+            userSymbol: "Drive",
+            serviceId: "drive",
+            version: "v3",
+          },
+          {
+            userSymbol: "Sheets",
+            serviceId: "sheets",
+            version: "v4",
+          },
+        ],
+      },
+      webapp: {
+        executeAs: "USER_ACCESSING",
+        access: "DOMAIN",
+      },
       exceptionLogging: "STACKDRIVER",
       runtimeVersion: "V8",
       oauthScopes: [
         "openid",
         "https://www.googleapis.com/auth/userinfo.email",
-        "https://www.googleapis.com/auth/spreadsheets.currentonly",
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive",
         "https://www.googleapis.com/auth/script.external_request",
+        "https://www.googleapis.com/auth/script.scriptapp",
         "https://www.googleapis.com/auth/cloud-platform",
         "https://www.googleapis.com/auth/admin.directory.orgunit",
         "https://www.googleapis.com/auth/admin.directory.group.readonly",
@@ -988,58 +1250,46 @@ function createReadme(edition) {
   if (edition === "easy-poc") {
     return `# 🛡️ CEP Easy PoC & CERA — Google スプレッドシート + Apps Script 版
 
-CERA 2.0 と同じ **コンテナバインド型 Google スプレッドシート + Apps Script (GAS)** 構成で、Chrome 拡張機能のインストールや Chrome Web Store の審査を待たずに、スプレッドシートのカスタムメニューから **CEP Easy PoC** と **CERA** をフル機能で実行できるパッケージです。
+CERA 2.0 と同じ **Google スプレッドシート + Apps Script (GAS)** 構成で、Chrome 拡張機能のインストールや GCP プロジェクト番号の手動設定を行わずに、スプレッドシートの上部メニューまたは Web App から **CEP Easy PoC** と **CERA** をそのまま実行できるパッケージです。
 
 ## 含まれるファイル
 
 | ファイル名 | 用途 |
 | :--- | :--- |
-| \`appsscript.json\` | Apps Script マニフェスト（OAuth スコープ定義） |
-| \`Code.gs\` | スプレッドシート上部メニュー \`🛡️ CEP Easy PoC\`、\`UrlFetchApp\` プロキシ、シート自動記録処理 |
+| \`appsscript.json\` | Apps Script マニフェスト（Default Cloud Project 用 \`enabledAdvancedServices\`・OAuth スコープ定義） |
+| \`Code.gs\` | スプレッドシート上部メニュー \`🛡️ CEP Easy PoC\`、\`doGet\` Web App、自動 Quota Project 検出・Service Usage 自動有効化付き \`UrlFetchApp\` プロキシ、シート自動記録処理 |
 | \`Index.html\` | モーダル UI 本体（Easy PoC・DLP マトリクス・ライセンス管理・CERA・ガイド） |
 
-## セットアップ手順（3分）
+## 使い方（CERA 2.0 方式・GCP プロジェクト番号の手動設定不要）
 
-1. **Google スプレッドシートを新規作成**し、上部メニューの **［拡張機能］＞［Apps Script］** を開きます。
-2. Apps Script エディタ左側の **［⚙ プロジェクトの設定］** を開き、以下を設定します：
-   - **「「appsscript.json」マニフェスト ファイルをエディタで表示する」** にチェックを入れます。
-   - **「Google Cloud Platform (GCP) プロジェクト」** で **［プロジェクトを変更］** を押し、以下の API を有効化した GCP プロジェクト番号を入力します（OAuth 同意画面は「内部」で構いません）：
-     - Admin SDK API (\`admin.googleapis.com\`)
-     - Chrome Policy API (\`chromepolicy.googleapis.com\`)
-     - Cloud Identity API (\`cloudidentity.googleapis.com\`)
-     - Enterprise License Manager API (\`licensing.googleapis.com\`)
-3. エディタに戻り、以下の3ファイルを貼り付けて保存します：
-   - \`appsscript.json\`
-   - \`Code.gs\`（既存の \`コード.gs\` を置き換え）
-   - **［＋］＞［HTML］** からファイル名 \`Index\`（\`.html\` は自動付与）を作成し、\`Index.html\` の中身を貼り付け
-4. スプレッドシートを再読み込みすると、上部メニューに **\`🛡️ CEP Easy PoC\`** が表示されます。
-5. 一度設定したスプレッドシートは、CERA と同じく URL 末尾を \`/copy\` に変えて配布することで、コピー先でもそのまま利用できます。
+1. 配布用テンプレート（\`go/cep-easy-poc\` または \`https://docs.google.com/spreadsheets/d/19xMGUHJFjF8SSiXV0kO-e8p49YqT1-xTEeo4raZMCv8/copy\`）を開き、**［コピーを作成］** をクリックします。
+2. 上部メニュー **\`🛡️ CEP Easy PoC\` ＞ \`🚀 Easy PoC デプロイヤーを開く\`**（または事前構築済み Apps Script プロジェクト \`1flNM6SM-lSGUSssW4OYJg7KYIu00vJbAuDXGivcV9bEM4qCjMI2zrf8L\` の \`installOnTargetSpreadsheet()\`）を実行します。
+3. 初回実行時に Google アカウントの OAuth 承認画面が表示されたら許可します（Apps Script の Default Cloud Project 上で Admin SDK / Cloud Identity / License Manager 等が動作し、Chrome Policy API 等で Quota Project が必要な場合はアクセス可能な GCP プロジェクトを自動検出して有効化します）。
 `;
   }
   return `# 🌐 Secure Gateway Deployer — Google スプレッドシート + Apps Script 版
 
-CERA 2.0 と同じ **コンテナバインド型 Google スプレッドシート + Apps Script (GAS)** 構成で、スプレッドシートのカスタムメニューから **Chrome Enterprise Premium Secure Gateway Deployer**（4ステップ構成ウィザード・強制上書きモード・サンプルVM作成・デプロイ管理・削除）を実行できる単独パッケージです。
+CERA 2.0 と同じ **Google スプレッドシート + Apps Script (GAS)** 構成で、スプレッドシートの上部メニューまたは Web App から **Chrome Enterprise Premium Secure Gateway Deployer**（4ステップ構成ウィザード・強制上書きモード・サンプルVM作成・デプロイ管理・削除）を実行できる単独パッケージです。
 
 ## 含まれるファイル
 
 | ファイル名 | 用途 |
 | :--- | :--- |
-| \`appsscript.json\` | Apps Script マニフェスト（Google Cloud / Chrome Policy OAuth スコープ定義） |
-| \`Code.gs\` | スプレッドシート上部メニュー \`🌐 Secure Gateway\`、\`UrlFetchApp\` プロキシ、構成・監査シート自動出力 |
+| \`appsscript.json\` | Apps Script マニフェスト（Default Cloud Project 用 \`enabledAdvancedServices\`・Google Cloud / Chrome Policy OAuth スコープ定義） |
+| \`Code.gs\` | スプレッドシート上部メニュー \`🌐 Secure Gateway\`、\`doGet\` Web App、自動 Quota Project 検出付き \`UrlFetchApp\` プロキシ、構成・監査シート自動出力 |
 | \`Index.html\` | モーダル UI 本体（新規セットアップ・デプロイ管理・受入証跡・ガイド） |
 
 ## 特徴（Apps Script 6分制限とローカルPoC証明書への対応）
 
+- **GCP プロジェクト番号の手動紐付け不要**: Apps Script の Default Cloud Project でそのまま OAuth 認可が通り、デプロイ対象の GCP プロジェクト ID を \`X-Goog-User-Project\` として自動付与・API 自動有効化します。
 - **6分実行制限の回避**: デプロイのステップ制御ループはモーダル側で動作し、1リクエストごとに \`google.script.run.sgsProxyFetch\`（約0.5〜2秒）を呼び出すため、VM 起動やゲートウェイ作成が数分かかっても Apps Script の6分制限に抵触しません。
 - **ブラウザ内 WebCrypto による証明書生成**: ローカル PoC 用の ECDSA P-256 ルート CA 証明書・サーバー TLS 証明書はモーダル内の WebCrypto (\`crypto.subtle\`) で生成します。
 - **シートへの自動記録**: プリフライトや適用を実行すると、スプレッドシート内の \`🌐 SGW 構成・リソース一覧\` および \`📜 SGW 実行・監査ログ\` シートにリソース計画と実行結果が自動出力されます。
 
-## セットアップ手順（3分）
+## 使い方（CERA 2.0 方式）
 
-1. **Google スプレッドシートを新規作成**し、**［拡張機能］＞［Apps Script］** を開きます。
-2. **［⚙ プロジェクトの設定］** で **「「appsscript.json」マニフェスト ファイルをエディタで表示する」** にチェックを入れ、対象の **GCP プロジェクト番号** を設定します。
-3. \`appsscript.json\`、\`Code.gs\`、および HTML ファイル \`Index\`（\`Index.html\` の内容）を貼り付けて保存します。
-4. スプレッドシートを再読み込みし、上部メニュー **\`🌐 Secure Gateway\` ＞ \`🚀 Secure Gateway 新規セットアップを開く\`** から起動します。
+1. 配布用テンプレート（\`go/sgw-deployer\` または \`https://docs.google.com/spreadsheets/d/1V0ZIXaL-DIUuSogmX2MlyyWnDl9LQ06ayfCmcPYuyCQ/copy\`）を開き、**［コピーを作成］** をクリックします。
+2. 上部メニュー **\`🌐 Secure Gateway\` ＞ \`🚀 Secure Gateway 新規セットアップを開く\`**（または事前構築済み Apps Script プロジェクト \`1y4RFjFCVAS68x4CcZe5KZ9YnO9WN5jF6WzpZ_bjPUtbdQ_zBOeG0rHKt\` の \`installOnTargetSpreadsheet()\`）を実行します。
 `;
 }
 
@@ -1052,8 +1302,9 @@ async function main() {
   await mkdir(easyPocDir, { recursive: true });
   await mkdir(sgwDir, { recursive: true });
 
-  // Edition 1: Easy PoC (+ CERA) — hides Secure Gateway Deployer nav group & SGW Guide tab
+  // Edition 1: Easy PoC (+ CERA) — hides Secure Gateway Deployer nav dropdown group & SGW Guide tab
   const easyPocExtraCss = `
+    aside.sidebar .primary-nav .nav-dropdown-group,
     aside.sidebar .primary-nav .nav-group { display: none !important; }
     #guide-tab-sgw { display: none !important; }
   `;
