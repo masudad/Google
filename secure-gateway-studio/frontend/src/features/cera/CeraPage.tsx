@@ -1143,15 +1143,15 @@ export function CeraPage({ locale, workspaceIdentity = "", showEasyPoc = false, 
             <div className="cera-kpi-grid">
               <Kpi label={c.malware} tone="danger" value={fmt(result.signals.malware, locale)} />
               <Kpi label={c.unscanned} tone="warning" value={fmt(result.signals.unscanned, locale)} />
-              <Kpi label="Password reuse" tone="danger" value={fmt(result.signals.passwordReuse, locale)} sub={`${fmt(result.signals.passwordReuseUsers, locale)} ${c.users}`} />
-              <Kpi label="Unsafe site visits" tone="warning" value={fmt(result.signals.unsafeSiteVisits, locale)} />
-              <Kpi label="URL filtering" tone="muted" value={fmt(result.signals.urlFilteringInterstitials, locale)} />
-              <Kpi label="Login events" tone="muted" value={fmt(result.signals.loginEvents, locale)} />
-              <Kpi label={c.extension} tone="muted" value={fmt(result.signals.extensionInstalls, locale)} sub={`${fmt(result.signals.distinctExtensions, locale)} distinct`} />
-              <Kpi label="Browser launches" tone="muted" value={fmt(result.signals.browserLaunches, locale)} />
+              <Kpi label={m.report.signals.passwordReuse} tone="danger" value={fmt(result.signals.passwordReuse, locale)} sub={`${fmt(result.signals.passwordReuseUsers, locale)} ${c.users}`} />
+              <Kpi label={m.report.signals.unsafeSiteVisits} tone="warning" value={fmt(result.signals.unsafeSiteVisits, locale)} />
+              <Kpi label={m.report.signals.urlFiltering} tone="muted" value={fmt(result.signals.urlFilteringInterstitials, locale)} />
+              <Kpi label={m.report.signals.loginEvents} tone="muted" value={fmt(result.signals.loginEvents, locale)} />
+              <Kpi label={c.extension} tone="muted" value={fmt(result.signals.extensionInstalls, locale)} sub={m.report.signals.distinct(result.signals.distinctExtensions)} />
+              <Kpi label={m.report.signals.browserLaunches} tone="muted" value={fmt(result.signals.browserLaunches, locale)} />
             </div>
             <div className="cera-grid-2">
-              <DataTable caption="Unsafe hosts" headers={["Host", c.events]} rows={result.signals.topUnsafeHosts.map((h) => [<span className="cera-mono" key="h">{h.host}</span>, fmt(h.events, locale)])} />
+              <DataTable caption={m.report.signals.unsafeHosts} headers={[m.report.signals.host, c.events]} rows={result.signals.topUnsafeHosts.map((h) => [<span className="cera-mono" key="h">{h.host}</span>, fmt(h.events, locale)])} />
               <DataTable caption={c.extension} headers={[c.extension, c.installs]} rows={result.signals.topExtensions.map((e) => [e.name, fmt(e.installs, locale)])} />
             </div>
             {renderControl(["password_alert"])}

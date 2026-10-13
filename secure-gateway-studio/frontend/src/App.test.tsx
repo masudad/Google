@@ -1736,7 +1736,7 @@ describe("Secure Gateway Studio mode screen", () => {
     expect(document.body).toHaveTextContent(/Chrome］>［コネクタ］>［Chrome Root Store/);
     expect(document.body).toHaveTextContent(/作成済みサブネットにCloud RouterとCloud NAT/);
     expect(document.body).toHaveTextContent(/PoCモードだけでは、選択した既存リソースが非本番であることを保証しません/);
-    expect(document.body).toHaveTextContent(/記録済みmanaged-after状態と安全に一致する場合だけ復元/);
+    expect(document.body).toHaveTextContent(/適用した設定値と現在値が安全に一致する場合だけ復元/);
     expect(
       screen.getByRole("heading", { name: "実装済み機能の全体像" }),
     ).toBeInTheDocument();
@@ -2805,13 +2805,13 @@ describe("Secure Gateway Studio mode screen", () => {
       />,
     );
 
-    expect(screen.getByText("デプロイ構成リコール · 機密情報なし")).toBeInTheDocument();
+    expect(screen.getByText("デプロイ構成の復元 · 機密情報なし")).toBeInTheDocument();
     expect(
       screen.getByText(/TLS秘密鍵 \/ OAuthアクセストークン \/ Secret Manager実データ \/ 所有権トークン/),
     ).toBeInTheDocument();
 
     const recallBtn = screen.getByRole("button", {
-      name: "この構成をウィザードにリコール",
+      name: "この構成をウィザードに復元",
     });
     fireEvent.click(recallBtn);
     expect(onRecall).toHaveBeenCalledWith(spec);

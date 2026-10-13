@@ -124,7 +124,7 @@ assert.doesNotMatch(messagesSource, /available only in the separate local loopba
 assert.doesNotMatch(messagesSource, /Chrome 拡張機能ではこのパスを非表示にし、要求されても拒否します/);
 assert.match(messagesSource, /Create a private sample VM during approved Apply/);
 assert.match(messagesSource, /Launch a private sample VM during Apply/);
-assert.match(messagesSource, /サンプルVMをローンチする/);
+assert.match(messagesSource, /サンプルVMを自動作成する/);
 assert.match(messagesSource, /Option A requires an existing private HTTPS application/);
 assert.match(messagesSource, /管理対象サンプルでは、Option CのNginx層とプライベートHTTPバックエンドVM/);
 assert.match(messagesSource, /月額概算[^\n]*USD/);
@@ -164,7 +164,7 @@ assert.match(messagesSource, /PoC mode does not prove that selected existing res
 assert.match(messagesSource, /PoCモードだけでは、選択した既存リソースが非本番であることを保証しません/);
 assert.doesNotMatch(messagesSource, /without mutating production|prevent accidental production impact/);
 assert.match(messagesSource, /current value safely matches that run's recorded managed-after state/);
-assert.match(messagesSource, /記録済みmanaged-after状態と安全に一致する場合だけ復元/);
+assert.match(messagesSource, /適用した設定値と現在値が安全に一致する場合だけ復元/);
 assert.match(messagesSource, /sending write with an unknown result or later drift is retained/);
 assert.doesNotMatch(messagesSource, /secgw-nat-static-ip|10\.10\.0\.2/);
 assert.match(messagesSource, /dedicated-VPC path with private VMs creates Cloud NAT/);

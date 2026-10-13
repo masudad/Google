@@ -1452,16 +1452,16 @@ function formatGateDetail(
   }
   if (gateId === "chrome-root-store") {
     if (detail.includes("Could not inspect Chrome Root Store policy")) {
-      return "Chrome Root Store ポリシーの状態をAPIで確認できませんでした。Apply完了後に公開ルートPEMをダウンロードし、Google管理コンソール [Chrome] > [コネクタ] > [Chrome Root Store] でテスト用OUへ手動登録してください。";
+      return "Chrome Root Store ポリシーの状態をAPIで確認できませんでした。適用完了後に公開ルートPEMをダウンロードし、Google管理コンソール [Chrome] > [コネクタ] > [Chrome Root Store] でテスト用OUへ手動登録してください。";
     }
     if (detail.includes("Direct HTTPS uses a private CA")) {
       return "直接HTTPS接続でプライベートCA証明書を使用します。発行元ルートCAの公開PEMを、Google管理コンソール [Chrome] > [コネクタ] > [Chrome Root Store] でテスト用OUへ登録してください。";
     }
-    return "ローカルPoC CAを使用します。Apply完了後にステップ7で公開ルートPEMをダウンロードし、Google管理コンソール [Chrome] > [コネクタ] > [Chrome Root Store] でテスト用OUへ手動登録してください。";
+    return "ローカルPoC CAを使用します。適用完了後に公開ルートPEMをダウンロードし、Google管理コンソール [Chrome] > [コネクタ] > [Chrome Root Store] でテスト用OUへ手動登録してください。";
   }
   if (gateId === "endpoint-verification") {
     if (status === "planned") {
-      return "対象テストOUで Endpoint Verification が未設定のため、承認済みApplyで自動配信します。";
+      return "対象テストOUで Endpoint Verification が未設定のため、適用時に自動配信します。";
     }
     return "対象テストOUで Endpoint Verification の収集を有効化するよう手動確認が必要です。";
   }
@@ -1470,8 +1470,8 @@ function formatGateDetail(
     const apis = match?.[1] ?? "";
     if (status === "planned") {
       return apis
-        ? `未有効の必須APIを承認済みApplyで自動有効化します: ${apis}`
-        : "未有効の必須APIを承認済みApplyで自動有効化します。";
+        ? `未有効の必須APIを適用時に自動で有効化します: ${apis}`
+        : "未有効の必須APIを適用時に自動で有効化します。";
     }
     return apis
       ? `必須APIが不足しています: ${apis}`
@@ -1489,10 +1489,10 @@ function formatGateDetail(
     if (detail.includes("Confirmed manually by administrator")) {
       return "Chrome Enterprise Premium の利用権を管理者が手動確認しました。";
     }
-    return "対象ユーザーへの Chrome Enterprise Premium ライセンス割り当てを確認できませんでした。ステップ5で割り当て状況を確認してください。";
+    return "対象ユーザーへの Chrome Enterprise Premium ライセンス割り当てを確認できませんでした。［アクセス］ステップで割り当て状況を確認してください。";
   }
   if (gateId === "workspace-services") {
-    return "対象ユーザーの追加GoogleサービスとGoogle Cloudアクセスが有効であることをステップ5で確認してください。";
+    return "対象ユーザーの追加GoogleサービスとGoogle Cloudアクセスが有効であることを［アクセス］ステップで確認してください。";
   }
   if (gateId === "managed-chrome-profile") {
     if (detail.startsWith("Target test OU is configured")) {
@@ -1502,7 +1502,7 @@ function formatGateDetail(
   }
   if (gateId === "secure-enterprise-browser-client") {
     if (status === "planned") {
-      return "承認済みApplyで対象テストOUへ Secure Enterprise Browser 拡張機能を強制インストールします。";
+      return "適用時に対象テストOUへ Secure Enterprise Browser 拡張機能を強制インストールします。";
     }
     if (detail.includes("Group policy conflict")) {
       return "グループポリシーの拡張機能設定が対象テストOUの Secure Enterprise Browser 設定と競合しています。";
@@ -1511,13 +1511,13 @@ function formatGateDetail(
   }
   if (gateId === "global-access") {
     if (status === "planned") {
-      return "承認済みApplyで対象テストOUの Global Access ルーティングを有効化します。";
+      return "適用時に対象テストOUの Global Access ルーティングを有効化します。";
     }
     return "対象テストOUの Global Access 設定を確認してください。";
   }
   if (gateId === "private-egress") {
     if (status === "planned") {
-      return "承認済みApplyで専用VPCに Cloud Router と Cloud NAT を自動作成します。";
+      return "適用時に専用VPCへ Cloud Router と Cloud NAT を自動作成します。";
     }
     return "既存VPCから対象サブネットのプライベート送信経路 Cloud NAT または カスタムデフォルトルート を確認できませんでした。";
   }
@@ -1531,7 +1531,7 @@ function formatGateDetail(
     return "対象プロジェクトで有効な Cloud Billing 請求先アカウントを確認できませんでした。";
   }
   if (gateId === "test-ou") {
-    return "非本番の専用テストOUを選択し、ステップ5で確認チェックを入れてください。";
+    return "非本番の専用テストOUを選択し、［アクセス］ステップで確認チェックを入れてください。";
   }
   if (gateId === "group-policy-discovery") {
     return "Chrome グループポリシーの読み取り結果を確認してください。";
@@ -1628,7 +1628,7 @@ const en: Messages = {
   cloudNat: "Cloud NAT",
   upstreamVpc: "Existing upstream VPC",
   privateDnsRoute: "Private DNS, firewall, and return route",
-  applicationOwnedTls: "TLS owned by the HTTPS application",
+  applicationOwnedTls: "TLS terminated by the HTTPS app",
   apiPreflight: "API preflight",
   approval: "Approval",
   required: "Required",
@@ -1749,9 +1749,9 @@ const en: Messages = {
     signInOperatorChanged:
       "The signed-in account differs from the bound operator. Sign in with the original account or create a replacement deployer.",
     cloudStep1Label: "Step 1: Sign in with Google",
-    cloudStep2Label: "Step 2: Validate project connection (or create deployer SA in Step 6 after Preflight)",
+    cloudStep2Label: "Step 2: Validate project connection (or create deployer SA in Review after Preflight)",
     cloudStep2DeferHint:
-      "To run read-only Preflight first, click 'Validate connection' below. You can create and connect the dedicated deployer Service Account in Step 6 (Review) after Preflight.",
+      "To run read-only Preflight first, click 'Validate connection' below. You can create and connect the dedicated deployer Service Account in the Review step after Preflight.",
     cloudStep3Label: "Step 3: Create & connect keyless deployer SA (optional before Preflight)",
     customerIdAutoHint:
       "Leave as my_customer to auto-detect your Customer ID.",
@@ -1791,7 +1791,7 @@ const en: Messages = {
       "Two-zone regional MIG with CPU autoscaling.",
     network: "Connection method by destination app protocol (HTTPS / HTTP)",
     networkHttpsCategoryLabel:
-      "1. Destination app speaks HTTPS (or launch a standalone sample VM — recommended · $0 LB)",
+      "1. Destination app speaks HTTPS (or launch a standalone sample VM · $0 LB)",
     networkHttpCategoryLabel:
       "2. Destination app speaks HTTP only (HTTPS offload via Internal ALB or Nginx VM)",
     vpcName: "Existing VPC name",
@@ -1936,7 +1936,7 @@ const en: Messages = {
     configuration: "Configuration",
     safetyGates: "Safety gates",
     ready: "Ready",
-    incomplete: "Incomplete",
+    incomplete: "Pending approval",
     verified: "Ready",
     plannedOnApply: "Automatic on Apply",
     manualCheck: "Manual check",
@@ -2005,11 +2005,11 @@ const en: Messages = {
         : `${name} is not reported yet.`,
     missingPermissions: (count: number) =>
       `${count} required permissions are missing.`,
-    approvePlan: "Approve this exact plan",
+    approvePlan: "Approve deployment plan",
     approvePlanDescription:
       "Bound to the configuration hash; invalidated if settings change.",
     generatePlan: "Run preflight and generate plan",
-    runPreflight: "Run trusted preflight",
+    runPreflight: "Run preflight",
     autoRenameAndRepreflight: "Auto-rename deployment & re-run preflight",
     conflictingResourcesHint: (count: number) =>
       count === 1
@@ -2030,7 +2030,7 @@ const en: Messages = {
     preflightStage5: "5/5: Evaluating safety gates...",
     preflightStage5Detail: "Building diff & evaluating safety gates",
     preflightComplete: "Preflight complete",
-    plannedChangesTitle: "Exact changes requiring approval",
+    plannedChangesTitle: "Planned changes requiring approval",
     plannedChangesIntro:
       "Shows only create and update operations.",
     changeAction: (action) =>
@@ -2047,16 +2047,16 @@ const en: Messages = {
     apiEvidence: "API evidence",
     diagnosticMessage: (code, fallback) => formatDiagnosticMessage("en", code, fallback),
     diagnosticRemediation: (code, fallback) => formatDiagnosticRemediation("en", code, fallback),
-    approveWorking: "Binding approval…",
-    approvalReady: "Exact plan approved",
+    approveWorking: "Approving plan…",
+    approvalReady: "Approved",
     continueToApply: "Continue to Apply",
-    applyTitle: "Apply with checkpoints and evidence",
+    applyTitle: "Apply changes & track progress",
     applyIntro:
       "Applies changes in dependency order and rolls back owned resources on failure.",
     preflight: "Preflight",
-    desiredStatePlan: "Desired-state plan",
+    desiredStatePlan: "Configuration plan",
     applyChanges: "Apply approved changes",
-    applyLocked: "Complete preflight and approval to unlock Apply",
+    applyLocked: "Available after preflight and approval",
     applying: "Applying approved changes…",
     runSucceeded: "Deployment succeeded",
     runRollingBack: "Rolling back applied changes…",
@@ -2098,10 +2098,10 @@ const en: Messages = {
     testUrlLabel: "Private Web App URL",
     sebTroubleshootingHint:
       "If Chrome shows NXDOMAIN, reload the Secure Enterprise Browser extension at chrome://extensions or re-sign in to refresh routes.",
-    recallCardTitle: "Recalled deployment configuration · non-sensitive",
+    recallCardTitle: "Deployment configuration restore · non-sensitive",
     recallCardIntro:
       "Review, copy, download, or reload the deployed non-sensitive parameters into the wizard. Private keys, OAuth tokens, and secret payloads are excluded.",
-    recallIntoWizardButton: "Recall configuration into wizard",
+    recallIntoWizardButton: "Load configuration into wizard",
     recallCopyJsonButton: "Copy configuration JSON",
     recallCopiedBadge: "✓ Copied non-sensitive configuration JSON",
     recallDownloadJsonButton: "Download configuration JSON",
@@ -2137,7 +2137,7 @@ const en: Messages = {
     gateway: "Secure Gateway",
     application: "Application route",
     architecture: "Architecture",
-    ownershipRun: "Resource ownership run",
+    ownershipRun: "Owning deployment run",
     architectureLabel: (kind) =>
       ({
         managed_sample: "HTTP App · Nginx HTTPS offload (Sample VM)",
@@ -2145,10 +2145,10 @@ const en: Messages = {
         direct_https: "HTTPS App · Direct private HTTPS",
         internal_https_lb: "HTTP App · Internal Application Load Balancer HTTPS offload",
       })[kind] ?? kind,
-    recallCardTitle: "Recalled deployment configuration · non-sensitive",
+    recallCardTitle: "Deployment configuration restore · non-sensitive",
     recallCardIntro:
       "Review, copy, download, or reload the deployed non-sensitive parameters into the wizard. Private keys, OAuth tokens, and secret payloads are excluded.",
-    recallIntoWizardButton: "Recall configuration into wizard",
+    recallIntoWizardButton: "Load configuration into wizard",
     recallCopyJsonButton: "Copy configuration JSON",
     recallCopiedBadge: "✓ Copied non-sensitive configuration JSON",
     recallDownloadJsonButton: "Download configuration JSON",
@@ -2239,7 +2239,7 @@ const en: Messages = {
     runSystemChecks: "Run automated system checks",
     runningSystemChecks: "Verifying resources…",
     acceptanceComplete: "PoC acceptance complete",
-    acceptancePending: "Acceptance evidence incomplete",
+    acceptancePending: "Acceptance evidence pending",
     requiredProgress: (satisfied, required) =>
       `${satisfied} of ${required} required cases satisfied`,
     acceptanceTest: (testId) =>
@@ -2348,7 +2348,7 @@ const en: Messages = {
     portalEyebrow: "Chrome Enterprise Premium · Operations Guide",
     portalTitle: "Documentation & Step-by-Step PoC Guide",
     portalIntro:
-      "Use Easy PoC for agentless browser DLP, GenAI controls, and SaaS tenant restrictions, or Secure Gateway Deployer for VPN-less private web apps.",
+      "Use Easy PoC for agentless browser DLP, GenAI controls, and SaaS tenant restrictions, CERA for visualizing external data-transfer risk from Chrome logs, or Secure Gateway Deployer for VPN-less private web apps.",
     beginnerNavLabel: "Quick Start",
     beginnerEyebrow: "Core Building Blocks",
     beginnerTitle: "New to Google Workspace or Google Cloud? Understand the 3 Building Blocks",
@@ -2514,7 +2514,7 @@ const en: Messages = {
         "Loads Chrome log events exported from the Google Admin Console, classifies every upload, paste, download, and print by destination and signed-in identity, and produces an in-app dashboard plus a downloadable 16:9 HTML slide deck. Processing runs entirely inside the extension: no file ever leaves the browser.",
       pocNoticeTitle: "Read-only by design",
       pocNoticeBody:
-        "CERA requests no additional OAuth scopes and calls no API. It only reads the CSV, TSV, or JSON files you drop into it. Identities are masked by default in the deck, CSV, and JSON exports; turn masking off only for internal forensic review.",
+        "Every chart, risk score, and slide is computed inside this browser tab from the file you drop or from read-only Chrome audit logs fetched in memory with your signed-in admin session. Identities are masked by default in the deck, CSV, and JSON exports; turn masking off only for internal forensic review.",
       quickOverviewTitle: "Analysis Scenarios",
       scenariosTitle: "Three Questions CERA Answers from Existing Logs",
       scenariosIntro:
@@ -3277,7 +3277,7 @@ const en: Messages = {
         eyebrow: "Safe Apply",
         title: "Discovery, approval, progress, and rollback",
         items: [
-          "Trusted discovery builds a desired-state diff and blocks incompatible existing resources.",
+          "Preflight discovery compares your configuration against existing resources and blocks conflicts.",
           "Approvals are bound to the configuration hash, expire, are single-use, and revoke on edit.",
           "Apply records checkpoints and rolls back only owned changes in reverse order while preserving shared before-images.",
         ],
@@ -3521,7 +3521,7 @@ const en: Messages = {
         summary:
           "Run read-only discovery, evaluate all safety gates, create/connect the dedicated deployer Service Account if not yet bootstrapped, and bind approval to a SHA-256 hash.",
         actions: [
-          "Scan Cloud and Workspace resources to build a desired-state diff.",
+          "Scan Cloud and Workspace resources read-only to build the change plan.",
           "Evaluate safety gates for APIs, permissions, CIDRs, licenses, and certificates.",
           "If you ran Preflight using your administrator OAuth token, click 'Create deployer and product-scoped role' in the Review card to connect the dedicated deployer SA before approving.",
           "Approve the exact configuration hash.",
@@ -4407,13 +4407,13 @@ const ja: Messages = {
   infrastructure: "ネットワーク",
   certificateStrategy: "証明書方式",
   targetOu: "対象OU",
-  testOuAvailable: "テスト用OUの確認",
+  testOuAvailable: "非本番テスト用OU",
   deploymentGates: "デプロイゲート",
   noExternalIps: "外部IPなし",
   cloudNat: "Cloud NAT",
   upstreamVpc: "既存Upstream VPC",
   privateDnsRoute: "Private DNS・ファイアウォール・戻り経路",
-  applicationOwnedTls: "HTTPSアプリ所有のTLS",
+  applicationOwnedTls: "アプリ側でTLS終端",
   apiPreflight: "API事前確認",
   approval: "承認",
   required: "必須",
@@ -4439,7 +4439,7 @@ const ja: Messages = {
     cloudPopoverDesc: "Easy PoC と Secure Gateway Deployer で共通利用します。",
     cloudProjectIdLabel: "Google Cloud プロジェクトID",
     cloudProjectIdPlaceholder: "例: enterprise-secgw-01",
-    cloudOperatorLabel: "検証済みクレデンシャル",
+    cloudOperatorLabel: "接続中のアカウント",
     cloudVerifyBtn: "接続を確認",
     cloudVerifyingBtn: "確認中…",
     cloudBootstrapBtn: "SGWデプロイ用サービスアカウントを作成して接続",
@@ -4535,7 +4535,7 @@ const ja: Messages = {
     cloudStep1Label: "手順 1: Google アカウントの承認 · 初回のみ",
     cloudStep2Label: "手順 2: プロジェクト接続を確認 · 事前確認のみ先に実行する場合",
     cloudStep2DeferHint:
-      "先に事前確認だけを実行する場合は、下の「接続を確認」を押せばそのまま進めます。デプロイ用サービスアカウントの作成と接続は、ステップ6で事前確認を実行した後に行えます。",
+      "先に事前確認だけを実行する場合は、下の「接続を確認」を押せばそのまま進めます。デプロイ用サービスアカウントの作成と接続は、［確認］ステップで事前確認を実行した後に行えます。",
     cloudStep3Label: "手順 3: デプロイ用サービスアカウントの作成と自動接続 · 事前確認後でも実行可能",
     customerIdAutoHint:
       "my_customer のまま接続を確認すると、C で始まる顧客IDを自動取得します。",
@@ -4552,7 +4552,7 @@ const ja: Messages = {
     waitingForOperation: "最初の操作を待っています…",
     environmentTitle: "プライベート環境を設定",
     environmentIntro:
-      "望ましい状態を定義します。変更前に既存リソースを検出します。",
+      "接続方式とネットワーク構成を選択します。既存リソースは事前確認で自動検出します。",
     deploymentName: "デプロイ名",
     region: "リージョン",
     zone: "ゾーン",
@@ -4566,18 +4566,18 @@ const ja: Messages = {
     sampleImageResolveFailed:
       "Debian 12イメージを取得できませんでした。",
     sampleImageConnectionRequired:
-      "先にステップ2でGoogle Cloud接続を完了してください。",
+      "先にGoogle Cloud接続を完了してください。",
     sampleImageResolved: "サンプルVM用イメージを設定しました",
     minimumReplicas: "Nginx最小レプリカ数",
     maximumReplicas: "Nginx最大レプリカ数",
     cpuTarget: "オートスケーリングCPU目標値 · 0.1〜0.9",
     autoscalingHint:
       "本番では2ゾーンのリージョンMIGを使用し、CPU使用率で自動スケールします。",
-    network: "接続先アプリのプロトコルで選ぶ接続方式 (HTTPS / HTTP)",
+    network: "接続先アプリのプロトコルで選ぶ接続方式 · HTTPS / HTTP",
     networkHttpsCategoryLabel:
-      "① 接続先が HTTPS アプリの場合 (またはサンプルVMで最短・最安検証 — 推奨・LB費用 $0)",
+      "① 接続先が HTTPS アプリの場合 · 既存アプリ接続またはサンプルVM起動 · LB費用 $0",
     networkHttpCategoryLabel:
-      "② 接続先が HTTP のみのアプリの場合 (前段の LB または Nginx VM で HTTPS 化)",
+      "② 接続先が HTTP のみのアプリの場合 · 前段の LB または Nginx VM で HTTPS 化",
     vpcName: "既存VPC名",
     vpcSameProjectHint:
       "対象プロジェクトのVPCを取得します。Shared VPCの場合のみアップストリームプロジェクトを入力してください。",
@@ -4588,35 +4588,35 @@ const ja: Messages = {
       "同一プロジェクト内のVPCでは空欄にします。Shared VPCの場合のみネットワーク所有プロジェクトIDを入力します。",
     upstreamVpcCrossProjectPrerequisite:
       "クロスプロジェクトの前提条件: 事前確認より前に、アップストリームプロジェクトで compute.networks.get、compute.networks.use、resourcemanager.projects.get、resourcemanager.projects.getIamPolicy、resourcemanager.projects.setIamPolicy をデプロイヤーSAに付与してください。初回準備が構成するのはデプロイ先プロジェクトだけです。",
-    managedSample: "サンプルHTTPアプリ + Nginx VMを作成 (Option C)",
+    managedSample: "サンプルHTTPアプリ + Nginx VMを作成 · Option C",
     managedSampleDescription:
       "検証用のプライベートHTTPバックエンドVMとNginx HTTPSプロキシVMを作成します。",
-    existingBackend: "既存HTTPアプリ (http://) + Nginx VMを作成 (Option C)",
+    existingBackend: "既存HTTPアプリ + Nginx VMを作成 · Option C",
     existingBackendDescription:
       "Nginx VMでHTTPSを終端し、既存のプライベートHTTPエンドポイントへ転送します。",
-    directHttps: "HTTPS アプリ — 直接接続 / サンプルVM起動 (Option A · 推奨)",
+    directHttps: "HTTPS アプリ — 直接接続 / サンプルVM作成 · Option A",
     directHttpsDescription:
-      "既存のHTTPSアプリ (https://) へ直接接続します。下の「サンプルVMをローンチする」にチェックを入れるとテスト用VMも自動作成できます。",
+      "既存のHTTPSアプリへ直接接続します。下の「サンプルVMを自動作成する」にチェックを入れるとテスト用VMも自動作成できます。",
     internalHttpsLb:
-      "HTTP アプリ — 内部ロードバランサ (Internal ALB) でHTTPS化 (Option B)",
+      "HTTP アプリ — 内部ロードバランサ · Internal ALB でHTTPS化 · Option B",
     internalHttpsLbDescription:
       "HTTPのみのアプリの前段にGoogle Cloudの内部HTTPSロードバランサを配置してTLSを終端し、非公開サンプルVMへHTTP転送します。",
     configureSampleVm: "サンプルVMのOSイメージを自動設定 · Debian 12",
     configureSampleVmDescription:
       "Option Bでは、適用時に外部IPなしの非公開サンプルVMを1台自動作成します。",
     directLaunchSampleVmCheckbox:
-      "サンプルVMをローンチする (HTTPSテスト用VM・Private DNS・FWを自動作成)",
+      "サンプルVMを自動作成する · HTTPSテスト用VM・Private DNS・FWを自動構成",
     directLaunchSampleVmDescription:
-      "内部ロードバランサを使わずに、HTTPSテスト用VM・Private DNS・ファイアウォールを承認済みApplyで自動作成します。",
-    directSampleVmAction: "HTTP アプリ + 内部ALB (Option B) へ切り替える",
+      "内部ロードバランサを使わずに、HTTPSテスト用VM・Private DNS・ファイアウォールを適用時に自動作成します。",
+    directSampleVmAction: "HTTP アプリ + 内部ALB · Option B へ切り替える",
     directSampleVmDescription:
-      "既存HTTPSアプリがない場合は、下の「サンプルVMをローンチする」にチェックを入れるか、内部ALB方式 (Option B) へ切り替えてください。",
+      "既存HTTPSアプリがない場合は、下の「サンプルVMを自動作成する」にチェックを入れるか、内部ALB方式 · Option B へ切り替えてください。",
     managedSampleVmAction: "サンプルVMのOSイメージを自動設定 · Debian 12",
     managedSampleVmDescription:
-      "管理対象サンプルでは、Option CのNginx層とプライベートHTTPバックエンドVMを最終承認済みApplyで作成します。",
+      "管理対象サンプルでは、Option CのNginx層とプライベートHTTPバックエンドVMを適用時に自動作成します。",
     existingSampleVmDescription:
       "既存HTTP方式には到達可能なプライベートHTTPバックエンドが必要です。サンプルVMを作成する場合は「サンプルHTTPアプリ + Nginx VMを作成」へ切り替えてください。",
-    legacyNginxTitle: "HTTP アプリ — Nginx リバースプロキシVMでHTTPS化 (Option C · 低コスト構成)",
+    legacyNginxTitle: "HTTP アプリ — Nginx リバースプロキシVMでHTTPS化 · Option C · 低コスト構成",
     legacyNginxDescription:
       "ロードバランサ費用を抑え、小規模なNginx VMでTLSを終端して既存HTTPアプリまたはサンプルVMへ転送します。",
     proxySubnetCidr: "ILB Proxy-onlyサブネットCIDR",
@@ -4671,7 +4671,7 @@ const ja: Messages = {
       "HTTPSアプリ自身がTLS終端を行います。本ツールは証明書や秘密鍵を作成しません。",
     directCertificateNotice:
       "プライベートCA証明書を使う場合は、発行元ルートPEMを [Chrome] > [コネクタ] > [Chrome Root Store] でテストOUへ登録してください。",
-    directPrivateCertificate: "アプリのプライベートCA / Chrome Root Store手動信頼",
+    directPrivateCertificate: "社内CA証明書 · Chrome Root Store へ手動登録",
     accessTitle: "Chromeポリシーとアプリへのアクセスを制限",
     accessIntro: "専用テストOUと許可プリンシパルを指定します。",
     customerId: "Workspace 顧客ID",
@@ -4719,14 +4719,14 @@ const ja: Messages = {
     configuration: "構成",
     safetyGates: "安全ゲート",
     ready: "準備完了",
-    incomplete: "未完了",
+    incomplete: "承認待ち",
     verified: "検証済み",
-    plannedOnApply: "Applyで自動設定",
+    plannedOnApply: "適用時に自動設定",
     manualCheck: "手動確認",
     actionRequired: "要対応",
     approvalPending: "承認待ち",
     reviewGateLegend:
-      "検証済み: API確認完了 / Applyで自動設定: 承認後に自動作成 / 手動確認: 管理者確認が必要 / 要対応: 適用前に解消が必要",
+      "検証済み: API確認完了 / 適用時に自動設定: 承認後に自動作成 / 手動確認: 管理者確認が必要 / 要対応: 適用前に解消が必要",
     gateLabels: {
       "immutable-image": "サンプルVM用 OSイメージ",
       "billing-enabled": "Cloud Billing",
@@ -4825,16 +4825,16 @@ const ja: Messages = {
     apiEvidence: "API検出値",
     diagnosticMessage: (code, fallback) => formatDiagnosticMessage("ja", code, fallback),
     diagnosticRemediation: (code, fallback) => formatDiagnosticRemediation("ja", code, fallback),
-    approveWorking: "承認を紐付けています…",
-    approvalReady: "実行計画を承認済み",
+    approveWorking: "実行計画を承認中…",
+    approvalReady: "承認済み",
     continueToApply: "適用へ進む",
-    applyTitle: "チェックポイントとエビデンス付きで適用",
+    applyTitle: "変更の適用と進捗確認",
     applyIntro:
       "依存関係順に適用します。失敗時は即座に停止し、本実行で作成したリソースのみを逆順ロールバックします。",
     preflight: "事前確認",
-    desiredStatePlan: "望ましい状態プラン",
+    desiredStatePlan: "構成変更プラン",
     applyChanges: "承認済み変更を適用",
-    applyLocked: "事前確認と承認を完了すると適用できます",
+    applyLocked: "事前確認と承認後に適用可能",
     applying: "承認済み変更を適用しています…",
     runSucceeded: "デプロイに成功しました",
     runRollingBack: "適用された変更をロールバック中…",
@@ -4842,7 +4842,7 @@ const ja: Messages = {
       "適用に失敗し、自動ロールバックを利用できません。GCP上の残存リソースを確認してください。",
     runRollbackFailed:
       "一部の変更をロールバックできませんでした。下の失敗した操作とエラーを確認してください。",
-    runRolledBack: "デプロイに失敗し、所有する変更をロールバックしました",
+    runRolledBack: "デプロイに失敗したため、作成したリソースをロールバックしました",
     runFinalized: "処理は完了しています",
     noActiveOperation: "現在実行中の操作はありません",
     finalizedOperationCount: (count: number) =>
@@ -4855,7 +4855,7 @@ const ja: Messages = {
     resumingRun: "照合して再開しています…",
     retryRollback: "失敗したロールバックを再試行",
     retryingRollback: "残存リソースを照合してロールバックを再試行しています…",
-    runFailed: "オペレーターによる確認が必要です",
+    runFailed: "適用中にエラーが発生しました · 内容を確認してください",
     operationCount: (count: number) => `${count} 件の操作を記録`,
     evidenceNotice:
       "すべての操作の監査イベント、マスク済みリクエスト、結果、所有権を記録します。",
@@ -4876,10 +4876,10 @@ const ja: Messages = {
     testUrlLabel: "プライベート Web アプリ URL",
     sebTroubleshootingHint:
       "接続できない場合は、管理対象Chromeプロファイルから一度サインアウトして再サインインするか、chrome://extensions で Secure Enterprise Browser 拡張機能を再読み込みしてください。",
-    recallCardTitle: "デプロイ構成リコール · 機密情報なし",
+    recallCardTitle: "デプロイ構成の復元 · 機密情報なし",
     recallCardIntro:
       "適用された機密情報以外の構成パラメータを確認・出力、またはウィザードへ再読み込みできます。秘密鍵・OAuthトークン・Secretの実データは含まれません。",
-    recallIntoWizardButton: "この構成をウィザードにリコール",
+    recallIntoWizardButton: "この構成をウィザードに復元",
     recallCopyJsonButton: "構成JSONをコピー",
     recallCopiedBadge: "✓ 機密情報なしの構成JSONをコピーしました",
     recallDownloadJsonButton: "構成JSONをダウンロード",
@@ -4913,20 +4913,20 @@ const ja: Messages = {
     deploymentName: "デプロイ",
     project: "プロジェクト",
     gateway: "Secure Gateway",
-    application: "Application route",
+    application: "アプリケーションルート",
     architecture: "アーキテクチャ",
-    ownershipRun: "リソース所有権を記録した実行",
+    ownershipRun: "リソース作成元の実行ID",
     architectureLabel: (kind) =>
       ({
-        managed_sample: "HTTP アプリ · Nginx HTTPS化 (サンプルVM)",
-        existing_http: "HTTP アプリ · Nginx HTTPS化 (既存HTTPアプリ)",
+        managed_sample: "HTTP アプリ · Nginx HTTPS化 · サンプルVM",
+        existing_http: "HTTP アプリ · Nginx HTTPS化 · 既存HTTPアプリ",
         direct_https: "HTTPS アプリ · 直接接続",
-        internal_https_lb: "HTTP アプリ · 内部ロードバランサ (Internal ALB) HTTPS化",
+        internal_https_lb: "HTTP アプリ · 内部ロードバランサ · Internal ALB HTTPS化",
       })[kind] ?? kind,
-    recallCardTitle: "デプロイ構成リコール · 機密情報なし",
+    recallCardTitle: "デプロイ構成の復元 · 機密情報なし",
     recallCardIntro:
       "適用された機密情報以外の構成パラメータを確認・出力、またはウィザードへ再読み込みできます。秘密鍵・OAuthトークン・Secretの実データは含まれません。",
-    recallIntoWizardButton: "この構成をウィザードにリコール",
+    recallIntoWizardButton: "この構成をウィザードに復元",
     recallCopyJsonButton: "構成JSONをコピー",
     recallCopiedBadge: "✓ 機密情報なしの構成JSONをコピーしました",
     recallDownloadJsonButton: "構成JSONをダウンロード",
@@ -4944,7 +4944,7 @@ const ja: Messages = {
     updateAccessLevelButton: "アクセスレベルを即時更新",
     updatingAccessLevel: "IAMポリシーを更新中...",
     accessLevelSaved: "アクセスレベルを更新し、監査チェーンに記録しました",
-    ownedResources: "このデプロイが所有するリソース",
+    ownedResources: "このデプロイで作成したリソース",
     restoredResources: "変更前の状態へ復元する共有ポリシー",
     retainedResources: "保持する共有・再利用リソース",
     resourceAction: (action) =>
@@ -4983,18 +4983,18 @@ const ja: Messages = {
     method: "メソッド",
     requestId: "リクエストID",
     callerIp: "発信元IP",
-    payload: "サニタイズ済みペイロード",
+    payload: "マスク済みログ詳細",
     specInvalid: "デプロイ設定に無効または不足している項目があります。",
     teardownTitle: "このデプロイを削除",
     teardownIntro:
-      "共有ポリシーを変更前状態へ復元し、この実行が所有するリソースだけを逆順削除します。",
+      "共有ポリシーを変更前の状態へ戻し、このデプロイで作成したリソースだけを逆順で削除します。",
     teardownSharedNotice:
-      "共有 IAM／Chrome Policy は、現在値がこのrunの記録済みmanaged-after状態と安全に一致する場合だけ復元します。送信結果が不明な変更や後発ドリフト、既存VPC、Access Levelなどの共有リソースは保持します。",
-    teardownUnavailable: "削除可能な所有リソースがこの実行にはありません。",
-    teardownConfirmation: "確認フレーズの入力",
+      "共有 IAM・Chrome ポリシーは、このデプロイで適用した設定値と現在値が安全に一致する場合だけ復元します。送信結果が不明な変更や後から手動変更された設定、既存VPC、Access Levelなどの共有リソースはそのまま保持します。",
+    teardownUnavailable: "このデプロイに削除対象のリソースはありません。",
+    teardownConfirmation: "確認フレーズ",
     teardownConfirmationHint: "上記の確認フレーズをそのまま入力",
-    startTeardown: "実行の変更を復元・削除",
-    teardownRunning: "実行の変更を復元・削除中…",
+    startTeardown: "このデプロイの変更を復元・削除",
+    teardownRunning: "変更を復元・削除中…",
     teardownSucceeded: "削除完了",
     teardownInterrupted:
       "削除中にワーカーが停止しました。再開するとチェックポイントを照合して続行します。",
@@ -5016,19 +5016,19 @@ const ja: Messages = {
     noSuccessfulRun: "受入テストには成功したデプロイ実行が必要です。",
     runSystemChecks: "自動システム検証を実行",
     runningSystemChecks: "Google Cloudリソースを検証しています…",
-    acceptanceComplete: "PoC受入を完了",
-    acceptancePending: "受入証跡が未完了",
+    acceptanceComplete: "受入検証 完了",
+    acceptancePending: "受入証跡 未記録",
     requiredProgress: (satisfied, required) =>
       `必須ケース ${required}件中 ${satisfied}件を充足`,
     acceptanceTest: (testId) =>
       ({
         T01: "HTTPバックエンド応答",
-        T02: "オフロードからバックエンドへの応答",
+        T02: "TLS終端からバックエンドへの転送",
         T03: "TLS終端",
         T04: "プライベートDNS",
-        T05: "Secure Gatewayマッチャー",
-        T06: "既存の直接HTTPS制御アプリ",
-        T07: "管理対象ChromeのE2E",
+        T05: "Secure Gateway ルーティング設定",
+        T06: "直接HTTPS接続の確認",
+        T07: "管理対象Chromeからの接続確認",
         T08: "ログ相関",
         T09: "未承認・非管理端末の拒否",
       })[testId] ?? testId,
@@ -5046,15 +5046,15 @@ const ja: Messages = {
       ({
         passed: "合格",
         failed: "不合格",
-        user_confirmed: "オペレーター確認済み",
+        user_confirmed: "管理者確認済み",
         skipped: "スキップ",
         missing: "未記録",
       })[status] ?? status,
     evidenceSource: (source) =>
-      source === "system" || source === "system_verified" ? "システム検証" : "オペレーター証跡",
+      source === "system" || source === "system_verified" ? "自動検証" : "手動記録",
     missingEvidence: "証跡は未記録です",
     viewEvidence: "マスク済み証跡を表示",
-    operatorEvidenceTitle: "エンドポイント証跡を記録",
+    operatorEvidenceTitle: "実機テスト結果の記録",
     operatorEvidenceIntro:
       "マスク済みの観測結果またはSHA-256ハッシュだけを記録してください。秘密鍵や認証情報は入力しないでください。",
     testCase: "テスト項目",
@@ -5128,7 +5128,7 @@ const ja: Messages = {
     portalEyebrow: "Chrome Enterprise Premium PoC Deployer · ガイド",
     portalTitle: "機能別ドキュメント & ステップバイステップ PoC ガイド",
     portalIntro:
-      "本拡張機能は 2 つの機能を備えています。インフラ構築なしで Chrome の情報漏洩対策・生成 AI 制御・SaaS テナント制限を構成する「Easy PoC」と、VPN なしで社内 Web アプリへ接続する「Secure Gateway Deployer」です。",
+      "本拡張機能は 3 つの機能を備えています。インフラ構築なしで Chrome の情報漏洩対策・生成 AI 制御・SaaS テナント制限を構成する「Easy PoC」、Chrome ログから社外送信リスクを可視化する「CERA」、VPN なしで社内 Web アプリへ接続する「Secure Gateway Deployer」です。",
     beginnerNavLabel: "基本ガイド",
     beginnerEyebrow: "Google 管理画面の基本構造",
     beginnerTitle: "Google の管理画面が初めての方へ：まず押さえるべき「3つの基本要素」",
@@ -5183,7 +5183,7 @@ const ja: Messages = {
           "画面右上のボタンが Easy PoC と Secure Gateway Deployer 共通のログイン窓口です。GCP と Workspace の管理者アカウントが別々の場合もそのまま切り替えながら利用できます。",
         details: [
           "右上の［Google Workspace］からログインすると、顧客ID・組織部門・グループ一覧が自動取得されます。",
-          "Secure Gateway Deployer や端末状態判定を使う場合は、右上の［Google Cloud］またはステップ 2 の［環境］画面で [Google Cloud コンソール](https://console.cloud.google.com) のプロジェクト ID を入力します。",
+          "Secure Gateway Deployer や端末状態判定を使う場合は、右上の［Google Cloud］または［環境・証明書］ステップで [Google Cloud コンソール](https://console.cloud.google.com) のプロジェクト ID を入力します。",
           "GCP と Workspace のアカウントが別々の場合の手順：① 先に GCP 管理者アカウントで［Google Cloud］に接続し、続けて ②［Google Workspace］ポップオーバーまたは［アクセス］ステップの［別の Workspace アカウントに切り替え］を押して Workspace 管理者でログインします。既存の接続状態とデプロイヤーSAはそのまま維持されます。",
         ],
       },
@@ -5290,7 +5290,7 @@ const ja: Messages = {
         "Google 管理コンソールから書き出した Chrome ログイベントを読み込み、アップロード・貼り付け・ダウンロード・印刷を宛先とサインイン ID で分類して、アプリ内ダッシュボードと 16:9 の HTML スライドを生成します。処理はすべて拡張機能の中で完結し、ファイルがブラウザの外に出ることはありません。",
       pocNoticeTitle: "読み取り専用の設計",
       pocNoticeBody:
-        "CERA は追加の OAuth スコープを要求せず、API も呼び出しません。ドロップした CSV・TSV・JSON を読むだけです。スライド・CSV・JSON の出力では ID が初期設定でマスクされます。マスク解除は社内のフォレンジック確認に限って使ってください。",
+        "すべての集計・リスクスコア・スライド出力は、ドロップしたファイルまたはログイン中の管理者セッションでメモリ上に読み取った監査ログから、このブラウザタブ内だけで計算されます。スライド・CSV・JSON の出力では ID が初期設定でマスクされます。マスク解除は社内のフォレンジック確認に限って使ってください。",
       quickOverviewTitle: "分析シナリオ",
       scenariosTitle: "既存ログから CERA が答える 3 つの問い",
       scenariosIntro:
@@ -5950,7 +5950,7 @@ const ja: Messages = {
     extensionArchitectureIntro:
       "PoCアプリごとに、直接HTTPS、リージョン内部HTTPSロードバランサー、または旧Nginx方式を選択できます。",
     extensionArchitectureNote:
-      "Chrome拡張機能は3方式すべてを計画・適用します。Option BのプライベートサンプルVMは、最終承認済みApplyでのみ作成します。",
+      "Chrome拡張機能は3方式すべてを計画・適用します。Option BのプライベートサンプルVMは、適用時に自動作成します。",
     costOverviewTitle: "コスト要因",
     costOverviewIntro:
       "料金はリージョン、使用量、選択リソース、Chrome Enterprise Premium契約によって変わります。適用前に [Google Cloud コンソール](https://console.cloud.google.com) の最新料金と CEP 契約を確認してください。",
@@ -5959,8 +5959,8 @@ const ja: Messages = {
     variableCostLabel: "従量要因",
     architectures: [
       {
-        eyebrow: "① HTTPS アプリ · 直接接続 / サンプルVM (Option A)",
-        title: "接続先が HTTPS アプリ: Secure Gateway から直接接続 (またはサンプルVM起動)",
+        eyebrow: "① HTTPS アプリ · 直接接続 / サンプルVM · Option A",
+        title: "接続先が HTTPS アプリ: Secure Gateway から直接接続 · またはサンプルVM作成",
         summary:
           "アプリが既にHTTPSを提供する場合、またはサンプルVMで最短検証する場合に使います。既存HTTPSアプリ接続時はNginx、VM、NAT、オフロード証明書を作成しません。",
         estimatedCost: "月額概算: 新規インフラ USD 0",
@@ -5979,10 +5979,10 @@ const ja: Messages = {
         ],
       },
       {
-        eyebrow: "② HTTP アプリ · 内部ロードバランサでHTTPS化 (Option B)",
-        title: "接続先が HTTP アプリ: 内部HTTPSロードバランサ (Internal ALB) でTLS終端",
+        eyebrow: "② HTTP アプリ · 内部ロードバランサでHTTPS化 · Option B",
+        title: "接続先が HTTP アプリ: 内部HTTPSロードバランサ · Internal ALB でTLS終端",
         summary:
-          "承認済みrunがRegional Internal Application Load Balancerとrun所有の非公開サンプルバックエンドVM 1台を作成します。ILBがサーバー証明書を提示し、復号後のHTTPをそのVMのTCP 80へ転送します。",
+          "適用時にRegional Internal Application Load Balancerと非公開サンプルバックエンドVM 1台を作成します。ILBがサーバー証明書を提示し、復号後のHTTPをそのVMのTCP 80へ転送します。",
         estimatedCost: "月額概算: 約 USD 80～90",
         costFixed: "asia-northeast1で720時間・軽負荷を想定。ILBの最小3プロキシが約USD 54/月で、e2-small VM 1台、20GBディスク、Cloud DNS、専用VPCのCloud NATを加えた概算です。",
         costVariable: "通信量、ログ、リージョンで変動します。検証後にrunを削除すると時間課金を止められます。",
@@ -5990,11 +5990,11 @@ const ja: Messages = {
           { label: "管理対象Chrome", detail: "Chrome Root Storeから発行元Root CAを信頼", costBadge: "CEPライセンスが必要" },
           { label: "Secure Gateway", detail: "ID・コンテキスト・hostname:443ポリシー", costBadge: "CEP契約を確認" },
           { label: "Regional Internal Application LB", detail: "リージョンサーバー証明書でHTTPS終端", costBadge: "リージョン・使用量で課金" },
-          { label: "HTTPバックエンド", detail: "run所有の非公開サンプルVM・TCP 80", costBadge: "Compute・ディスク課金" },
+          { label: "HTTPバックエンド", detail: "非公開サンプルVM・TCP 80", costBadge: "Compute・ディスク課金" },
         ],
         supports: [
           { label: "Proxy-onlyサブネット", detail: "Google管理Envoy専用のREGIONAL_MANAGED_PROXYサブネット" },
-          { label: "TLS所有", detail: "Enterprise CA、ローカルPoC CA、または検証済み既存Secret" },
+          { label: "TLS証明書", detail: "Enterprise CA、ローカルPoC CA、または検証済み既存Secret" },
           { label: "Chrome信頼", detail: "公開Root PEMをダウンロードしてChrome Root StoreからテストOUへ接続" },
           { label: "管理型L7経路", detail: "HTTP health check、backend service、URL map、target HTTPS proxy、内部forwarding rule" },
           { label: "プライベートegress", detail: "専用VPCはRouter/NATを作成。既存VPCは検証済みegressが必要" },
@@ -6002,7 +6002,7 @@ const ja: Messages = {
         ],
       },
       {
-        eyebrow: "② HTTP アプリ · Nginx VMでHTTPS化 (Option C)",
+        eyebrow: "② HTTP アプリ · Nginx VMでHTTPS化 · Option C",
         title: "接続先が HTTP アプリ: Nginx リバースプロキシVMでTLS終端",
         summary:
           "HTTPしか提供しないプライベートアプリ、または従来のNginx構成が必要な場合だけ使用します。PoCは非公開Nginx VM 1台を使用します。",
@@ -6037,8 +6037,8 @@ const ja: Messages = {
         eyebrow: "データプレーン",
         title: "HTTPオフロードと直接HTTPS・サンプルVM単体起動",
         items: [
-          "プロトコル別の2段階UIにより、① HTTPSアプリ接続時は既存アプリへの直接接続または［サンプルVMをローンチする］によるテスト用HTTPS VM自動起動を選択でき、② HTTPアプリ接続時は Internal ALB または Nginx VM によるHTTPS化を選択できます。",
-          "Nginx HTTPオフロード方式は管理対象サンプルまたは既存プライベートHTTPアプリに対応し、ILB HTTPSオフロードはrun所有の非公開サンプルバックエンドVMに対応します。",
+          "プロトコル別の2段階UIにより、① HTTPSアプリ接続時は既存アプリへの直接接続または［サンプルVMを自動作成する］によるテスト用HTTPS VM自動構築を選択でき、② HTTPアプリ接続時は Internal ALB または Nginx VM によるHTTPS化を選択できます。",
+          "Nginx HTTPオフロード方式は管理対象サンプルまたは既存プライベートHTTPアプリに対応し、ILB HTTPSオフロードは非公開サンプルバックエンドVMに対応します。",
           "拡張機能のILB HTTPSオフロード方式は、非公開サンプルVMとunmanaged instance group、REGIONAL_MANAGED_PROXYサブネット、HTTP health check、INTERNAL_MANAGED backend service、regional URL map/サーバー証明書/target HTTPS proxy、内部forwarding rule、Private DNSを作成します。",
           "直接HTTPSは既存VPC経由の正確なhostname:portルートを作り、既存アプリ接続時はNginx、オフロードTLS、NAT、管理Aレコードを作成しません。",
           "専用VPCでは作成VM用Cloud Router/NATを追加し、既存VPCではプライベートegress確認ゲートを必須にします。",
@@ -6074,18 +6074,18 @@ const ja: Messages = {
         ],
       },
       {
-        eyebrow: "安全なApplyと構成リコール",
+        eyebrow: "安全な適用と構成の復元",
         title: "検出、承認、進捗、ロールバック、ワンクリック構成復元",
         items: [
-          "信頼済みDiscoveryが望ましい状態との差分を作成し、新規作成/更新/変更なし/競合を分類します。",
+          "事前確認で現在の環境との差分を検出し、新規作成・更新・変更なし・競合に分類します。",
           "承認は正確な構成ハッシュに紐付き、有効期限・1回限り・編集時無効化を持ちます。",
           "Applyは操作チェックポイントを記録し、中断時は共有リソースの変更前状態を守りつつ所有変更のみを逆順にロールバックします。別アカウント運用時はChrome Policy適用ステップでWorkspaceアカウントへ切り替えて再開できます。",
-          "過去のデプロイ履歴から［この構成をウィザードにリコール］を押すと、ホスト名やリージョン等の非機密設定を復元してすぐに再検証できます。",
+          "過去のデプロイ履歴から［この構成をウィザードに復元］を押すと、ホスト名やリージョン等の非機密設定を復元してすぐに再検証できます。",
         ],
       },
       {
         eyebrow: "検証とローカル保護",
-        title: "Acceptance証跡とオペレーター保護",
+        title: "受入テスト証跡と安全保護",
         items: [
           "受入マトリクスには自動システム検証、管理対象Chromeによる実機接続検証、アクセス拒否の検証結果を記録し、改ざん防止監査チェーン付きのJSON証跡として出力します。",
           "拡張機能は隔離されたMV3オリジン、厳格なCSP、セッション限定の一時秘密鍵、および暗号化IndexedDBを使用し、端末ローカルに永続的な秘密鍵やサービスアカウントJSONキーを出力・保存しません。",
@@ -6184,20 +6184,20 @@ const ja: Messages = {
           "GCP プロジェクト接続を確認した上で、ターゲット VPC、リージョン、プライベートホスト名、および接続先アプリのプロトコルに応じた構成を設定します。",
         actions: [
           "アプリのプライベートホスト名、ポート、および Upstream VPC ネットワークを指定します。",
-          "接続先が ① HTTPS アプリか ② HTTP のみのアプリかを選択し、検証用アプリがない場合は［サンプルVMをローンチする］にチェックを入れます。",
+          "接続先が ① HTTPS アプリか ② HTTP のみのアプリかを選択し、検証用アプリがない場合は［サンプルVMを自動作成する］にチェックを入れます。",
           "Shared VPCなど別プロジェクトのアップストリームを使う場合、アップストリームプロジェクトの管理者がデプロイヤーSAへ `compute.networks.get`、`compute.networks.use`、`resourcemanager.projects.get`、`resourcemanager.projects.getIamPolicy`、`resourcemanager.projects.setIamPolicy` の5権限を含むカスタムロールを事前付与します。",
-          "Option BではGoogle管理Envoyプロキシ用のProxy-OnlyサブネットCIDRを設定し、run所有の非公開サンプルバックエンドVMを作成します。",
+          "Option BではGoogle管理Envoyプロキシ用のProxy-OnlyサブネットCIDRを設定し、非公開サンプルバックエンドVMを作成します。",
         ],
         optionsBehavior: [
           {
             name: "Option A · Direct HTTPS & サンプルVM起動",
             behavior:
-              "既存の HTTPS アプリへ直接 Secure Gateway をルーティングします。［サンプルVMをローンチする］を選択した場合は、自己完結型の HTTPS サンプルVMを自動構築して最短検証できます。",
+              "既存の HTTPS アプリへ直接 Secure Gateway をルーティングします。［サンプルVMを自動作成する］を選択した場合は、自己完結型の HTTPS サンプルVMを自動構築して最短検証できます。",
           },
           {
             name: "Option B · ILB HTTPS Offload",
             behavior:
-              "Regional Internal Application Load Balancer、Envoy Proxyサブネット、run所有の非公開サンプルVMを作成し、TLS終端後のHTTPをそのVMのTCP 80へ転送します。",
+              "Regional Internal Application Load Balancer、Envoy Proxyサブネット、非公開サンプルVMを作成し、TLS終端後のHTTPをそのVMのTCP 80へ転送します。",
           },
           {
             name: "Option C · Nginx HTTPS Offload",
@@ -6231,7 +6231,7 @@ const ja: Messages = {
       },
       {
         title: "証明書",
-        subtitle: "TLS 所有権と Chrome Root Store への信頼伝播",
+        subtitle: "TLS証明書の構成と Chrome Root Store への登録",
         summary:
           "証明書の発行元を定義し、Secret Manager で秘密鍵を隔離保管した上で、Chrome Root Store による信頼配布を準備します。",
         actions: [
@@ -6318,7 +6318,7 @@ const ja: Messages = {
         summary:
           "既存リソースの非破壊スキャンを実行し、必要に応じてデプロイヤーSAをワンクリック作成してすべての安全ゲートを評価した上で、構成ハッシュに紐づく承認を行います。",
         actions: [
-          "Google Cloud / Workspace のリソースを読み取り専用スキャンし、望ましい状態との差分プランを作成します。",
+          "Google Cloud と Workspace の既存リソースを読み取り専用で検査し、変更プランを作成します。",
           "デプロイヤーSAが未作成の場合は、表示される案内カードのボタンからデプロイヤーSAを作成して事前チェックを自動再実行します。",
           "課金、ライセンス、API、CIDR 重複、IAM 権限などの安全ゲートを評価し、設定ハッシュに拘束される人手承認を実施します。",
         ],
@@ -6357,7 +6357,7 @@ const ja: Messages = {
         title: "適用",
         subtitle: "依存順オーケストレーション、別アカウント切替再開、受入検証",
         summary:
-          "承認済みオペレーションを依存順に実行して所有権を追跡し、その後の個別検証用に受入マトリクスを保存します。",
+          "承認済みの操作を依存関係順に実行し、検証用の受入テスト項目を保存します。",
         actions: [
           "サブネット → 証明書 → バックエンド → Gateway → DNS → Chrome ポリシーの依存順で作成します。",
           "GCP と Workspace のアカウントが別々で Chrome ポリシー適用時に権限エラーで一時停止した場合は、右上の［Google Workspace］から Workspace 管理者に切り替えて［失敗した箇所から再試行］を押すと完了します。",
@@ -6408,7 +6408,7 @@ const ja: Messages = {
         category: "ルーティング・データプレーン",
         question: "Chrome でプライベートアプリにアクセスすると「503 Service Unavailable」や接続エラーになる原因は？",
         answer:
-          "BeyondCorp Security Gatewayが、承認済みrunに記録されたバックエンドのホスト名と予約済みプライベートアドレスへTCP/TLS接続できない状態です。選択済みまたはrun所有のComputeターゲット、ファイアウォール、プライベートDNS、および承認構成で必要な場合だけCloud NATを確認します。",
+          "BeyondCorp Security Gatewayが、承認済みrunに記録されたバックエンドのホスト名と予約済みプライベートアドレスへTCP/TLS接続できない状態です。選択済みまたはデプロイ管理下のComputeターゲット、ファイアウォール、プライベートDNS、および承認構成で必要な場合だけCloud NATを確認します。",
         checklist: [
           "対象実行の［リソース］と［ログ］を開き、自動システム検証を実行します。",
           "承認済みファイアウォールルールが必要なバックエンドポートを Secure Gateway 送信元範囲 136.124.16.0/20 からだけ許可し、0.0.0.0/0 を許可していないことを確認します。",
@@ -6468,7 +6468,7 @@ const ja: Messages = {
         category: "運用・クリーンアップ",
         question: "デプロイで作成したリソースを安全に削除するにはどうすればよいですか？",
         answer:
-          "デプロイ管理画面の「削除」タブからTeardownを実行します。そのrunが所有すると記録されたリソースだけを依存関係の逆順で削除します。共有 IAM／Chrome Policy の変更前状態は、現在値がそのrunの記録済みmanaged-after状態と安全に一致する場合だけ復元し、ドリフトや送信結果不明の変更は保持して手動照合します。",
+          "デプロイ管理画面の「復元・削除」タブから削除を実行します。そのデプロイで作成したリソースだけを依存関係の逆順で削除します。共有 IAM・Chrome ポリシーの変更前状態は、このデプロイで適用した設定値と現在値が安全に一致する場合だけ復元し、後から手動変更された設定や送信結果不明の変更は保持して手動照合します。",
         checklist: [
           "削除タブに表示される所有・復元・保持リソースを確認し、画面の確認文を正確に入力します。",
           "確認後に、そのrunに紐づくTeardownだけを実行します。",

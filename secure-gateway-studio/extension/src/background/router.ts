@@ -1185,7 +1185,7 @@ export async function route(
     const defaults = [
       {
         value: "NONE",
-        label: "（アクセスレベル制限なし・認証済みグループ全ユーザー）",
+        label: "アクセスレベル制限なし · 認証済みグループ全ユーザー",
         description: "BeyondCorp のアクセスレベル条件を付けずに全グループユーザーへ開放します",
       },
     ];

@@ -196,6 +196,22 @@ export interface CeraMessages {
       source: string;
       threat: string;
     };
+    signals: {
+      passwordReuse: string;
+      unsafeSiteVisits: string;
+      urlFiltering: string;
+      loginEvents: string;
+      distinct: (count: number) => string;
+      browserLaunches: string;
+      browserCrashes: string;
+      passwordChanged: string;
+      unsafeHosts: string;
+      host: string;
+      field: string;
+      header: string;
+      maskOn: string;
+      maskOff: string;
+    };
     peakDay: (date: string, count: number) => string;
     methodologyItems: readonly string[];
     appliedBanner: (preset: string) => string;
@@ -353,7 +369,7 @@ const COLUMN_LABELS_JA: Record<string, string> = {
   timestamp: "日時",
   event: "イベント名",
   description: "イベントの説明",
-  actor: "アクターのメール",
+  actor: "操作ユーザーのメール",
   orgUnit: "組織部門",
   group: "グループ",
   url: "URL",
@@ -406,7 +422,7 @@ const en: CeraMessages = {
   ingest: {
     title: "Load Chrome log events",
     intro:
-      "Drop one or more exports from Admin Console › Reporting › Audit and investigation › Chrome log events. Files are parsed in memory only.",
+      "Drop exports from Admin Console › Reporting › Audit and investigation › Chrome log events, or fetch logs directly with your signed-in admin account. Parsing runs in memory only.",
     dropTitle: "Drop CSV, TSV or JSON files here",
     dropHint: "Up to ~500k rows per file. Multiple exports are merged automatically.",
     browse: "Choose files",
@@ -584,6 +600,22 @@ const en: CeraMessages = {
       highRisk: "High",
       source: "Source",
       threat: "Threat vectors",
+    },
+    signals: {
+      passwordReuse: "Password reuse",
+      unsafeSiteVisits: "Unsafe site visits",
+      urlFiltering: "URL filtering",
+      loginEvents: "Login events",
+      distinct: (count) => `${count.toLocaleString("en-US")} distinct`,
+      browserLaunches: "Browser launches",
+      browserCrashes: "Browser crashes",
+      passwordChanged: "Password changed",
+      unsafeHosts: "Unsafe hosts",
+      host: "Host",
+      field: "Field",
+      header: "Header",
+      maskOn: "on",
+      maskOff: "off",
     },
     peakDay: (date, count) => `Peak day ${date} with ${count.toLocaleString()} outbound actions`,
     methodologyItems: [
@@ -785,7 +817,7 @@ const ja: CeraMessages = {
   ingest: {
     title: "Chromeログイベントを読み込む",
     intro:
-      "管理コンソール › レポート › 監査と調査 › Chromeログイベント から書き出したファイルをドロップしてください。解析はメモリ上でのみ行います。",
+      "管理コンソール › レポート › 監査と調査 › Chromeログイベント から書き出したファイルをドロップするか、ログイン中のアカウントで自動取得します。解析はメモリ上でのみ行います。",
     dropTitle: "CSV / TSV / JSON ファイルをここにドロップ",
     dropHint: "1ファイルあたり約50万行まで。複数ファイルは自動で結合します。",
     browse: "ファイルを選択",
@@ -913,7 +945,7 @@ const ja: CeraMessages = {
       daily: "日別推移",
       dailyIntro: "選択したタイムゾーンでの、日ごとのアップロード・貼り付け・機密操作。",
       anomalies: "急増した日",
-      noAnomalies: "平均から標準偏差2つ分を超えた日はありません。",
+      noAnomalies: "平均から大きく外れた急増日はありません。",
       orgUnits: "送信の多い組織部門",
       categories: "送信先カテゴリ 上位",
       personal: "個人アカウント",
@@ -963,10 +995,26 @@ const ja: CeraMessages = {
       source: "取得元",
       threat: "リスク経路",
     },
+    signals: {
+      passwordReuse: "パスワード再利用",
+      unsafeSiteVisits: "危険なサイトの閲覧",
+      urlFiltering: "URLフィルタリング",
+      loginEvents: "ログインイベント",
+      distinct: (count) => `${count.toLocaleString("ja-JP")} 種類`,
+      browserLaunches: "ブラウザ起動",
+      browserCrashes: "ブラウザクラッシュ",
+      passwordChanged: "パスワード変更",
+      unsafeHosts: "危険な接続先ホスト",
+      host: "ホスト",
+      field: "項目",
+      header: "列名",
+      maskOn: "有効",
+      maskOff: "無効",
+    },
     peakDay: (date, count) => `ピークは ${date} の ${count.toLocaleString()} 件`,
     methodologyItems: [
-      "同じアクター・トリガー・送信先ホスト・ファイル名・サイズを持つ複数行のイベントが10秒以内に並ぶ場合、1件のユーザー操作に統合し、最も厳しい結果を採用しています。",
-      "送信 = ファイルアップロードとWebコンテンツのアップロード、つまり貼り付け。ダウンロードと印刷は別集計です。",
+      "同じユーザー・トリガー・送信先ホスト・ファイル名・サイズを持つ複数行のイベントが10秒以内に並ぶ場合、1件のユーザー操作に統合し、最も厳しい結果を採用しています。",
+      "送信操作はファイルアップロードとテキスト貼り付けを指します。ダウンロードと印刷は別集計です。",
       "経路は排他的で、社内 → 個人アカウント → 承認済みAI / シャドーAI → 承認済みSaaS → パートナー → Webメッセージング → 未管理クラウドアプリ の順に判定します。",
       "Webアプリのログインアカウント、または Chrome プロファイルが会社・パートナー以外のドメインの場合に個人アカウントと判定します。",
       "時間外・週末の比率は設定したタイムゾーンと業務時間に基づきます。",
@@ -1003,7 +1051,7 @@ const ja: CeraMessages = {
       detected: "検出",
       unknown: "不明",
     },
-    horizons: { now: "直近", next: "次に", later: "その後" },
+    horizons: { now: "短期", next: "中期", later: "長期" },
     horizonWindows: { now: "0〜30日", next: "30〜90日", later: "90日以降" },
     presets: {
       full: "フル保護",
@@ -1084,7 +1132,7 @@ const ja: CeraMessages = {
       actions: [
         "多く検出された検出器に印刷DLPルールを追加します。",
         "保護対象の社内サイトで画面ウォーターマークを有効にします。",
-        "機密データを扱う組織部門に厳しめの印刷ルールを適用します。",
+        "機密データを扱う組織部門に印刷制限ルールを適用します。",
       ],
     },
     password_alert: {

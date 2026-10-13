@@ -4802,7 +4802,7 @@ export class CepProvider {
       }
     }
 
-    const message = `組織部門「${targetPath}」内のユーザー ${users.length} 名の処理が完了しました（新規割り当て: ${assignedCount} 名、割り当て済み: ${alreadyAssignedCount} 名${failedCount > 0 ? `、失敗: ${failedCount} 名` : ""}）。`;
+    const message = `組織部門「${targetPath}」内のユーザー ${users.length} 名の処理が完了しました · 新規割り当て: ${assignedCount} 名、割り当て済み: ${alreadyAssignedCount} 名${failedCount > 0 ? `、失敗: ${failedCount} 名` : ""}`;
 
     return {
       success:

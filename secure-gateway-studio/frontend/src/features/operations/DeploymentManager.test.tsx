@@ -418,9 +418,9 @@ describe("DeploymentManager", () => {
       />,
     );
 
-    expect(await screen.findByText("デプロイ構成リコール · 機密情報なし")).toBeInTheDocument();
+    expect(await screen.findByText("デプロイ構成の復元 · 機密情報なし")).toBeInTheDocument();
     const recallBtn = screen.getByRole("button", {
-      name: "この構成をウィザードにリコール",
+      name: "この構成をウィザードに復元",
     });
     fireEvent.click(recallBtn);
     expect(onRecallSpecification).toHaveBeenCalledWith(spec);
