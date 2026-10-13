@@ -281,6 +281,18 @@ async function verifyCodeGsAndManifests() {
       manifest.oauthScopes.includes("https://www.googleapis.com/auth/cloud-platform"),
       `${edition}: cloud-platform scope must be present`,
     );
+    assert.ok(
+      manifest.oauthScopes.includes("https://www.googleapis.com/auth/script.container.ui"),
+      `${edition}: script.container.ui scope must be present for Ui.showModalDialog`,
+    );
+    assert.ok(
+      manifest.oauthScopes.includes("https://www.googleapis.com/auth/script.external_request"),
+      `${edition}: script.external_request scope must be present for UrlFetchApp`,
+    );
+    assert.ok(
+      manifest.oauthScopes.includes("https://www.googleapis.com/auth/script.scriptapp"),
+      `${edition}: script.scriptapp scope must be present for ScriptApp`,
+    );
 
     const codeGs = await readFile(join(dir, "Code.gs"), "utf8");
     const env = createMockSpreadsheetEnv();

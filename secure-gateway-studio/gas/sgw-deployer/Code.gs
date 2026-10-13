@@ -309,7 +309,14 @@ function showSgwDialog_(initialView, title) {
     .setWidth(1380)
     .setHeight(860)
     .setSandboxMode(HtmlService.SandboxMode.IFRAME);
-  SpreadsheetApp.getUi().showModalDialog(output, title);
+  var ui = null;
+  try {
+    ui = SpreadsheetApp.getUi();
+  } catch (e) {
+    installOnTargetSpreadsheet();
+    throw new Error("スプレッドシートへのメニュー登録（onOpen トリガー）が完了しました。Google スプレッドシートの画面を再読み込みし、上部メニュー「🌐 Secure Gateway」から起動してください。");
+  }
+  ui.showModalDialog(output, title);
 }
 
 function initializeSgwWorkbookSheets() {

@@ -745,7 +745,14 @@ function showStudioDialog_(initialView, title) {
     .setWidth(1380)
     .setHeight(860)
     .setSandboxMode(HtmlService.SandboxMode.IFRAME);
-  SpreadsheetApp.getUi().showModalDialog(output, title);
+  var ui = null;
+  try {
+    ui = SpreadsheetApp.getUi();
+  } catch (e) {
+    installOnTargetSpreadsheet();
+    throw new Error("スプレッドシートへのメニュー登録（onOpen トリガー）が完了しました。Google スプレッドシートの画面を再読み込みし、上部メニュー「🛡️ CEP Easy PoC」から起動してください。");
+  }
+  ui.showModalDialog(output, title);
 }
 
 /**
@@ -966,7 +973,14 @@ function showSgwDialog_(initialView, title) {
     .setWidth(1380)
     .setHeight(860)
     .setSandboxMode(HtmlService.SandboxMode.IFRAME);
-  SpreadsheetApp.getUi().showModalDialog(output, title);
+  var ui = null;
+  try {
+    ui = SpreadsheetApp.getUi();
+  } catch (e) {
+    installOnTargetSpreadsheet();
+    throw new Error("スプレッドシートへのメニュー登録（onOpen トリガー）が完了しました。Google スプレッドシートの画面を再読み込みし、上部メニュー「🌐 Secure Gateway」から起動してください。");
+  }
+  ui.showModalDialog(output, title);
 }
 
 function initializeSgwWorkbookSheets() {
@@ -1173,6 +1187,7 @@ function createEasyPocAppsscriptJson() {
         "https://www.googleapis.com/auth/drive",
         "https://www.googleapis.com/auth/presentations",
         "https://www.googleapis.com/auth/documents",
+        "https://www.googleapis.com/auth/script.container.ui",
         "https://www.googleapis.com/auth/script.external_request",
         "https://www.googleapis.com/auth/script.scriptapp",
         "https://www.googleapis.com/auth/admin.directory.orgunit",
@@ -1232,6 +1247,7 @@ function createSgwDeployerAppsscriptJson() {
         "https://www.googleapis.com/auth/userinfo.email",
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive",
+        "https://www.googleapis.com/auth/script.container.ui",
         "https://www.googleapis.com/auth/script.external_request",
         "https://www.googleapis.com/auth/script.scriptapp",
         "https://www.googleapis.com/auth/cloud-platform",
