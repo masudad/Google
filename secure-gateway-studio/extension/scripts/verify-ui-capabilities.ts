@@ -161,7 +161,7 @@ assert.doesNotMatch(messagesSource, /Run acceptance suite T01[–-]T09/);
 assert.doesNotMatch(messagesSource, /Egress Fixed IP|固定送信元IP|intended egress IP|意図した送信元 IP/);
 assert.doesNotMatch(messagesSource, /Creates or updates the compatibility-named custom role/);
 assert.match(messagesSource, /PoC mode does not prove that selected existing resources are non-production/);
-assert.match(messagesSource, /PoCモードだけでは、選択した既存リソースが非本番であることを保証しません/);
+assert.match(messagesSource, /PoCモードでは既存リソースが非本番環境であるかを自動判定しないため、対象リソースを直接ご確認ください/);
 assert.doesNotMatch(messagesSource, /without mutating production|prevent accidental production impact/);
 assert.match(messagesSource, /current value safely matches that run's recorded managed-after state/);
 assert.match(messagesSource, /適用した設定値と現在値が安全に一致する場合だけ復元/);
