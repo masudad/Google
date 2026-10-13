@@ -1094,34 +1094,15 @@ export function EnvironmentStep({
           <span className="protocol-badge is-https">HTTPS</span>
           <strong>{copy.networkHttpsCategoryLabel}</strong>
         </div>
-        <div className="mode-grid backend-grid single-column">
+        <div className="mode-grid backend-grid">
           <ChoiceCard
             description={copy.directHttpsDescription}
             cost={messages.guide.architectures[0].estimatedCost}
             icon={<ShieldIcon size={27} />}
             onSelect={() => {
-              if (state.directHttpsLaunchSampleVm) {
-                onPatch({
-                  backendKind: "direct_https",
-                  networkStrategy:
-                    state.vpcName.trim() && state.subnetName.trim()
-                      ? "existing"
-                      : "dedicated",
-                  privateHostname: resolveDefaultPrivateHostname(
-                    state.privateHostname,
-                    "demo-server-https.internal",
-                  ),
-                  region: state.region || "asia-northeast1",
-                  deploymentName: resolveDefaultDeploymentName(
-                    state.deploymentName,
-                    "secure-gateway-direct-https-demo",
-                  ),
-                  existingBackendConnectivityConfirmed: false,
-                });
-                return;
-              }
               onPatch({
                 backendKind: "direct_https",
+                directHttpsLaunchSampleVm: false,
                 networkStrategy: "existing",
                 privateHostname: resolveDefaultPrivateHostname(
                   state.privateHostname,
@@ -1140,8 +1121,48 @@ export function EnvironmentStep({
                   : "https://secgw-backend.internal",
               });
             }}
-            selected={state.backendKind === "direct_https"}
+            selected={
+              state.backendKind === "direct_https" &&
+              !state.directHttpsLaunchSampleVm
+            }
             title={copy.directHttps}
+          />
+          <ChoiceCard
+            description={copy.directHttpsSampleVmDescription}
+            cost={copy.directHttpsSampleVmCostBadge}
+            icon={<ShieldIcon size={27} />}
+            onSelect={() => {
+              onPatch({
+                backendKind: "direct_https",
+                directHttpsLaunchSampleVm: true,
+                networkStrategy:
+                  state.vpcName.trim() && state.subnetName.trim()
+                    ? "existing"
+                    : "dedicated",
+                privateHostname: resolveDefaultPrivateHostname(
+                  state.privateHostname,
+                  "demo-server-https.internal",
+                ),
+                certificateStrategy:
+                  state.mode === "poc" &&
+                  state.certificateStrategy === "enterprise_ca" &&
+                  !state.caPool.trim()
+                    ? "local_poc"
+                    : state.certificateStrategy,
+                region: state.region || "asia-northeast1",
+                deploymentName: resolveDefaultDeploymentName(
+                  state.deploymentName,
+                  "secure-gateway-direct-https-demo",
+                ),
+                existingBackendConnectivityConfirmed: false,
+              });
+              void resolveSampleImage(true);
+            }}
+            selected={
+              state.backendKind === "direct_https" &&
+              Boolean(state.directHttpsLaunchSampleVm)
+            }
+            title={copy.directHttpsSampleVm}
           />
         </div>
       </div>
@@ -1211,11 +1232,13 @@ export function EnvironmentStep({
 
       {(() => {
         const activeArchitecture =
-          backendKind === "direct_https"
-            ? messages.guide.architectures[0]
-            : backendKind === "internal_https_lb"
-              ? messages.guide.architectures[1]
-              : messages.guide.architectures[2];
+          state.backendKind === "direct_https" && state.directHttpsLaunchSampleVm
+            ? copy.directSampleVmArchitecture
+            : backendKind === "direct_https"
+              ? messages.guide.architectures[0]
+              : backendKind === "internal_https_lb"
+                ? messages.guide.architectures[1]
+                : messages.guide.architectures[2];
         return (
           <div
             className="step-architecture-preview"
@@ -1270,21 +1293,28 @@ export function EnvironmentStep({
         );
       })()}
 
-      {state.backendKind === "direct_https" ? (
+      {(state.backendKind === "direct_https" && state.directHttpsLaunchSampleVm) ||
+      state.backendKind === "internal_https_lb" ||
+      state.backendKind === "managed_sample" ? (
         <article className="sample-backend-box">
           <div className="sample-backend-header">
             <div>
-              <strong>
-                {state.directHttpsLaunchSampleVm
-                  ? copy.configureSampleVm
-                  : copy.directSampleVmAction}
-              </strong>
+              <strong>{copy.configureSampleVm}</strong>
               <p>
-                {state.directHttpsLaunchSampleVm
+                {state.backendKind === "direct_https"
                   ? copy.directLaunchSampleVmDescription
-                  : copy.directSampleVmDescription}
+                  : state.backendKind === "internal_https_lb"
+                    ? copy.configureSampleVmDescription
+                    : copy.managedSampleVmDescription}
               </p>
-              {state.directHttpsLaunchSampleVm && state.sourceImage.trim() ? (
+              <small className="field-hint">
+                {state.backendKind === "direct_https"
+                  ? copy.sampleVmCostNoteDirect
+                  : state.backendKind === "internal_https_lb"
+                    ? copy.sampleVmCostNoteIlb
+                    : copy.sampleVmCostNoteNginx}
+              </small>
+              {state.sourceImage.trim() ? (
                 <small className="field-hint">
                   ✓ {copy.sampleImageResolved}: <code>{state.sourceImage}</code>
                 </small>
@@ -1294,112 +1324,18 @@ export function EnvironmentStep({
               className="connection-action"
               disabled={sampleImageBusy}
               onClick={() =>
-                void (state.directHttpsLaunchSampleVm
-                  ? resolveSampleImage(true)
-                  : selectInternalSampleVm())
+                void (state.backendKind === "internal_https_lb"
+                  ? selectInternalSampleVm()
+                  : state.backendKind === "direct_https"
+                    ? resolveSampleImage(true)
+                    : selectManagedSampleVm())
               }
               type="button"
             >
-              {state.directHttpsLaunchSampleVm &&
-              state.sourceImage.trim() &&
-              !sampleImageBusy ? (
+              {state.sourceImage.trim() && !sampleImageBusy ? (
                 <CheckIcon size={18} />
               ) : null}
-              {sampleImageBusy
-                ? copy.sampleImageResolving
-                : state.directHttpsLaunchSampleVm
-                  ? copy.configureSampleVm
-                  : copy.directSampleVmAction}
-            </button>
-          </div>
-          <label className="confirmation-row">
-            <input
-              checked={Boolean(state.directHttpsLaunchSampleVm)}
-              onChange={(event) => {
-                const checked = event.target.checked;
-                if (checked) {
-                  onPatch({
-                    directHttpsLaunchSampleVm: true,
-                    networkStrategy:
-                      state.vpcName.trim() && state.subnetName.trim()
-                        ? "existing"
-                        : "dedicated",
-                    privateHostname: resolveDefaultPrivateHostname(
-                      state.privateHostname,
-                      "demo-server-https.internal",
-                    ),
-                    certificateStrategy:
-                      state.mode === "poc" &&
-                      state.certificateStrategy === "enterprise_ca" &&
-                      !state.caPool.trim()
-                        ? "local_poc"
-                        : state.certificateStrategy,
-                    deploymentName: resolveDefaultDeploymentName(
-                      state.deploymentName,
-                      "secure-gateway-direct-https-demo",
-                    ),
-                    existingBackendConnectivityConfirmed: false,
-                  });
-                  void resolveSampleImage(true);
-                } else {
-                  onPatch({
-                    directHttpsLaunchSampleVm: false,
-                    networkStrategy: "existing",
-                    privateHostname: resolveDefaultPrivateHostname(
-                      state.privateHostname,
-                      "secgw-backend.internal",
-                    ),
-                    deploymentName: resolveDefaultDeploymentName(
-                      state.deploymentName,
-                      "secure-gateway-private-https",
-                    ),
-                    existingBackendUrl: state.existingBackendUrl.startsWith(
-                      "https://",
-                    )
-                      ? state.existingBackendUrl
-                      : "https://secgw-backend.internal",
-                    existingBackendConnectivityConfirmed: false,
-                  });
-                }
-              }}
-              type="checkbox"
-            />
-            <span>{copy.directLaunchSampleVmCheckbox}</span>
-          </label>
-        </article>
-      ) : null}
-      {state.backendKind === "managed_sample" ? (
-        <article className="sample-backend-box">
-          <div className="sample-backend-header">
-            <div>
-              <strong>{copy.managedSampleVmAction}</strong>
-              <p>{copy.managedSampleVmDescription}</p>
-            </div>
-            <button
-              className="connection-action"
-              disabled={sampleImageBusy}
-              onClick={() => void selectManagedSampleVm()}
-              type="button"
-            >
-              {sampleImageBusy ? copy.sampleImageResolving : copy.managedSampleVmAction}
-            </button>
-          </div>
-        </article>
-      ) : null}
-      {state.backendKind === "existing_http" ? (
-        <article className="sample-backend-box">
-          <div className="sample-backend-header">
-            <div>
-              <strong>{copy.managedSampleVmAction}</strong>
-              <p>{copy.existingSampleVmDescription}</p>
-            </div>
-            <button
-              className="connection-action"
-              disabled={sampleImageBusy}
-              onClick={() => void selectManagedSampleVm()}
-              type="button"
-            >
-              {sampleImageBusy ? copy.sampleImageResolving : copy.managedSampleVmAction}
+              {sampleImageBusy ? copy.sampleImageResolving : copy.configureSampleVm}
             </button>
           </div>
         </article>
@@ -1605,40 +1541,14 @@ export function EnvironmentStep({
         </>
       )}
       {state.backendKind === "internal_https_lb" && (
-        <>
-          <article className="sample-backend-box">
-            <div className="sample-backend-header">
-              <div>
-                <strong>{copy.configureSampleVm}</strong>
-                <p>{copy.configureSampleVmDescription}</p>
-                {state.sourceImage.trim() && (
-                  <small className="field-hint">
-                    ✓ {copy.sampleImageResolved}: <code>{state.sourceImage}</code>
-                  </small>
-                )}
-              </div>
-              <button
-                className="connection-action"
-                disabled={sampleImageBusy}
-                onClick={() => void selectInternalSampleVm()}
-                type="button"
-              >
-                {state.sourceImage.trim() && !sampleImageBusy ? (
-                  <CheckIcon size={18} />
-                ) : null}
-                {sampleImageBusy ? copy.sampleImageResolving : copy.configureSampleVm}
-              </button>
-            </div>
-          </article>
-          <div className="field-grid one">
-            <Field
-              label={copy.proxySubnetCidr}
-              onChange={(proxySubnetCidr) => onPatch({ proxySubnetCidr })}
-              placeholder="10.42.1.0/24"
-              value={state.proxySubnetCidr}
-            />
-          </div>
-        </>
+        <div className="field-grid one">
+          <Field
+            label={copy.proxySubnetCidr}
+            onChange={(proxySubnetCidr) => onPatch({ proxySubnetCidr })}
+            placeholder="10.42.1.0/24"
+            value={state.proxySubnetCidr}
+          />
+        </div>
       )}
       {sampleImageError ? (
         <p className="connection-error" role="alert">{sampleImageError}</p>

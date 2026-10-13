@@ -875,9 +875,14 @@ describe("Secure Gateway Studio mode screen", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", {
-        name: /^HTTPS App — Direct connection \/ Sample VM \(Option A\)/,
+        name: /^HTTPS App — Direct connection to existing app \(Option A\)/,
       }),
     ).toHaveAttribute("aria-pressed", "true");
+    expect(
+      screen.getByRole("button", {
+        name: /^HTTPS App — Launch a private sample VM \(Option A\)/,
+      }),
+    ).toHaveAttribute("aria-pressed", "false");
     expect(
       screen.getByRole("textbox", { name: /Private HTTPS endpoint/ }),
     ).toHaveValue("https://app.corp.internal:8443");
@@ -891,7 +896,9 @@ describe("Secure Gateway Studio mode screen", () => {
       screen.getByRole("textbox", { name: "Upstream VPC project ID (optional)" }),
     ).toHaveValue("shared-network-prj");
     expect(
-      screen.getByRole("button", { name: "Switch to HTTP App + Internal ALB (Option B)" }),
+      screen.getByRole("button", {
+        name: /^HTTP App — HTTPS offload with Internal Application Load Balancer \(Option B\)/,
+      }),
     ).toBeInTheDocument();
 
     expect(toDeploymentSpec(directState, "en")).toMatchObject({
@@ -919,14 +926,15 @@ describe("Secure Gateway Studio mode screen", () => {
       />,
     );
 
-    const checkbox = screen.getByRole("checkbox", {
-      name: /Launch a private sample VM during Apply/,
+    const sampleVmCard = screen.getByRole("button", {
+      name: /^HTTPS App — Launch a private sample VM \(Option A\)/,
     });
-    expect(checkbox).not.toBeChecked();
-    fireEvent.click(checkbox);
+    expect(sampleVmCard).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(sampleVmCard);
 
     expect(onPatch).toHaveBeenCalledWith(
       expect.objectContaining({
+        backendKind: "direct_https",
         directHttpsLaunchSampleVm: true,
         networkStrategy: "dedicated",
         certificateStrategy: "local_poc",
@@ -955,9 +963,12 @@ describe("Secure Gateway Studio mode screen", () => {
 
     expect(
       screen.getByRole("button", {
-        name: /^HTTPS App — Direct connection \/ Sample VM \(Option A\)/,
+        name: /^HTTPS App — Launch a private sample VM \(Option A\)/,
       }),
     ).toHaveAttribute("aria-pressed", "true");
+    expect(
+      screen.getByText(/Sample VM cost & specs:/),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("textbox", { name: "Immutable VM image" }),
     ).toHaveValue("projects/debian-cloud/global/images/debian-12-bookworm-v20260730");
@@ -995,7 +1006,7 @@ describe("Secure Gateway Studio mode screen", () => {
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: /^HTTPS App — Direct connection \/ Sample VM \(Option A\)/,
+        name: /^HTTPS App — Direct connection to existing app \(Option A\)/,
       }),
     );
     const selectionPatch = onPatch.mock.calls.at(-1)?.[0];
@@ -1204,7 +1215,7 @@ describe("Secure Gateway Studio mode screen", () => {
       }),
     ).toHaveAttribute("aria-pressed", "true");
     expect(
-      screen.getByRole("button", { name: "Create the private sample VM during Apply" }),
+      screen.getByRole("button", { name: "Create a private sample VM during approved Apply" }),
     ).toBeInTheDocument();
     expect(screen.getAllByText(/Estimated monthly PoC:.*USD/).length).toBeGreaterThanOrEqual(4);
   });

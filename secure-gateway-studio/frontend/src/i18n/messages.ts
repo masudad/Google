@@ -91,6 +91,13 @@ export interface WorkflowMessages {
   existingBackendDescription: string;
   directHttps: string;
   directHttpsDescription: string;
+  directHttpsSampleVm: string;
+  directHttpsSampleVmDescription: string;
+  directHttpsSampleVmCostBadge: string;
+  sampleVmCostNoteDirect: string;
+  sampleVmCostNoteIlb: string;
+  sampleVmCostNoteNginx: string;
+  directSampleVmArchitecture: GuideMessages["architectures"][number];
   internalHttpsLb: string;
   internalHttpsLbDescription: string;
   configureSampleVm: string;
@@ -1810,9 +1817,42 @@ const en: Messages = {
     existingBackend: "Existing HTTP app (http://) + Nginx VM (Option C)",
     existingBackendDescription:
       "Terminate HTTPS on an Nginx VM and forward to an existing private HTTP endpoint.",
-    directHttps: "HTTPS App — Direct connection / Sample VM (Option A)",
+    directHttps: "HTTPS App — Direct connection to existing app (Option A)",
     directHttpsDescription:
-      "Connect directly to an existing HTTPS endpoint (https://), or check 'Launch a private sample VM' below ($0 LB cost).",
+      "Route Secure Gateway directly to an existing private HTTPS application (https://). Creates no new VMs or load balancers.",
+    directHttpsSampleVm: "HTTPS App — Launch a private sample VM (Option A)",
+    directHttpsSampleVmDescription:
+      "Fastest PoC when you do not have an existing HTTPS app. Auto-creates private sample VMs, Private DNS, and firewall with $0 LB fee.",
+    directHttpsSampleVmCostBadge: "Estimated monthly PoC: about USD 35–45 (~USD 0.05/hr)",
+    sampleVmCostNoteDirect:
+      "Sample VM cost & specs: 2× e2-small VMs (2 vCPU / 2 GB RAM each, ~USD 28/mo) + 2× 20 GB pd-balanced SSD (~USD 4/mo) + Cloud NAT / DNS (~USD 5–10/mo), Load Balancer fee USD 0 — total ~USD 35–45/mo (~USD 0.05/hr). Delete the run in Teardown after PoC testing to stop hourly billing immediately.",
+    sampleVmCostNoteIlb:
+      "Sample VM + Internal ALB cost & specs: 1× e2-small sample VM + 20 GB SSD (~USD 16/mo · ~USD 0.022/hr) + Regional Internal ALB min 3 proxies (~USD 54/mo · ~USD 0.075/hr) + Cloud NAT / DNS (~USD 10–15/mo) — total ~USD 80–90/mo (~USD 0.12/hr). Delete the run in Teardown after PoC testing to stop hourly billing immediately.",
+    sampleVmCostNoteNginx:
+      "Sample VM + Nginx VM cost & specs: 2× e2-small VMs (1 Nginx TLS VM + 1 HTTP sample VM, ~USD 28/mo) + 2× 20 GB SSD (~USD 4/mo) + Cloud NAT / DNS (~USD 10–15/mo) — total ~USD 45–60/mo (~USD 0.06/hr). Delete the run in Teardown after PoC testing to stop hourly billing immediately.",
+    directSampleVmArchitecture: {
+      eyebrow: "HTTPS App · Auto-Created Sample VM (Option A)",
+      title: "Secure Gateway + auto-created private HTTPS sample VM ($0 LB fee)",
+      summary:
+        "Provisions private e2-small sample VMs, a local PoC certificate, Private DNS, and firewall rules without an Internal Load Balancer when you do not have an existing HTTPS app yet.",
+      estimatedCost: "Estimated monthly PoC: about USD 35–45 (~USD 0.05/hr)",
+      costFixed:
+        "2× e2-small VMs (~USD 28/mo), 2× 20 GB pd-balanced SSDs (~USD 4/mo), Cloud DNS, and dedicated-VPC Cloud NAT. Load balancer fee is USD 0.",
+      costVariable:
+        "Delete the run from Teardown after PoC verification to stop hourly charges immediately (a few cents to a few dollars for a short test).",
+      nodes: [
+        { label: "Managed Chrome", detail: "Trusts issuing root via Chrome Root Store", costBadge: "CEP license required" },
+        { label: "Secure Gateway", detail: "Identity, context, and hostname:443 policy", costBadge: "Check CEP agreement" },
+        { label: "TLS termination VM", detail: "Auto-created private e2-small VM on TCP 443", costBadge: "~USD 16/mo · $0 LB" },
+        { label: "Sample HTTP backend VM", detail: "Auto-created private e2-small VM on TCP 80", costBadge: "~USD 16/mo" },
+      ],
+      supports: [
+        { label: "Zero Load Balancer fee", detail: "Uses lightweight e2-small VMs instead of a Regional Internal ALB" },
+        { label: "TLS certificate", detail: "Local PoC CA, Enterprise CA, or existing Secret Manager certificate" },
+        { label: "Private DNS & firewall", detail: "Auto-creates Cloud DNS private zone and 136.124.16.0/20 ingress rule" },
+        { label: "One-click teardown", detail: "Deletes created VMs, disks, NAT, and DNS in reverse dependency order" },
+      ],
+    },
     internalHttpsLb:
       "HTTP App — HTTPS offload with Internal Application Load Balancer (Option B)",
     internalHttpsLbDescription:
@@ -4594,11 +4634,44 @@ const ja: Messages = {
     existingBackend: "既存HTTPアプリ + Nginx VMを作成 · Option C",
     existingBackendDescription:
       "Nginx VMでHTTPSを終端し、既存のプライベートHTTPエンドポイントへ転送します。",
-    directHttps: "HTTPS アプリ — 直接接続 / サンプルVM作成 · Option A",
+    directHttps: "HTTPS アプリ — 既存アプリへ直接接続 · Option A",
     directHttpsDescription:
-      "既存のHTTPSアプリへ直接接続します。下の「サンプルVMを自動作成する」にチェックを入れるとテスト用VMも自動作成できます。",
+      "稼働中の社内HTTPSアプリへ直接接続します。新しいVMやロードバランサは作成しません。",
+    directHttpsSampleVm: "HTTPS アプリ — サンプルVMを自動作成 · Option A",
+    directHttpsSampleVmDescription:
+      "既存のHTTPSアプリがない場合の最短検証構成です。内部LBを使わずにテスト用HTTPS環境・Private DNS・FWを自動作成します。",
+    directHttpsSampleVmCostBadge: "月額概算: 約 USD 35～45 · 約 USD 0.05/時間",
+    sampleVmCostNoteDirect:
+      "サンプルVMのコスト・スペック内訳: e2-small VM 2台が約 USD 28/月、20GB SSD 2本が約 USD 4/月、Cloud NAT / DNS が約 USD 5～10/月、ロードバランサ費用 USD 0 で合計 月額 約 USD 35～45 / 1時間あたり約 USD 0.05 です。数時間のPoC検証後に「復元・削除」から削除すれば時間課金は即時停止します。",
+    sampleVmCostNoteIlb:
+      "サンプルVM + 内部ALBのコスト・スペック内訳: サンプルVM 1台 e2-small + 20GB SSD が約 USD 16/月・約 USD 0.022/時間、内部ALB 最小3プロキシが約 USD 54/月・約 USD 0.075/時間、Cloud NAT / DNS が約 USD 10～15/月で合計 月額 約 USD 80～90 / 1時間あたり約 USD 0.12 です。検証後に「復元・削除」から削除すれば時間課金は即時停止します。",
+    sampleVmCostNoteNginx:
+      "サンプルVM + Nginx VMのコスト・スペック内訳: e2-small VM 2台 · Nginx VM 1台 + サンプルHTTP VM 1台 が約 USD 28/月、20GB SSD 2本が約 USD 4/月、Cloud NAT / DNS が約 USD 10～15/月で合計 月額 約 USD 45～60 / 1時間あたり約 USD 0.06 です。検証後に「復元・削除」から削除すれば時間課金は即時停止します。",
+    directSampleVmArchitecture: {
+      eyebrow: "① HTTPS アプリ · サンプルVM自動作成 · Option A",
+      title: "接続先が HTTPS アプリ: 検証用サンプルVMを自動作成 · LB費用 USD 0",
+      summary:
+        "既存のHTTPSアプリがない場合に、内部ロードバランサを使わず非公開サンプルVM・ローカルPoC証明書・Private DNS・ファイアウォールを自動作成して最短で検証します。",
+      estimatedCost: "月額概算: 約 USD 35～45 · 時間あたり約 USD 0.05",
+      costFixed:
+        "e2-small VM 2台が約 USD 28/月、20GB pd-balanced SSD 2本が約 USD 4/月、Cloud DNSと専用VPCのCloud NATを加えた概算です。ロードバランサ費用は USD 0 です。",
+      costVariable:
+        "数時間のPoC検証後に「復元・削除」から削除すれば時間課金が止まり、実費は数セント〜数ドルに収まります。",
+      nodes: [
+        { label: "管理対象Chrome", detail: "Chrome Root Storeから発行元Root CAを信頼", costBadge: "CEPライセンスが必要" },
+        { label: "Secure Gateway", detail: "ID・コンテキスト・hostname:443ポリシー", costBadge: "CEP契約を確認" },
+        { label: "TLS終端VM", detail: "自動作成する非公開 e2-small VM · TCP 443", costBadge: "約 USD 16/月 · LB USD 0" },
+        { label: "サンプルバックエンドVM", detail: "自動作成する非公開 e2-small VM · TCP 80", costBadge: "約 USD 16/月" },
+      ],
+      supports: [
+        { label: "ロードバランサ費用 USD 0", detail: "内部ALBを使わず軽量な e2-small VM で構成" },
+        { label: "TLS証明書", detail: "ローカルPoC CA、Enterprise CA、または既存Secret" },
+        { label: "Private DNS & FW", detail: "Cloud DNS限定公開ゾーンと 136.124.16.0/20 許可ルールを自動作成" },
+        { label: "ワンクリック撤去", detail: "検証後は作成したVM・ディスク・NAT・DNSを逆順で一括削除" },
+      ],
+    },
     internalHttpsLb:
-      "HTTP アプリ — 内部ロードバランサ · Internal ALB でHTTPS化 · Option B",
+      "HTTP アプリ — 内部ロードバランサ + サンプルVMを作成 · Option B",
     internalHttpsLbDescription:
       "HTTPのみのアプリの前段にGoogle Cloudの内部HTTPSロードバランサを配置してTLSを終端し、非公開サンプルVMへHTTP転送します。",
     configureSampleVm: "サンプルVMのOSイメージを自動設定 · Debian 12",
