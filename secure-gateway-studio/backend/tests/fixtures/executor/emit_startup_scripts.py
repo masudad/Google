@@ -94,6 +94,10 @@ def _templatise(script: str, spec: DeploymentSpec, executor: Any) -> str:
 
     replacements = {
         canonical_configuration_hash(spec): "@@CONFIGURATION_HASH@@",
+        (
+            f'<html lang="{spec.locale.value}" '
+            f'data-default-lang="{spec.locale.value}">'
+        ): '<html lang="@@LOCALE@@" data-default-lang="@@LOCALE@@">',
         spec.private_hostname: "@@PRIVATE_HOSTNAME@@",
         f"projects/{spec.project_id}/secrets/sgsx-secret/versions/123456789": (
             "@@SECRET_VERSION@@"

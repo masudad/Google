@@ -2888,9 +2888,13 @@ export function ApplyStep({
   const activeRunStatuses = new Set(["pending", "running", "rolling_back"]);
   const runFinished = run !== null && !activeRunStatuses.has(run.status);
   const runFinalized = run?.status === "succeeded" || run?.status === "rolled_back";
+  const activeLocale =
+    messages.languages.japanese === "日本語" && copy.ready === "準備完了"
+      ? "ja"
+      : "en";
   const recallSpec =
     preparedPlan?.specification ??
-    toDeploymentSpec(state, messages.languages.japanese === "日本語" && copy.ready === "準備完了" ? "ja" : "en");
+    toDeploymentSpec(state, activeLocale);
   const recallRecord = buildNonSensitiveRecallRecord(recallSpec, {
     runId: run?.run_id ?? null,
     configurationHash:
@@ -3218,7 +3222,7 @@ export function ApplyStep({
           <h3>{copy.connectionHandoffTitle}</h3>
           <p>
             <strong>{copy.testUrlLabel}: </strong>
-            <a href={`https://${state.privateHostname}`} rel="noreferrer" target="_blank">
+            <a href={`https://${state.privateHostname}?lang=${activeLocale}`} rel="noreferrer" target="_blank">
               https://{state.privateHostname}
             </a>
           </p>

@@ -63,6 +63,7 @@ function render(
       "@@PIN_PRESENTED_CHAIN@@",
       spec.certificate_strategy === "public_trusted" ? "False" : "True",
     )
+    .replaceAll("@@LOCALE@@", spec.locale)
     .replaceAll("@@CONFIGURATION_HASH@@", configurationHash(spec));
 }
 

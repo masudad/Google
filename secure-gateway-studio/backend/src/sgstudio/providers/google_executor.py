@@ -3640,7 +3640,7 @@ set -euo pipefail
 {package_setup}
 cat >/var/www/html/index.html <<'EOF'
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{spec.locale.value}" data-default-lang="{spec.locale.value}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -3693,6 +3693,12 @@ cat >/var/www/html/index.html <<'EOF'
     color: var(--muted);
     font-size: 14px;
   }}
+  .header-right {{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }}
   .badge-success {{
     display: inline-flex;
     align-items: center;
@@ -3703,6 +3709,29 @@ cat >/var/www/html/index.html <<'EOF'
     border-radius: 20px;
     font-weight: 600;
     font-size: 13px;
+  }}
+  .lang-switch {{
+    display: inline-flex;
+    background: #f1f3f4;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 2px;
+    gap: 2px;
+  }}
+  .lang-btn {{
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 16px;
+    cursor: pointer;
+  }}
+  .lang-btn.active {{
+    background: #ffffff;
+    color: var(--primary);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
   }}
   .flow-card {{
     background: #f1f3f4;
@@ -3867,26 +3896,32 @@ cat >/var/www/html/index.html <<'EOF'
   <div class="header">
     <div class="title-group">
       <h1>Secure Gateway Studio private backend</h1>
-      <p>Zero-Trust Private Application &amp; Route Telemetry</p>
+      <p data-en="Zero-Trust Private Application &amp; Route Telemetry" data-ja="ゼロトラスト プライベート アプリケーション &amp; 経路テレメトリ">Zero-Trust Private Application &amp; Route Telemetry</p>
     </div>
-    <div class="badge-success">
-      ● 接続完了 (Verified Gateway Routing)
+    <div class="header-right">
+      <div class="badge-success" data-en="● Connected (Verified Gateway Routing)" data-ja="● 接続完了 (Verified Gateway Routing)">
+        ● Connected (Verified Gateway Routing)
+      </div>
+      <div class="lang-switch" role="group" aria-label="Language">
+        <button type="button" class="lang-btn active" data-set-lang="en">EN</button>
+        <button type="button" class="lang-btn" data-set-lang="ja">日本語</button>
+      </div>
     </div>
   </div>
 
   <div class="flow-card">
-    <div class="flow-title">📍 リクエスト到達経路 (Architecture Traversal Path)</div>
+    <div class="flow-title" data-en="📍 Request Traversal Path (Architecture)" data-ja="📍 リクエスト到達経路 (Architecture Traversal Path)">📍 Request Traversal Path (Architecture)</div>
     <div class="flow-steps">
       <div class="step-node active">
         <span class="node-label">1. Client Browser</span>
-        <span class="node-detail">Managed Chrome</span>
+        <span class="node-detail" data-en="Managed Chrome" data-ja="管理対象 Chrome">Managed Chrome</span>
         <span class="node-ip">Host: <!--#echo var="http_host" default="sgsx-backend" --></span>
       </div>
       <span class="flow-arrow">➔</span>
       <div class="step-node active">
         <span class="node-label">2. Secure Web Gateway</span>
         <span class="node-detail">Cloud SWG Proxy</span>
-        <span class="node-ip">Zero-Trust 認可</span>
+        <span class="node-ip" data-en="Zero-Trust Auth" data-ja="Zero-Trust 認可">Zero-Trust Auth</span>
       </div>
       <span class="flow-arrow">➔</span>
       <div class="step-node active">
@@ -3897,51 +3932,51 @@ cat >/var/www/html/index.html <<'EOF'
       <span class="flow-arrow">➔</span>
       <div class="step-node active">
         <span class="node-label">4. TLS Offload / ILB</span>
-        <span class="node-detail">Port 443 TLS終端</span>
+        <span class="node-detail" data-en="Port 443 TLS Termination" data-ja="Port 443 TLS終端">Port 443 TLS Termination</span>
         <span class="node-ip">Peer: <!--#echo var="remote_addr" default="127.0.0.1" --></span>
       </div>
       <span class="flow-arrow">➔</span>
       <div class="step-node current">
         <span class="node-label">5. Sample Backend</span>
-        <span class="node-detail">Port 80 (現在地)</span>
+        <span class="node-detail" data-en="Port 80 (Current VM)" data-ja="Port 80 (現在地)">Port 80 (Current VM)</span>
         <span class="node-ip">Local: <!--#echo var="server_addr" default="Private IP" --></span>
       </div>
     </div>
     <ul class="ip-map-list">
       <li>
-        <span class="ip-step-badge">経路 1〜3: X-Forwarded-For</span>
+        <span class="ip-step-badge" data-en="Hops 1–3: X-Forwarded-For" data-ja="経路 1〜3: X-Forwarded-For">Hops 1–3: X-Forwarded-For</span>
         <span class="ip-code"><!--#echo var="http_x_forwarded_for" default="None" --></span>
-        <span>クライアントまたは Secure Web Gateway / PSC から TLS終端プロキシへ届いた上流転送元IP</span>
+        <span data-en="Upstream client or Secure Web Gateway / PSC source IP forwarded to the TLS termination proxy" data-ja="クライアントまたは Secure Web Gateway / PSC から TLS終端プロキシへ届いた上流転送元IP">Upstream client or Secure Web Gateway / PSC source IP forwarded to the TLS termination proxy</span>
       </li>
       <li>
-        <span class="ip-step-badge">経路 4: Direct Peer IP</span>
+        <span class="ip-step-badge" data-en="Hop 4: Direct Peer IP" data-ja="経路 4: Direct Peer IP">Hop 4: Direct Peer IP</span>
         <span class="ip-code"><!--#echo var="remote_addr" default="127.0.0.1" --></span>
-        <span>TLS Port 443 を終端し、このバックエンドVMへ直接HTTP接続した直前のプロキシ内部IP [TLS Offload VM または Internal ALB プロキシサブネット]</span>
+        <span data-en="Internal VPC IP of the proxy that terminated TLS Port 443 and connected directly to this backend VM [TLS Offload VM or Internal ALB proxy subnet]" data-ja="TLS Port 443 を終端し、このバックエンドVMへ直接HTTP接続した直前のプロキシ内部IP [TLS Offload VM または Internal ALB プロキシサブネット]">Internal VPC IP of the proxy that terminated TLS Port 443 and connected directly to this backend VM [TLS Offload VM or Internal ALB proxy subnet]</span>
       </li>
       <li>
-        <span class="ip-step-badge">経路 5: Local Server IP</span>
+        <span class="ip-step-badge" data-en="Hop 5: Local Server IP" data-ja="経路 5: Local Server IP">Hop 5: Local Server IP</span>
         <span class="ip-code"><!--#echo var="server_addr" default="Private IP" --></span>
-        <span>リクエストを受信しているこの Sample Backend VM 自身の VPC プライベートIP [現在地]</span>
+        <span data-en="Private VPC IP of this Sample Backend VM receiving the request [Current VM]" data-ja="リクエストを受信しているこの Sample Backend VM 自身の VPC プライベートIP [現在地]">Private VPC IP of this Sample Backend VM receiving the request [Current VM]</span>
       </li>
     </ul>
   </div>
 
   <div class="grid">
     <div class="card">
-      <h3>🌐 接続元テレメトリ (Connection Metadata)</h3>
+      <h3 data-en="🌐 Connection Telemetry (Metadata)" data-ja="🌐 接続元テレメトリ (Connection Metadata)">🌐 Connection Telemetry (Metadata)</h3>
       <table class="data-table">
         <tr>
           <th>Direct Peer IP</th>
           <td>
             <!--#echo var="remote_addr" default="127.0.0.1" -->
-            <span class="field-role">経路 4: TLS Offload VM / Internal ALB プロキシのVPC内部IP</span>
+            <span class="field-role" data-en="Hop 4: Internal VPC IP of the TLS Offload VM / Internal ALB proxy" data-ja="経路 4: TLS Offload VM / Internal ALB プロキシのVPC内部IP">Hop 4: Internal VPC IP of the TLS Offload VM / Internal ALB proxy</span>
           </td>
         </tr>
         <tr>
           <th>X-Forwarded-For</th>
           <td>
             <!--#echo var="http_x_forwarded_for" default="None" -->
-            <span class="field-role">経路 1〜3: クライアント / Secure Web Gateway 転送元IP</span>
+            <span class="field-role" data-en="Hops 1–3: Client / Secure Web Gateway source IP" data-ja="経路 1〜3: クライアント / Secure Web Gateway 転送元IP">Hops 1–3: Client / Secure Web Gateway source IP</span>
           </td>
         </tr>
         <tr>
@@ -3956,11 +3991,11 @@ cat >/var/www/html/index.html <<'EOF'
     </div>
 
     <div class="card">
-      <h3>🛡️ セキュリティ検証ステータス (Security Posture)</h3>
+      <h3 data-en="🛡️ Security Verification Status (Posture)" data-ja="🛡️ セキュリティ検証ステータス (Security Posture)">🛡️ Security Verification Status (Posture)</h3>
       <table class="data-table">
         <tr>
           <th>Public IP</th>
-          <td style="color: #137333; font-weight: bold;">なし (Private VPC Only)</td>
+          <td style="color: #137333; font-weight: bold;" data-en="None (Private VPC Only)" data-ja="なし (Private VPC Only)">None (Private VPC Only)</td>
         </tr>
         <tr>
           <th>TLS Verification</th>
@@ -3970,14 +4005,14 @@ cat >/var/www/html/index.html <<'EOF'
           <th>Target Hostname</th>
           <td>
             <!--#echo var="http_host" default="sgsx-backend" -->
-            <span class="field-role">経路 1→2: ブラウザが要求しSWGが解決したプライベートホスト名</span>
+            <span class="field-role" data-en="Hops 1→2: Private hostname requested by the browser and resolved by SWG" data-ja="経路 1→2: ブラウザが要求しSWGが解決したプライベートホスト名">Hops 1→2: Private hostname requested by the browser and resolved by SWG</span>
           </td>
         </tr>
         <tr>
           <th>Local Server IP</th>
           <td>
             <!--#echo var="server_addr" default="Private IP" -->
-            <span class="field-role">経路 5: このSample Backend VM自身のVPCプライベートIP</span>
+            <span class="field-role" data-en="Hop 5: Private VPC IP of this Sample Backend VM" data-ja="経路 5: このSample Backend VM自身のVPCプライベートIP">Hop 5: Private VPC IP of this Sample Backend VM</span>
           </td>
         </tr>
       </table>
@@ -3985,7 +4020,7 @@ cat >/var/www/html/index.html <<'EOF'
   </div>
 
   <div class="card">
-    <h3>📋 受信リクエストヘッダー (HTTP Headers)</h3>
+    <h3 data-en="📋 Received Request Headers (HTTP)" data-ja="📋 受信リクエストヘッダー (HTTP Headers)">📋 Received Request Headers (HTTP)</h3>
     <table class="data-table">
       <tr>
         <th>Host</th>
@@ -4002,10 +4037,54 @@ cat >/var/www/html/index.html <<'EOF'
     </table>
   </div>
 
-  <div class="footer">
-    Secure Gateway Studio PoC Environment &bull; Verified Zero-Trust Gateway Architecture
+  <div class="footer" data-en="Secure Gateway Studio PoC Environment • Verified Zero-Trust Gateway Architecture" data-ja="Secure Gateway Studio PoC 環境 • 検証済みゼロトラスト ゲートウェイ構成">
+    Secure Gateway Studio PoC Environment • Verified Zero-Trust Gateway Architecture
   </div>
 </div>
+<script>
+(function() {{
+  function resolveInitialLang() {{
+    try {{
+      var params = new URLSearchParams(window.location.search);
+      var q = params.get("lang");
+      if (q === "en" || q === "ja") {{
+        try {{ localStorage.setItem("sgs_vm_lang", q); }} catch (e) {{}}
+        return q;
+      }}
+      var stored = localStorage.getItem("sgs_vm_lang");
+      if (stored === "en" || stored === "ja") return stored;
+    }} catch (e) {{}}
+    var def = document.documentElement.getAttribute("data-default-lang");
+    if (def === "en" || def === "ja") return def;
+    return "en";
+  }}
+  function applyLang(lang) {{
+    var target = lang === "ja" ? "ja" : "en";
+    document.documentElement.lang = target;
+    var nodes = document.querySelectorAll("[data-en][data-ja]");
+    for (var i = 0; i < nodes.length; i++) {{
+      var val = nodes[i].getAttribute("data-" + target);
+      if (val !== null) nodes[i].textContent = val;
+    }}
+    var btns = document.querySelectorAll("[data-set-lang]");
+    for (var j = 0; j < btns.length; j++) {{
+      var active = btns[j].getAttribute("data-set-lang") === target;
+      btns[j].classList.toggle("active", active);
+      btns[j].setAttribute("aria-pressed", active ? "true" : "false");
+    }}
+  }}
+  var initial = resolveInitialLang();
+  applyLang(initial);
+  var switches = document.querySelectorAll("[data-set-lang]");
+  for (var k = 0; k < switches.length; k++) {{
+    switches[k].addEventListener("click", function() {{
+      var next = this.getAttribute("data-set-lang") === "ja" ? "ja" : "en";
+      try {{ localStorage.setItem("sgs_vm_lang", next); }} catch (e) {{}}
+      applyLang(next);
+    }});
+  }}
+}})();
+</script>
 </body>
 </html>
 EOF

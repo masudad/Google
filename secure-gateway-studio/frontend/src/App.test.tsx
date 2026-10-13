@@ -1735,7 +1735,7 @@ describe("Secure Gateway Studio mode screen", () => {
     expect(document.body).toHaveTextContent(/予約済みプライベートアドレス/);
     expect(document.body).toHaveTextContent(/Chrome］>［コネクタ］>［Chrome Root Store/);
     expect(document.body).toHaveTextContent(/作成済みサブネットにCloud RouterとCloud NAT/);
-    expect(document.body).toHaveTextContent(/PoCモードだけでは、選択した既存リソースが非本番であることを保証しません/);
+    expect(document.body).toHaveTextContent(/PoCモードでは既存リソースが非本番環境であるかを自動判定しないため/);
     expect(document.body).toHaveTextContent(/適用した設定値と現在値が安全に一致する場合だけ復元/);
     expect(
       screen.getByRole("heading", { name: "実装済み機能の全体像" }),
@@ -2726,6 +2726,10 @@ describe("Secure Gateway Studio mode screen", () => {
       ),
     ).toBe(false);
     expect(createObjectUrlMock).not.toHaveBeenCalled();
+
+    expect(
+      screen.getByRole("link", { name: "https://app.secgw.internal" }),
+    ).toHaveAttribute("href", "https://app.secgw.internal?lang=ja");
 
     // Only when the operator explicitly clicks the button does the download start
     const downloadBtn = screen.getByRole("button", {

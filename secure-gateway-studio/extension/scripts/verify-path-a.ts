@@ -120,11 +120,25 @@ check(
 );
 check(
   "Sample backend HTML maps each displayed IP address to its hop in the architecture traversal path",
-  productionBackendScript.includes("経路 1〜3: X-Forwarded-For") &&
+  productionBackendScript.includes("Hops 1–3: X-Forwarded-For") &&
+    productionBackendScript.includes("Hop 4: Direct Peer IP") &&
+    productionBackendScript.includes("Hop 5: Local Server IP") &&
+    productionBackendScript.includes("経路 1〜3: X-Forwarded-For") &&
     productionBackendScript.includes("経路 4: Direct Peer IP") &&
     productionBackendScript.includes("経路 5: Local Server IP") &&
     productionBackendScript.includes('Peer: <!--#echo var="remote_addr"') &&
     productionBackendScript.includes('Local: <!--#echo var="server_addr"'),
+);
+const japaneseBackendScript = sampleBackendStartupScript({
+  ...PRODUCTION_MANAGED_SPEC,
+  locale: "ja",
+});
+check(
+  "Sample backend HTML binds default language to the extension deployment locale and supports EN/JA switching",
+  productionBackendScript.includes('<html lang="en" data-default-lang="en">') &&
+    productionBackendScript.includes("● Connected (Verified Gateway Routing)") &&
+    japaneseBackendScript.includes('<html lang="ja" data-default-lang="ja">') &&
+    japaneseBackendScript.includes('data-ja="● 接続完了 (Verified Gateway Routing)"'),
 );
 
 const REQUEST_ID = "123e4567-e89b-42d3-a456-426614174000";
