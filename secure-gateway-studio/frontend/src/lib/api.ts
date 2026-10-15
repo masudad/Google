@@ -773,8 +773,14 @@ export interface CepProvisionConfig {
   /**
    * `NONE`, an `AUTO_CREATE_*` sentinel, or the resource name of an existing
    * access level. Same vocabulary as the deployment wizard's access step.
+   * This is the primary level, i.e. the one DLP access-level conditions use.
    */
   access_level?: string;
+  /**
+   * Every access level ticked in the console, in display order. Each
+   * `AUTO_CREATE_*` entry is created or reused; resource names are verified.
+   */
+  access_levels?: string[];
   /** Cloud Identity policy API; mutations are still in beta. */
   dlp_detectors?: boolean;
   dlp_rules?: boolean;
@@ -812,6 +818,8 @@ export interface CepRollbackConfig {
   delete_dlp_rules?: boolean;
   /** AUTO_CREATE candidates are inspected but retained without durable ownership. */
   access_level?: string;
+  /** Every level provision was given; each AUTO_CREATE candidate is inspected. */
+  access_levels?: string[];
 }
 
 export interface CepLicenseAssignConfig {

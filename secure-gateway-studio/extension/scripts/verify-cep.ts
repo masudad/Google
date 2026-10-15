@@ -40,6 +40,7 @@ import type { Transport, TransportResponse } from "../src/providers/executor.ts"
 import {
   CEP_LICENSE_DIRECTORY_PAGE_LIMIT,
   CEP_LICENSE_PILOT_USER_LIMIT,
+  accessLevelSelections,
   resolveCepTargetGroup,
   resolveConfirmedCepTargetGroup,
 } from "../src/providers/cep-provider.ts";
@@ -312,7 +313,9 @@ const SCHEMA_FIELDS: Record<string, StubField[]> = {
   "chrome.users.BrowserGuestModeEnabled": [
     { name: "browserGuestModeEnabled", type: "TYPE_BOOL" },
   ],
-  "chrome.users.IncognitoModeAvailability": [
+  // Served as `chrome.users.IncognitoMode` by the real tenant catalogue; the
+  // field keeps the longer `incognitoModeAvailability` name.
+  "chrome.users.IncognitoMode": [
     {
       name: "incognitoModeAvailability",
       type: "TYPE_ENUM",
@@ -323,6 +326,10 @@ const SCHEMA_FIELDS: Record<string, StubField[]> = {
         "INCOGNITO_MODE_AVAILABILITY_ENUM_FORCED",
       ],
     },
+  ],
+  // Sibling schema that the matcher must NOT pick up for the incognito policy.
+  "chrome.users.IncognitoModeUrlList": [
+    { name: "incognitoModeUrlList", type: "TYPE_STRING", repeated: true },
   ],
   "chrome.users.DeveloperTools": [
     {
@@ -467,6 +474,24 @@ interface StubOptions {
   directoryGroups?: Array<{ id: string; email: string; name?: string }>;
   /** Raw PolicySchema payloads keyed by schemaName to test multi-message FileDescriptorProto shapes. */
   rawSchemas?: Record<string, Record<string, unknown>>;
+  /**
+   * Organization returned by CRM `organizations:search` for the Workspace
+   * customer, with its org-level access policy. Lets a scenario put the
+   * customer's organization somewhere other than the project's.
+   */
+  customerOrganization?: { name: string; directoryCustomerId: string; policyName: string };
+  /** Additional Access Context Manager policies (for example project-scoped VPC-SC policies) returned alongside `accessPolicies/999`. */
+  extraAccessPolicies?: Array<{ name: string; parent: string; scopes?: string[] }>;
+  /**
+   * Chrome policy values `policies:resolve` reports, by schema, with the
+   * resource that set them. Lets a scenario put the legacy GenAI URL lists on
+   * the target (or on a parent) and prove when the provider clears them.
+   */
+  resolvedPolicyValues?: Array<{
+    schema: string;
+    targetResource: string;
+    value: Record<string, unknown>;
+  }>;
 }
 
 function stubTransport(options: StubOptions = {}): {
@@ -544,15 +569,46 @@ function stubTransport(options: StubOptions = {}): {
           payload: { name: "projects/1111", parent: "organizations/1234" },
         };
       }
+      // CRM organizations:search by directory customer id: the organization
+      // linked to the Workspace customer (configured per scenario).
+      if (url.includes("cloudresourcemanager") && url.endsWith("/organizations:search")) {
+        const filter = String((body as { filter?: unknown } | undefined)?.filter ?? "");
+        const org = options.customerOrganization;
+        const matches = org !== undefined && filter === `directorycustomerid:${org.directoryCustomerId}`;
+        return {
+          status: 200,
+          payload: matches
+            ? { organizations: [{ name: org.name, owner: { directoryCustomerId: org.directoryCustomerId } }] }
+            : {},
+        };
+      }
+      if (
+        options.customerOrganization !== undefined &&
+        url.includes("accesscontextmanager") &&
+        url.includes(`/accessPolicies?parent=${encodeURIComponent(options.customerOrganization.name)}`)
+      ) {
+        return {
+          status: 200,
+          payload: {
+            accessPolicies: [{
+              name: options.customerOrganization.policyName,
+              parent: options.customerOrganization.name,
+            }],
+          },
+        };
+      }
       // Query params arrive in `options`, not the URL, so match the path.
       if (url.includes("accesscontextmanager") && /\/accessPolicies(?:\?|$)/.test(url)) {
         return {
           status: 200,
           payload: {
-            accessPolicies: [{
-              name: "accessPolicies/999",
-              parent: "organizations/1234",
-            }],
+            accessPolicies: [
+              {
+                name: "accessPolicies/999",
+                parent: "organizations/1234",
+              },
+              ...(options.extraAccessPolicies ?? []),
+            ],
           },
         };
       }
@@ -1005,6 +1061,26 @@ function stubTransport(options: StubOptions = {}): {
         };
       }
 
+      // Chrome policy inspection: the value set on the target or inherited
+      // from a parent, when the scenario defines one; a default otherwise.
+      if (url.endsWith("/policies:resolve") && options.resolvedPolicyValues !== undefined) {
+        const filter = (body as { policySchemaFilter?: string } | undefined)?.policySchemaFilter;
+        const targetKey =
+          (body as { policyTargetKey?: Record<string, unknown> } | undefined)?.policyTargetKey ?? {};
+        return {
+          status: 200,
+          payload: {
+            resolvedPolicies: options.resolvedPolicyValues
+              .filter((entry) => entry.schema === filter)
+              .map((entry) => ({
+                targetKey,
+                value: { policySchema: entry.schema, value: entry.value },
+                sourceKey: { targetResource: entry.targetResource },
+              })),
+          },
+        };
+      }
+
       return { status: 200, payload: {} };
     },
   };
@@ -1094,7 +1170,7 @@ interface ProvisionResult {
   message: string;
   created_items: string[];
   skipped_items: string[];
-  debug_trace: Array<{ label: string; ok: boolean; status: number; error?: string }>;
+  debug_trace: Array<{ label: string; ok: boolean; status: number; error?: string; method?: string; url?: string }>;
 }
 
 function batchRequests(calls: Recorded[], operation: "batchModify" | "batchInherit"): Array<Record<string, unknown>> {
@@ -1284,15 +1360,26 @@ for (const [path, payload] of [
   const incognitoReq = requests.find(
     (request) =>
       (request.policyValue as { policySchema?: string }).policySchema ===
-      "chrome.users.IncognitoModeAvailability",
+      "chrome.users.IncognitoMode",
   );
   const incognitoVal = (
     (incognitoReq?.policyValue as { value?: Record<string, unknown> })?.value ?? {}
   ).incognitoModeAvailability;
   check(
-    "IncognitoModeAvailability disables incognito mode (INCOGNITO_MODE_AVAILABILITY_ENUM_UNAVAILABLE)",
+    "IncognitoMode (real schema name, not IncognitoModeAvailability) disables incognito mode (INCOGNITO_MODE_AVAILABILITY_ENUM_UNAVAILABLE)",
     incognitoVal === "INCOGNITO_MODE_AVAILABILITY_ENUM_UNAVAILABLE",
     JSON.stringify(incognitoVal),
+  );
+  check(
+    "incognito policy never lands on the sibling chrome.users.IncognitoModeUrlList schema",
+    !requests.some(
+      (request) =>
+        (request.policyValue as { policySchema?: string }).policySchema ===
+        "chrome.users.IncognitoModeUrlList",
+    ),
+    JSON.stringify(
+      requests.map((request) => (request.policyValue as { policySchema?: string }).policySchema),
+    ),
   );
 
   const profileSepReq = requests.find(
@@ -1684,35 +1771,260 @@ function dataBoundaryValues(requests: Array<Record<string, unknown>>): Record<st
       },
     },
   )) as ProvisionResult;
-  const requests = batchRequests(calls, "batchModify");
-  const valueFor = (schema: string, field: string): unknown => {
-    const request = requests.find(
-      (candidate) =>
-        (candidate.policyValue as { policySchema?: string }).policySchema === schema,
-    );
-    return ((request?.policyValue as { value?: Record<string, unknown> })?.value ?? {})[
-      field
-    ];
-  };
-  const blocked = valueFor("chrome.users.URLBlocklist", "urlBlocklist");
-  const allowed = valueFor("chrome.users.URLAllowlist", "urlAllowlist");
+  const urlListSchemas = schemasIn(batchRequests(calls, "batchModify")).filter((schema) =>
+    /URL(Block|Allow)list/i.test(schema)
+  );
+  const genAiRules = ruleBodies(calls).filter((rule) =>
+    String(rule.displayName ?? "").includes("Consumer GenAI data protection")
+  );
+  const conditionOf = (rule: Record<string, unknown> | undefined): string =>
+    String((rule?.condition as { contentCondition?: string } | undefined)?.contentCondition ?? "");
+  const actionOf = (rule: Record<string, unknown> | undefined): string =>
+    Object.keys(
+      ((rule?.action ?? {}) as { chromeAction?: Record<string, unknown> }).chromeAction ?? {},
+    )[0] ?? "";
+  const navigation = genAiRules.find((rule) =>
+    String(rule.displayName ?? "").endsWith(" - navigation")
+  );
 
   check("GenAI protection provisions successfully", result.success, result.message);
   check(
-    "GenAI URL policies use valid host filters without unsupported trailing wildcards",
-    JSON.stringify(blocked) ===
-        JSON.stringify([
-          "chatgpt.com",
-          "claude.ai",
-          "deepseek.com",
-          "poe.com",
-          "perplexity.ai",
-          "copilot.microsoft.com",
-        ]) &&
-      JSON.stringify(allowed) ===
-        JSON.stringify(["gemini.google.com", "workspace.google.com"]) &&
-      !JSON.stringify([blocked, allowed]).includes("*"),
-    JSON.stringify({ blocked, allowed }),
+    "consumer GenAI is no longer written as Chrome URLBlocklist / URLAllowlist policies",
+    urlListSchemas.length === 0,
+    urlListSchemas.join(", "),
+  );
+  check(
+    "GenAI rules match the Generative AI web category plus named services and exempt approved corporate destinations",
+    genAiRules.length === 3 &&
+      genAiRules.every((rule) => {
+        const condition = conditionOf(rule);
+        return (
+          condition.includes(
+            "url_category.matches_web_category('INTERNET_AND_TECHNOLOGY__GENERATIVE_AI')",
+          ) &&
+          condition.includes("url.contains('//chatgpt.com') || url.contains('.chatgpt.com')") &&
+          // Anchored at the authority: a bare `grok.com` would also match ngrok.com.
+          !condition.includes("url.contains('grok.com')") &&
+          condition.includes("&& !(url.starts_with('https://gemini.google.com')") &&
+          condition.includes("url.starts_with('https://notebooklm.google.com')") &&
+          !condition.includes("*")
+        );
+      }),
+    JSON.stringify(genAiRules.map((rule) => [rule.displayName, conditionOf(rule)])),
+  );
+  check(
+    "the GenAI site-visit rule blocks navigation with a block-page message when upload or paste blocks",
+    navigation !== undefined &&
+      JSON.stringify(navigation.triggers) ===
+        JSON.stringify(["google.workspace.chrome.url.v1.navigation"]) &&
+      actionOf(navigation) === "blockContent" &&
+      JSON.stringify(navigation.action).includes("unsafeHtmlMessageBody") &&
+      JSON.stringify(navigation.action).includes("generative AI sites"),
+    JSON.stringify(navigation),
+  );
+  check(
+    "no legacy Chrome URL list is touched when the tenant never had one",
+    !calls.some((call) =>
+      call.url.includes("orgunits:batchInherit") || call.url.includes("groups:batchDelete")
+    ),
+  );
+}
+
+{
+  // The site-visit rule follows the stronger of the row's upload / paste
+  // cells: audit-only rows get a silent audit rule (Shadow-AI visibility)
+  // and no end-user message; a warning row warns.
+  const auditStub = stubTransport();
+  await route(context(auditStub.transport), "POST", "/api/v1/cep/provision", {
+    ...FULL_CONFIG,
+    dlp_rules: true,
+    dlp_matrix: { genai_block: { upload: "auditOnly", paste: "off" } },
+  });
+  const auditNavigation = ruleBodies(auditStub.calls).find((rule) =>
+    String(rule.displayName ?? "") === "CEP PoC - Consumer GenAI data protection - navigation"
+  );
+  check(
+    "an audit-only GenAI row produces a silent audit site-visit rule without a block message",
+    auditNavigation !== undefined &&
+      JSON.stringify(auditNavigation.action) === JSON.stringify({ chromeAction: { auditOnly: {} } }),
+    JSON.stringify(auditNavigation?.action),
+  );
+
+  const warnStub = stubTransport();
+  await route(context(warnStub.transport), "POST", "/api/v1/cep/provision", {
+    ...FULL_CONFIG,
+    dlp_rules: true,
+    dlp_matrix: { genai_block: { upload: "auditOnly", paste: "warnUser" } },
+  });
+  const warnNavigation = ruleBodies(warnStub.calls).find((rule) =>
+    String(rule.displayName ?? "") === "CEP PoC - Consumer GenAI data protection - navigation"
+  );
+  check(
+    "a warning GenAI row produces a warning site-visit rule",
+    warnNavigation !== undefined &&
+      Object.keys(
+        ((warnNavigation.action ?? {}) as { chromeAction?: Record<string, unknown> }).chromeAction ?? {},
+      )[0] === "warnUser",
+    JSON.stringify(warnNavigation?.action),
+  );
+}
+
+{
+  // A tenant provisioned before v0.2.82 carries the Chrome URL lists this tool
+  // used to write. Exactly those lists, set directly on the target, are
+  // cleared so the navigation rule is the single control; anything the
+  // administrator changed, and anything inherited, is left alone.
+  const legacyBlocklist = [
+    "chatgpt.com",
+    "claude.ai",
+    "deepseek.com",
+    "poe.com",
+    "perplexity.ai",
+    "copilot.microsoft.com",
+  ];
+  const legacyAllowlist = ["gemini.google.com", "workspace.google.com"];
+  const { transport, calls } = stubTransport({
+    resolvedPolicyValues: [
+      {
+        schema: "chrome.users.URLBlocklist",
+        targetResource: "orgunits/03pilot",
+        value: { urlBlocklist: legacyBlocklist },
+      },
+      {
+        schema: "chrome.users.URLAllowlist",
+        targetResource: "orgunits/03pilot",
+        value: { urlAllowlist: legacyAllowlist },
+      },
+    ],
+  });
+  const result = (await route(context(transport), "POST", "/api/v1/cep/provision", {
+    ...FULL_CONFIG,
+    dlp_rules: true,
+    dlp_matrix: { genai_block: { upload: "blockContent", paste: "blockContent" } },
+  })) as ProvisionResult;
+  const inherited = schemasIn(batchRequests(calls, "batchInherit")).sort();
+  check(
+    "the exact legacy GenAI URL lists set on the target are cleared once the navigation rule exists",
+    result.success &&
+      JSON.stringify(inherited) ===
+        JSON.stringify(["chrome.users.URLAllowlist", "chrome.users.URLBlocklist"]) &&
+      result.created_items.some((item) =>
+        item.startsWith("Removed legacy Chrome chrome.users.URLBlocklist list from orgunits/03pilot")
+      ) &&
+      result.created_items.some((item) =>
+        item.startsWith("Removed legacy Chrome chrome.users.URLAllowlist list from orgunits/03pilot")
+      ),
+    JSON.stringify({ inherited, created: result.created_items, skipped: result.skipped_items }),
+  );
+  const inheritIndex = calls.findIndex((call) => call.url.includes("orgunits:batchInherit"));
+  const navigationIndex = calls.findIndex((call) =>
+    call.method === "POST" &&
+    call.url.includes("cloudidentity.googleapis.com") &&
+    JSON.stringify(call.body ?? {}).includes("Consumer GenAI data protection - navigation")
+  );
+  check(
+    "the legacy lists are cleared only after the navigation rule has been created",
+    navigationIndex >= 0 && inheritIndex > navigationIndex,
+    JSON.stringify({ navigationIndex, inheritIndex }),
+  );
+
+  const edited = stubTransport({
+    resolvedPolicyValues: [
+      {
+        schema: "chrome.users.URLBlocklist",
+        targetResource: "orgunits/03pilot",
+        value: { urlBlocklist: [...legacyBlocklist, "example-internal-tool.com"] },
+      },
+      {
+        schema: "chrome.users.URLAllowlist",
+        targetResource: "orgunits/root",
+        value: { urlAllowlist: legacyAllowlist },
+      },
+    ],
+  });
+  const editedResult = (await route(context(edited.transport), "POST", "/api/v1/cep/provision", {
+    ...FULL_CONFIG,
+    dlp_rules: true,
+    dlp_matrix: { genai_block: { upload: "blockContent", paste: "blockContent" } },
+  })) as ProvisionResult;
+  check(
+    "an administrator-edited blocklist and an inherited allowlist are left in place with a note",
+    editedResult.success &&
+      !edited.calls.some((call) => call.url.includes("orgunits:batchInherit")) &&
+      editedResult.skipped_items.some((item) =>
+        item.includes("chrome.users.URLBlocklist on orgunits/03pilot holds entries this tool did not write") &&
+        item.includes("example-internal-tool.com")
+      ) &&
+      !editedResult.skipped_items.some((item) => item.includes("chrome.users.URLAllowlist")),
+    JSON.stringify({ created: editedResult.created_items, skipped: editedResult.skipped_items }),
+  );
+
+  const failing = stubTransport({
+    resolvedPolicyValues: [
+      {
+        schema: "chrome.users.URLBlocklist",
+        targetResource: "orgunits/03pilot",
+        value: { urlBlocklist: legacyBlocklist },
+      },
+    ],
+    failBatchInheritAt: 1,
+  });
+  const failingResult = (await route(context(failing.transport), "POST", "/api/v1/cep/provision", {
+    ...FULL_CONFIG,
+    dlp_rules: true,
+    dlp_matrix: { genai_block: { upload: "blockContent", paste: "blockContent" } },
+  })) as ProvisionResult;
+  check(
+    "a failed legacy-list removal is reported as a note, not as a failed DLP module",
+    failingResult.success &&
+      failingResult.skipped_items.some((item) =>
+        item.includes("legacy Chrome chrome.users.URLBlocklist list on orgunits/03pilot could not be removed")
+      ) &&
+      failingResult.debug_trace.some((item) =>
+        item.label === "Remove legacy Block unapproved consumer GenAI services" && !item.ok
+      ),
+    JSON.stringify({ message: failingResult.message, skipped: failingResult.skipped_items }),
+  );
+}
+
+{
+  // Group targets clear the legacy lists with groups:batchDelete, which is
+  // the group-policy counterpart of inheriting from the parent org unit.
+  const groupStub = stubTransport({
+    resolvedPolicyValues: [
+      {
+        schema: "chrome.users.URLBlocklist",
+        targetResource: "groups/01group_id",
+        value: {
+          urlBlocklist: [
+            "chatgpt.com",
+            "claude.ai",
+            "deepseek.com",
+            "poe.com",
+            "perplexity.ai",
+            "copilot.microsoft.com",
+          ],
+        },
+      },
+    ],
+  });
+  const groupResult = (await route(context(groupStub.transport), "POST", "/api/v1/cep/provision", {
+    customer_id: "C01abcdef",
+    project_id: "secgw-project",
+    target_type: "group",
+    target_group_key: "sec-poc@example.com",
+    target_group_confirmation: "sec-poc@example.com",
+    dlp_rules: true,
+    dlp_matrix: { genai_block: { upload: "blockContent", paste: "blockContent" } },
+  })) as ProvisionResult;
+  const groupDeletes = groupStub.calls.filter((call) => call.url.includes("policies/groups:batchDelete"));
+  check(
+    "a group target clears the exact legacy GenAI blocklist with groups:batchDelete",
+    groupResult.success &&
+      groupDeletes.length === 1 &&
+      JSON.stringify(groupDeletes[0]?.body).includes("chrome.users.URLBlocklist") &&
+      !groupStub.calls.some((call) => call.url.includes("orgunits:batchInherit")),
+    JSON.stringify({ deletes: groupDeletes, result: groupResult.message, skipped: groupResult.skipped_items }),
   );
 }
 
@@ -2627,15 +2939,18 @@ const PAYMENT_CARD_UPLOAD = await generatedDlpPolicy(PAYMENT_CARD_UPLOAD_NAME);
     JSON.stringify(firstValue),
   );
 
-  // Watermarking is a rule action parameter, not a Chrome policy.
+  // Watermarking is a rule action parameter, not a Chrome policy. Like
+  // Google's own watermark / screen-capture templates it audits the visit:
+  // the page loads, the overlay and screenshot block apply, nobody is warned.
   const watermark = created.find((call) =>
     JSON.stringify(call.body ?? {}).includes("watermarkMessage"),
   );
   check(
-    "watermarking uses allow-with-warning params instead of blocking navigation",
+    "watermarking audits the visit with watermark and screenshot-block params instead of warning or blocking navigation",
     watermark !== undefined &&
       JSON.stringify(watermark.body).includes("blockScreenshot") &&
-      JSON.stringify(watermark.body).includes("warnUser") &&
+      JSON.stringify(watermark.body).includes('"auditOnly"') &&
+      !JSON.stringify(watermark.body).includes("warnUser") &&
       !JSON.stringify(watermark.body).includes("blockContent"),
     JSON.stringify(watermark?.body),
   );
@@ -3683,20 +3998,29 @@ function ruleBodies(calls: Recorded[]): Array<Record<string, unknown>> {
 }
 
 {
-  // Warning is the default fallback action for rules when unspecified.
+  // Warning is the default fallback action for rules when unspecified. The
+  // watermark rule is the one deliberate exception: it audits silently.
   const { transport, calls } = stubTransport();
   await route(context(transport), "POST", "/api/v1/cep/provision", DLP_CONFIG);
-  const actions = ruleBodies(calls).map(
-    (rule) =>
-      Object.keys(
-        ((rule.action ?? {}) as { chromeAction?: Record<string, unknown> }).chromeAction ?? {},
-      )[0],
-  );
+  const bodies = ruleBodies(calls);
+  const actionOf = (rule: Record<string, unknown>): string =>
+    Object.keys(
+      ((rule.action ?? {}) as { chromeAction?: Record<string, unknown> }).chromeAction ?? {},
+    )[0] ?? "";
+  const isWatermark = (rule: Record<string, unknown>): boolean =>
+    String(rule.displayName ?? "").includes("Watermark internal pages");
+  const actions = bodies.filter((rule) => !isWatermark(rule)).map(actionOf);
+  const watermarkActions = bodies.filter(isWatermark).map(actionOf);
   check(
     "rules default to warning rather than an unsupported Chrome audit action",
     actions.length > 0 &&
       actions.every((action) => action === "warnUser"),
     actions.join(", "),
+  );
+  check(
+    "the watermark rule audits the visit silently, as Google's watermark template does",
+    watermarkActions.length > 0 && watermarkActions.every((action) => action === "auditOnly"),
+    watermarkActions.join(", "),
   );
 }
 
@@ -5763,6 +6087,190 @@ for (const mode of ["412-commit", "503-commit", "response-loss-commit"] as const
     JSON.stringify(byodMobileRes.skipped_items),
   );
 
+  // Several Context-Aware Access levels in one run: every `access_levels`
+  // entry is ensured in ACM, the first one stays the primary level the DLP
+  // access_level row binds to, and rollback reviews each auto-created level.
+  const { transport: multiLevelTransport, calls: multiLevelCalls } = stubTransport();
+  const multiLevelRes = (await route(
+    context(multiLevelTransport, "999"),
+    "POST",
+    "/api/v1/cep/provision",
+    {
+      ...DLP_CONFIG,
+      access_level: "AUTO_CREATE_CORP_OWNED",
+      access_levels: ["AUTO_CREATE_CORP_OWNED", "AUTO_CREATE_BYOD", "AUTO_CREATE_IOS_BYOD", "NONE", ""],
+      internal_urls: [],
+      dlp_matrix: {
+        access_level: { upload: "blockContent", download: "off", paste: "off", print: "off" },
+      },
+    },
+  )) as ProvisionResult;
+  const ensuredLevelTraces = multiLevelRes.debug_trace.filter(
+    (t) => t.label === "Ensure Context-Aware Access level" && t.ok,
+  );
+  const multiLevelDlpPosts = multiLevelCalls
+    .filter((c) => c.method === "POST" && c.url.includes("cloudidentity.googleapis.com"))
+    .map((c) => (c.body?.setting as { value?: Record<string, unknown> } | undefined)?.value ?? {});
+  const accessLevelRowRule = multiLevelDlpPosts.find((v) =>
+    String(v.displayName ?? "").startsWith("CEP PoC - Unmanaged Chrome access control"),
+  );
+  check(
+    "access_levels creates every ticked ACM level (NONE/empty ignored) and the first one is the primary level DLP rules bind to",
+    multiLevelRes.success === true &&
+      ensuredLevelTraces.length === 3 &&
+      ensuredLevelTraces.map((t) => String(t.url ?? "").split("/accessLevels/")[1]).join(",") ===
+        "secgw_corp_owned,secgw_byod_devices,secgw_ios_byod" &&
+      multiLevelRes.created_items.filter((s) => s.startsWith("Context-Aware Access level (")).length === 3 &&
+      (accessLevelRowRule?.condition as { contextCondition?: string } | undefined)?.contextCondition ===
+        "access_levels.meets_access_requirements(['accessPolicies/999/accessLevels/secgw_corp_owned'])",
+    JSON.stringify({
+      success: multiLevelRes.success,
+      ensured: ensuredLevelTraces.map((t) => t.url),
+      created: multiLevelRes.created_items,
+      accessLevelRowRule,
+      skipped: multiLevelRes.skipped_items,
+    }),
+  );
+  check(
+    "access_levels alone (empty access_level) still switches the Context-Aware Access module on",
+    accessLevelSelections({ access_level: "", access_levels: ["AUTO_CREATE_BYOD", "AUTO_CREATE_BYOD"] }).join(",") ===
+      "AUTO_CREATE_BYOD" &&
+      accessLevelSelections({ access_level: "NONE" }).length === 0 &&
+      accessLevelSelections({ access_level: "NONE", access_levels: ["NONE", " "] }).length === 0,
+    JSON.stringify(accessLevelSelections({ access_level: "", access_levels: ["AUTO_CREATE_BYOD", "AUTO_CREATE_BYOD"] })),
+  );
+  const multiLevelRollbackRes = (await route(
+    context(multiLevelTransport, "999"),
+    "POST",
+    "/api/v1/cep/rollback",
+    {
+      customer_id: "C01abcdef",
+      project_id: "secgw-project",
+      target_ou_id: "03pilot",
+      target_ou_path: "/Pilot",
+      rollback_modules: ["contextAwareAccess"],
+      access_level: "AUTO_CREATE_CORP_OWNED",
+      access_levels: ["AUTO_CREATE_CORP_OWNED", "AUTO_CREATE_BYOD", "accessPolicies/999/accessLevels/corp_managed"],
+    },
+  )) as ProvisionResult;
+  check(
+    "rollback reviews every auto-created level in access_levels and reports hand-picked levels as left in place",
+    multiLevelRollbackRes.skipped_items.filter((s) =>
+      s.includes("secgw_corp_owned") || s.includes("secgw_byod_devices"),
+    ).length >= 2 &&
+      multiLevelRollbackRes.skipped_items.some((s) =>
+        s.includes("accessPolicies/999/accessLevels/corp_managed was selected rather than created here"),
+      ),
+    JSON.stringify(multiLevelRollbackRes.skipped_items),
+  );
+
+  // Cloud Identity validates a DLP rule's access levels against the policy of
+  // the organization linked to the Workspace customer, not the project's. When
+  // the two differ, levels for CEP are created in the customer's organization
+  // and the operator is told once; the DLP rule then references that level.
+  const { transport: customerOrgTransport, calls: customerOrgCalls } = stubTransport({
+    customerOrganization: {
+      name: "organizations/777",
+      directoryCustomerId: "C01abcdef",
+      policyName: "accessPolicies/555",
+    },
+  });
+  const customerOrgRes = (await route(
+    context(customerOrgTransport, "999"),
+    "POST",
+    "/api/v1/cep/provision",
+    {
+      ...DLP_CONFIG,
+      access_level: "AUTO_CREATE_CORP_OWNED",
+      internal_urls: [],
+      dlp_matrix: {
+        access_level: { upload: "blockContent", download: "off", paste: "off", print: "off" },
+      },
+    },
+  )) as ProvisionResult;
+  const customerOrgDlpPosts = customerOrgCalls
+    .filter((c) => c.method === "POST" && c.url.includes("cloudidentity.googleapis.com"))
+    .map((c) => (c.body?.setting as { value?: Record<string, unknown> } | undefined)?.value ?? {});
+  const customerOrgRule = customerOrgDlpPosts.find((v) =>
+    String(v.displayName ?? "").startsWith("CEP PoC - Unmanaged Chrome access control"),
+  );
+  check(
+    "access levels for DLP rules are created in the Workspace customer's organization policy (not the project's) and the rule binds that level",
+    customerOrgRes.success === true &&
+      customerOrgCalls.some((c) => c.method === "POST" && c.url.endsWith("/organizations:search")) &&
+      customerOrgCalls.some((c) => c.method === "POST" && c.url.endsWith("/accessPolicies/555/accessLevels")) &&
+      !customerOrgCalls.some((c) => c.method === "POST" && c.url.endsWith("/accessPolicies/999/accessLevels")) &&
+      customerOrgRes.created_items.includes("Context-Aware Access level (accessPolicies/555/accessLevels/secgw_corp_owned)") &&
+      (customerOrgRule?.condition as { contextCondition?: string } | undefined)?.contextCondition ===
+        "access_levels.meets_access_requirements(['accessPolicies/555/accessLevels/secgw_corp_owned'])" &&
+      customerOrgRes.skipped_items.some((s) =>
+        s.includes("created in accessPolicies/555, the access policy of organizations/777") &&
+        s.includes("rather than in accessPolicies/999"),
+      ),
+    JSON.stringify({
+      success: customerOrgRes.success,
+      created: customerOrgRes.created_items,
+      skipped: customerOrgRes.skipped_items,
+      rule: customerOrgRule,
+      calls: customerOrgCalls.map((c) => `${c.method} ${c.url}`),
+    }),
+  );
+
+  // Without a resolvable customer organization the project-anchored policy is used, as before.
+  const { transport: noOrgTransport, calls: noOrgCalls } = stubTransport();
+  const noOrgRes = (await route(
+    context(noOrgTransport, "999"),
+    "POST",
+    "/api/v1/cep/provision",
+    { ...DLP_CONFIG, access_level: "AUTO_CREATE_CORP_OWNED", internal_urls: [], dlp_matrix: {} },
+  )) as ProvisionResult;
+  check(
+    "when organizations:search finds nothing the project's access policy keeps being used",
+    noOrgRes.success === true &&
+      noOrgCalls.some((c) => c.method === "POST" && c.url.endsWith("/accessPolicies/999/accessLevels")) &&
+      noOrgRes.created_items.includes("Context-Aware Access level (accessPolicies/999/accessLevels/secgw_corp_owned)"),
+    JSON.stringify({ created: noOrgRes.created_items, skipped: noOrgRes.skipped_items }),
+  );
+
+  // When organizations:search returns 403 (e.g., on the Sheets edition without org-wide search)
+  // AND the organization has both its single unscoped org-level policy (accessPolicies/999) and
+  // project/folder-scoped policies (accessPolicies/456), CEP selects the unscoped org-level policy
+  // instead of failing with "More than one Access Context Manager policy applies to this project".
+  const { transport: multiPolicyTransport, calls: multiPolicyCalls } = stubTransport({
+    failing: [{ match: "/organizations:search", status: 403, message: "Permission denied" }],
+    extraAccessPolicies: [
+      {
+        name: "accessPolicies/456",
+        parent: "organizations/1234",
+        scopes: ["projects/1111"],
+      },
+    ],
+  });
+  const multiPolicyRes = (await route(
+    context(multiPolicyTransport, undefined),
+    "POST",
+    "/api/v1/cep/provision",
+    {
+      ...FULL_CONFIG,
+      access_level: "AUTO_CREATE_CHROME_ANY",
+      internal_urls: [],
+    },
+  )) as ProvisionResult;
+  check(
+    "when an organization has both an unscoped org-level policy and scoped policies, CEP auto-selects the unscoped org-level policy without error",
+    multiPolicyRes.success === true &&
+      multiPolicyCalls.some((c) => c.method === "POST" && c.url.endsWith("/accessPolicies/999/accessLevels")) &&
+      !multiPolicyCalls.some((c) => c.method === "POST" && c.url.endsWith("/accessPolicies/456/accessLevels")) &&
+      multiPolicyRes.created_items.includes("Context-Aware Access level (accessPolicies/999/accessLevels/secgw_chrome_managed)") &&
+      !multiPolicyRes.debug_trace.some((t) => t.label.startsWith("Find the organization of Workspace customer") && !t.ok),
+    JSON.stringify({
+      success: multiPolicyRes.success,
+      created: multiPolicyRes.created_items,
+      skipped: multiPolicyRes.skipped_items,
+      trace: multiPolicyRes.debug_trace,
+    }),
+  );
+
   // Rollback with delete_dlp_rules: true also deletes Android BYOD and iOS BYOD DLP rules
   const byodMobileRollbackRes = (await route(
     context(byodMobileTransport, "999"),
@@ -5828,6 +6336,22 @@ for (const mode of ["412-commit", "503-commit", "response-loss-commit"] as const
       mixedScopeRes.skipped_items.some((s) => s.startsWith("DLP genai_block (mobile_byod) paste:")) &&
       !mixedScopeRes.skipped_items.some((s) => s.includes("DLP genai_block (mobile_byod)") && s.includes("access-level CEL")),
     JSON.stringify({ names: mixedNames, skipped: mixedScopeRes.skipped_items }),
+  );
+  const mobileGenAiNavigation = mixedPosts.find((v) =>
+    v.displayName === "CEP PoC - Consumer GenAI data protection - navigation"
+  );
+  check(
+    "a mobile-only GenAI row still creates the device-scoped site-visit rule, which Chrome enforces on Android / iOS",
+    mobileGenAiNavigation !== undefined &&
+      String((mobileGenAiNavigation.condition as { contextCondition?: string } | undefined)?.contextCondition ?? "")
+        .includes("access_levels.meets_access_requirements") &&
+      String((mobileGenAiNavigation.condition as { contentCondition?: string } | undefined)?.contentCondition ?? "")
+        .includes("INTERNET_AND_TECHNOLOGY__GENERATIVE_AI") &&
+      mixedScopeRes.skipped_items.some((s) =>
+        s.startsWith("DLP genai_block (mobile_byod) upload:") &&
+        s.includes("Consumer GenAI data protection - navigation")
+      ),
+    JSON.stringify({ rule: mobileGenAiNavigation, skipped: mixedScopeRes.skipped_items }),
   );
 
   // Legacy per-rule actions for the OS rows expand to download only.

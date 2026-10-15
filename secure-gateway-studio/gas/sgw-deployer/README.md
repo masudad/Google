@@ -19,5 +19,5 @@ CERA 2.0 と同じ **Google スプレッドシート + Apps Script (GAS)** 構�
 
 ## 使い方（CERA 2.0 方式）
 
-1. 配布用テンプレート（`go/sgw-deployer` または `https://docs.google.com/spreadsheets/d/1V0ZIXaL-DIUuSogmX2MlyyWnDl9LQ06ayfCmcPYuyCQ/copy`）を開き、**［コピーを作成］** をクリックします。
+1. 配布用テンプレート（`go/sgw-deployer` または `https://docs.google.com/spreadsheets/d/1fAzabI3NbQjY_zZWYwv-J_vGtJqE20cq09qSYDgttjc/copy`）を開き、**［コピーを作成］** をクリックします。
 2. 上部メニュー **`🌐 Secure Gateway` ＞ `🚀 Secure Gateway 新規セットアップを開く`**（または事前構築済み Apps Script プロジェクト `1y4RFjFCVAS68x4CcZe5KZ9YnO9WN5jF6WzpZ_bjPUtbdQ_zBOeG0rHKt` の `installOnTargetSpreadsheet()`）を実行します。

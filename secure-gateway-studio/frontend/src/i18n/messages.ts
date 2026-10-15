@@ -780,11 +780,15 @@ export interface CepDeployerMessages {
   moduleCorePoliciesDesc: string;
   moduleForceExtensions: string;
   moduleForceExtensionsDesc: string;
+  forceExtensionsMandatoryBadge: string;
   moduleConnectors: string;
   moduleConnectorsDesc: string;
   accessLevelTitle: string;
   accessLevelSelectPrompt: string;
   accessLevelHint: string;
+  accessLevelMultiHint: string;
+  accessLevelPrimaryBadge: string;
+  accessLevelSelectedCount: (count: number) => string;
   dlpNoticeByodTitle: string;
   dlpNoticeByodDesc: string;
   activePresetBadge: string;
@@ -1062,8 +1066,14 @@ export interface CepDeployerMessages {
 
   deployProgressTitle: string;
   deployStep1: string;
-  deployStep2: string;
-  deployStep3: string;
+  /** Section 1 (Chrome policies only). */
+  deployStep2Policies: string;
+  deployStep3Policies: string;
+  /** Section 2 (DLP rules only). */
+  deployStep2Dlp: string;
+  deployStep3Dlp: string;
+  /** Apply All (Chrome policies + DLP rules). */
+  deployStep2Both: string;
   deployStep4: string;
 
   rollbackProgressTitle: string;
@@ -1133,6 +1143,9 @@ export interface CepDeployerMessages {
   errDiagGenericTitle: string;
   errDiagGenericCause: string;
   errDiagGenericRemediation: string;
+  errDiagPartialTitle: string;
+  errDiagPartialCause: (appliedCount: number, failures: string[]) => string;
+  errDiagPartialRemediation: string;
   errDiagCauseLabel: string;
   errDiagRemediationLabel: string;
   errDiagCommandHeader: string;
@@ -1223,6 +1236,35 @@ export interface CepDeployerMessages {
   manualCelCopiedBtn: string;
   manualCelToggleShowBtn: string;
   manualCelToggleHideBtn: string;
+  ceraImportBannerBtn: string;
+  ceraImportModalTitle: string;
+  ceraImportModalSubtitle: string;
+  ceraImportUploadLabel: string;
+  ceraImportUploadBtn: string;
+  ceraImportSampleBtn: string;
+  ceraImportSheetLabel: string;
+  ceraImportSheetPlaceholder: string;
+  ceraImportSheetBtn: string;
+  ceraImportSheetLoading: string;
+  ceraImportDetectedSource: string;
+  ceraImportSummaryHeader: string;
+  ceraImportTotalVolume: string;
+  ceraImportShadowAi: string;
+  ceraImportPersonalAcct: string;
+  ceraImportUnmanagedApps: string;
+  ceraImportMessaging: string;
+  ceraImportPrintsDownloads: string;
+  ceraImportSecuritySignals: string;
+  ceraImportDetectedDomains: string;
+  ceraImportTopOu: string;
+  ceraImportAutoSelectOu: string;
+  ceraImportActionModeLabel: string;
+  ceraImportActionBlock: string;
+  ceraImportActionWarn: string;
+  ceraImportActionAudit: string;
+  ceraImportPreviewHeader: string;
+  ceraImportApplyBtn: string;
+  ceraImportAppliedBanner: (sourceLabel: string, count: number) => string;
 }
 
 function friendlyDiagnosticTarget(raw: string, locale: Locale): string {
@@ -3805,7 +3847,7 @@ const en: Messages = {
       "Creates optional child OUs that inherit policies from the selected pilot OU.",
     presetsTitle: "2. Presets",
     presetsSubtitle:
-      "Select a baseline preset and adjust individual modules below.",
+      "Select one or more presets to combine them, then adjust individual modules below.",
     presetFullPoc: "Full evaluation",
     presetFullPocDesc:
       "All modules: threat protection, content inspection, reporting, posture signals, paste inspection, and personal account blocking.",
@@ -3829,6 +3871,7 @@ const en: Messages = {
     moduleForceExtensions: "Force-install Endpoint Verification",
     moduleForceExtensionsDesc:
       "Pushes Google's Endpoint Verification extension for device posture signals.",
+    forceExtensionsMandatoryBadge: "Required for CEL & DLP",
     moduleConnectors: "Content inspection connectors",
     moduleConnectorsDesc:
       "Real-time URL checks, file upload/download inspection, print analysis, and security event reporting.",
@@ -3836,6 +3879,11 @@ const en: Messages = {
     accessLevelSelectPrompt: "Select an Access Level to enforce",
     accessLevelHint:
       "Applies DLP unmanaged-device rules and Gateway controls via CEL access_levels.meets_access_requirements.",
+    accessLevelMultiHint:
+      "Tick every access level you need. Each ticked level is created in Access Context Manager, or verified when it already exists. The first ticked level is also used as the device condition in DLP rules (access_levels.meets_access_requirements). Leave all unticked to skip access levels.",
+    accessLevelPrimaryBadge: "DLP condition",
+    accessLevelSelectedCount: (count) =>
+      `${count} access level${count === 1 ? "" : "s"} selected`,
     accessLevelNone: "None",
     accessLevelNoneDesc: "Do not require an access level.",
     accessLevelAutoProfile: "Create one: managed Chrome profile",
@@ -4071,9 +4119,9 @@ const en: Messages = {
     dlpRowUniversalDownload: "All file downloads",
     dlpRowUniversalDownloadDesc: "Controls all file downloads in Chrome.",
     dlpRowPaymentCard: "Credit card / Payment data",
-    dlpRowPaymentCardDesc: "Detects payment card numbers in uploads, pastes, and prints.",
+    dlpRowPaymentCardDesc: "Detects payment card numbers, IBAN and SWIFT codes in uploads, pastes, and prints.",
     dlpRowNationalId: "National ID / PII data",
-    dlpRowNationalIdDesc: "Detects regional national ID numbers such as My Number or SSN.",
+    dlpRowNationalIdDesc: "Detects the selected region's national ID, driver's licence and passport numbers, such as My Number or SSN.",
     dlpRowAccessLevel: "Unmanaged / Context-Aware non-compliant devices",
     dlpRowAccessLevelDesc: "Enforces DLP controls via CEL access_levels.meets_access_requirements.",
     dlpRowAndroidByod: "Android BYOD device controls",
@@ -4081,9 +4129,9 @@ const en: Messages = {
     dlpRowIosByod: "iPhone / iOS BYOD device controls",
     dlpRowIosByodDesc: "Targets personal iPhone and iPad devices via OsType.IOS && !is_corp_owned_device. Chrome on iOS enforces download rules; upload, paste and print rules are not enforced yet.",
     dlpRowWatermark: "Internal sites / Watermark",
-    dlpRowWatermarkDesc: "Applies dynamic watermarks and restricts screenshots on internal URLs. Sensitive text masking on web pages can also be enabled in the Admin Console rule editor.",
+    dlpRowWatermarkDesc: "Audits visits to the listed internal sites, overlays a dynamic watermark and blocks screenshots and screen sharing there, without interrupting the page. Sensitive text masking on web pages can also be enabled in the Admin Console rule editor.",
     dlpRowGenAiBlock: "Unapproved GenAI · allow Gemini",
-    dlpRowGenAiBlockDesc: "Blocks unapproved AI sites while allowing corporate Gemini.",
+    dlpRowGenAiBlockDesc: "Matches the Generative AI web category plus named consumer services, except Gemini and NotebookLM. Also creates a site-visit rule that follows the stronger of the upload and paste cells: block shows a block page, warn shows a warning, audit only logs visits.",
 
     dlpScopeAll: "All Devices",
     dlpScopeByodOnly: "Access Level · CAA",
@@ -4209,8 +4257,11 @@ const en: Messages = {
 
     deployProgressTitle: "Deploying Chrome Enterprise Premium...",
     deployStep1: "1. Target Scope Validation",
-    deployStep2: "2. Policy Generation",
-    deployStep3: "3. DLP Rule Registration",
+    deployStep2Policies: "2. Policy Schema & Value Resolution",
+    deployStep3Policies: "3. Chrome Policy Application",
+    deployStep2Dlp: "2. Access Level & Condition Resolution",
+    deployStep3Dlp: "3. DLP Rule Registration",
+    deployStep2Both: "2. Chrome Policy Application",
     deployStep4: "4. Finalization & Audit Logging",
 
     rollbackProgressTitle: "Rolling Back DLP Rules & Inspecting Candidates...",
@@ -4281,6 +4332,11 @@ const en: Messages = {
     errDiagGenericTitle: "Operation Failed",
     errDiagGenericCause: "An unexpected error occurred during execution.",
     errDiagGenericRemediation: "Check the technical details below and verify API enablement.",
+    errDiagPartialTitle: "Applied with exceptions",
+    errDiagPartialCause: (appliedCount, failures) =>
+      `${appliedCount} setting${appliedCount === 1 ? "" : "s"} applied. Not applied: ${failures.join(" / ")}`,
+    errDiagPartialRemediation:
+      "Every item listed under created items is active on the target. Review the items that were not applied, fix them or leave them out, and apply again. Settings that are already active are reused.",
     errDiagCauseLabel: "Cause:",
     errDiagRemediationLabel: "Remediation:",
     errDiagCommandHeader: "Fix Command:",
@@ -4394,6 +4450,37 @@ const en: Messages = {
     manualCelCopiedBtn: "✓ Copied",
     manualCelToggleShowBtn: "Show Manual CEL Expressions & Setup Guide",
     manualCelToggleHideBtn: "Hide Manual Setup Guide",
+    ceraImportBannerBtn: "📥 Import CERA Export",
+    ceraImportModalTitle: "Import CERA Export & Apply Corresponding Policies",
+    ceraImportModalSubtitle:
+      "Import a CERA 2.0 Google Sheets analytical workbook, CERA exported CSV/TSV, CERA Summary JSON, or Chrome Audit Log CSV to automatically populate corresponding Chrome Enterprise Premium DLP rules, policy modules, allowed domains, and target OU.",
+    ceraImportUploadLabel: "1. Upload CERA Export File · CSV / TSV / JSON",
+    ceraImportUploadBtn: "Select Export File · .csv / .tsv / .json",
+    ceraImportSampleBtn: "Load Sample CERA 2.0 Export",
+    ceraImportSheetLabel: "2. Or Import Directly from CERA 2.0 Google Sheets URL / ID",
+    ceraImportSheetPlaceholder: "Paste CERA 2.0 Google Sheets URL or Spreadsheet ID (leave blank to read current workbook)",
+    ceraImportSheetBtn: "Import Sheet",
+    ceraImportSheetLoading: "Reading CERA Sheet...",
+    ceraImportDetectedSource: "Detected Source Format",
+    ceraImportSummaryHeader: "Detected Exfiltration Channels & Security Signals",
+    ceraImportTotalVolume: "Total Actions / Events",
+    ceraImportShadowAi: "Shadow AI & GenAI Tools",
+    ceraImportPersonalAcct: "Personal Accounts · Gmail / Drive",
+    ceraImportUnmanagedApps: "Unmanaged Cloud Storage",
+    ceraImportMessaging: "Web Messaging & Social",
+    ceraImportPrintsDownloads: "Prints & File Downloads",
+    ceraImportSecuritySignals: "Security Signals · DLP / Malware / Unsafe",
+    ceraImportDetectedDomains: "Detected Corporate Domains",
+    ceraImportTopOu: "Primary Impacted OU",
+    ceraImportAutoSelectOu: "Select matching OU in Step 2 Scope automatically",
+    ceraImportActionModeLabel: "Rollout Enforcement Mode for Detected Channels",
+    ceraImportActionBlock: "Block · Active Prevention",
+    ceraImportActionWarn: "Warn · User Prompt & Coaching",
+    ceraImportActionAudit: "Audit-Only · Log Without Blocking",
+    ceraImportPreviewHeader: "Corresponding Easy PoC Configuration to Apply",
+    ceraImportApplyBtn: "Apply CERA Settings to Easy PoC",
+    ceraImportAppliedBanner: (sourceLabel: string, count: number) =>
+      `✓ Applied ${count} policy settings from ${sourceLabel}. Review target OU in Step 2 and deploy in Step 4.`,
   },
 };
 
@@ -6647,7 +6734,8 @@ const ja: Messages = {
     autoCreateSubOusHint:
       "選択したパイロットOU配下に整理用の子OUを作成します。ポリシーは子OUにも継承されます。",
     presetsTitle: "2. プリセット",
-    presetsSubtitle: "評価パターンの出発点を選択し、下のモジュールで調整します。",
+    presetsSubtitle:
+      "プリセットは複数選択して組み合わせられます。選択後に下のモジュールで個別調整もできます。",
     presetFullPoc: "フル評価",
     presetFullPocDesc:
       "脅威対策、コンテンツ検査、レポート、端末シグナル、貼り付け検査、個人アカウントのブロックを一括で有効化します。",
@@ -6671,6 +6759,7 @@ const ja: Messages = {
     moduleForceExtensions: "Endpoint Verification の強制インストール",
     moduleForceExtensionsDesc:
       "Endpoint Verification拡張機能を自動配信し、端末状態を収集します。",
+    forceExtensionsMandatoryBadge: "CEL・DLP利用時は必須",
     moduleConnectors: "コンテンツ検査コネクタ",
     moduleConnectorsDesc:
       "リアルタイムURL検査、ファイルのアップロード・ダウンロード検査、ページ印刷時の分析コネクタ、セキュリティイベント送信を有効化します。",
@@ -6678,6 +6767,10 @@ const ja: Messages = {
     accessLevelSelectPrompt: "適用するアクセスレベルを選択",
     accessLevelHint:
       "未管理端末向けのDLPルールやGateway制御に適用するアクセスレベルを選択します。不要な場合は「なし」を選択します。",
+    accessLevelMultiHint:
+      "必要なアクセスレベルをすべてチェックします。チェックしたレベルは Access Context Manager に作成され、既にある場合はそのまま使います。最初にチェックしたレベルは DLP ルールの端末条件にも使われます。すべて外すとアクセスレベルは作成しません。",
+    accessLevelPrimaryBadge: "DLP 条件に使用",
+    accessLevelSelectedCount: (count) => `${count} 件のアクセスレベルを選択中`,
     accessLevelNone: "なし",
     accessLevelNoneDesc: "アクセスレベルによる制限を行いません。",
     accessLevelAutoProfile: "新規作成: 管理対象 Chrome プロファイル",
@@ -6911,9 +7004,9 @@ const ja: Messages = {
     dlpRowUniversalDownload: "すべてのファイルダウンロード",
     dlpRowUniversalDownloadDesc: "Chromeでの全ファイルダウンロードを制御します。",
     dlpRowPaymentCard: "クレジットカード・金融情報",
-    dlpRowPaymentCardDesc: "アップロード・貼り付け・印刷時のカード番号を検知します。",
+    dlpRowPaymentCardDesc: "アップロード・貼り付け・印刷時のカード番号、IBAN、SWIFTコードを検知します。",
     dlpRowNationalId: "マイナンバー・個人識別情報",
-    dlpRowNationalIdDesc: "マイナンバーやSSNなどの個人番号送信を検知します。",
+    dlpRowNationalIdDesc: "選択した地域の個人番号、運転免許証番号、パスポート番号の送信を検知します。日本ではマイナンバーが対象です。",
     dlpRowAccessLevel: "未管理・BYOD端末からの操作一括制御",
     dlpRowAccessLevelDesc: "会社所有以外のBYODや未管理端末からのアップロード・ダウンロード・貼り付け・印刷を制御します。",
     dlpRowAndroidByod: "Android BYOD · 私物 Android からの操作制御",
@@ -6921,9 +7014,9 @@ const ja: Messages = {
     dlpRowIosByod: "iPhone / iOS BYOD · 私物 iPhone からの操作制御",
     dlpRowIosByodDesc: "私物 iPhone / iPad を対象にします。iOS の Chrome で適用されるのはダウンロードのルールで、アップロード・貼り付け・印刷のルールはまだ適用されません。",
     dlpRowWatermark: "社内機密サイト保護・透かし",
-    dlpRowWatermarkDesc: "登録した社内サイトに動的透かしを表示し、画面キャプチャ・画面共有を制限します。管理コンソールのルール編集からページ上の機密テキストのマスキングも併用できます。",
+    dlpRowWatermarkDesc: "登録した社内サイトへのアクセスを監査ログに記録し、動的透かしの表示と画面キャプチャ・画面共有の制限を行います。ページの表示自体は妨げません。管理コンソールのルール編集からページ上の機密テキストのマスキングも併用できます。",
     dlpRowGenAiBlock: "未承認の生成AI利用ブロック · Geminiのみ許可",
-    dlpRowGenAiBlockDesc: "未承認の外部AIサイトを遮断し、社内Geminiのみ利用を許可します。",
+    dlpRowGenAiBlockDesc: "Webカテゴリ「生成AI」と主要な個人向けAIサービスを対象にし、GeminiとNotebookLMは除外します。あわせてサイト訪問のルールも作成し、アップロードと貼り付けの強い方の設定に従います。ブロックならブロック画面、警告なら警告画面、監査のみなら訪問の記録だけを行います。",
 
     dlpScopeAll: "対象内の全端末",
     dlpScopeByodOnly: "アクセスレベル連動",
@@ -7049,8 +7142,11 @@ const ja: Messages = {
 
     deployProgressTitle: "Chrome Enterprise Premium デプロイ進行中...",
     deployStep1: "1. 対象スコープの検証",
-    deployStep2: "2. ポリシー設定の生成",
-    deployStep3: "3. DLP ルールの登録",
+    deployStep2Policies: "2. ポリシースキーマと設定値の解決",
+    deployStep3Policies: "3. Chrome ポリシーの適用",
+    deployStep2Dlp: "2. アクセスレベルと条件の解決",
+    deployStep3Dlp: "3. DLP ルールの登録",
+    deployStep2Both: "2. Chrome ポリシーの適用",
     deployStep4: "4. 完了 & 証跡の記録",
 
     rollbackProgressTitle: "DLPルールをロールバック・削除候補を確認中...",
@@ -7121,6 +7217,11 @@ const ja: Messages = {
     errDiagGenericTitle: "処理中にエラーが発生しました",
     errDiagGenericCause: "実行中に予期しないエラーが返されました。",
     errDiagGenericRemediation: "下の技術詳細とAPIの有効化状況を確認してください。",
+    errDiagPartialTitle: "一部の設定を適用できませんでした",
+    errDiagPartialCause: (appliedCount, failures) =>
+      `${appliedCount} 件の設定は適用済みです。未適用: ${failures.join(" / ")}`,
+    errDiagPartialRemediation:
+      "作成済み項目に挙がった設定は対象に適用されています。未適用の項目を確認し、修正するか対象から外してもう一度適用してください。適用済みの設定はそのまま再利用されます。",
     errDiagCauseLabel: "発生原因:",
     errDiagRemediationLabel: "修復手順:",
     errDiagCommandHeader: "修復用コマンド:",
@@ -7234,6 +7335,37 @@ const ja: Messages = {
     manualCelCopiedBtn: "✓ コピー済み",
     manualCelToggleShowBtn: "手動設定用の CEL 式と手順を表示",
     manualCelToggleHideBtn: "手動設定ガイドを閉じる",
+    ceraImportBannerBtn: "📥 CERA Export から設定を取込",
+    ceraImportModalTitle: "CERA Export の取り込みと対応ポリシーの自動反映",
+    ceraImportModalSubtitle:
+      "CERA 2.0 分析スプレッドシート、CERA エクスポート CSV/TSV、CERA サマリー JSON、または Chrome 監査ログ CSV を取り込み、検出された経路に対応する Chrome Enterprise Premium の DLP マトリックス・ポリシーモジュール・許可ドメイン・対象 OU を一括設定します。",
+    ceraImportUploadLabel: "1. CERA エクスポートファイルを選択 · CSV / TSV / JSON",
+    ceraImportUploadBtn: "ファイルを選択 · .csv / .tsv / .json",
+    ceraImportSampleBtn: "サンプル CERA 2.0 データを読み込む",
+    ceraImportSheetLabel: "2. または CERA 2.0 Google スプレッドシート URL / ID から直接取り込む",
+    ceraImportSheetPlaceholder: "CERA 2.0 スプレッドシートの URL または ID を貼り付け · 空欄で現在のブックを参照",
+    ceraImportSheetBtn: "シートから取り込む",
+    ceraImportSheetLoading: "CERA シートを読み込み中...",
+    ceraImportDetectedSource: "検出されたデータ形式",
+    ceraImportSummaryHeader: "CERA で検出された情報持ち出し経路とセキュリティシグナル",
+    ceraImportTotalVolume: "総アクション・イベント件数",
+    ceraImportShadowAi: "シャドー AI / 生成 AI ツール",
+    ceraImportPersonalAcct: "個人アカウント · 私用 Gmail / Drive",
+    ceraImportUnmanagedApps: "未管理クラウドストレージ",
+    ceraImportMessaging: "Web チャット・SNS",
+    ceraImportPrintsDownloads: "印刷・ファイルダウンロード",
+    ceraImportSecuritySignals: "セキュリティ検知 · 機密 / マルウェア / 危険サイト",
+    ceraImportDetectedDomains: "検出された社内ドメイン",
+    ceraImportTopOu: "最多イベント発生 OU",
+    ceraImportAutoSelectOu: "Step 2 の対象 OU に一致する組織部門を自動選択する",
+    ceraImportActionModeLabel: "検出された経路に対する DLP 適用モード",
+    ceraImportActionBlock: "ブロック · 持ち出しを遮断",
+    ceraImportActionWarn: "警告 · ユーザーへ注意喚起して確認",
+    ceraImportActionAudit: "監査のみ · 遮断せずログ記録のみ",
+    ceraImportPreviewHeader: "Easy PoC に反映される対応ポリシー設定プレビュー",
+    ceraImportApplyBtn: "この設定を Easy PoC に反映する",
+    ceraImportAppliedBanner: (sourceLabel: string, count: number) =>
+      `✓ ${sourceLabel} から ${count} 項目の対応ポリシー・DLP 設定を反映しました。Step 2 の対象 OU を確認し、Step 4 でデプロイしてください。`,
   },
 };
 

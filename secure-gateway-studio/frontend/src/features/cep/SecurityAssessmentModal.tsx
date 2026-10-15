@@ -20,6 +20,9 @@ export interface RecommendedPolicyConfig {
   geminiEnforcePerimeter: boolean;
   internalUrls: string;
   dlpCustomMessage: string;
+  allowedDomains?: string[];
+  targetOuName?: string;
+  appliedBannerMessage?: string;
 }
 
 interface SecurityAssessmentModalProps {

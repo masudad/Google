@@ -23,6 +23,7 @@ export interface ErrorDiagnosticInfo {
     | "worker_unavailable"
     | "project_not_in_org"
     | "access_policy_not_found"
+    | "partial_apply"
     | "generic_error";
   status?: number;
   code?: string;
@@ -60,6 +61,42 @@ export function parseErrorDiagnostic(
     : "";
 
   const text = `${rawMsg} ${code || ""} ${errorsStr}`.toLowerCase();
+
+  // 0. Partial apply: the provider returned a result object with
+  // `success: false` after some modules were applied. The generic fallback
+  // used to label this UNKNOWN_ERROR with "verify API enablement", hiding the
+  // one skipped item that actually explains the failure.
+  const resultLike = rawError as {
+    success?: unknown;
+    created_items?: unknown;
+    skipped_items?: unknown;
+    message?: unknown;
+  } | null;
+  if (
+    resultLike !== null &&
+    typeof resultLike === "object" &&
+    resultLike.success === false &&
+    Array.isArray(resultLike.created_items) &&
+    Array.isArray(resultLike.skipped_items) &&
+    /module(?:s)? failed/i.test(String(resultLike.message ?? ""))
+  ) {
+    const skipped = (resultLike.skipped_items as unknown[]).map((item) => String(item));
+    const informational =
+      /already existed and was reused|optional scaffolding|left in place|were not created: settings\/detector|was selected rather than created here/i;
+    const failureLike =
+      /serves no policy schema|closest names available|rejected|failed|error|denied|invalid|not found|not supported|could not|cannot|unable|\b40[0-9]\b|\b5[0-9]{2}\b/i;
+    const failures = skipped.filter((item) => failureLike.test(item) && !informational.test(item));
+    const highlighted = failures.length > 0 ? failures : skipped.slice(0, 3);
+    const appliedCount = (resultLike.created_items as unknown[]).length;
+    return {
+      category: "partial_apply",
+      status,
+      code: code || "PARTIAL_APPLY",
+      title: m.errDiagPartialTitle,
+      cause: m.errDiagPartialCause(appliedCount, highlighted),
+      remediation: m.errDiagPartialRemediation,
+    };
+  }
 
   // 1. OU Path Unconfirmed / Confirmation Mismatch
   if (

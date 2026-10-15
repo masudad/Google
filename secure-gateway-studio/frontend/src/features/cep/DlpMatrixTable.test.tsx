@@ -187,4 +187,37 @@ describe("DlpMatrixTable platform gating", () => {
     });
     expect(within(rowByName(m.dlpRowWatermark)).getByText(m.dlpSupportPartialBadge)).toBeInTheDocument();
   });
+
+  it("allows combining multiple DLP matrix presets and merges the strongest actions across selected presets", () => {
+    const m = en.cepDeployer;
+    const states: CepDlpMatrixState[] = [];
+    render(<Harness onState={(s) => states.push(s)} />);
+
+    const genaiBtn = screen.getByRole("button", { name: m.dlpPresetGenAiSecure });
+    const byodBtn = screen.getByRole("button", { name: m.dlpPresetByodMobile });
+
+    fireEvent.click(genaiBtn);
+    expect(genaiBtn).toHaveAttribute("aria-pressed", "true");
+    expect(states.at(-1)?.universal_upload?.upload).toBe("off");
+
+    // Clicking a second preset keeps both active and merges their rules
+    fireEvent.click(byodBtn);
+    expect(genaiBtn).toHaveAttribute("aria-pressed", "true");
+    expect(byodBtn).toHaveAttribute("aria-pressed", "true");
+    expect(states.at(-1)?.universal_upload).toEqual(
+      expect.objectContaining({ upload: "blockContent", deviceScope: "byod_only" }),
+    );
+    expect(states.at(-1)?.android_byod).toEqual(
+      expect.objectContaining({ download: "blockContent", deviceScope: "android_byod" }),
+    );
+    expect(states.at(-1)?.genai_block).toEqual(
+      expect.objectContaining({ paste: "blockContent", upload: "blockContent" }),
+    );
+
+    // Clicking byodBtn again deselects it and reverts to genai alone
+    fireEvent.click(byodBtn);
+    expect(genaiBtn).toHaveAttribute("aria-pressed", "true");
+    expect(byodBtn).toHaveAttribute("aria-pressed", "false");
+    expect(states.at(-1)?.universal_upload?.upload).toBe("off");
+  });
 });

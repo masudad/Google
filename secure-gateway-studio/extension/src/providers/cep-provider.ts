@@ -33,8 +33,10 @@
 
 import {
   ensureManagedChromeAccessLevelDetailed,
+  ensureManagedChromeAccessLevelInPolicy,
   MANAGED_CHROME_ACCESS_LEVEL_SPECS,
   type ManagedChromeAccessLevelKind,
+  type ManagedChromeAccessLevelResult,
 } from "./catalog.ts";
 import {
   isDlpOperationEnforceable,
@@ -131,6 +133,25 @@ function selectionToAccessLevelKind(
   return null;
 }
 
+/**
+ * Ordered, de-duplicated access-level selections: the primary `access_level`
+ * first, then every extra entry of `access_levels`. Empty strings and `NONE`
+ * are dropped, so an empty result means the Context-Aware Access module is
+ * off. Exported for the verification scripts.
+ */
+export function accessLevelSelections(config: {
+  access_level?: string;
+  access_levels?: string[];
+}): string[] {
+  const ordered: string[] = [];
+  for (const raw of [config.access_level ?? "", ...(config.access_levels ?? [])]) {
+    const selection = typeof raw === "string" ? raw.trim() : "";
+    if (selection === "" || selection === "NONE") continue;
+    if (!ordered.includes(selection)) ordered.push(selection);
+  }
+  return ordered;
+}
+
 function deviceScopeToAccessLevelKind(
   scope: CepDlpDeviceScope,
 ): ManagedChromeAccessLevelKind | null {
@@ -198,20 +219,135 @@ export type CepDlpMatrixState = Partial<Record<CepDlpRuleId, CepDlpMatrixRuleCon
  * https://cloud.google.com/sensitive-data-protection/docs/infotypes-reference
  */
 const NATIONAL_ID_INFOTYPES: Record<string, { label: string; infoTypes: string[] }> = {
-  JP: { label: "Japan", infoTypes: ["JAPAN_INDIVIDUAL_NUMBER", "JAPAN_BANK_ACCOUNT"] },
+  // Detector sets follow Google's own Admin console PII rule templates
+  // (japan_pii_template, us_pii_template, uk_pii_template, france_pii_template,
+  // canada_pii_template, spain_pii_template, chrome_global_pii_template):
+  // national id first, then the passport / driver's licence identifiers the
+  // same template pairs with it.
+  JP: {
+    label: "Japan",
+    infoTypes: ["JAPAN_INDIVIDUAL_NUMBER", "JAPAN_DRIVERS_LICENSE_NUMBER", "JAPAN_PASSPORT"],
+  },
   US: {
     label: "United States",
-    infoTypes: ["US_SOCIAL_SECURITY_NUMBER", "US_DRIVERS_LICENSE_NUMBER"],
+    infoTypes: ["US_SOCIAL_SECURITY_NUMBER", "US_DRIVERS_LICENSE_NUMBER", "US_PASSPORT"],
   },
-  GB: { label: "United Kingdom", infoTypes: ["UK_NATIONAL_INSURANCE_NUMBER"] },
-  DE: { label: "Germany", infoTypes: ["GERMANY_IDENTITY_CARD_NUMBER"] },
-  FR: { label: "France", infoTypes: ["FRANCE_NIR"] },
-  CA: { label: "Canada", infoTypes: ["CANADA_SOCIAL_INSURANCE_NUMBER"] },
+  GB: {
+    label: "United Kingdom",
+    infoTypes: ["UK_NATIONAL_INSURANCE_NUMBER", "UK_DRIVERS_LICENSE_NUMBER", "UK_PASSPORT"],
+  },
+  DE: { label: "Germany", infoTypes: ["GERMANY_IDENTITY_CARD_NUMBER", "GERMANY_PASSPORT"] },
+  FR: { label: "France", infoTypes: ["FRANCE_NIR", "FRANCE_CNI", "FRANCE_PASSPORT"] },
+  CA: {
+    label: "Canada",
+    infoTypes: ["CANADA_SOCIAL_INSURANCE_NUMBER", "CANADA_DRIVERS_LICENSE_NUMBER", "CANADA_PASSPORT"],
+  },
   AU: { label: "Australia", infoTypes: ["AUSTRALIA_TAX_FILE_NUMBER"] },
   KR: { label: "South Korea", infoTypes: ["KOREA_RRN"] },
   SG: { label: "Singapore", infoTypes: ["SINGAPORE_NATIONAL_REGISTRATION_ID_NUMBER"] },
   IN: { label: "India", infoTypes: ["INDIA_AADHAAR_INDIVIDUAL"] },
 };
+
+/**
+ * Payment data detectors, as in Google's `chrome_global_financial_template`
+ * minus the US-only bank identifiers: card numbers plus the international
+ * bank identifiers that travel with them in invoices and remittance data.
+ */
+const PAYMENT_DATA_INFOTYPES = ["CREDIT_CARD_NUMBER", "IBAN_CODE", "SWIFT_CODE"] as const;
+
+/** Web category Google's own GenAI rule templates match on. */
+const GENAI_URL_CATEGORY = "INTERNET_AND_TECHNOLOGY__GENERATIVE_AI";
+
+/**
+ * Corporate GenAI destinations the consumer-GenAI rules exempt: Gemini, as
+ * in Google's `chrome_block_gen_ai_url_visits_template`, plus NotebookLM,
+ * which Workspace tenants get under the same enterprise data protections.
+ */
+export const APPROVED_GENAI_URL_PREFIXES = [
+  "https://gemini.google.com",
+  "https://notebooklm.google.com",
+] as const;
+
+/**
+ * Consumer GenAI services named explicitly next to the category so the rule
+ * still fires if the category engine has not classified a new domain yet.
+ */
+export const CONSUMER_GENAI_HOSTS = [
+  "chatgpt.com",
+  "chat.openai.com",
+  "claude.ai",
+  "copilot.microsoft.com",
+  "perplexity.ai",
+  "deepseek.com",
+  "poe.com",
+  "grok.com",
+  "meta.ai",
+  "character.ai",
+] as const;
+
+/**
+ * CEL for "an unapproved consumer GenAI site": the Generative AI web category
+ * (or a named consumer service) and not one of the approved corporate
+ * destinations. `url_category` is an allowed match source on every Chrome
+ * trigger (upload, download, paste, print, navigation). Named hosts are
+ * anchored at the authority (`//host` or `.host`) so that `grok.com` does not
+ * also match `ngrok.com`, nor `poe.com` any host that merely ends in it.
+ */
+export function consumerGenAiCondition(): string {
+  const named = CONSUMER_GENAI_HOSTS.map(
+    (host) => `url.contains('//${host}') || url.contains('.${host}')`,
+  ).join(" || ");
+  const approved = APPROVED_GENAI_URL_PREFIXES.map((prefix) => `url.starts_with('${prefix}')`).join(" || ");
+  return `(url_category.matches_web_category('${GENAI_URL_CATEGORY}') || ${named}) && !(${approved})`;
+}
+
+function dlpDetectorCondition(infoTypes: readonly string[]): string {
+  return infoTypes
+    .map(
+      (infoType) =>
+        `all_content.matches_dlp_detector('${infoType}', google.privacy.dlp.v2.Likelihood.LIKELY, {minimum_match_count: 1, minimum_unique_match_count: 1})`,
+    )
+    .join(" || ");
+}
+
+/** Block page text for the GenAI site-visit rule, mirroring Google's template wording. */
+const GENAI_NAVIGATION_END_USER_MESSAGE =
+  "Your organization blocks visits to generative AI sites, except for approved corporate services such as Gemini (gemini.google.com).";
+
+const DLP_ACTION_STRENGTH: Record<CepDlpAction, number> = {
+  off: 0,
+  auditOnly: 1,
+  warnUser: 2,
+  blockContent: 3,
+};
+
+/** The most restrictive of several matrix cells, or null when all are off/unset. */
+export function strongestDlpAction(
+  actions: ReadonlyArray<CepDlpAction | undefined>,
+): Exclude<CepDlpAction, "off"> | null {
+  let strongest: Exclude<CepDlpAction, "off"> | null = null;
+  for (const action of actions) {
+    if (action === undefined || action === "off") continue;
+    if (strongest === null || DLP_ACTION_STRENGTH[action] > DLP_ACTION_STRENGTH[strongest]) {
+      strongest = action;
+    }
+  }
+  return strongest;
+}
+
+/**
+ * CEL matcher for one operator-entered internal site. A full URL prefix uses
+ * `starts_with`; a bare host (what most people type) uses `contains`, as
+ * Google's own watermark template does, so `intranet.example.com` matches
+ * both http and https and every path.
+ */
+export function internalUrlMatcher(entry: string): string {
+  const trimmed = entry.trim();
+  if (/^https?:\/\//i.test(trimmed)) {
+    return `url.starts_with(${JSON.stringify(trimmed)})`;
+  }
+  return `url.contains(${JSON.stringify(trimmed.replace(/^\*\.?/, "").replace(/\/+$/, ""))})`;
+}
 
 export const CEP_DLP_REGIONS = Object.entries(NATIONAL_ID_INFOTYPES).map(
   ([value, entry]) => ({ value, label: entry.label, infoTypes: entry.infoTypes }),
@@ -338,9 +474,17 @@ export interface CepProvisionConfig {
   /**
    * Access level to require: `NONE`, an `AUTO_CREATE_*` sentinel, or the
    * resource name of a level the operator picked from the dropdown. Same
-   * vocabulary the deployment wizard uses.
+   * vocabulary the deployment wizard uses. When `access_levels` is also
+   * given this is the primary level (the one DLP conditions bind to).
    */
   access_level?: string;
+  /**
+   * Every access level the operator ticked, in display order. Each
+   * `AUTO_CREATE_*` entry is created (or reused) in Access Context Manager;
+   * resource names are accepted as-is. The first usable entry doubles as the
+   * primary level when `access_level` is empty.
+   */
+  access_levels?: string[];
   dlp_detectors?: boolean;
   dlp_rules?: boolean;
   /** ISO country code selecting which national identifier the rules scan for. */
@@ -450,6 +594,8 @@ export interface CepRollbackConfig {
    * but no level is deleted without durable run ownership.
    */
   access_level?: string;
+  /** Every level provision was given (see `CepProvisionConfig.access_levels`). */
+  access_levels?: string[];
   project_id?: string;
   /**
    * When true, delete canonical `CEP PoC - ...` `settings/rule.dlp` rules
@@ -837,9 +983,87 @@ function rpcCodeMeaning(code: number): string {
       return "the policy was not found (code 5)";
     case 7:
       return "the request was refused (code 7) -- most often an empty sub-object in the body";
+    case 13:
+      return "the policy API failed internally (code 13, INTERNAL) and returned no detail";
     default:
       return `the policy API returned error code ${code}`;
   }
+}
+
+/**
+ * Render an `Operation.error` (google.rpc.Status) as one line, keeping the
+ * message and any `ErrorInfo` / `BadRequest` details the server attached.
+ * Falls back to the code meaning when the server sent a bare code.
+ */
+function describeOperationError(error: {
+  code?: number;
+  message?: string;
+  status?: string;
+  details?: unknown;
+}): string {
+  const parts: string[] = [];
+  const message = typeof error.message === "string" ? error.message.trim() : "";
+  if (message !== "") {
+    parts.push(message);
+  } else if (typeof error.code === "number") {
+    parts.push(rpcCodeMeaning(error.code));
+  }
+  if (typeof error.status === "string" && error.status.trim() !== "" && !parts.some((p) => p.includes(error.status as string))) {
+    parts.push(`status=${error.status.trim()}`);
+  }
+  const details = Array.isArray(error.details) ? error.details : [];
+  for (const detail of details) {
+    if (detail === null || typeof detail !== "object") continue;
+    const record = detail as Record<string, unknown>;
+    if (typeof record.reason === "string" && record.reason !== "") {
+      parts.push(
+        `reason=${record.reason}${typeof record.domain === "string" && record.domain !== "" ? `@${record.domain}` : ""}`,
+      );
+    }
+    if (record.metadata !== null && typeof record.metadata === "object") {
+      const metadata = Object.entries(record.metadata as Record<string, unknown>)
+        .filter(([, value]) => typeof value === "string" && value !== "")
+        .map(([key, value]) => `${key}=${String(value)}`);
+      if (metadata.length > 0) parts.push(metadata.join(", "));
+    }
+    if (Array.isArray(record.fieldViolations)) {
+      for (const violation of record.fieldViolations) {
+        if (violation === null || typeof violation !== "object") continue;
+        const v = violation as { field?: unknown; description?: unknown };
+        const field = typeof v.field === "string" ? v.field : "";
+        const description = typeof v.description === "string" ? v.description : "";
+        if (field !== "" || description !== "") parts.push(`${field}${field && description ? ": " : ""}${description}`);
+      }
+    }
+    if (typeof record.detail === "string" && record.detail !== "") parts.push(record.detail);
+  }
+  return parts.join(" | ");
+}
+
+/**
+ * Extra guidance for a DLP rule that Google rejected with a bare code while
+ * it carried an access-level `contextCondition`. The Policies API validates
+ * the referenced levels against the Workspace customer's own Context-Aware
+ * Access policy and reports a lookup failure as INTERNAL without a message,
+ * so the operator needs to know which level to check and where.
+ */
+function accessLevelRuleFailureHint(value: Record<string, unknown>, error: unknown): string {
+  const condition = value.condition as { contextCondition?: unknown } | undefined;
+  const contextCondition =
+    typeof condition?.contextCondition === "string" ? condition.contextCondition : "";
+  if (!contextCondition.includes("access_levels.")) return "";
+  const message = errorMessage(error);
+  if (!/code 13|INTERNAL/i.test(message)) return "";
+  const levels = Array.from(
+    contextCondition.matchAll(/accessPolicies\/\d+\/accessLevels\/[A-Za-z0-9_-]+/g),
+    (match) => match[0],
+  );
+  const levelList = levels.length > 0 ? levels.join(", ") : "the selected access level";
+  return (
+    ` — this rule binds Context-Aware Access level ${levelList}. Google validates such a rule by re-reading the level from Access Context Manager with your sign-in credential, and a bare INTERNAL means that read failed (a wrong or invisible level name would have been rejected as HTTP 400 "invalid access level" instead); rules without a device condition were applied. ` +
+    `Check that Admin console > Security > Access and data control > Context-Aware Access > Access levels (https://admin.google.com/ac/caa/levels) loads and lists the level, and that the credential used here can call the Access Context Manager API on its own (its OAuth client project must have that API enabled). ` +
+    `Fallbacks: create these rules in the Admin console (Rules > Data protection) with the access level condition, or use the Chrome extension edition.`
+  );
 }
 
 // -- Policy table -------------------------------------------------------------
@@ -1503,9 +1727,12 @@ const CEP_POLICIES: readonly CepPolicyDefinition[] = [
   {
     module: "dataBoundary",
     ou: "users",
-    label: "Disable Chrome incognito mode (IncognitoModeAvailability)",
-    schema: "chrome.users.IncognitoModeAvailability",
-    schemaMatcher: /IncognitoModeAvailability/i,
+    // Chrome Policy API v1 serves this setting as `chrome.users.IncognitoMode`
+    // (field `incognitoModeAvailability`); `chrome.users.IncognitoModeAvailability`
+    // does not exist and made the whole dataBoundary module report a failure.
+    label: "Disable Chrome incognito mode (IncognitoMode)",
+    schema: "chrome.users.IncognitoMode",
+    schemaMatcher: /\.IncognitoMode$|IncognitoModeAvailability$/i,
     appliesTo: (config) =>
       config.data_boundary_mode === "copy_paste" ||
       config.data_boundary_mode === "block_non_corp",
@@ -1562,26 +1789,23 @@ const CEP_POLICIES: readonly CepPolicyDefinition[] = [
       },
     ],
   },
+  // Superseded: consumer GenAI site access is now a Cloud Identity navigation
+  // rule on the Generative AI web category (see dlpRules), which also covers
+  // Android / iOS and shows a proper block page. These two Chrome policies are
+  // never applied any more; they stay listed so rollback keeps inspecting
+  // tenants that were provisioned before, and `supersedeLegacyGenAiUrlPolicies`
+  // removes the exact lists this tool used to write.
   {
     module: "dlpRules",
     ou: "users",
     label: "Block unapproved consumer GenAI services",
     schema: "chrome.users.URLBlocklist",
     schemaMatcher: /URLBlocklist/i,
-    appliesTo: (config) => dlpRuleHasAction(config, "genai_block", "blockContent"),
+    appliesTo: () => false,
     fields: [
       {
         name: /urlBlocklist/i,
-        value: () => [
-          // Chrome's URL-filter grammar does not accept a trailing `*` after
-          // the URL. A bare host matches that host and its subdomains.
-          "chatgpt.com",
-          "claude.ai",
-          "deepseek.com",
-          "poe.com",
-          "perplexity.ai",
-          "copilot.microsoft.com",
-        ],
+        value: () => [...LEGACY_GENAI_URL_BLOCKLIST],
       },
     ],
   },
@@ -1591,18 +1815,26 @@ const CEP_POLICIES: readonly CepPolicyDefinition[] = [
     label: "Allow corporate GenAI (Gemini)",
     schema: "chrome.users.URLAllowlist",
     schemaMatcher: /URLAllowlist/i,
-    appliesTo: (config) => dlpRuleHasAction(config, "genai_block", "blockContent"),
+    appliesTo: () => false,
     fields: [
       {
         name: /urlAllowlist/i,
-        value: () => [
-          "gemini.google.com",
-          "workspace.google.com",
-        ],
+        value: () => [...LEGACY_GENAI_URL_ALLOWLIST],
       },
     ],
   },
 ];
+
+/** The exact Chrome URL lists this tool wrote before v0.2.82; used only to recognise and clear them. */
+const LEGACY_GENAI_URL_BLOCKLIST = [
+  "chatgpt.com",
+  "claude.ai",
+  "deepseek.com",
+  "poe.com",
+  "perplexity.ai",
+  "copilot.microsoft.com",
+] as const;
+const LEGACY_GENAI_URL_ALLOWLIST = ["gemini.google.com", "workspace.google.com"] as const;
 
 function moduleEnabled(config: CepProvisionConfig, module: CepModule): boolean {
   switch (module) {
@@ -1613,8 +1845,7 @@ function moduleEnabled(config: CepProvisionConfig, module: CepModule): boolean {
     case "connectors":
       return config.connectors === true;
     case "contextAwareAccess":
-      return config.access_level !== undefined && config.access_level !== "" &&
-        config.access_level !== "NONE";
+      return accessLevelSelections(config).length > 0;
     case "dlpDetectors":
       return config.dlp_detectors === true;
     case "dlpRules":
@@ -1860,6 +2091,46 @@ function targetKey(
     key.additionalTargetKeys = { app_id: `chrome:${policy.appId}` };
   }
   return key;
+}
+
+/**
+ * The string list a `policies:resolve` response reports as set directly on
+ * `target`, or null when the value is inherited, defaulted, or not a list.
+ * The schema carries a single list field, so its name is not assumed.
+ */
+function directUrlListOnTarget(
+  payload: Record<string, unknown>,
+  target: string,
+): string[] | null {
+  const rawPolicies = payload.resolvedPolicies;
+  if (!Array.isArray(rawPolicies)) return null;
+  for (const entry of rawPolicies) {
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) continue;
+    const record = entry as Record<string, unknown>;
+    const sourceKey = record.sourceKey;
+    const sourceResource =
+      typeof sourceKey === "object" && sourceKey !== null && !Array.isArray(sourceKey)
+        ? (sourceKey as Record<string, unknown>).targetResource
+        : undefined;
+    if (sourceResource !== target) continue;
+    const policyValue = record.value;
+    if (typeof policyValue !== "object" || policyValue === null || Array.isArray(policyValue)) continue;
+    const fields = (policyValue as Record<string, unknown>).value;
+    if (typeof fields !== "object" || fields === null || Array.isArray(fields)) continue;
+    for (const candidate of Object.values(fields as Record<string, unknown>)) {
+      if (Array.isArray(candidate) && candidate.every((item) => typeof item === "string")) {
+        return candidate as string[];
+      }
+    }
+  }
+  return null;
+}
+
+function sameStringList(actual: readonly string[], expected: readonly string[]): boolean {
+  if (actual.length !== expected.length) return false;
+  const left = [...actual].map((item) => item.trim().toLowerCase()).sort();
+  const right = [...expected].map((item) => item.trim().toLowerCase()).sort();
+  return left.every((item, index) => item === right[index]);
 }
 
 /**
@@ -2196,13 +2467,11 @@ export class CepProvider {
       const detail = payload.error as { message?: string } | undefined;
       throw new CepApiError(status, detail?.message ?? `HTTP ${status}`);
     }
-    const embedded = payload.error as { code?: number; message?: string } | undefined;
+    const embedded = payload.error as
+      | { code?: number; message?: string; status?: string; details?: unknown }
+      | undefined;
     if (embedded !== undefined && embedded.code !== undefined) {
-      throw new CepApiError(
-        status,
-        embedded.message ?? rpcCodeMeaning(embedded.code),
-        true,
-      );
+      throw new CepApiError(status, describeOperationError(embedded), true);
     }
     return payload;
   }
@@ -2592,12 +2861,7 @@ export class CepProvider {
       return false;
     }
     try {
-      const ensured = await ensureManagedChromeAccessLevelDetailed(
-        this.cloudTransport,
-        context.projectId,
-        kind,
-        this.accessPolicyId,
-      );
+      const ensured = await this.ensureCepAccessLevel(trace, context, skipped, kind);
       const name = ensured.name;
       context.accessLevelName = name;
       context.accessLevelIsOurs = ensured.created;
@@ -2636,6 +2900,199 @@ export class CepProvider {
   // -- DLP rules and legacy-detector retention --------------------------------
 
   /**
+   * Create or verify a managed Chrome access level for CEP.
+   *
+   * Cloud Identity validates a DLP rule's access levels against the access
+   * policy of the organization linked to the Workspace customer (it resolves
+   * that policy from the customer id, never from a project). When the
+   * customer's organization can be identified, the level is therefore created
+   * in that organization's org-level policy; otherwise the project-anchored
+   * resolution is used as before. A differing project policy is reported once
+   * so the operator understands where the level went.
+   */
+  private async ensureCepAccessLevel(
+    trace: CepTraceItem[],
+    context: CepContext,
+    skipped: string[],
+    kind: ManagedChromeAccessLevelKind,
+  ): Promise<ManagedChromeAccessLevelResult> {
+    const projectId = context.projectId ?? "";
+    const customerPolicy = await this.resolveCustomerAccessPolicy(trace, context.customerId);
+    if (customerPolicy !== null) {
+      const projectPolicy = this.accessPolicyId?.trim() ? `accessPolicies/${this.accessPolicyId.trim()}` : "";
+      if (projectPolicy !== "" && projectPolicy !== customerPolicy.policyName && !this.customerPolicyNoteShown) {
+        this.customerPolicyNoteShown = true;
+        skipped.push(
+          `Context-Aware Access: levels for Chrome DLP rules are created in ${customerPolicy.policyName}, the access policy of ${customerPolicy.organization} (the organization linked to Workspace customer ${context.customerId}), rather than in ${projectPolicy}${projectId ? ` (the organization of project ${projectId})` : ""}, because Cloud Identity validates DLP rules only against the customer's own policy.`,
+        );
+      }
+      return ensureManagedChromeAccessLevelInPolicy(this.cloudTransport, customerPolicy.policyName, kind);
+    }
+    return ensureManagedChromeAccessLevelDetailed(this.cloudTransport, projectId, kind, this.accessPolicyId);
+  }
+
+  /**
+   * The org-level Access Context Manager policy of the organization whose
+   * directory customer id is this Workspace customer. Resolved once per
+   * provider and only when the signed-in account can search organizations;
+   * any failure or ambiguity returns null and the project-anchored lookup
+   * stays in charge.
+   */
+  private async resolveCustomerAccessPolicy(
+    trace: CepTraceItem[],
+    customerId: string,
+  ): Promise<{ policyName: string; organization: string } | null> {
+    const canonical = customerId.trim();
+    if (!/^C[A-Za-z0-9]+$/.test(canonical)) return null;
+    const cached = this.customerAccessPolicyCache.get(canonical);
+    if (cached !== undefined) return cached;
+    let resolved: { policyName: string; organization: string } | null = null;
+    const searchUrl = "https://cloudresourcemanager.googleapis.com/v1/organizations:search";
+    try {
+      const search = await this.cloudTransport.requestJson("POST", searchUrl, {
+        jsonBody: { filter: `directorycustomerid:${canonical}`, pageSize: 10 },
+        acceptedStatuses: [400, 403, 404],
+      });
+      const organizations = Array.isArray(search.payload.organizations)
+        ? (search.payload.organizations as Array<Record<string, unknown>>)
+        : [];
+      const matching = organizations.filter((org) => {
+        const owner = org.owner as { directoryCustomerId?: unknown } | undefined;
+        return (
+          typeof org.name === "string" &&
+          /^organizations\/\d+$/.test(org.name) &&
+          (owner?.directoryCustomerId === canonical || org.directoryCustomerId === canonical)
+        );
+      });
+      if (matching.length === 1) {
+        trace.push({
+          label: `Find the organization of Workspace customer ${canonical}`,
+          method: "POST",
+          url: searchUrl,
+          status: search.status,
+          ok: search.status >= 200 && search.status < 300,
+        });
+        const organization = matching[0].name as string;
+        const listUrl = `${ACM}/accessPolicies?parent=${encodeURIComponent(organization)}&pageSize=100`;
+        const list = await this.cloudTransport.requestJson("GET", listUrl, {
+          acceptedStatuses: [403, 404],
+        });
+        const policies = Array.isArray(list.payload.accessPolicies)
+          ? (list.payload.accessPolicies as Array<Record<string, unknown>>)
+          : [];
+        const orgLevel = policies.filter(
+          (policy) =>
+            typeof policy.name === "string" &&
+            /^accessPolicies\/\d+$/.test(policy.name) &&
+            policy.parent === organization &&
+            (!Array.isArray(policy.scopes) || policy.scopes.length === 0),
+        );
+        trace.push({
+          label: `List access policies of ${organization}`,
+          method: "GET",
+          url: listUrl,
+          status: list.status,
+          ok: list.status >= 200 && list.status < 300 && orgLevel.length === 1,
+          ...(orgLevel.length === 1 ? {} : { error: `${orgLevel.length} org-level policy(ies)` }),
+        });
+        if (orgLevel.length === 1) {
+          resolved = { policyName: orgLevel[0].name as string, organization };
+        }
+      }
+    } catch {
+      // Optional customer-organization lookup failed; ensureCepAccessLevel
+      // falls back to resolving the policy from the project's ancestry.
+    }
+    this.customerAccessPolicyCache.set(canonical, resolved);
+    return resolved;
+  }
+
+  /**
+   * Record a rejected DLP rule and, when the rejection is the bare INTERNAL
+   * that Cloud Identity returns while re-reading an access level with the
+   * operator's credential, run one diagnostic read of that policy with the
+   * same credential alone so the skipped list says why.
+   */
+  private async recordDlpRuleFailure(
+    trace: CepTraceItem[],
+    skipped: string[],
+    displayName: string,
+    value: Record<string, unknown>,
+    error: unknown,
+    projectId: string | undefined,
+  ): Promise<void> {
+    skipped.push(`Rule "${displayName}": ${errorMessage(error)}${accessLevelRuleFailureHint(value, error)}`);
+    if (accessLevelRuleFailureHint(value, error) === "") return;
+    const condition = value.condition as { contextCondition?: unknown } | undefined;
+    const contextCondition =
+      typeof condition?.contextCondition === "string" ? condition.contextCondition : "";
+    const probe = await this.probeAccessLevelCredential(trace, [contextCondition], projectId);
+    if (probe !== null && !probe.reported) {
+      probe.reported = true;
+      skipped.push(probe.explanation);
+    }
+  }
+
+  /**
+   * Google Sheets edition only: read the access policy named in the given
+   * context conditions with the sign-in credential alone (the Apps Script
+   * proxy strips `sgsCredentialProbe=1` and sends no quota project). This is
+   * what Google's own rule validation sees, so a rejection here predicts a
+   * bare INTERNAL on every rule that binds an access level. Runs once per
+   * provider; returns null outside Apps Script or without an access level.
+   */
+  private async probeAccessLevelCredential(
+    trace: CepTraceItem[],
+    contextConditions: readonly string[],
+    projectId?: string,
+  ): Promise<{ ok: boolean; status: number; detail: string; explanation: string; reported: boolean } | null> {
+    if (this.accessLevelCredentialProbe !== undefined) return this.accessLevelCredentialProbe;
+    const runtime = globalThis as { __SGS_BOOTSTRAP?: unknown };
+    if (runtime.__SGS_BOOTSTRAP === undefined) return null;
+    const policy = contextConditions
+      .map((condition) => /accessPolicies\/\d+/.exec(condition)?.[0] ?? "")
+      .find((name) => name !== "");
+    if (policy === undefined) return null;
+    const probeUrl = `${ACM}/${policy}/accessLevels?pageSize=1`;
+    let status = 0;
+    let detail = "";
+    try {
+      const response = await this.cloudTransport.requestJson(
+        "GET",
+        `${probeUrl}&sgsCredentialProbe=1`,
+        { acceptedStatuses: [400, 401, 403, 404, 429, 500, 503] },
+      );
+      status = response.status;
+      const payloadError = response.payload.error as { message?: unknown; status?: unknown } | undefined;
+      detail =
+        typeof payloadError?.message === "string"
+          ? payloadError.message
+          : typeof payloadError?.status === "string"
+            ? payloadError.status
+            : "";
+    } catch (probeError) {
+      detail = errorMessage(probeError);
+    }
+    const ok = status >= 200 && status < 300;
+    trace.push({
+      label: "Probe: read access levels with the sign-in credential alone (no quota project)",
+      method: "GET",
+      url: probeUrl,
+      status,
+      ok,
+      ...(ok ? {} : { error: detail || `HTTP ${status}` }),
+    });
+    const projectHint = projectId && projectId !== ""
+      ? `"${projectId}"`
+      : "a project with the Access Context Manager API enabled";
+    const explanation = ok
+      ? `Credential probe: the sign-in credential can read ${policy} directly, so a rejection of an access-level rule comes from Google's rule validation for this Workspace customer itself. Confirm that Admin console > Security > Access and data control > Context-Aware Access > Access levels (https://admin.google.com/ac/caa/levels) loads and lists the level; if that page fails or the level is missing, the organization linked to this Workspace customer is not the one that owns ${policy}.`
+      : `Credential probe: Access Context Manager rejected the sign-in credential on its own (HTTP ${status}${detail ? `: ${detail}` : ""}). Google's rule validation performs this same read server-side with your credential, so DLP rules with a device condition cannot be created from this Google Sheets edition until its Apps Script runs under a Cloud project that can call the Access Context Manager API (the Apps Script default Cloud project only auto-enables Drive and the advanced services in the manifest). Fix: in the Apps Script editor open Project Settings > Google Cloud Platform (GCP) Project > Change project and enter the project number of ${projectHint} (API must be enabled there), re-authorize the script, then apply again. Alternatives: create these rules in the Admin console (Rules > Data protection) with the access level condition, or use the Chrome extension edition.`;
+    this.accessLevelCredentialProbe = { ok, status, detail, explanation, reported: false };
+    return this.accessLevelCredentialProbe;
+  }
+
+  /**
    * Cloud Identity policies are addressed by the target resource alone. The
    * server derives the CEL `query` from `orgUnit`/`group` itself; sending
    * both only adds a "query does not match org_unit" failure mode, so the
@@ -2658,6 +3115,13 @@ export class CepProvider {
    * passed around to avoid unnecessary quota use.
    */
   private lastDlpError = "";
+  /** One credential probe per provider is enough to explain every access-level rejection. */
+  private accessLevelCredentialProbe:
+    | { ok: boolean; status: number; detail: string; explanation: string; reported: boolean }
+    | undefined;
+  /** Org-level ACM policy per Workspace customer; null when it could not be resolved. */
+  private readonly customerAccessPolicyCache = new Map<string, { policyName: string; organization: string } | null>();
+  private customerPolicyNoteShown = false;
 
   private async listDlpPolicies(
     trace: CepTraceItem[],
@@ -3063,7 +3527,7 @@ export class CepProvider {
    */
   private dlpRules(context: CepContext): Array<{
     id: CepDlpRuleId;
-    operation: CepDlpOperation;
+    operation: CepDlpOperation | "navigation";
     displayName: string;
     description: string;
     triggers: string[];
@@ -3075,12 +3539,7 @@ export class CepProvider {
     deviceScope: CepDlpDeviceScope;
   }> {
     const region = NATIONAL_ID_INFOTYPES[context.region] ?? NATIONAL_ID_INFOTYPES.US;
-    const nationalIdCondition = region.infoTypes
-      .map(
-        (infoType) =>
-          `all_content.matches_dlp_detector('${infoType}', google.privacy.dlp.v2.Likelihood.LIKELY, {minimum_match_count: 1, minimum_unique_match_count: 1})`,
-      )
-      .join(" || ");
+    const nationalIdCondition = dlpDetectorCondition(region.infoTypes);
 
     const bases: Array<{
       id: CepDlpRuleId;
@@ -3106,11 +3565,10 @@ export class CepProvider {
       {
         id: "payment_card",
         displayName: `${DLP_PREFIX}Payment card numbers`,
-        description: "Detects payment card numbers in Chrome content.",
+        description: `Detects ${PAYMENT_DATA_INFOTYPES.join(", ")} in Chrome content.`,
         operations: DLP_OPERATIONS_BY_RULE.payment_card,
         condition: {
-          contentCondition:
-            "all_content.matches_dlp_detector('CREDIT_CARD_NUMBER', google.privacy.dlp.v2.Likelihood.LIKELY, {minimum_match_count: 1, minimum_unique_match_count: 1})",
+          contentCondition: dlpDetectorCondition(PAYMENT_DATA_INFOTYPES),
         },
       },
       {
@@ -3142,12 +3600,10 @@ export class CepProvider {
         id: "watermark",
         displayName: `${DLP_PREFIX}Watermark internal pages`,
         description:
-          "Allows navigation with a warning, overlays a watermark, and blocks screenshots on the listed internal sites.",
+          "Audits navigation to the listed internal sites, overlays a watermark, and blocks screenshots and screen sharing there.",
         operations: ["watermark"],
         condition: {
-          contentCondition: context.internalUrls
-            .map((url) => `url.starts_with(${JSON.stringify(url)})`)
-            .join(" || "),
+          contentCondition: context.internalUrls.map(internalUrlMatcher).join(" || "),
         },
         actionParams: { watermarkMessage: "Confidential", blockScreenshot: true },
         requires: "internalUrls",
@@ -3156,18 +3612,17 @@ export class CepProvider {
         id: "genai_block",
         displayName: `${DLP_PREFIX}Consumer GenAI data protection`,
         description:
-          "Controls uploads and paste to unapproved consumer GenAI services while allowing corporate Gemini.",
+          `Controls uploads and paste to sites in the Generative AI web category (and named consumer services) except approved corporate destinations (${APPROVED_GENAI_URL_PREFIXES.map((prefix) => prefix.replace("https://", "")).join(", ")}).`,
         operations: DLP_OPERATIONS_BY_RULE.genai_block,
         condition: {
-          contentCondition:
-            "url.contains('chatgpt.com') || url.contains('claude.ai') || url.contains('deepseek.com') || url.contains('poe.com') || url.contains('perplexity.ai') || url.contains('copilot.microsoft.com')",
+          contentCondition: consumerGenAiCondition(),
         },
       },
     ];
 
     const resolved: Array<{
       id: CepDlpRuleId;
-      operation: CepDlpOperation;
+      operation: CepDlpOperation | "navigation";
       displayName: string;
       description: string;
       triggers: string[];
@@ -3194,7 +3649,10 @@ export class CepProvider {
           const selectedAction =
             operation === "watermark"
               ? matrixRule.watermark === true
-                ? "warnUser"
+                // Google's own watermark / screen-capture templates use AUDIT_ONLY:
+                // the page loads normally, the overlay and screenshot block still
+                // apply, and the user is not interrupted by a warning each visit.
+                ? "auditOnly"
                 : "off"
               : matrixRule[operation];
           if (selectedAction === undefined || selectedAction === "off") continue;
@@ -3260,6 +3718,57 @@ export class CepProvider {
             deviceScope,
           });
         }
+
+        // Consumer GenAI also gets a site-visit rule, as in Google's own
+        // "Block visits to generative AI sites" template: the stronger of the
+        // row's upload / paste actions decides whether unapproved GenAI sites
+        // are blocked, warned about, or merely audited. URL rules are enforced
+        // by Chrome on every platform, including Android and iOS.
+        if (base.id === "genai_block") {
+          const siteAction = strongestDlpAction([matrixRule.upload, matrixRule.paste]);
+          if (siteAction !== null) {
+            let displayName = `${base.displayName} - navigation`;
+            if (rowIndex > 0) {
+              const scopeTag = deviceScope === "all" ? `row #${rowIndex + 1}` : deviceScope;
+              const scopedCandidate = `${base.displayName} (${scopeTag}) - navigation`;
+              displayName = seenDisplayNames.has(scopedCandidate)
+                ? `${base.displayName} (${scopeTag} #${rowIndex + 1}) - navigation`
+                : scopedCandidate;
+            }
+            seenDisplayNames.add(displayName);
+            const customMessage =
+              matrixRule.customEndUserMessage ??
+              primaryRule.customEndUserMessage ??
+              context.dlpCustomMessage;
+            const navigationParams: Record<string, unknown> =
+              siteAction === "auditOnly"
+                ? {}
+                : {
+                    customEndUserMessage: {
+                      unsafeHtmlMessageBody:
+                        customMessage && customMessage.trim() !== ""
+                          ? customMessage.trim()
+                          : GENAI_NAVIGATION_END_USER_MESSAGE,
+                    },
+                  };
+            resolved.push({
+              id: base.id,
+              operation: "navigation",
+              displayName,
+              description: `${base.description} Operation: navigation.`,
+              triggers: ["google.workspace.chrome.url.v1.navigation"],
+              action: siteAction,
+              condition:
+                contextCondition !== undefined
+                  ? { contentCondition: consumerGenAiCondition(), contextCondition }
+                  : { contentCondition: consumerGenAiCondition() },
+              actionParams: Object.keys(navigationParams).length > 0 ? navigationParams : undefined,
+              requires: base.requires,
+              byodOnly: deviceScope !== "all" && deviceScope !== "corp_only",
+              deviceScope,
+            });
+          }
+        }
       }
     }
     return resolved;
@@ -3324,7 +3833,18 @@ export class CepProvider {
             enforceableOperations += 1;
             continue;
           }
-          skipped.push(`DLP ${id} (${scope}) ${operation}: ${unenforceableRuleReason(scope, operation)}`);
+          skipped.push(
+            `DLP ${id} (${scope}) ${operation}: ${unenforceableRuleReason(scope, operation)}` +
+              (id === "genai_block"
+                ? ` Visits to unapproved GenAI sites in this scope are still controlled by the "${DLP_PREFIX}Consumer GenAI data protection - navigation" rule, which Chrome enforces on every platform.`
+                : ""),
+          );
+        }
+        // The consumer GenAI row also yields a site-visit rule, enforced on
+        // every platform, so a mobile-only GenAI row still has something to
+        // create even when its upload / paste cells do not apply there.
+        if (id === "genai_block" && strongestDlpAction([rule.upload, rule.paste]) !== null) {
+          enforceableOperations += 1;
         }
         // Nothing left to create for this row: do not resolve an Access Level
         // for it, and do not report a missing one.
@@ -3341,12 +3861,7 @@ export class CepProvider {
           if (kind !== null) {
             context.scopedAccessLevels ??= {};
             try {
-              const ensured = await ensureManagedChromeAccessLevelDetailed(
-                this.cloudTransport,
-                context.projectId,
-                kind,
-                this.accessPolicyId,
-              );
+              const ensured = await this.ensureCepAccessLevel(trace, context, skipped, kind);
               context.scopedAccessLevels[scope] = ensured.name;
               trace.push({
                 label: `Ensure Context-Aware Access level (${scope})`,
@@ -3404,12 +3919,39 @@ export class CepProvider {
     if (rules.length === 0 && skipped.some((s) => s.includes("access-level CEL"))) {
       failed = true;
     }
+    // Sheets edition pre-flight: Google re-reads every access level with the
+    // operator's credential while validating a rule, and the Apps Script
+    // default Cloud project cannot call Access Context Manager. Probe once up
+    // front so device-condition rules are skipped with the reason instead of
+    // each failing with a bare INTERNAL (and so an existing rule is not left
+    // half-updated by a PATCH that cannot succeed).
+    const credentialProbe = await this.probeAccessLevelCredential(
+      trace,
+      rules.map((rule) => rule.condition?.contextCondition ?? ""),
+    );
+    if (credentialProbe !== null && !credentialProbe.ok) {
+      skipped.push(credentialProbe.explanation);
+    }
     for (const rule of rules) {
       if (rule.requires === "internalUrls" && context.internalUrls.length === 0) {
         skipped.push(`Rule "${rule.displayName}": needs at least one internal URL prefix`);
         if (rules.length === 1) {
           failed = true;
         }
+        continue;
+      }
+      if (
+        credentialProbe !== null &&
+        !credentialProbe.ok &&
+        typeof rule.condition?.contextCondition === "string" &&
+        rule.condition.contextCondition.includes("access_levels.")
+      ) {
+        failed = true;
+        skipped.push(
+          `Rule "${rule.displayName}": not attempted — it binds Context-Aware Access level ${
+            rule.condition.contextCondition.match(/accessPolicies\/\d+\/accessLevels\/[A-Za-z0-9_-]+/g)?.join(", ") ?? "(see condition)"
+          } and this Google Sheets edition cannot pass Google's access-level validation (see the credential probe above). An existing rule with this name keeps its current definition.`,
+        );
         continue;
       }
       // Only the fields the Rule proto declares as admin input. Alert severity
@@ -3478,9 +4020,7 @@ export class CepProvider {
 
         if (updateError !== undefined && isDefiniteCepMutationRejection(updateError)) {
           failed = true;
-          skipped.push(
-            `Rule "${rule.displayName}": ${errorMessage(updateError)}`,
-          );
+          await this.recordDlpRuleFailure(trace, skipped, rule.displayName, value, updateError, context.projectId);
           continue;
         }
 
@@ -3526,11 +4066,11 @@ export class CepProvider {
         }
         if (confirmedUpdate === null) {
           failed = true;
-          skipped.push(
-            `Rule "${rule.displayName}": ${
-              updateError !== undefined ? errorMessage(updateError) : this.lastDlpError
-            }`,
-          );
+          if (updateError !== undefined) {
+            await this.recordDlpRuleFailure(trace, skipped, rule.displayName, value, updateError, context.projectId);
+          } else {
+            skipped.push(`Rule "${rule.displayName}": ${this.lastDlpError}`);
+          }
           continue;
         }
         existingPolicy.value = confirmedUpdate.value;
@@ -3565,9 +4105,7 @@ export class CepProvider {
 
       if (createError !== undefined && isDefiniteCepMutationRejection(createError)) {
         failed = true;
-        skipped.push(
-          `Rule "${rule.displayName}": ${errorMessage(createError)}`,
-        );
+        await this.recordDlpRuleFailure(trace, skipped, rule.displayName, value, createError, context.projectId);
         continue;
       }
 
@@ -3591,6 +4129,86 @@ export class CepProvider {
       created.push(`DLP rule "${rule.displayName}" (${confirmed.name})`);
     }
     return !failed;
+  }
+
+  /**
+   * Before v0.2.82 this tool blocked consumer GenAI sites with the Chrome
+   * URLBlocklist / URLAllowlist policies. That job now belongs to the
+   * "Consumer GenAI data protection - navigation" rule on the Generative AI web
+   * category, so a tenant provisioned earlier would otherwise keep two
+   * overlapping controls and see the Chrome blocklist page instead of the DLP
+   * block page. Clear a list only when it is set directly on the target and
+   * holds exactly the entries this tool used to write; anything else belongs
+   * to the administrator and stays. Failures here are notes, never a module
+   * failure: the new rule works whether or not the old lists are gone.
+   */
+  private async supersedeLegacyGenAiUrlPolicies(
+    trace: CepTraceItem[],
+    context: CepContext,
+    created: string[],
+    skipped: string[],
+  ): Promise<void> {
+    const legacy: Array<{ definition: CepPolicyDefinition; expected: readonly string[] }> = [];
+    for (const definition of CEP_POLICIES) {
+      if (definition.schema === "chrome.users.URLBlocklist") {
+        legacy.push({ definition, expected: LEGACY_GENAI_URL_BLOCKLIST });
+      } else if (definition.schema === "chrome.users.URLAllowlist") {
+        legacy.push({ definition, expected: LEGACY_GENAI_URL_ALLOWLIST });
+      }
+    }
+    for (const { definition, expected } of legacy) {
+      let schemaName: string;
+      try {
+        const match = await this.resolveSchema(context.customerId, definition);
+        if (match === null) continue;
+        schemaName = match.name;
+      } catch {
+        // The schema catalogue is unavailable; resolvePolicies reports that.
+        continue;
+      }
+      const policyTargetKey = targetKey(context, definition);
+      const target = String(policyTargetKey.targetResource ?? "");
+      const resolved = await this.call(
+        trace,
+        `Inspect legacy ${definition.label}`,
+        "POST",
+        `${CHROME_POLICY}/customers/${context.customerId}/policies:resolve`,
+        { policySchemaFilter: schemaName, policyTargetKey },
+      );
+      if (resolved === null) {
+        skipped.push(
+          `${definition.label}: the Chrome ${schemaName} list on ${target} could not be read, so it was left as is (see the execution trace)`,
+        );
+        continue;
+      }
+      const current = directUrlListOnTarget(resolved, target);
+      if (current === null) continue;
+      if (!sameStringList(current, expected)) {
+        skipped.push(
+          `${definition.label}: Chrome ${schemaName} on ${target} holds entries this tool did not write (${current.join(", ")}); it was left as is. Consumer GenAI access is now controlled by the "Consumer GenAI data protection - navigation" rule, so review whether the list is still needed.`,
+        );
+        continue;
+      }
+      const url = context.targetType === "group"
+        ? `${CHROME_POLICY}/customers/${context.customerId}/policies/groups:batchDelete`
+        : `${CHROME_POLICY}/customers/${context.customerId}/policies/orgunits:batchInherit`;
+      const cleared = await this.call(
+        trace,
+        `Remove legacy ${definition.label}`,
+        "POST",
+        url,
+        { requests: [{ policyTargetKey, policySchema: schemaName }] },
+      );
+      if (cleared === null) {
+        skipped.push(
+          `${definition.label}: the legacy Chrome ${schemaName} list on ${target} could not be removed (see the execution trace); the "Consumer GenAI data protection - navigation" rule still applies`,
+        );
+        continue;
+      }
+      created.push(
+        `Removed legacy Chrome ${schemaName} list from ${target} (${expected.join(", ")}); consumer GenAI access is now controlled by the "Consumer GenAI data protection - navigation" rule`,
+      );
+    }
   }
 
   /**
@@ -3883,16 +4501,29 @@ export class CepProvider {
     }
 
     if (moduleEnabled(config, "contextAwareAccess")) {
-      if (!(await this.resolveAccessLevel(
-        trace,
-        context,
-        created,
-        skipped,
-        config.access_level ?? "",
-      ))) {
-        if (context.projectId) {
-          failedModules.add("contextAwareAccess");
+      // Every ticked level is created or verified; the first one that
+      // resolves becomes the primary level the DLP conditions bind to.
+      let primary: { name: string | undefined; ours: boolean | undefined } | null = null;
+      let anyFailed = false;
+      for (const selection of accessLevelSelections(config)) {
+        const resolved = await this.resolveAccessLevel(trace, context, created, skipped, selection);
+        if (resolved) {
+          if (primary === null) {
+            primary = { name: context.accessLevelName, ours: context.accessLevelIsOurs };
+          }
+        } else {
+          anyFailed = true;
         }
+      }
+      if (primary !== null) {
+        context.accessLevelName = primary.name;
+        context.accessLevelIsOurs = primary.ours;
+      } else {
+        context.accessLevelName = undefined;
+        context.accessLevelIsOurs = undefined;
+      }
+      if (anyFailed && context.projectId) {
+        failedModules.add("contextAwareAccess");
       }
     }
 
@@ -3906,6 +4537,7 @@ export class CepProvider {
       if (!(await this.ensureRules(trace, context, created, skipped))) {
         failedModules.add("dlpRules");
       }
+      await this.supersedeLegacyGenAiUrlPolicies(trace, context, created, skipped);
     }
 
     const requestedPolicies = selectedPolicies(config);
@@ -4134,22 +4766,29 @@ export class CepProvider {
           : false;
     }
 
-    const selectedLevel = config.access_level ?? "";
-    if (wanted("contextAwareAccess") && selectedLevel.startsWith("AUTO_CREATE_")) {
+    const selectedLevels = accessLevelSelections(config);
+    const autoCreatedLevels = selectedLevels.filter((level) => level.startsWith("AUTO_CREATE_"));
+    if (wanted("contextAwareAccess") && autoCreatedLevels.length > 0) {
       if (context.projectId === undefined) {
         skipped.push("Context-Aware Access: no project id, so no access level was looked for");
       } else {
-        await this.retainSelectedAccessLevel(
-          trace,
-          context.projectId,
-          selectedLevel,
-          skipped,
+        for (const selectedLevel of autoCreatedLevels) {
+          await this.retainSelectedAccessLevel(
+            trace,
+            context.projectId,
+            selectedLevel,
+            skipped,
+          );
+        }
+      }
+    }
+    if (wanted("contextAwareAccess")) {
+      for (const selectedLevel of selectedLevels) {
+        if (selectedLevel.startsWith("AUTO_CREATE_")) continue;
+        skipped.push(
+          `Context-Aware Access: ${selectedLevel} was selected rather than created here, so it was left in place`,
         );
       }
-    } else if (wanted("contextAwareAccess") && selectedLevel !== "" && selectedLevel !== "NONE") {
-      skipped.push(
-        `Context-Aware Access: ${selectedLevel} was selected rather than created here, so it was left in place`,
-      );
     }
 
     // Deleting an OU that still holds users or browsers is refused by Google,
@@ -4159,7 +4798,7 @@ export class CepProvider {
     );
 
     const retained = retainedChrome || retainedDlp ||
-      (wanted("contextAwareAccess") && selectedLevel.startsWith("AUTO_CREATE_") && Boolean(context.projectId));
+      (wanted("contextAwareAccess") && autoCreatedLevels.length > 0 && Boolean(context.projectId));
     if (config.delete_dlp_rules === true && removed.length > 0 && !dlpDeleteFailed) {
       return {
         success: true,
@@ -4243,10 +4882,19 @@ export class CepProvider {
         undefined,
         this.cloudTransport,
       );
-      policyName = Array.isArray(policies?.accessPolicies) &&
-          typeof policies.accessPolicies[0]?.name === "string"
-        ? policies.accessPolicies[0].name
-        : undefined;
+      const list = Array.isArray(policies?.accessPolicies)
+        ? (policies.accessPolicies as Array<{ name?: unknown; scopes?: unknown }>)
+        : [];
+      const orgLevel = list.find(
+        (p) =>
+          typeof p?.name === "string" &&
+          (!Array.isArray(p.scopes) || p.scopes.length === 0),
+      );
+      policyName = typeof orgLevel?.name === "string"
+        ? orgLevel.name
+        : typeof list[0]?.name === "string"
+          ? list[0].name
+          : undefined;
     }
     if (policyName === undefined) {
       skipped.push("Context-Aware Access: no access policy was found; nothing was deleted");
@@ -5167,9 +5815,21 @@ if __name__ == "__main__":
           ok: polResp.status >= 200 && polResp.status < 300,
         });
         if (polResp.status >= 200 && polResp.status < 300 && polResp.payload) {
-          const list = (polResp.payload as { accessPolicies?: Array<{ name: string }> }).accessPolicies;
-          if (Array.isArray(list) && list.length > 0 && typeof list[0]?.name === "string") {
-            policyName = list[0].name;
+          const list = (
+            polResp.payload as {
+              accessPolicies?: Array<{ name?: string; scopes?: unknown }>;
+            }
+          ).accessPolicies;
+          if (Array.isArray(list) && list.length > 0) {
+            const orgLevel = list.find(
+              (p) =>
+                typeof p?.name === "string" &&
+                (!Array.isArray(p.scopes) || p.scopes.length === 0),
+            );
+            const chosen = orgLevel?.name ?? list[0]?.name;
+            if (typeof chosen === "string") {
+              policyName = chosen;
+            }
           }
         }
       } catch (err) {

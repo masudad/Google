@@ -96,10 +96,14 @@ describe("CepDeployerPage", () => {
     expect(screen.getByText(m.presetFullPoc)).toBeInTheDocument();
     expect(screen.getByText(m.moduleCorePolicies)).toBeInTheDocument();
     expect(screen.getByText(m.moduleConnectors)).toBeInTheDocument();
-    // Context-Aware Access is a dropdown now, not a toggle: an existing level
-    // can be selected instead of only ever creating one.
-    expect(screen.getByLabelText(m.accessLevelTitle)).toBeInTheDocument();
-    expect(screen.getByText(m.accessLevelAutoAny)).toBeInTheDocument();
+    // Context-Aware Access is a checkbox list now, not a toggle or a dropdown:
+    // several levels can be created in one run, and an existing level can be
+    // ticked instead of only ever creating one.
+    const accessLevelGroup = screen.getByRole("group", { name: m.accessLevelTitle });
+    expect(accessLevelGroup).toBeInTheDocument();
+    expect(
+      within(accessLevelGroup).getByRole("checkbox", { name: new RegExp(m.accessLevelAutoAny) }),
+    ).not.toBeChecked();
     expect(
       screen.getByLabelText(m.autoCreateSubOus, { exact: false }),
     ).not.toBeChecked();
@@ -241,9 +245,11 @@ describe("CepDeployerPage", () => {
       fireEvent.click(screen.getByLabelText(label, { exact: false }));
     }
     fireEvent.click(screen.getByLabelText(m.dataBoundaryModeNoneDesc, { exact: false }));
-    fireEvent.change(screen.getByLabelText(m.accessLevelTitle), {
-      target: { value: "NONE" },
-    });
+    // No access level is ticked by default, so the module stays off.
+    const accessLevelGroup = screen.getByRole("group", { name: m.accessLevelTitle });
+    for (const box of within(accessLevelGroup).getAllByRole("checkbox")) {
+      expect(box).not.toBeChecked();
+    }
 
     expect(screen.getByText(m.btnDeploy)).toBeDisabled();
     expect(screen.getByText(m.noModulesSelected)).toBeInTheDocument();
@@ -768,8 +774,9 @@ describe("CepDeployerPage", () => {
       }),
     );
 
-    // Post-deploy Quick Test dummy data copy bar appears immediately below the success banner
-    expect(screen.getByRole("region", { name: m.quickTestBarTitle })).toBeInTheDocument();
+    // Section 1 applies Chrome policies only, so there is nothing to paste-test
+    // yet: the DLP Quick Test dummy-data bar must stay hidden here.
+    expect(screen.queryByRole("region", { name: m.quickTestBarTitle })).not.toBeInTheDocument();
 
     // 2. Clicking 1-click Apply All (btnDeployAll) from Tab 1 deploys BOTH Baseline Policies and DLP Matrix rules without switching tabs
     fireEvent.click(screen.getByText(m.btnDeployAll));
@@ -799,12 +806,15 @@ describe("CepDeployerPage", () => {
       expect.objectContaining({
         create_sub_ous: false,
         core_policies: false,
-        force_extensions: false,
+        force_extensions: true,
         connectors: false,
         data_boundary_mode: "none",
         dlp_rules: true,
       }),
     );
+    // DLP rules were just registered, so the Quick Test dummy-data bar now
+    // appears right below the success banner.
+    expect(screen.getByRole("region", { name: m.quickTestBarTitle })).toBeInTheDocument();
 
     // 4. Switch to Tab 3 (Operations & Testing): policy action bar is hidden
     fireEvent.click(within(nav).getByRole("button", { name: m.tabOperations }));
@@ -826,6 +836,45 @@ describe("CepDeployerPage", () => {
         dlp_rules: true,
       }),
     );
+  });
+
+  it("labels the deploy progress steps by what the run does: Chrome policies in Section 1, DLP rules in Section 2", async () => {
+    const deferred: { resolve: ((value: ReturnType<typeof emptyResult>) => void) | null } = {
+      resolve: null,
+    };
+    const provision = vi.spyOn(api, "provisionCepPolicies").mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          deferred.resolve = resolve;
+        }),
+    );
+    renderPage();
+    await selectPilotOu();
+
+    // Section 1: Chrome policies only -> no "DLP Rule Registration" step.
+    fireEvent.click(screen.getByText(m.btnDeploy));
+    await waitFor(() => expect(provision).toHaveBeenCalledTimes(1));
+    const progress = () => {
+      const box = screen.getByText(m.deployProgressTitle).closest(".cep-progress-box");
+      if (!(box instanceof HTMLElement)) throw new Error("progress box not rendered");
+      return box;
+    };
+    expect(progress()).toHaveTextContent(m.deployStep3Policies);
+    expect(progress()).toHaveTextContent(m.deployStep2Policies);
+    expect(progress()).not.toHaveTextContent(m.deployStep3Dlp);
+    deferred.resolve?.(emptyResult({ message: "Applied CEP policies." }));
+    await waitFor(() => expect(screen.getByText("Applied CEP policies.")).toBeInTheDocument());
+
+    // Section 2: DLP rules only -> the DLP registration step is back.
+    const nav = screen.getByRole("navigation", { name: "CEP PoC Sections" });
+    fireEvent.click(within(nav).getByRole("button", { name: m.tabDlp }));
+    fireEvent.click(screen.getByText(m.btnDeploy));
+    await waitFor(() => expect(provision).toHaveBeenCalledTimes(2));
+    expect(progress()).toHaveTextContent(m.deployStep2Dlp);
+    expect(progress()).toHaveTextContent(m.deployStep3Dlp);
+    expect(progress()).not.toHaveTextContent(m.deployStep3Policies);
+    deferred.resolve?.(emptyResult({ message: "Applied DLP rules." }));
+    await waitFor(() => expect(screen.getByText("Applied DLP rules.")).toBeInTheDocument());
   });
 
   it("includes SaaS tenant restriction HTTP header rules (HttpHeaderInjection) in Step 1 provision", async () => {
@@ -1179,18 +1228,25 @@ describe("CepDeployerPage", () => {
     fireEvent.click(screen.getByRole("button", { name: m.verifyGoogleAccount }));
     await selectPilotOu();
 
-    // Default accessLevel in Full PoC preset is NONE
-    const accessLevelSelect = screen.getByLabelText(m.accessLevelTitle);
-    expect(accessLevelSelect).toHaveValue("NONE");
+    // Default accessLevel in Full PoC preset is NONE: nothing is ticked.
+    const accessLevelGroup = () => screen.getByRole("group", { name: m.accessLevelTitle });
+    const levelBox = (label: string) =>
+      within(accessLevelGroup()).getByRole("checkbox", { name: new RegExp(label) });
+    for (const box of within(accessLevelGroup()).getAllByRole("checkbox")) {
+      expect(box).not.toBeChecked();
+    }
 
     // Selecting Endpoint preset also keeps accessLevel as NONE
     fireEvent.click(screen.getByText(m.presetEndpoint));
-    expect(accessLevelSelect).toHaveValue("NONE");
+    for (const box of within(accessLevelGroup()).getAllByRole("checkbox")) {
+      expect(box).not.toBeChecked();
+    }
 
-    // Switch back to Full PoC preset and select an AUTO_CREATE_* option while projectId is empty:
+    // Switch back to Full PoC preset and tick an AUTO_CREATE_* level while projectId is empty:
     // Step 1 immediately displays the Manual CEL Setup Guide Card with the exact CEL expression
     fireEvent.click(screen.getByText(m.presetFullPoc));
-    fireEvent.change(accessLevelSelect, { target: { value: "AUTO_CREATE_CORP_OWNED" } });
+    fireEvent.click(levelBox(m.accessLevelAutoCorpOwned));
+    expect(levelBox(m.accessLevelAutoCorpOwned)).toBeChecked();
     expect(screen.getByRole("region", { name: m.manualCelGuideTitle })).toBeInTheDocument();
     expect(
       screen.getByText(
@@ -1198,8 +1254,9 @@ describe("CepDeployerPage", () => {
       ),
     ).toBeInTheDocument();
 
-    // Reset accessLevel to NONE, switch to Tab 3 (DLP & Threat Matrix), and apply the Company Device Environment Selector
-    fireEvent.change(accessLevelSelect, { target: { value: "NONE" } });
+    // Untick it again, switch to Tab 3 (DLP & Threat Matrix), and apply the Company Device Environment Selector
+    fireEvent.click(levelBox(m.accessLevelAutoCorpOwned));
+    expect(levelBox(m.accessLevelAutoCorpOwned)).not.toBeChecked();
     const nav = screen.getByRole("navigation", { name: "CEP PoC Sections" });
     fireEvent.click(within(nav).getByRole("button", { name: m.tabDlp }));
 
@@ -1225,6 +1282,64 @@ describe("CepDeployerPage", () => {
     });
     expect(provision.mock.calls[0]?.[0]?.access_level).toBe("NONE");
     expect(provision.mock.calls[0]?.[0]?.project_id).toBe("");
+  });
+
+  it("creates several Context-Aware Access levels in one run and keeps the first ticked one as the DLP condition", async () => {
+    const provision = vi.spyOn(api, "provisionCepPolicies").mockResolvedValue(emptyResult());
+    const rollback = vi.spyOn(api, "rollbackCepPolicies").mockResolvedValue(emptyResult());
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    renderPage();
+    await selectPilotOu();
+
+    const group = () => screen.getByRole("group", { name: m.accessLevelTitle });
+    const levelBox = (label: string) =>
+      within(group()).getByRole("checkbox", { name: new RegExp(label) });
+
+    fireEvent.click(levelBox(m.accessLevelAutoCorpOwned));
+    fireEvent.click(levelBox(m.accessLevelAutoByod));
+    fireEvent.click(levelBox(m.accessLevelAutoIosByod));
+    expect(levelBox(m.accessLevelAutoCorpOwned)).toBeChecked();
+    expect(levelBox(m.accessLevelAutoByod)).toBeChecked();
+    expect(levelBox(m.accessLevelAutoIosByod)).toBeChecked();
+    expect(within(group()).getByRole("status")).toHaveTextContent(m.accessLevelSelectedCount(3));
+    // Only the primary (first ticked) level carries the DLP-condition badge.
+    expect(within(group()).getAllByText(m.accessLevelPrimaryBadge)).toHaveLength(1);
+
+    fireEvent.click(screen.getByText(m.btnDeploy));
+    await waitFor(() => expect(provision).toHaveBeenCalledTimes(1));
+    const payload = provision.mock.calls[0]?.[0];
+    expect(payload?.access_level).toBe("AUTO_CREATE_CORP_OWNED");
+    expect(payload?.access_levels).toEqual([
+      "AUTO_CREATE_CORP_OWNED",
+      "AUTO_CREATE_BYOD",
+      "AUTO_CREATE_IOS_BYOD",
+    ]);
+
+    // Unticking the primary promotes the next ticked level.
+    fireEvent.click(levelBox(m.accessLevelAutoCorpOwned));
+    expect(levelBox(m.accessLevelAutoCorpOwned)).not.toBeChecked();
+    fireEvent.click(screen.getByText(m.btnDeploy));
+    await waitFor(() => expect(provision).toHaveBeenCalledTimes(2));
+    expect(provision.mock.calls[1]?.[0]?.access_level).toBe("AUTO_CREATE_BYOD");
+    expect(provision.mock.calls[1]?.[0]?.access_levels).toEqual([
+      "AUTO_CREATE_BYOD",
+      "AUTO_CREATE_IOS_BYOD",
+    ]);
+
+    // Rollback reviews every ticked level, not just the primary.
+    fireEvent.click(screen.getByText(m.btnRollback));
+    await waitFor(() => expect(rollback).toHaveBeenCalledTimes(1));
+    expect(rollback.mock.calls[0]?.[0]?.access_level).toBe("AUTO_CREATE_BYOD");
+    expect(rollback.mock.calls[0]?.[0]?.access_levels).toEqual([
+      "AUTO_CREATE_BYOD",
+      "AUTO_CREATE_IOS_BYOD",
+    ]);
+
+    // A preset resets the whole selection.
+    fireEvent.click(screen.getByText(m.presetEndpoint));
+    for (const box of within(group()).getAllByRole("checkbox")) {
+      expect(box).not.toBeChecked();
+    }
   });
 
   it("allows duplicating and removing DLP matrix rows to configure e.g. BYOD Block + Company-Owned Audit", async () => {
@@ -1281,5 +1396,54 @@ describe("CepDeployerPage", () => {
       expect(provision).toHaveBeenCalledTimes(2);
     });
     expect(provision.mock.calls[1]?.[0]?.dlp_matrix?.universal_upload?.extraRows).toBeUndefined();
+  });
+
+  it("allows selecting multiple presets in Section 1 and enforces Force-install Endpoint Verification when creating CEL or setting DLP rules", async () => {
+    const provision = vi.spyOn(api, "provisionCepPolicies").mockResolvedValue(emptyResult());
+    renderPage();
+    await selectPilotOu();
+
+    // Switch from default "full" to "Personal Account" preset (no CEL, no DLP rules -> EV is not forced)
+    const personalBtn = screen.getByText(m.presetPersonalAccount).closest("button") as HTMLButtonElement;
+    const aiBtn = screen.getByText(m.presetAiProtection).closest("button") as HTMLButtonElement;
+    const evCheckbox = screen.getByLabelText(m.moduleForceExtensions, {
+      exact: false,
+    }) as HTMLInputElement;
+
+    fireEvent.click(personalBtn);
+    expect(personalBtn).toHaveAttribute("aria-pressed", "true");
+    expect(evCheckbox).not.toBeChecked();
+    expect(evCheckbox).not.toBeDisabled();
+
+    // Ticking a CEL access level automatically checks and locks Force-install Endpoint Verification
+    const accessLevelGroup = screen.getByRole("group", { name: m.accessLevelTitle });
+    const corpOwnedBox = within(accessLevelGroup).getByRole("checkbox", {
+      name: new RegExp(m.accessLevelAutoCorpOwned),
+    });
+    fireEvent.click(corpOwnedBox);
+    expect(evCheckbox).toBeChecked();
+    expect(evCheckbox).toBeDisabled();
+    expect(screen.getByText(m.forceExtensionsMandatoryBadge)).toBeInTheDocument();
+
+    // Unticking the CEL level unlocks EV again; now combine "Personal Account" + "Generative AI" presets
+    fireEvent.click(corpOwnedBox);
+    fireEvent.click(personalBtn);
+    fireEvent.click(aiBtn);
+    expect(personalBtn).toHaveAttribute("aria-pressed", "true");
+    expect(aiBtn).toHaveAttribute("aria-pressed", "true");
+    expect(evCheckbox).toBeChecked();
+
+    // Apply All (which sets DLP rules) always sends force_extensions: true
+    fireEvent.click(screen.getByText(m.btnDeployAll));
+    await waitFor(() => expect(provision).toHaveBeenCalledTimes(1));
+    expect(provision.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        core_policies: true,
+        force_extensions: true,
+        connectors: true,
+        dlp_rules: true,
+        data_boundary_mode: "block_non_corp",
+      }),
+    );
   });
 });

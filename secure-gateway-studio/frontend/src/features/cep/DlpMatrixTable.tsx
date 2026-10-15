@@ -130,6 +130,151 @@ const DLP_REGIONS: Array<{ value: string; label: string }> = [
 
 const ACTION_CYCLE: CepDlpAction[] = ["auditOnly", "warnUser", "blockContent", "off"];
 
+export type DlpPresetName = "recommended" | "strict" | "byod_mobile" | "genai" | "audit" | "gemini";
+
+const DLP_ACTION_PRIORITY: Record<CepDlpAction, number> = {
+  off: 0,
+  auditOnly: 1,
+  warnUser: 2,
+  blockContent: 3,
+};
+
+export const DLP_PRESET_MATRICES: Record<DlpPresetName, CepDlpMatrixState> = {
+  recommended: {
+    universal_upload: { upload: "warnUser", byodOnly: false },
+    universal_download: { download: "warnUser", byodOnly: false },
+    payment_card: { upload: "warnUser", paste: "warnUser", print: "warnUser", byodOnly: false },
+    national_id: { upload: "warnUser", paste: "warnUser", print: "warnUser", byodOnly: false },
+    access_level: { upload: "off", download: "off", paste: "off", print: "off", byodOnly: false },
+    android_byod: { upload: "off", download: "off", paste: "off", print: "off", byodOnly: true, deviceScope: "android_byod" },
+    ios_byod: { upload: "off", download: "off", paste: "off", print: "off", byodOnly: true, deviceScope: "ios_byod" },
+    watermark: { watermark: true, byodOnly: false },
+    genai_block: { paste: "blockContent", upload: "blockContent", byodOnly: false },
+  },
+  strict: {
+    universal_upload: { upload: "warnUser", byodOnly: false },
+    universal_download: { download: "warnUser", byodOnly: false },
+    payment_card: { upload: "blockContent", paste: "blockContent", print: "blockContent", byodOnly: false },
+    national_id: { upload: "blockContent", paste: "blockContent", print: "blockContent", byodOnly: false },
+    access_level: { upload: "off", download: "off", paste: "off", print: "off", byodOnly: false },
+    android_byod: { upload: "off", download: "off", paste: "off", print: "off", byodOnly: true, deviceScope: "android_byod" },
+    ios_byod: { upload: "off", download: "off", paste: "off", print: "off", byodOnly: true, deviceScope: "ios_byod" },
+    watermark: { watermark: true, byodOnly: false },
+    genai_block: { paste: "blockContent", upload: "blockContent", byodOnly: false },
+  },
+  byod_mobile: {
+    universal_upload: { upload: "blockContent", byodOnly: true, deviceScope: "byod_only" },
+    universal_download: { download: "blockContent", byodOnly: true, deviceScope: "byod_only" },
+    payment_card: { upload: "blockContent", paste: "warnUser", print: "blockContent", byodOnly: false, deviceScope: "all" },
+    national_id: { upload: "blockContent", paste: "warnUser", print: "blockContent", byodOnly: false, deviceScope: "all" },
+    access_level: { upload: "blockContent", download: "blockContent", paste: "warnUser", print: "blockContent", byodOnly: true, deviceScope: "byod_only" },
+    android_byod: { upload: "blockContent", download: "blockContent", paste: "warnUser", print: "blockContent", byodOnly: true, deviceScope: "android_byod" },
+    ios_byod: { upload: "blockContent", download: "blockContent", paste: "warnUser", print: "blockContent", byodOnly: true, deviceScope: "ios_byod" },
+    watermark: { watermark: true, byodOnly: true, deviceScope: "byod_only" },
+    genai_block: { paste: "blockContent", upload: "blockContent", byodOnly: false, deviceScope: "all" },
+  },
+  genai: {
+    universal_upload: { upload: "off", byodOnly: false },
+    universal_download: { download: "off", byodOnly: false },
+    payment_card: { upload: "warnUser", paste: "warnUser", print: "off", byodOnly: false },
+    national_id: { upload: "warnUser", paste: "warnUser", print: "off", byodOnly: false },
+    access_level: { upload: "off", download: "off", paste: "off", print: "off", byodOnly: false },
+    android_byod: { upload: "off", download: "off", paste: "off", print: "off", byodOnly: true, deviceScope: "android_byod" },
+    ios_byod: { upload: "off", download: "off", paste: "off", print: "off", byodOnly: true, deviceScope: "ios_byod" },
+    watermark: { watermark: false, byodOnly: false },
+    genai_block: { paste: "blockContent", upload: "blockContent", byodOnly: false },
+  },
+  audit: {
+    universal_upload: { upload: "auditOnly", byodOnly: false },
+    universal_download: { download: "auditOnly", byodOnly: false },
+    payment_card: { upload: "auditOnly", paste: "auditOnly", print: "auditOnly", byodOnly: false },
+    national_id: { upload: "auditOnly", paste: "auditOnly", print: "auditOnly", byodOnly: false },
+    access_level: { upload: "off", download: "off", paste: "off", print: "off", byodOnly: false },
+    android_byod: { upload: "off", download: "off", paste: "off", print: "off", byodOnly: true, deviceScope: "android_byod" },
+    ios_byod: { upload: "off", download: "off", paste: "off", print: "off", byodOnly: true, deviceScope: "ios_byod" },
+    watermark: { watermark: false, byodOnly: false },
+    genai_block: { paste: "auditOnly", upload: "auditOnly", byodOnly: false },
+  },
+  gemini: {
+    universal_upload: { upload: "warnUser", byodOnly: false },
+    universal_download: { download: "warnUser", byodOnly: false },
+    payment_card: { upload: "blockContent", paste: "blockContent", print: "blockContent", byodOnly: false },
+    national_id: { upload: "blockContent", paste: "blockContent", print: "blockContent", byodOnly: false },
+    access_level: { upload: "blockContent", download: "blockContent", paste: "blockContent", print: "blockContent", byodOnly: false },
+    android_byod: { upload: "off", download: "off", paste: "off", print: "off", byodOnly: true, deviceScope: "android_byod" },
+    ios_byod: { upload: "off", download: "off", paste: "off", print: "off", byodOnly: true, deviceScope: "ios_byod" },
+    watermark: { watermark: true, byodOnly: false },
+    genai_block: { paste: "blockContent", upload: "blockContent", byodOnly: false },
+  },
+};
+
+export function mergeDlpPresetMatrices(selected: readonly DlpPresetName[]): CepDlpMatrixState {
+  if (selected.length === 0) return DEFAULT_DLP_MATRIX;
+  if (selected.length === 1) return DLP_PRESET_MATRICES[selected[0]];
+
+  const ruleIds: CepDlpRuleId[] = [
+    "universal_upload",
+    "universal_download",
+    "payment_card",
+    "national_id",
+    "access_level",
+    "android_byod",
+    "ios_byod",
+    "watermark",
+    "genai_block",
+  ];
+  const ops = ["upload", "download", "paste", "print"] as const;
+  const merged: CepDlpMatrixState = {};
+
+  for (const ruleId of ruleIds) {
+    const configs = selected
+      .map((name) => DLP_PRESET_MATRICES[name][ruleId])
+      .filter((cfg): cfg is CepDlpMatrixRuleConfig => cfg !== undefined);
+    if (configs.length === 0) continue;
+
+    if (ruleId === "watermark") {
+      const scoped = configs.find(
+        (cfg) => cfg.watermark === true && cfg.deviceScope !== undefined && cfg.deviceScope !== "all",
+      );
+      merged.watermark = {
+        watermark: configs.some((cfg) => cfg.watermark === true),
+        byodOnly: scoped ? scoped.byodOnly : false,
+        ...(scoped?.deviceScope ? { deviceScope: scoped.deviceScope } : {}),
+      };
+      continue;
+    }
+
+    const row: CepDlpMatrixRuleConfig = { byodOnly: false };
+    for (const op of ops) {
+      let best: CepDlpAction | undefined;
+      for (const cfg of configs) {
+        const candidate = cfg[op];
+        if (candidate === undefined) continue;
+        if (best === undefined || DLP_ACTION_PRIORITY[candidate] > DLP_ACTION_PRIORITY[best]) {
+          best = candidate;
+        }
+      }
+      if (best !== undefined) {
+        row[op] = best;
+      }
+    }
+
+    const scopedCfg = configs.find(
+      (cfg) =>
+        (cfg.deviceScope !== undefined && cfg.deviceScope !== "all") || cfg.byodOnly === true,
+    );
+    if (scopedCfg) {
+      row.byodOnly = scopedCfg.byodOnly ?? true;
+      if (scopedCfg.deviceScope) {
+        row.deviceScope = scopedCfg.deviceScope;
+      }
+    }
+    merged[ruleId] = row;
+  }
+
+  return merged;
+}
+
 export const DEFAULT_DLP_MATRIX: CepDlpMatrixState = {
   universal_upload: { upload: "warnUser", byodOnly: false },
   universal_download: { download: "warnUser", byodOnly: false },
@@ -166,6 +311,7 @@ export function DlpMatrixTable({
   });
   const [showManualCelGuide, setShowManualCelGuide] = useState<boolean>(false);
   const [copiedCelKey, setCopiedCelKey] = useState<string>("");
+  const [activeDlpPresets, setActiveDlpPresets] = useState<DlpPresetName[]>([]);
 
   const currentMatrix = { ...DEFAULT_DLP_MATRIX, ...matrix };
 
@@ -214,6 +360,7 @@ export function DlpMatrixTable({
   }
 
   function updateRule(id: CepDlpRuleId, updater: (prev: CepDlpMatrixRuleConfig) => CepDlpMatrixRuleConfig) {
+    setActiveDlpPresets([]);
     const existing = currentMatrix[id] ?? {};
     const updated = updater(existing);
     emit({ ...currentMatrix, [id]: updated });
@@ -385,6 +532,7 @@ export function DlpMatrixTable({
   }
 
   function applyEnvironmentProfile(stateOverride?: CompanyDeviceEnvState) {
+    setActiveDlpPresets([]);
     const activeEnv = stateOverride ?? envState;
     const hasAnyByod = activeEnv.byodPc || activeEnv.byodAndroid || activeEnv.byodIos;
     const hasAnyCorp = activeEnv.corpPc || activeEnv.corpAndroid || activeEnv.corpIos;
@@ -499,89 +647,23 @@ export function DlpMatrixTable({
     applyEnvironmentProfile(nextState);
   }
 
-  function applyPreset(presetName: "recommended" | "strict" | "byod_mobile" | "genai" | "audit" | "gemini") {
-    switch (presetName) {
-      case "recommended":
-        emit({
-          universal_upload: { upload: "warnUser", byodOnly: false },
-          universal_download: { download: "warnUser", byodOnly: false },
-          payment_card: { upload: "warnUser", paste: "warnUser", print: "warnUser", byodOnly: false },
-          national_id: { upload: "warnUser", paste: "warnUser", print: "warnUser", byodOnly: false },
-          access_level: { upload: "off", download: "off", paste: "off", print: "off", byodOnly: false },
-          android_byod: { upload: "off", download: "off", paste: "off", print: "off", byodOnly: true, deviceScope: "android_byod" },
-          ios_byod: { upload: "off", download: "off", paste: "off", print: "off", byodOnly: true, deviceScope: "ios_byod" },
-          watermark: { watermark: true, byodOnly: false },
-          genai_block: { paste: "blockContent", upload: "blockContent", byodOnly: false },
-        });
-        break;
-      case "strict":
-        emit({
-          universal_upload: { upload: "warnUser", byodOnly: false },
-          universal_download: { download: "warnUser", byodOnly: false },
-          payment_card: { upload: "blockContent", paste: "blockContent", print: "blockContent", byodOnly: false },
-          national_id: { upload: "blockContent", paste: "blockContent", print: "blockContent", byodOnly: false },
-          access_level: { upload: "off", download: "off", paste: "off", print: "off", byodOnly: false },
-          android_byod: { upload: "off", download: "off", paste: "off", print: "off", byodOnly: true, deviceScope: "android_byod" },
-          ios_byod: { upload: "off", download: "off", paste: "off", print: "off", byodOnly: true, deviceScope: "ios_byod" },
-          watermark: { watermark: true, byodOnly: false },
-          genai_block: { paste: "blockContent", upload: "blockContent", byodOnly: false },
-        });
-        break;
-      case "byod_mobile":
-        onEnsureAccessLevel?.("AUTO_CREATE_CORP_OWNED");
-        emit({
-          universal_upload: { upload: "blockContent", byodOnly: true, deviceScope: "byod_only" },
-          universal_download: { download: "blockContent", byodOnly: true, deviceScope: "byod_only" },
-          payment_card: { upload: "blockContent", paste: "warnUser", print: "blockContent", byodOnly: false, deviceScope: "all" },
-          national_id: { upload: "blockContent", paste: "warnUser", print: "blockContent", byodOnly: false, deviceScope: "all" },
-          access_level: { upload: "blockContent", download: "blockContent", paste: "warnUser", print: "blockContent", byodOnly: true, deviceScope: "byod_only" },
-          android_byod: { upload: "blockContent", download: "blockContent", paste: "warnUser", print: "blockContent", byodOnly: true, deviceScope: "android_byod" },
-          ios_byod: { upload: "blockContent", download: "blockContent", paste: "warnUser", print: "blockContent", byodOnly: true, deviceScope: "ios_byod" },
-          watermark: { watermark: true, byodOnly: true, deviceScope: "byod_only" },
-          genai_block: { paste: "blockContent", upload: "blockContent", byodOnly: false, deviceScope: "all" },
-        });
-        break;
-      case "genai":
-        emit({
-          universal_upload: { upload: "off", byodOnly: false },
-          universal_download: { download: "off", byodOnly: false },
-          payment_card: { upload: "warnUser", paste: "warnUser", print: "off", byodOnly: false },
-          national_id: { upload: "warnUser", paste: "warnUser", print: "off", byodOnly: false },
-          access_level: { upload: "off", download: "off", paste: "off", print: "off", byodOnly: false },
-          android_byod: { upload: "off", download: "off", paste: "off", print: "off", byodOnly: true, deviceScope: "android_byod" },
-          ios_byod: { upload: "off", download: "off", paste: "off", print: "off", byodOnly: true, deviceScope: "ios_byod" },
-          watermark: { watermark: false, byodOnly: false },
-          genai_block: { paste: "blockContent", upload: "blockContent", byodOnly: false },
-        });
-        break;
-      case "audit":
-        emit({
-          universal_upload: { upload: "auditOnly", byodOnly: false },
-          universal_download: { download: "auditOnly", byodOnly: false },
-          payment_card: { upload: "auditOnly", paste: "auditOnly", print: "auditOnly", byodOnly: false },
-          national_id: { upload: "auditOnly", paste: "auditOnly", print: "auditOnly", byodOnly: false },
-          access_level: { upload: "off", download: "off", paste: "off", print: "off", byodOnly: false },
-          android_byod: { upload: "off", download: "off", paste: "off", print: "off", byodOnly: true, deviceScope: "android_byod" },
-          ios_byod: { upload: "off", download: "off", paste: "off", print: "off", byodOnly: true, deviceScope: "ios_byod" },
-          watermark: { watermark: false, byodOnly: false },
-          genai_block: { paste: "auditOnly", upload: "auditOnly", byodOnly: false },
-        });
-        break;
-      case "gemini":
-        onEnsureAccessLevel?.("AUTO_CREATE_CORP_OWNED");
-        emit({
-          universal_upload: { upload: "warnUser", byodOnly: false },
-          universal_download: { download: "warnUser", byodOnly: false },
-          payment_card: { upload: "blockContent", paste: "blockContent", print: "blockContent", byodOnly: false },
-          national_id: { upload: "blockContent", paste: "blockContent", print: "blockContent", byodOnly: false },
-          access_level: { upload: "blockContent", download: "blockContent", paste: "blockContent", print: "blockContent", byodOnly: false },
-          android_byod: { upload: "off", download: "off", paste: "off", print: "off", byodOnly: true, deviceScope: "android_byod" },
-          ios_byod: { upload: "off", download: "off", paste: "off", print: "off", byodOnly: true, deviceScope: "ios_byod" },
-          watermark: { watermark: true, byodOnly: false },
-          genai_block: { paste: "blockContent", upload: "blockContent", byodOnly: false },
-        });
-        break;
+  function applyPreset(presetName: DlpPresetName) {
+    let nextPresets: DlpPresetName[];
+    if (activeDlpPresets.includes(presetName)) {
+      nextPresets =
+        activeDlpPresets.length > 1
+          ? activeDlpPresets.filter((item) => item !== presetName)
+          : [presetName];
+    } else if (presetName === "audit") {
+      nextPresets = ["audit"];
+    } else {
+      nextPresets = [...activeDlpPresets, presetName];
     }
+    setActiveDlpPresets(nextPresets);
+    if (nextPresets.includes("byod_mobile") || nextPresets.includes("gemini")) {
+      onEnsureAccessLevel?.("AUTO_CREATE_CORP_OWNED");
+    }
+    emit(mergeDlpPresetMatrices(nextPresets));
   }
 
   function resolveRowScope(ruleConfig: CepDlpMatrixRuleConfig | undefined): CepDlpDeviceScope {
@@ -947,48 +1029,29 @@ export function DlpMatrixTable({
 
       <div className="dlp-matrix-presets">
         <span className="dlp-presets-label">{m.dlpPresetsLabel}</span>
-        <button
-          className="btn btn-secondary btn-sm dlp-preset-btn"
-          onClick={() => applyPreset("recommended")}
-          type="button"
-        >
-          {m.dlpPresetRecommended}
-        </button>
-        <button
-          className="btn btn-secondary btn-sm dlp-preset-btn"
-          onClick={() => applyPreset("strict")}
-          type="button"
-        >
-          {m.dlpPresetStrictZeroTrust}
-        </button>
-        <button
-          className="btn btn-secondary btn-sm dlp-preset-btn"
-          onClick={() => applyPreset("byod_mobile")}
-          type="button"
-        >
-          {m.dlpPresetByodMobile}
-        </button>
-        <button
-          className="btn btn-secondary btn-sm dlp-preset-btn"
-          onClick={() => applyPreset("genai")}
-          type="button"
-        >
-          {m.dlpPresetGenAiSecure}
-        </button>
-        <button
-          className="btn btn-secondary btn-sm dlp-preset-btn"
-          onClick={() => applyPreset("audit")}
-          type="button"
-        >
-          {m.dlpPresetAuditOnly}
-        </button>
-        <button
-          className="btn btn-secondary btn-sm dlp-preset-btn"
-          onClick={() => applyPreset("gemini")}
-          type="button"
-        >
-          {m.dlpPresetGeminiEnterprise}
-        </button>
+        {(
+          [
+            { name: "recommended", label: m.dlpPresetRecommended },
+            { name: "strict", label: m.dlpPresetStrictZeroTrust },
+            { name: "byod_mobile", label: m.dlpPresetByodMobile },
+            { name: "genai", label: m.dlpPresetGenAiSecure },
+            { name: "audit", label: m.dlpPresetAuditOnly },
+            { name: "gemini", label: m.dlpPresetGeminiEnterprise },
+          ] as Array<{ name: DlpPresetName; label: string }>
+        ).map((preset) => {
+          const isSelected = activeDlpPresets.includes(preset.name);
+          return (
+            <button
+              aria-pressed={isSelected}
+              className={`btn ${isSelected ? "btn-primary active" : "btn-secondary"} btn-sm dlp-preset-btn`}
+              key={preset.name}
+              onClick={() => applyPreset(preset.name)}
+              type="button"
+            >
+              {preset.label}
+            </button>
+          );
+        })}
       </div>
 
       <div className="dlp-table-wrapper">

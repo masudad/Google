@@ -48,6 +48,7 @@ import {
   CepMutationOutcomeAmbiguous,
   CepProvider,
   CepTargetValidationError,
+  accessLevelSelections,
   resolveConfirmedCepTargetOu,
   resolveConfirmedCepTargetGroup,
   resolveCepTargetGroup,
@@ -2387,7 +2388,7 @@ export async function route(
     const projectId = typeof request_.project_id === "string" ? request_.project_id.trim() : "";
     const useDeployer =
       projectId !== "" &&
-      (request_.access_level ?? "").startsWith("AUTO_CREATE_") &&
+      accessLevelSelections(request_).some((level) => level.startsWith("AUTO_CREATE_")) &&
       (await hasPinnedProjectDeployer(() => context.requireDeployer(projectId)));
     return withCepMutationLease(context, "provision", request_, async (administrator, cloud, cloudAdmin) =>
       await (
@@ -2405,7 +2406,7 @@ export async function route(
     const projectId = typeof request_.project_id === "string" ? request_.project_id.trim() : "";
     const useDeployer =
       projectId !== "" &&
-      (request_.access_level ?? "").startsWith("AUTO_CREATE_") &&
+      accessLevelSelections(request_).some((level) => level.startsWith("AUTO_CREATE_")) &&
       (await hasPinnedProjectDeployer(() => context.requireDeployer(projectId)));
     return withCepMutationLease(context, "rollback", request_, async (administrator, cloud, cloudAdmin) =>
       await (

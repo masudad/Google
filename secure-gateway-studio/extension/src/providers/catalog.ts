@@ -456,13 +456,27 @@ export class GoogleSetupCatalog {
         throw dnsReadinessError(error);
       }
     }
+    let accessPolicyId: string | null = null;
+    try {
+      accessPolicyId = await this.discoverAccessPolicyId(projectId);
+    } catch (error) {
+      if (
+        error instanceof ConnectionError &&
+        error.code === "access-policy-selection-required"
+      ) {
+        accessPolicyId =
+          (await this.resolveAccessPolicy(projectId, { preferOrgLevelPolicy: true }))?.id ?? null;
+      } else {
+        throw error;
+      }
+    }
     return {
       provider: "google_cloud",
       status: "connected",
       principal_hint: this.options.principalHint,
       resource_id: projectId,
       credential_kind: this.options.credentialKind,
-      access_policy_id: await this.discoverAccessPolicyId(projectId),
+      access_policy_id: accessPolicyId,
       read_only: true,
     };
   }
@@ -722,7 +736,9 @@ export class GoogleSetupCatalog {
    * never match, producing an application nobody can reach.
    */
   async listAccessLevels(projectId: string): Promise<SetupOption[]> {
-    const resolved = await this.resolveAccessPolicy(projectId);
+    const resolved = await this.resolveAccessPolicy(projectId, {
+      preferOrgLevelPolicy: true,
+    });
     if (resolved === null) return [];
 
     const levels = await this.listCollection(
@@ -828,6 +844,7 @@ export class GoogleSetupCatalog {
 
   private async resolveAccessPolicy(
     projectId: string,
+    options?: { preferOrgLevelPolicy?: boolean },
   ): Promise<{ id: string; name: string; organization: string } | null> {
     let context: ProjectPolicyContext;
     try {
@@ -857,6 +874,7 @@ export class GoogleSetupCatalog {
       );
       if (policies.length === 0) return null;
       const applicable: Array<{ id: string; name: string }> = [];
+      const unscoped: Array<{ id: string; name: string }> = [];
       for (const policy of policies) {
         const rawName = policy.name;
         const match = typeof rawName === "string"
@@ -869,10 +887,10 @@ export class GoogleSetupCatalog {
           );
         }
         const scopes = accessPolicyScopes(policy);
-        if (
-          scopes.length === 0 ||
-          scopes.some((scope) => context.applicableScopes.has(scope))
-        ) {
+        if (scopes.length === 0) {
+          unscoped.push({ id: match[1], name: rawName as string });
+          applicable.push({ id: match[1], name: rawName as string });
+        } else if (scopes.some((scope) => context.applicableScopes.has(scope))) {
           applicable.push({ id: match[1], name: rawName as string });
         }
       }
@@ -883,12 +901,17 @@ export class GoogleSetupCatalog {
         );
       }
       if (applicable.length > 1) {
-        throw new ConnectionError(
-          "access-policy-selection-required",
-          "More than one Access Context Manager policy applies to this project; configure the intended policy id explicitly",
-        );
+        if (options?.preferOrgLevelPolicy === true && unscoped.length === 1) {
+          accessPolicyId = unscoped[0].id;
+        } else {
+          throw new ConnectionError(
+            "access-policy-selection-required",
+            "More than one Access Context Manager policy applies to this project; configure the intended policy id explicitly",
+          );
+        }
+      } else {
+        accessPolicyId = applicable[0].id;
       }
-      accessPolicyId = applicable[0].id;
     }
 
     const name = `accessPolicies/${accessPolicyId}`;
@@ -1104,6 +1127,7 @@ export async function ensureManagedChromeAccessLevelDetailed(
   if (accessPolicyId === undefined) {
     const policies = await listAccessPolicies(transport, context.organization);
     const applicable: string[] = [];
+    const unscoped: string[] = [];
     for (const policy of policies) {
       const name = policy.name;
       const match = typeof name === "string"
@@ -1116,15 +1140,20 @@ export async function ensureManagedChromeAccessLevelDetailed(
         );
       }
       const scopes = accessPolicyScopes(policy);
-      if (
-        scopes.length === 0 ||
-        scopes.some((scope) => context.applicableScopes.has(scope))
-      ) {
+      if (scopes.length === 0) {
+        unscoped.push(match[1]);
+        applicable.push(match[1]);
+      } else if (scopes.some((scope) => context.applicableScopes.has(scope))) {
         applicable.push(match[1]);
       }
     }
     if (applicable.length === 1) {
       accessPolicyId = applicable[0];
+    } else if (unscoped.length === 1) {
+      // Workspace Context-Aware Access and Cloud Identity Chrome DLP rules
+      // evaluate only the organization's single unscoped access policy;
+      // folder- or project-scoped policies exist for VPC Service Controls.
+      accessPolicyId = unscoped[0];
     } else if (applicable.length > 1) {
       throw new ConnectionError(
         "access-policy-selection-required",
@@ -1153,6 +1182,32 @@ export async function ensureManagedChromeAccessLevelDetailed(
     `${ACM}/${policyName}`,
   );
   assertApplicableAccessPolicy(policy, policyName, context);
+  return ensureManagedChromeAccessLevelInPolicy(transport, policyName, kind);
+}
+
+/**
+ * Create or verify the managed Chrome access level `kind` inside an already
+ * resolved Access Context Manager policy.
+ *
+ * Split out of the project-anchored variant because Chrome DLP rules are
+ * validated by Cloud Identity against the Workspace customer's own access
+ * policy (the organization whose directory customer id is the tenant), which
+ * is not necessarily the organization of the Google Cloud project the
+ * operator connected. Callers that know the customer's policy pass it here
+ * without the project-scope assertions.
+ */
+export async function ensureManagedChromeAccessLevelInPolicy(
+  transport: Transport,
+  policyName: string,
+  kind: ManagedChromeAccessLevelKind,
+): Promise<ManagedChromeAccessLevelResult> {
+  const ACM = "https://accesscontextmanager.googleapis.com/v1";
+  if (!/^accessPolicies\/\d+$/.test(policyName)) {
+    throw new ConnectionError(
+      "access-policy-id-invalid",
+      "The Access Context Manager policy name must look like accessPolicies/<digits>",
+    );
+  }
   const spec = MANAGED_CHROME_ACCESS_LEVEL_SPECS[kind] ?? MANAGED_CHROME_ACCESS_LEVEL_SPECS.any;
   const levelNameSuffix = spec.suffix;
   const fullName = `${policyName}/accessLevels/${levelNameSuffix}`;

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { Messages } from "../../i18n/messages";
 import type {
   CepDataBoundaryMode,
+  CepDlpAction,
   CepDlpMatrixRuleConfig,
   CepDlpMatrixState,
   CepGeminiZeroTrustConfig,
@@ -46,6 +47,7 @@ import {
   SecurityAssessmentModal,
   type RecommendedPolicyConfig,
 } from "./SecurityAssessmentModal";
+import { CeraExportImportModal } from "./CeraExportImportModal";
 import { DEFAULT_DLP_MATRIX, DlpMatrixTable } from "./DlpMatrixTable";
 import {
   dataBoundaryPolicyPreview,
@@ -145,6 +147,21 @@ const SENTINEL_CEL_MAP: Record<string, { levelName: string; accessLevelCel: stri
   },
 };
 
+/**
+ * Ordered, de-duplicated access-level selections. `NONE` and empty strings
+ * are dropped, so an empty result means "do not require an access level".
+ * The first entry is the primary level, i.e. the one DLP conditions bind to.
+ */
+export function orderedAccessLevels(values: readonly string[]): string[] {
+  const ordered: string[] = [];
+  for (const raw of values) {
+    const value = raw.trim();
+    if (value === "" || value === ACCESS_LEVEL_NONE) continue;
+    if (!ordered.includes(value)) ordered.push(value);
+  }
+  return ordered;
+}
+
 const PRESETS: Record<PresetName, ModuleState> = {
   full: {
     corePolicies: true,
@@ -158,7 +175,7 @@ const PRESETS: Record<PresetName, ModuleState> = {
   },
   ai: {
     corePolicies: true,
-    forceExtensions: false,
+    forceExtensions: true,
     connectors: true,
     accessLevel: ACCESS_LEVEL_NONE,
     dlpDetectors: false,
@@ -188,7 +205,7 @@ const PRESETS: Record<PresetName, ModuleState> = {
   },
   audit: {
     corePolicies: true,
-    forceExtensions: false,
+    forceExtensions: true,
     connectors: true,
     accessLevel: ACCESS_LEVEL_NONE,
     dlpDetectors: false,
@@ -233,6 +250,107 @@ const PRESET_MATRICES: Record<PresetName, CepDlpMatrixState> = {
     genai_block: { paste: "warnUser", upload: "warnUser" },
   },
 };
+
+const ACTION_PRIORITY: Record<CepDlpAction, number> = {
+  off: 0,
+  auditOnly: 1,
+  warnUser: 2,
+  blockContent: 3,
+};
+
+const BOUNDARY_PRIORITY: Record<ModuleState["dataBoundaryMode"], number> = {
+  none: 0,
+  block_non_corp: 1,
+  copy_paste: 2,
+};
+
+function mergePresets(selected: readonly PresetName[]): {
+  modules: ModuleState;
+  matrix: CepDlpMatrixState;
+} {
+  if (selected.length === 0) {
+    return { modules: PRESETS.full, matrix: PRESET_MATRICES.full };
+  }
+  if (selected.length === 1) {
+    const only = selected[0];
+    return { modules: { ...PRESETS[only] }, matrix: PRESET_MATRICES[only] };
+  }
+
+  let bestBoundary: ModuleState["dataBoundaryMode"] = "none";
+  for (const name of selected) {
+    const candidate = PRESETS[name].dataBoundaryMode;
+    if (BOUNDARY_PRIORITY[candidate] > BOUNDARY_PRIORITY[bestBoundary]) {
+      bestBoundary = candidate;
+    }
+  }
+
+  const dlpRules = selected.some((name) => PRESETS[name].dlpRules);
+  const mergedModules: ModuleState = {
+    corePolicies: selected.some((name) => PRESETS[name].corePolicies),
+    forceExtensions: selected.some((name) => PRESETS[name].forceExtensions) || dlpRules,
+    connectors: selected.some((name) => PRESETS[name].connectors),
+    accessLevel: ACCESS_LEVEL_NONE,
+    dlpDetectors: selected.some((name) => PRESETS[name].dlpDetectors),
+    dlpRules,
+    dlpRegion: "JP",
+    dataBoundaryMode: bestBoundary,
+  };
+
+  const ruleIds = new Set<keyof CepDlpMatrixState>();
+  for (const name of selected) {
+    for (const key of Object.keys(PRESET_MATRICES[name]) as Array<keyof CepDlpMatrixState>) {
+      ruleIds.add(key);
+    }
+  }
+
+  const ops = ["upload", "download", "paste", "print"] as const;
+  const mergedMatrix: CepDlpMatrixState = {};
+
+  for (const ruleId of ruleIds) {
+    const configs = selected
+      .map((name) => PRESET_MATRICES[name][ruleId])
+      .filter((cfg): cfg is CepDlpMatrixRuleConfig => cfg !== undefined);
+    if (configs.length === 0) continue;
+
+    if (ruleId === "watermark") {
+      mergedMatrix.watermark = {
+        watermark: configs.some((cfg) => cfg.watermark === true),
+        ...(configs.some((cfg) => cfg.byodOnly !== undefined)
+          ? { byodOnly: configs.some((cfg) => cfg.byodOnly === true) }
+          : {}),
+      };
+      continue;
+    }
+
+    const row: CepDlpMatrixRuleConfig = {};
+    for (const op of ops) {
+      let best: CepDlpAction | undefined;
+      for (const cfg of configs) {
+        const candidate = cfg[op];
+        if (candidate === undefined) continue;
+        if (best === undefined || ACTION_PRIORITY[candidate] > ACTION_PRIORITY[best]) {
+          best = candidate;
+        }
+      }
+      if (best !== undefined) {
+        row[op] = best;
+      }
+    }
+    const scopedCfg = configs.find(
+      (cfg) =>
+        (cfg.deviceScope !== undefined && cfg.deviceScope !== "all") || cfg.byodOnly !== undefined,
+    );
+    if (scopedCfg?.byodOnly !== undefined) {
+      row.byodOnly = scopedCfg.byodOnly;
+    }
+    if (scopedCfg?.deviceScope !== undefined) {
+      row.deviceScope = scopedCfg.deviceScope;
+    }
+    mergedMatrix[ruleId] = row;
+  }
+
+  return { modules: mergedModules, matrix: mergedMatrix };
+}
 
 interface SaasHeaderPreset {
   id: string;
@@ -345,7 +463,7 @@ export function CepDeployerPage({
   const [autoSubOus, setAutoSubOus] = useState<boolean>(false);
 
   const [modules, setModules] = useState<ModuleState>(PRESETS.full);
-  const [activePreset, setActivePreset] = useState<string | null>("full");
+  const [activePresets, setActivePresets] = useState<PresetName[]>(["full"]);
   const [activeTab, setActiveTab] = useState<"setup" | "licensing" | "dlp" | "operations" | "all">("setup");
   const [dlpMatrix, setDlpMatrix] = useState<CepDlpMatrixState>(DEFAULT_DLP_MATRIX);
   const [internalUrls, setInternalUrls] = useState<string>("");
@@ -357,6 +475,24 @@ export function CepDeployerPage({
 
   const [accessLevels, setAccessLevels] = useState<SetupOption[]>([]);
   const [accessLevelError, setAccessLevelError] = useState<boolean>(false);
+  // Additional access levels ticked besides the primary one held in
+  // `modules.accessLevel`. Presets reset both; the checkbox list toggles them
+  // together so the first ticked level always stays the primary.
+  const [extraAccessLevels, setExtraAccessLevels] = useState<string[]>([]);
+  const selectedAccessLevels = orderedAccessLevels([modules.accessLevel, ...extraAccessLevels]);
+  const primaryAccessLevel = selectedAccessLevels[0] ?? ACCESS_LEVEL_NONE;
+  const accessLevelOptions: Array<{ value: string; label: string; levelName: string }> = [
+    { value: AUTO_CREATE_ANY, label: m.accessLevelAutoAny, levelName: SENTINEL_CEL_MAP[AUTO_CREATE_ANY].levelName },
+    { value: "AUTO_CREATE_PROFILE_MANAGED", label: m.accessLevelAutoProfile, levelName: SENTINEL_CEL_MAP.AUTO_CREATE_PROFILE_MANAGED.levelName },
+    { value: "AUTO_CREATE_BROWSER_MANAGED", label: m.accessLevelAutoBrowser, levelName: SENTINEL_CEL_MAP.AUTO_CREATE_BROWSER_MANAGED.levelName },
+    { value: "AUTO_CREATE_CORP_OWNED", label: m.accessLevelAutoCorpOwned, levelName: SENTINEL_CEL_MAP.AUTO_CREATE_CORP_OWNED.levelName },
+    { value: "AUTO_CREATE_BYOD", label: m.accessLevelAutoByod, levelName: SENTINEL_CEL_MAP.AUTO_CREATE_BYOD.levelName },
+    { value: "AUTO_CREATE_ANDROID_BYOD", label: m.accessLevelAutoAndroidByod, levelName: SENTINEL_CEL_MAP.AUTO_CREATE_ANDROID_BYOD.levelName },
+    { value: "AUTO_CREATE_IOS_BYOD", label: m.accessLevelAutoIosByod, levelName: SENTINEL_CEL_MAP.AUTO_CREATE_IOS_BYOD.levelName },
+  ];
+  // Sentinels that need a manual Admin Console CEL walkthrough when no Cloud
+  // project is available to create them through the API.
+  const manualCelLevels = selectedAccessLevels.filter((level) => SENTINEL_CEL_MAP[level] !== undefined);
 
   const [assigningLicenses, setAssigningLicenses] = useState<boolean>(false);
   const [licenseResult, setLicenseResult] = useState<CepLicenseAssignResult | null>(null);
@@ -378,6 +514,16 @@ export function CepDeployerPage({
 
   // Progress indicators for long-running operations
   const [deployStep, setDeployStep] = useState<number>(0);
+  /** What the running deploy does; picks the progress-step labels. */
+  const [deployMode, setDeployMode] = useState<"policies" | "dlp" | "both">("policies");
+  /** Whether the last deploy registered DLP rules; gates the Quick Test bar. */
+  const [lastDeployIncludedDlp, setLastDeployIncludedDlp] = useState<boolean>(false);
+  const deployStepLabels: string[] =
+    deployMode === "dlp"
+      ? [m.deployStep1, m.deployStep2Dlp, m.deployStep3Dlp, m.deployStep4]
+      : deployMode === "both"
+        ? [m.deployStep1, m.deployStep2Both, m.deployStep3Dlp, m.deployStep4]
+        : [m.deployStep1, m.deployStep2Policies, m.deployStep3Policies, m.deployStep4];
   const [rollbackStep, setRollbackStep] = useState<number>(0);
   const [roleStep, setRoleStep] = useState<number>(0);
   const [licenseStep, setLicenseStep] = useState<number>(0);
@@ -494,9 +640,19 @@ gcloud access-context-manager cloud-bindings create \\
   --binding-file="ge-rca.yaml"`;
 
   const [assessmentModalOpen, setAssessmentModalOpen] = useState<boolean>(false);
+  const [ceraImportModalOpen, setCeraImportModalOpen] = useState<boolean>(false);
   const [assessmentAppliedNotice, setAssessmentAppliedNotice] = useState<string>("");
 
+  useEffect(() => {
+    const g = globalThis as Record<string, unknown>;
+    if (g.__SGS_OPEN_CERA_IMPORT === true) {
+      g.__SGS_OPEN_CERA_IMPORT = false;
+      setCeraImportModalOpen(true);
+    }
+  }, []);
+
   const handleApplyRecommendation = (config: RecommendedPolicyConfig) => {
+    setActivePresets([]);
     setModules((prev) => ({
       ...prev,
       corePolicies: config.corePolicies,
@@ -506,13 +662,33 @@ gcloud access-context-manager cloud-bindings create \\
       dlpRules: config.dlpRules,
       dataBoundaryMode: config.dataBoundaryMode,
     }));
+    setExtraAccessLevels([]);
     setDlpMatrix(config.dlpMatrix);
     setAutoSubOus(config.autoSubOus);
     setGeminiEnforceAccessLevel(config.geminiEnforceAccessLevel);
     setGeminiEnforcePerimeter(config.geminiEnforcePerimeter);
     if (config.internalUrls) setInternalUrls(config.internalUrls);
     if (config.dlpCustomMessage) setDlpCustomMessage(config.dlpCustomMessage);
-    setAssessmentAppliedNotice(m.assessAppliedBanner);
+    if (config.allowedDomains && config.allowedDomains.length > 0) {
+      setAllowedDomainsText(config.allowedDomains.join("\n"));
+    }
+    if (config.targetOuName && organizationalUnits.length > 0) {
+      const normalizedTarget = config.targetOuName.trim().replace(/^\/+/, "").toLowerCase();
+      const targetLeaf = normalizedTarget.split("/").filter(Boolean).pop() || "";
+      const matched = organizationalUnits.find((ou) => {
+        const labelNorm = ou.label.trim().replace(/^\/+/, "").toLowerCase();
+        const labelLeaf = labelNorm.split("/").filter(Boolean).pop() || "";
+        return (
+          (normalizedTarget !== "" && labelNorm === normalizedTarget) ||
+          (targetLeaf !== "" && labelLeaf === targetLeaf)
+        );
+      });
+      if (matched) {
+        setTargetType("ou");
+        setSelectedOu(matched.value);
+      }
+    }
+    setAssessmentAppliedNotice(config.appliedBannerMessage || m.assessAppliedBanner);
     setTimeout(() => setAssessmentAppliedNotice(""), 6000);
     setActiveTab("all");
   };
@@ -522,8 +698,9 @@ gcloud access-context-manager cloud-bindings create \\
     if (!requestedPreset) return;
     const name = requestedPreset.name;
     if (!(name in PRESETS)) return;
-    setActivePreset(name);
+    setActivePresets([name]);
     setModules(PRESETS[name]);
+    setExtraAccessLevels([]);
     setDlpMatrix(PRESET_MATRICES[name]);
     setActiveTab("all");
     const presetLabels: Record<PresetName, string> = {
@@ -830,7 +1007,7 @@ gcloud access-context-manager cloud-bindings create \\
     modules.corePolicies ||
     modules.forceExtensions ||
     modules.connectors ||
-    modules.accessLevel !== ACCESS_LEVEL_NONE ||
+    selectedAccessLevels.length > 0 ||
     modules.dataBoundaryMode !== "none" ||
     httpHeaderRules.length > 0;
   const isRuleRowActive = (ruleId: string, row: CepDlpMatrixRuleConfig | undefined): boolean => {
@@ -859,6 +1036,9 @@ gcloud access-context-manager cloud-bindings create \\
       return row.byodOnly === true || (row.deviceScope !== undefined && row.deviceScope !== "all");
     });
   });
+  const forceExtensionsRequired =
+    selectedAccessLevels.length > 0 ||
+    (activeTab !== "setup" && modules.dlpRules && anyDlpRuleActive);
   const anyModuleSelected =
     activeTab === "setup"
       ? anyStep1ModuleSelected
@@ -872,9 +1052,48 @@ gcloud access-context-manager cloud-bindings create \\
     anyModuleSelected &&
     busy === null;
 
+  function togglePreset(name: PresetName) {
+    let next: PresetName[];
+    if (activePresets.includes(name)) {
+      next = activePresets.length > 1 ? activePresets.filter((item) => item !== name) : [name];
+    } else if (name === "full" || name === "audit") {
+      next = [name];
+    } else if (activePresets.length === 1 && activePresets[0] === "full") {
+      next = [name];
+    } else {
+      next = [...activePresets.filter((item) => item !== "full"), name];
+    }
+    const merged = mergePresets(next);
+    setActivePresets(next);
+    setModules(merged.modules);
+    setExtraAccessLevels([]);
+    setDlpMatrix(merged.matrix);
+  }
+
   function update<K extends keyof ModuleState>(key: K, value: ModuleState[K]) {
-    setActivePreset(null);
-    setModules((current) => ({ ...current, [key]: value }));
+    if (key === "forceExtensions" && value === false && forceExtensionsRequired) {
+      return;
+    }
+    setActivePresets([]);
+    setModules((current) => ({
+      ...current,
+      [key]: value,
+      ...(key === "dlpRules" && value === true ? { forceExtensions: true } : {}),
+    }));
+  }
+
+  /** Tick or untick one access level; the first ticked level stays primary. */
+  function toggleAccessLevel(value: string, checked: boolean) {
+    const next = checked
+      ? orderedAccessLevels([...selectedAccessLevels, value])
+      : selectedAccessLevels.filter((level) => level !== value);
+    setActivePresets([]);
+    setModules((current) => ({
+      ...current,
+      accessLevel: next[0] ?? ACCESS_LEVEL_NONE,
+      ...(next.length > 0 ? { forceExtensions: true } : {}),
+    }));
+    setExtraAccessLevels(next.slice(1));
   }
 
   function addSaasHeaderPreset(preset: SaasHeaderPreset) {
@@ -957,17 +1176,34 @@ gcloud access-context-manager cloud-bindings create \\
     const isDlpOnly = !forceAll && activeTab === "dlp";
     const resolvedAccessLevel = isDlpOnly
       ? dlpNeedsAccessLevel
-        ? modules.accessLevel !== ACCESS_LEVEL_NONE
-          ? modules.accessLevel
+        ? primaryAccessLevel !== ACCESS_LEVEL_NONE
+          ? primaryAccessLevel
           : effectiveProjectId !== ""
             ? "AUTO_CREATE_CORP_OWNED"
             : ACCESS_LEVEL_NONE
         : ACCESS_LEVEL_NONE
-      : modules.accessLevel !== ACCESS_LEVEL_NONE
-        ? modules.accessLevel
+      : primaryAccessLevel !== ACCESS_LEVEL_NONE
+        ? primaryAccessLevel
         : forceAll && dlpNeedsAccessLevel && effectiveProjectId !== ""
           ? "AUTO_CREATE_CORP_OWNED"
-          : modules.accessLevel;
+          : primaryAccessLevel;
+    // The DLP-only tab binds rules to the primary level alone; the setup and
+    // "all" tabs also create or verify every additional ticked level.
+    const resolvedAccessLevels =
+      !isDlpOnly && selectedAccessLevels.length > 0 ? selectedAccessLevels : undefined;
+    const effectiveDlpRules = isSetupOnly
+      ? false
+      : isDlpOnly
+        ? true
+        : forceAll
+          ? modules.dlpRules || anyDlpRuleActive
+          : modules.dlpRules;
+    // Endpoint Verification is mandatory whenever creating CEL access levels
+    // or applying Chrome DLP rules so desktop Chrome reports device posture.
+    const creatingCelOrSettingDlp =
+      resolvedAccessLevel !== ACCESS_LEVEL_NONE ||
+      (resolvedAccessLevels !== undefined && resolvedAccessLevels.length > 0) ||
+      (effectiveDlpRules && anyDlpRuleActive);
     return {
       customer_id: canonicalCustomerId,
       project_id: effectiveProjectId,
@@ -979,17 +1215,16 @@ gcloud access-context-manager cloud-bindings create \\
       target_group_confirmation: targetType === "group" ? targetGroupConfirmation.trim() : undefined,
       create_sub_ous: isDlpOnly || targetType === "group" ? false : autoSubOus,
       core_policies: isDlpOnly ? false : modules.corePolicies,
-      force_extensions: isDlpOnly ? false : modules.forceExtensions,
+      force_extensions: creatingCelOrSettingDlp
+        ? true
+        : isDlpOnly
+          ? false
+          : modules.forceExtensions,
       connectors: isDlpOnly ? false : modules.connectors,
       access_level: resolvedAccessLevel,
+      access_levels: resolvedAccessLevels,
       dlp_detectors: false,
-      dlp_rules: isSetupOnly
-        ? false
-        : isDlpOnly
-          ? true
-          : forceAll
-            ? modules.dlpRules || anyDlpRuleActive
-            : modules.dlpRules,
+      dlp_rules: effectiveDlpRules,
       dlp_region: modules.dlpRegion,
       dlp_matrix: dlpMatrix,
       dlp_custom_message: dlpCustomMessage,
@@ -1052,6 +1287,18 @@ gcloud access-context-manager cloud-bindings create \\
 
   const runDeployWithConfig = async (config: CepProvisionConfig) => {
     if (busy !== null || canonicalCustomerId === "" || !targetConfirmed) return;
+    // The progress steps and the post-deploy Quick Test bar describe what this
+    // run actually does: Section 1 applies Chrome policies only, Section 2
+    // registers DLP rules only, Apply All does both.
+    const includesDlp = config.dlp_rules === true;
+    const includesPolicies =
+      config.core_policies === true ||
+      (!includesDlp && config.force_extensions === true) ||
+      config.connectors === true ||
+      (config.data_boundary_mode !== undefined && config.data_boundary_mode !== "none") ||
+      (config.http_header_rules?.length ?? 0) > 0;
+    setDeployMode(includesDlp ? (includesPolicies ? "both" : "dlp") : "policies");
+    setLastDeployIncludedDlp(includesDlp);
     setLastAction("deploy");
     setBusy("deploy");
     setDeployStep(1);
@@ -1103,7 +1350,8 @@ gcloud access-context-manager cloud-bindings create \\
         target_group_confirmation: targetType === "group" ? targetGroupConfirmation.trim() : undefined,
         rollback_modules: activeTab === "dlp" ? ["dlpRules"] : undefined,
         delete_dlp_rules: true,
-        access_level: modules.accessLevel,
+        access_level: primaryAccessLevel,
+        access_levels: selectedAccessLevels.length > 0 ? selectedAccessLevels : undefined,
       });
       clearTimeout(t1);
       clearTimeout(t2);
@@ -1235,7 +1483,7 @@ gcloud access-context-manager cloud-bindings create \\
         </div>
       </header>
 
-            <div className="cep-assessment-banner">
+      <div className="cep-assessment-banner">
         <div className="cep-assessment-banner-text">
           <h2>
             <SparklesIcon size={20} />
@@ -1243,14 +1491,24 @@ gcloud access-context-manager cloud-bindings create \\
           </h2>
           <p>{m.assessModalSubtitle}</p>
         </div>
-        <button
-          className="btn btn-primary"
-          onClick={() => setAssessmentModalOpen(true)}
-          type="button"
-        >
-          <SparklesIcon size={16} />
-          <span>{m.assessOpenBtn}</span>
-        </button>
+        <div className="cep-assessment-banner-actions">
+          <button
+            className="btn btn-secondary"
+            id="btn-open-cera-import"
+            onClick={() => setCeraImportModalOpen(true)}
+            type="button"
+          >
+            <span>{m.ceraImportBannerBtn}</span>
+          </button>
+          <button
+            className="btn btn-primary"
+            onClick={() => setAssessmentModalOpen(true)}
+            type="button"
+          >
+            <SparklesIcon size={16} />
+            <span>{m.assessOpenBtn}</span>
+          </button>
+        </div>
       </div>
 
       {assessmentAppliedNotice !== "" && (
@@ -1649,16 +1907,12 @@ gcloud access-context-manager cloud-bindings create \\
         <p>{m.presetsSubtitle}</p>
         <div className="cep-preset-grid">
           {presets.map((preset) => {
-            const isActive = activePreset === preset.name;
+            const isActive = activePresets.includes(preset.name);
             return (
               <button
                 className={`cep-preset ${isActive ? "active" : ""}`}
                 key={preset.name}
-                onClick={() => {
-                  setActivePreset(preset.name);
-                  setModules(PRESETS[preset.name]);
-                  setDlpMatrix(PRESET_MATRICES[preset.name]);
-                }}
+                onClick={() => togglePreset(preset.name)}
                 type="button"
                 aria-pressed={isActive}
               >
@@ -1683,27 +1937,35 @@ gcloud access-context-manager cloud-bindings create \\
         <p>{m.modulesSubtitle}</p>
 
         <div className="cep-module-list">
-          {moduleToggles.map((module) => (
-            <label
-              className={`cep-check cep-module ${
-                module.key === "dlpRules" && activeTab === "setup" ? "cep-tab-panel hidden" : ""
-              }`}
-              key={module.key}
-            >
-              <input
-                checked={modules[module.key]}
-                onChange={(event) => update(module.key, event.target.checked)}
-                type="checkbox"
-              />
-              <span>
-                <strong>
-                  {module.label}
-                  {module.beta === true && <em className="cep-badge">{m.betaBadge}</em>}
-                </strong>
-                <small>{module.description}</small>
-              </span>
-            </label>
-          ))}
+          {moduleToggles.map((module) => {
+            const isLockedForceExtensions =
+              module.key === "forceExtensions" && forceExtensionsRequired;
+            return (
+              <label
+                className={`cep-check cep-module ${
+                  module.key === "dlpRules" && activeTab === "setup" ? "cep-tab-panel hidden" : ""
+                }`}
+                key={module.key}
+              >
+                <input
+                  checked={isLockedForceExtensions ? true : modules[module.key]}
+                  disabled={isLockedForceExtensions}
+                  onChange={(event) => update(module.key, event.target.checked)}
+                  type="checkbox"
+                />
+                <span>
+                  <strong>
+                    {module.label}
+                    {module.beta === true && <em className="cep-badge">{m.betaBadge}</em>}
+                    {isLockedForceExtensions && (
+                      <em className="cep-badge">{m.forceExtensionsMandatoryBadge}</em>
+                    )}
+                  </strong>
+                  <small>{module.description}</small>
+                </span>
+              </label>
+            );
+          })}
         </div>
         {anyDlpSelected && activeTab === "all" && <p className="cep-inline-note">{m.dlpBetaNote}</p>}
 
@@ -1717,36 +1979,74 @@ gcloud access-context-manager cloud-bindings create \\
             {m.dlpMatrixCustomizeSuffix}
           </p>
         </div>
-        <fieldset className="cep-fieldset">
-          <legend className="sr-only">{m.accessLevelTitle}</legend>
-          <div className="cep-field">
-            <label htmlFor="cep-access-level">{m.accessLevelTitle}</label>
-            <select
-              id="cep-access-level"
-              onChange={(event) => update("accessLevel", event.target.value)}
-              value={modules.accessLevel}
-            >
-              <option value={ACCESS_LEVEL_NONE}>{m.accessLevelNone}</option>
-              <option value="AUTO_CREATE_CHROME_ANY">{m.accessLevelAutoAny}</option>
-              <option value="AUTO_CREATE_PROFILE_MANAGED">{m.accessLevelAutoProfile}</option>
-              <option value="AUTO_CREATE_BROWSER_MANAGED">{m.accessLevelAutoBrowser}</option>
-              <option value="AUTO_CREATE_CORP_OWNED">{m.accessLevelAutoCorpOwned}</option>
-              <option value="AUTO_CREATE_BYOD">{m.accessLevelAutoByod}</option>
-              <option value="AUTO_CREATE_ANDROID_BYOD">{m.accessLevelAutoAndroidByod}</option>
-              <option value="AUTO_CREATE_IOS_BYOD">{m.accessLevelAutoIosByod}</option>
-              {accessLevels.length > 0 && (
-                <optgroup label={m.accessLevelExistingGroup}>
-                  {accessLevels.map((level) => (
-                    <option key={level.value} value={level.value}>
-                      {level.label}
-                    </option>
-                  ))}
-                </optgroup>
-              )}
-            </select>
-            <small>{m.accessLevelHint}</small>
+        <fieldset className="cep-fieldset cep-access-level-fieldset">
+          <legend>{m.accessLevelTitle}</legend>
+          <p className="cep-inline-note">{m.accessLevelMultiHint}</p>
+          <div className="cep-module-list cep-access-level-list">
+            {accessLevelOptions.map((option) => {
+              const checked = selectedAccessLevels.includes(option.value);
+              const isPrimary = checked && primaryAccessLevel === option.value;
+              return (
+                <label className="cep-check cep-module" key={option.value}>
+                  <input
+                    checked={checked}
+                    data-access-level={option.value}
+                    onChange={(event) => toggleAccessLevel(option.value, event.target.checked)}
+                    type="checkbox"
+                  />
+                  <span>
+                    <strong>
+                      {option.label}
+                      {isPrimary && selectedAccessLevels.length > 1 && (
+                        <em className="cep-badge">{m.accessLevelPrimaryBadge}</em>
+                      )}
+                    </strong>
+                    <small>
+                      <code>{option.levelName}</code>
+                    </small>
+                  </span>
+                </label>
+              );
+            })}
           </div>
-          {effectiveProjectId === "" && SENTINEL_CEL_MAP[modules.accessLevel] !== undefined && (
+          {accessLevels.length > 0 && (
+            <div className="cep-access-level-existing">
+              <strong className="cep-access-level-group-title">{m.accessLevelExistingGroup}</strong>
+              <div className="cep-module-list cep-access-level-list">
+                {accessLevels.map((level) => {
+                  const checked = selectedAccessLevels.includes(level.value);
+                  const isPrimary = checked && primaryAccessLevel === level.value;
+                  return (
+                    <label className="cep-check cep-module" key={level.value}>
+                      <input
+                        checked={checked}
+                        data-access-level={level.value}
+                        onChange={(event) => toggleAccessLevel(level.value, event.target.checked)}
+                        type="checkbox"
+                      />
+                      <span>
+                        <strong>
+                          {level.label}
+                          {isPrimary && selectedAccessLevels.length > 1 && (
+                            <em className="cep-badge">{m.accessLevelPrimaryBadge}</em>
+                          )}
+                        </strong>
+                        <small>
+                          <code>{level.value}</code>
+                        </small>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          <p className="cep-access-level-summary" role="status">
+            {selectedAccessLevels.length === 0
+              ? `${m.accessLevelNone} · ${m.accessLevelNoneDesc}`
+              : m.accessLevelSelectedCount(selectedAccessLevels.length)}
+          </p>
+          {effectiveProjectId === "" && manualCelLevels.length > 0 && (
             <div className="cep-manual-cel-card" role="region" aria-label={m.manualCelGuideTitle}>
               <div className="cep-manual-cel-head">
                 <h4>📋 {m.manualCelGuideTitle}</h4>
@@ -1767,36 +2067,34 @@ gcloud access-context-manager cloud-bindings create \\
                 </div>
               </div>
               <div className="cep-manual-cel-list">
-                <div className="cep-manual-cel-item">
-                  <div className="cep-manual-cel-item-header">
-                    <strong>{m.accessLevelTitle}</strong>
-                    <code className="cep-manual-cel-level-badge">
-                      {SENTINEL_CEL_MAP[modules.accessLevel].levelName}
-                    </code>
-                  </div>
-                  <div className="cep-manual-cel-code-block">
-                    <div className="cep-manual-cel-code-label">
-                      <span>{m.manualCelAccessLevelExprCol}</span>
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        onClick={() =>
-                          handleCopy(
-                            SENTINEL_CEL_MAP[modules.accessLevel].accessLevelCel,
-                            `setup-cel-${modules.accessLevel}`,
-                          )
-                        }
-                        type="button"
-                      >
-                        {copiedSnippet === `setup-cel-${modules.accessLevel}`
-                          ? m.manualCelCopiedBtn
-                          : m.manualCelCopyBtn}
-                      </button>
+                {manualCelLevels.map((sentinel) => {
+                  const cel = SENTINEL_CEL_MAP[sentinel];
+                  return (
+                    <div className="cep-manual-cel-item" key={sentinel}>
+                      <div className="cep-manual-cel-item-header">
+                        <strong>{m.accessLevelTitle}</strong>
+                        <code className="cep-manual-cel-level-badge">{cel.levelName}</code>
+                      </div>
+                      <div className="cep-manual-cel-code-block">
+                        <div className="cep-manual-cel-code-label">
+                          <span>{m.manualCelAccessLevelExprCol}</span>
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => handleCopy(cel.accessLevelCel, `setup-cel-${sentinel}`)}
+                            type="button"
+                          >
+                            {copiedSnippet === `setup-cel-${sentinel}`
+                              ? m.manualCelCopiedBtn
+                              : m.manualCelCopyBtn}
+                          </button>
+                        </div>
+                        <pre className="cep-manual-cel-pre">
+                          <code>{cel.accessLevelCel}</code>
+                        </pre>
+                      </div>
                     </div>
-                    <pre className="cep-manual-cel-pre">
-                      <code>{SENTINEL_CEL_MAP[modules.accessLevel].accessLevelCel}</code>
-                    </pre>
-                  </div>
-                </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -2177,8 +2475,8 @@ gcloud access-context-manager cloud-bindings create \\
             onChange={setDlpMatrix}
             onCustomMessageChange={setDlpCustomMessage}
             onEnsureAccessLevel={(sentinel) => {
-              if (modules.accessLevel === ACCESS_LEVEL_NONE && effectiveProjectId !== "") {
-                update("accessLevel", sentinel);
+              if (selectedAccessLevels.length === 0 && effectiveProjectId !== "") {
+                toggleAccessLevel(sentinel, true);
               }
             }}
             onRegionChange={(reg) => update("dlpRegion", reg)}
@@ -2757,18 +3055,21 @@ gcloud access-context-manager cloud-bindings create \\
             </div>
             <progress className="cep-progress-bar-el" max={100} value={deployStep * 25} />
             <div className="cep-progress-steps">
-              <span className={`cep-progress-step-item ${deployStep >= 1 ? (deployStep > 1 ? "done" : "active") : "pending"}`}>
-                {deployStep > 1 ? "✓ " : "• "}{m.deployStep1}
-              </span>
-              <span className={`cep-progress-step-item ${deployStep >= 2 ? (deployStep > 2 ? "done" : "active") : "pending"}`}>
-                {deployStep > 2 ? "✓ " : "• "}{m.deployStep2}
-              </span>
-              <span className={`cep-progress-step-item ${deployStep >= 3 ? (deployStep > 3 ? "done" : "active") : "pending"}`}>
-                {deployStep > 3 ? "✓ " : "• "}{m.deployStep3}
-              </span>
-              <span className={`cep-progress-step-item ${deployStep >= 4 ? "done" : "pending"}`}>
-                {deployStep >= 4 ? "✓ " : "• "}{m.deployStep4}
-              </span>
+              {deployStepLabels.map((label, index) => {
+                const stepNumber = index + 1;
+                const state =
+                  deployStep >= stepNumber
+                    ? deployStep > stepNumber || stepNumber === 4
+                      ? "done"
+                      : "active"
+                    : "pending";
+                return (
+                  <span className={`cep-progress-step-item ${state}`} key={label}>
+                    {state === "done" ? "✓ " : "• "}
+                    {label}
+                  </span>
+                );
+              })}
             </div>
           </div>
         )}
@@ -2804,7 +3105,14 @@ gcloud access-context-manager cloud-bindings create \\
               <CheckCircleIcon size={18} />
               <span>{actionSuccess}</span>
             </p>
-            {activeTab !== "operations" && activeTab !== "all" && (
+            {/* The dummy-data bar only makes sense right after DLP rules were
+                registered; Section 1 (Chrome policies) and rollbacks do not
+                give the operator anything to paste-test yet. The "all" view
+                already shows the full Quick Test section further down. */}
+            {lastAction === "deploy" &&
+              lastDeployIncludedDlp &&
+              activeTab !== "operations" &&
+              activeTab !== "all" && (
               <div className="cep-quick-test-bar" role="region" aria-label={m.quickTestBarTitle}>
                 <strong className="cep-quick-test-title">{m.quickTestBarTitle}</strong>
                 <div className="cep-quick-test-items">
@@ -2887,6 +3195,13 @@ gcloud access-context-manager cloud-bindings create \\
         onClose={() => setAssessmentModalOpen(false)}
         onApplyRecommendation={handleApplyRecommendation}
         messages={messages}
+      />
+      <CeraExportImportModal
+        isOpen={ceraImportModalOpen}
+        onClose={() => setCeraImportModalOpen(false)}
+        onApplyConfig={handleApplyRecommendation}
+        messages={messages}
+        primaryDomain={primaryDomain}
       />
     </main>
   );

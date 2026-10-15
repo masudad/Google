@@ -9,7 +9,7 @@
       },
       {
         "userSymbol": "CloudIdentityGroups",
-        "serviceId": "cloudidentity",
+        "serviceId": "cloud_identity_groups",
         "version": "v1"
       },
       {

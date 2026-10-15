@@ -708,6 +708,57 @@ input:focus-visible + .checkbox-visual {
   font-family: inherit;
 }
 
+/* Connected-account summary inside the Cloud / Workspace popovers. Without
+   these rules the <small> label and the <code>/<strong> value rendered inline
+   ("Active Credentialadmin@example.com"). */
+.identity-popover-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.identity-popover-status > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.identity-popover-status > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.identity-popover-status small {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #15803d;
+}
+
+.identity-popover-status strong {
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--ink-900);
+  overflow-wrap: anywhere;
+}
+
+.identity-popover-status code {
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--ink-800);
+  overflow-wrap: anywhere;
+}
+
 .identity-popover-actions {
   display: flex;
   flex-direction: column;
@@ -5651,6 +5702,53 @@ h1 {
   font-weight: 700;
 }
 
+/* Context-Aware Access level picker: one checkbox per level so several
+   levels can be created in one run. */
+.cep-access-level-fieldset > legend {
+  padding-top: 18px;
+}
+
+.cep-access-level-fieldset > .cep-inline-note {
+  margin: 6px 0 0;
+}
+
+.cep-access-level-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.cep-access-level-list .cep-module {
+  margin-top: 0;
+}
+
+.cep-access-level-list .cep-check small code {
+  font-size: 11.5px;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: #eef2f7;
+  color: var(--ink-700);
+}
+
+.cep-access-level-existing {
+  margin-top: 14px;
+}
+
+.cep-access-level-group-title {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink-700);
+}
+
+.cep-access-level-summary {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-600);
+}
+
 .cep-role-grid {
   margin-top: 16px;
   display: grid;
@@ -10256,3 +10354,228 @@ p.cera-muted {
     transition: none;
   }
 }
+
+.cep-assessment-banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.cera-import-modal {
+  max-width: 960px;
+}
+
+.cera-import-body {
+  padding: 20px 24px 24px;
+  overflow-y: auto;
+  max-height: calc(88vh - 130px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cera-import-sources-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 14px;
+}
+
+.cera-import-source-card {
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid #d7e2ec;
+  background: #f8fbfd;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cera-import-source-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--navy-800);
+}
+
+.cera-import-source-actions,
+.cera-import-sheet-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.cera-hidden-file-input {
+  display: none;
+}
+
+.cera-sheet-input {
+  flex: 1 1 200px;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid #cbd6e2;
+  border-radius: 8px;
+  font-size: 12.5px;
+  color: var(--ink-800);
+  background: #ffffff;
+}
+
+.cera-import-error {
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid #f5c2c7;
+  background: #fff5f5;
+  color: #b42318;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.cera-import-detected-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid #bfe3dd;
+  background: #effaf8;
+  font-size: 12.5px;
+  color: var(--navy-800);
+}
+
+.cera-import-detected-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cera-import-detected-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+}
+
+.cera-import-section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--navy-800);
+  margin-top: 2px;
+}
+
+.cera-import-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.cera-metric-card {
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid #dce5ee;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cera-metric-card.is-detected {
+  border-color: #96d2c9;
+  background: linear-gradient(180deg, #ffffff 0%, #f4fbf9 100%);
+}
+
+.cera-metric-title {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink-600);
+}
+
+.cera-metric-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--navy-900);
+  font-variant-numeric: tabular-nums;
+}
+
+.cera-metric-tags {
+  font-size: 11px;
+  color: var(--ink-600);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cera-import-controls-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid #d7e2ec;
+  background: #f8fafc;
+}
+
+.cera-mode-selector-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.cera-mode-selector-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--navy-800);
+}
+
+.cera-mode-buttons {
+  display: inline-flex;
+  border-radius: 8px;
+  border: 1px solid #cbd6e2;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.cera-mode-btn {
+  padding: 6px 12px;
+  border: none;
+  border-right: 1px solid #e2e8f0;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-700);
+  cursor: pointer;
+}
+
+.cera-mode-btn:last-child {
+  border-right: none;
+}
+
+.cera-mode-btn.is-active {
+  background: var(--teal-600);
+  color: #ffffff;
+}
+
+.cera-ou-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--navy-800);
+  cursor: pointer;
+}
+
+.cera-preview-card {
+  margin-top: 2px;
+}
+
+.cera-preview-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
